@@ -3,7 +3,7 @@ import {
   APIError,
   createPrivyClient,
   fetchAndVerifyAuthorization,
-} from "../../../lib/utils";
+} from "../../../lib/privyUtils";
 import { WalletApiRpcResponseType } from "@privy-io/public-api";
 const client = createPrivyClient();
 
