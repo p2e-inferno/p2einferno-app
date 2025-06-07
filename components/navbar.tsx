@@ -1,200 +1,126 @@
-import Image from "next/image";
-import { useRouter } from "next/router";
-import { Fragment } from "react";
-import { Disclosure, Menu, Transition } from "@headlessui/react";
-import {
-  ChevronDownIcon,
-  Bars3Icon,
-  XMarkIcon,
-  InformationCircleIcon,
-} from "@heroicons/react/24/outline";
-import { Logo } from "./logo";
+import React, { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { Button } from "./ui/button";
+import { Menu, X, Gamepad2, Wallet } from "lucide-react";
+import Link from "next/link";
+import { PrivyConnectButton } from "./PrivyConnectButton";
 
-function classNames(...classes: Array<string | boolean>): string {
-  return classes.filter(Boolean).join(" ");
-}
+export function Navbar() {
+  const { login, authenticated, ready } = usePrivy();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
 
-/**
- * make sure you are passing router.pathname and not
- * router.asPath since we want to have stripped any
- * fragments, query params, or trailing slashes
- */
-const extractTabFromPath = (path: string) => {
-  return path.split("/").pop() as string;
-};
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 10);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
-export type NavbarItem = {
-  id: string;
-  name: string;
-  resource: string;
-};
+  const navItems = [
+    { label: "Features", href: "#features" },
+    { label: "About", href: "#about" },
+    { label: "How It Works", href: "#how-it-works" },
+    { label: "Services", href: "#services" },
+  ];
 
-type NavbarProps = {
-  accountId: string;
-  appName: string;
-  items: Array<NavbarItem>;
-};
+  const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
 
-export default function Navbar({ items, accountId, appName }: NavbarProps) {
-  const router = useRouter();
-  const resourceId = router.query.id;
-  const selected = extractTabFromPath(router.pathname);
+  const renderAuthControls = (isMobile = false) => {
+    // Show loading state if Privy isn't ready yet
+    if (!ready) {
+      return (
+        <div
+          className={`h-10 ${
+            isMobile ? "w-full" : "w-40"
+          } rounded-full bg-white/5 animate-pulse`}
+        />
+      );
+    }
 
-  const selectedItemClass =
-    "hover:cursor-pointer rounded-full bg-gray-900 px-3 py-2 text-lg font-medium text-white";
-  const unselectedItemClass =
-    "hover:cursor-pointer rounded-full px-3 py-2 text-lg font-medium text-gray-300 hover:bg-gray-700 hover:text-white";
+    if (authenticated) {
+      return <PrivyConnectButton />;
+    }
 
-  // Navigate to a resource sub-page:
-  // /apps/:appId/settings
-  // /accounts/:accountId/users
-  const navigateTo = (item: NavbarItem) => {
-    router.push(`/${item.resource}/${resourceId}/${item.id}`);
+    const handleLogin = () => {
+      if (isMobile) {
+        toggleMenu();
+      }
+      login();
+    };
+
+    return (
+      <Button
+        onClick={handleLogin}
+        className={`bg-steel-red hover:bg-steel-red/90 text-white rounded-full ${
+          isMobile ? "w-full" : ""
+        }`}
+      >
+        <Wallet className="mr-2 h-4 w-4" />
+        Connect Wallet
+      </Button>
+    );
   };
 
   return (
-    <Disclosure as="nav" className="bg-gray-800">
-      {({ open }) => (
-        <>
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-4">
-            <div className="flex h-16 items-center justify-between">
-              <div className="flex items-center">
-                <div className="flex-shrink-0">
-                  <div className="block h-8 w-auto lg:hidden mb-2">
-                    <Logo />
-                  </div>
-                  <div className="hidden h-8 w-auto lg:block mb-2 hover:cursor-pointer">
-                    <Logo />
-                  </div>
-                </div>
-                <div className="hidden sm:ml-6 sm:block">
-                  <div className="flex space-x-4">
-                    {items ? (
-                      items.map((item) => {
-                        return (
-                          <button
-                            key={item.id}
-                            onClick={() => {
-                              navigateTo(item);
-                            }}
-                            className={
-                              selected === item.id
-                                ? selectedItemClass
-                                : unselectedItemClass
-                            }
-                          >
-                            {item.name}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div></div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="hidden sm:ml-6 sm:block">
-                <div className="flex items-center">
-                  <button
-                    type="button"
-                    className="rounded-full bg-gray-800 p-1 text-gray-400 hover:text-white"
-                  >
-                    <InformationCircleIcon
-                      className="h-6 w-6"
-                      aria-hidden="true"
-                    />
-                  </button>
-                  <p className="text-white">{appName}</p>
+    <nav
+      className={`fixed top-0 w-full z-50 transition-all duration-300 ${
+        isScrolled
+          ? "bg-background/80 backdrop-blur-lg border-b border-border"
+          : "bg-transparent"
+      }`}
+    >
+      <div className="container mx-auto px-4">
+        <div className="flex justify-between items-center h-20">
+          <Link href="/" className="flex items-center space-x-2">
+            <Gamepad2 className="w-8 h-8 text-flame-yellow" />
+            <span className="text-xl font-bold font-heading">P2E INFERNO</span>
+          </Link>
 
-                  {/* Profile dropdown */}
-                  <Menu as="div" className="relative ml-3">
-                    <div className="flex bg-gray-800 rounded-full items-center hover:ring-white hover:ring-2 hover:ring-offset-2 hover:ring-offset-gray-800 hover:outline-none hover:cursor-pointer">
-                      <Menu.Button className="flex rounded-full text-sm">
-                        <span className="sr-only">Open user menu</span>
-                        <div className="h-8 w-8 rounded-full">
-                          <Image
-                            className="h-8 w-8 rounded-full"
-                            src="/images/avatar.png"
-                            alt="avatar placeholder"
-                            height={32}
-                            width={32}
-                          />
-                        </div>
-                      </Menu.Button>
-                      <ChevronDownIcon
-                        className="ml-1 h-4 w-4 text-white"
-                        aria-hidden="true"
-                      />
-                    </div>
-                    <Transition
-                      as={Fragment}
-                      enter="transition ease-out duration-100"
-                      enterFrom="transform opacity-0 scale-95"
-                      enterTo="transform opacity-100 scale-100"
-                      leave="transition ease-in duration-75"
-                      leaveFrom="transform opacity-100 scale-100"
-                      leaveTo="transform opacity-0 scale-95"
-                    >
-                      <Menu.Items className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-md bg-white py-1 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                        <Menu.Item>
-                          {({ active }) => (
-                            <a
-                              href={`/accounts/${accountId}`}
-                              className={classNames(
-                                active ? "bg-gray-100" : "",
-                                "block px-4 py-2 text-sm text-gray-700"
-                              )}
-                            >
-                              Your account
-                            </a>
-                          )}
-                        </Menu.Item>
-                        <Menu.Item>
-                          {({ active }) => (
-                            <a
-                              href="#"
-                              className={classNames(
-                                active ? "bg-gray-100" : "",
-                                "block px-4 py-2 text-sm text-gray-700"
-                              )}
-                            >
-                              Settings
-                            </a>
-                          )}
-                        </Menu.Item>
-                        <Menu.Item>
-                          {({ active }) => (
-                            <a
-                              href="#"
-                              className={classNames(
-                                active ? "bg-gray-100" : "",
-                                "block px-4 py-2 text-sm text-gray-700"
-                              )}
-                            >
-                              Sign out
-                            </a>
-                          )}
-                        </Menu.Item>
-                      </Menu.Items>
-                    </Transition>
-                  </Menu>
-                </div>
-              </div>
-              <div className="-mr-2 flex sm:hidden">
-                {/* Mobile menu button */}
-                <Disclosure.Button className="inline-flex items-center justify-center rounded-md p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
-                  <span className="sr-only">Open main menu</span>
-                  {open ? (
-                    <XMarkIcon className="block h-6 w-6" aria-hidden="true" />
-                  ) : (
-                    <Bars3Icon className="block h-6 w-6" aria-hidden="true" />
-                  )}
-                </Disclosure.Button>
-              </div>
+          <div className="hidden md:flex items-center space-x-8">
+            {navItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className="text-faded-grey hover:text-white transition-colors"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+
+          <div className="hidden md:flex items-center space-x-4">
+            {renderAuthControls()}
+          </div>
+
+          <div className="md:hidden">
+            <button onClick={toggleMenu} className="text-white">
+              {isMenuOpen ? <X size={28} /> : <Menu size={28} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {isMenuOpen && (
+        <div className="md:hidden bg-background/95 backdrop-blur-lg py-4">
+          <div className="container mx-auto px-4 flex flex-col space-y-4">
+            {navItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                onClick={toggleMenu}
+                className="text-faded-grey hover:text-white transition-colors text-center py-2"
+              >
+                {item.label}
+              </Link>
+            ))}
+            <div className="pt-4 border-t border-border flex justify-center">
+              {renderAuthControls(true)}
             </div>
           </div>
-        </>
+        </div>
       )}
-    </Disclosure>
+    </nav>
   );
 }

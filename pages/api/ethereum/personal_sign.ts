@@ -4,7 +4,7 @@ import {
   APIError,
   fetchAndVerifyAuthorization,
   createPrivyClient,
-} from "../../../lib/utils";
+} from "../../../lib/privyUtils";
 
 const client = createPrivyClient();
 

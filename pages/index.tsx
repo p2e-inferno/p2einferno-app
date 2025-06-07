@@ -1,9 +1,13 @@
-import Portal from "../components/graphics/portal";
-import { useLogin } from "@privy-io/react-auth";
-import { PrivyClient } from "@privy-io/server-auth";
 import { GetServerSideProps } from "next";
+import { PrivyClient } from "@privy-io/server-auth";
 import Head from "next/head";
-import { useRouter } from "next/router";
+import { Hero } from "../components/Hero";
+import { HowItWorks } from "../components/HowItWorks";
+import { Features } from "@/components/Features";
+import { About } from "@/components/About";
+import { Services } from "@/components/Services";
+import { Bootcamps } from "@/components/Bootcamps";
+import { MainLayout } from "@/components/layouts/MainLayout";
 
 export const getServerSideProps: GetServerSideProps = async ({ req }) => {
   const cookieAuthToken = req.cookies["privy-token"];
@@ -17,48 +21,36 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
 
   try {
     const claims = await client.verifyAuthToken(cookieAuthToken);
-    // Use this result to pass props to a page for server rendering or to drive redirects!
-    // ref https://nextjs.org/docs/pages/api-reference/functions/get-server-side-props
-    console.log({ claims });
-
-    return {
-      props: {},
-      redirect: { destination: "/dashboard", permanent: false },
-    };
+    // Use claims to pass user data to the page
+    return { props: { userId: claims.userId } };
   } catch (error) {
+    // If the token is invalid, clear the cookie
     return { props: {} };
   }
 };
 
-export default function LoginPage() {
-  const router = useRouter();
-  const { login } = useLogin({
-    onComplete: () => router.push("/dashboard"),
-  });
-
+export default function Home() {
   return (
     <>
       <Head>
-        <title>Login · Privy</title>
+        <title>P2E INFERNO - The Onchain Economy as a Game</title>
+        <meta
+          name="description"
+          content="P2E INFERNO is a blockchain gaming guild that enhances user interactions with blockchain technology through gamification and incentives."
+        />
+        <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <main className="flex min-h-screen min-w-full">
-        <div className="flex bg-privy-light-blue flex-1 p-6 justify-center items-center">
-          <div>
-            <div>
-              <Portal style={{ maxWidth: "100%", height: "auto" }} />
-            </div>
-            <div className="mt-6 flex justify-center text-center">
-              <button
-                className="bg-violet-600 hover:bg-violet-700 py-3 px-6 text-white rounded-lg"
-                onClick={login}
-              >
-                Log in
-              </button>
-            </div>
-          </div>
+      <MainLayout>
+        <div className="bg-background">
+          <Hero />
+          <About />
+          <Bootcamps />
+          <Features />
+          <HowItWorks />
+          <Services />
         </div>
-      </main>
+      </MainLayout>
     </>
   );
 }

@@ -1,0 +1,90 @@
+import React, { useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import {
+  CustomDropdown,
+  CustomDropdownItem,
+  CustomDropdownLabel,
+  CustomDropdownSeparator,
+} from "./CustomDropdown";
+import { Button } from "./ui/button";
+import { User, LogOut, Copy, Mail, ExternalLink } from "lucide-react";
+
+const Avatar = ({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) => (
+  <div
+    className={`relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full items-center justify-center bg-muted ${className}`}
+  >
+    {children}
+  </div>
+);
+
+export function PrivyConnectButton() {
+  const { user, logout, linkEmail, linkFarcaster } = usePrivy();
+  const [copied, setCopied] = useState(false);
+
+  if (!user) return null;
+
+  const walletAddress = user.wallet?.address;
+  const shortAddress = walletAddress
+    ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(
+        walletAddress.length - 4
+      )}`
+    : "No wallet";
+
+  const copyAddress = () => {
+    if (walletAddress) {
+      navigator.clipboard.writeText(walletAddress);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const trigger = (
+    <div className="relative h-10 w-auto pl-2 pr-4 rounded-full flex items-center space-x-2 hover:bg-accent transition-colors">
+      <Avatar>
+        <User className="h-5 w-5 text-faded-grey" />
+      </Avatar>
+      <span className="text-sm font-medium">{shortAddress}</span>
+    </div>
+  );
+
+  return (
+    <CustomDropdown trigger={trigger} align="end">
+      <CustomDropdownLabel>
+        <div className="flex flex-col space-y-1">
+          <p className="text-sm font-medium leading-none">My Wallet</p>
+          <p className="text-xs leading-none text-muted-foreground">
+            {shortAddress}
+          </p>
+        </div>
+      </CustomDropdownLabel>
+      <CustomDropdownItem onClick={copyAddress}>
+        <Copy className="mr-2 h-4 w-4" />
+        <span>{copied ? "Copied!" : "Copy Address"}</span>
+      </CustomDropdownItem>
+      <CustomDropdownSeparator />
+      {!user.email && (
+        <CustomDropdownItem onClick={linkEmail}>
+          <Mail className="mr-2 h-4 w-4" />
+          <span>Link Email</span>
+        </CustomDropdownItem>
+      )}
+      {!user.farcaster && (
+        <CustomDropdownItem onClick={linkFarcaster}>
+          <ExternalLink className="mr-2 h-4 w-4" />
+          <span>Link Farcaster</span>
+        </CustomDropdownItem>
+      )}
+      <CustomDropdownSeparator />
+      <CustomDropdownItem onClick={logout}>
+        <LogOut className="mr-2 h-4 w-4" />
+        <span>Log out</span>
+      </CustomDropdownItem>
+    </CustomDropdown>
+  );
+}
