@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useSessionSigners, WalletWithMetadata } from "@privy-io/react-auth";
-import { useMessageSigning } from "../hooks/useMessageSigning";
+import { useMessageSigning } from "@/hooks/useMessageSigning";
 
 const SESSION_SIGNER_ID = process.env.NEXT_PUBLIC_SESSION_SIGNER_ID;
 

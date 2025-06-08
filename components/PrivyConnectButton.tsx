@@ -6,7 +6,6 @@ import {
   CustomDropdownLabel,
   CustomDropdownSeparator,
 } from "./CustomDropdown";
-import { Button } from "./ui/button";
 import {
   User,
   LogOut,

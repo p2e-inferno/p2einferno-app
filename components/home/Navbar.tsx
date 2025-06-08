@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { Button } from "../ui/button";
+import { Button } from "@/components/ui/button";
 import { Menu, X, Gamepad2, Wallet } from "lucide-react";
 import Link from "next/link";
 import { PrivyConnectButton } from "../PrivyConnectButton";

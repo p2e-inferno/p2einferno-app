@@ -1,5 +1,5 @@
 import React from "react";
-import { formatCurrency } from "../../lib/bootcamp-data";
+import { formatCurrency } from "@/lib/bootcamp-data";
 import type { OrderSummaryProps } from "./types";
 
 /**

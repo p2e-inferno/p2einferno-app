@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useCallback } from "react";
 
 /**
  * Hook to prevent layout shifts when modals hide scrollbars
@@ -10,7 +10,7 @@ export function useScrollbarFix() {
     const outer = document.createElement("div");
     outer.style.visibility = "hidden";
     outer.style.overflow = "scroll";
-    outer.style.msOverflowStyle = "scrollbar"; // needed for WinJS apps
+    (outer.style as any).msOverflowStyle = "scrollbar"; // needed for WinJS apps
     document.body.appendChild(outer);
 
     const inner = document.createElement("div");

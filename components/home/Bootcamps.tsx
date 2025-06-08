@@ -1,12 +1,17 @@
 import React from "react";
-import { Button } from "./ui/button";
-import { Card, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 import {
   infernalSparksProgram,
   currentCohort,
   formatCurrency,
   calculateTimeRemaining,
-} from "../lib/bootcamp-data";
+} from "@/lib/bootcamp-data";
 import {
   Clock,
   Users,

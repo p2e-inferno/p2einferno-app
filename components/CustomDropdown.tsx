@@ -1,13 +1,18 @@
-import React, { useState, useRef, useEffect, ReactNode } from 'react';
+import React, { useState, useRef, useEffect, ReactNode } from "react";
 
 interface CustomDropdownProps {
   trigger: ReactNode;
   children: ReactNode;
   contentClassName?: string;
-  align?: 'end' | 'start';
+  align?: "end" | "start";
 }
 
-export function CustomDropdown({ trigger, children, contentClassName = '', align = 'end' }: CustomDropdownProps) {
+export function CustomDropdown({
+  trigger,
+  children,
+  contentClassName = "",
+  align = "end",
+}: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -18,18 +23,21 @@ export function CustomDropdown({ trigger, children, contentClassName = '', align
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  const alignmentClass = align === 'end' ? 'right-0' : 'left-0';
+  const alignmentClass = align === "end" ? "right-0" : "left-0";
 
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
@@ -54,34 +62,48 @@ export function CustomDropdown({ trigger, children, contentClassName = '', align
 }
 
 interface CustomDropdownItemProps {
-    children: ReactNode;
-    onClick?: (event: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => void;
+  children: ReactNode;
+  onClick?: (event: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => void;
+  disabled?: boolean;
 }
 
-export const CustomDropdownItem = ({ children, onClick }: CustomDropdownItemProps) => {
-    const handleClick = (event: React.MouseEvent<HTMLAnchorElement, MouseEvent>) => {
-        event.preventDefault();
-        if (onClick) {
-            onClick(event);
-        }
-    };
+export const CustomDropdownItem = ({
+  children,
+  onClick,
+  disabled = false,
+}: CustomDropdownItemProps) => {
+  const handleClick = (
+    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>
+  ) => {
+    event.preventDefault();
+    if (!disabled && onClick) {
+      onClick(event);
+    }
+  };
 
-    return (
-        <a
-            href="#"
-            onClick={handleClick}
-            className="text-foreground flex items-center w-full px-4 py-2 text-sm hover:bg-accent"
-            role="menuitem"
-        >
-            {children}
-        </a>
-    )
-}
+  return (
+    <a
+      href="#"
+      onClick={handleClick}
+      className={`text-foreground flex items-center w-full px-4 py-2 text-sm ${
+        disabled
+          ? "opacity-50 cursor-not-allowed"
+          : "hover:bg-accent cursor-pointer"
+      }`}
+      role="menuitem"
+      aria-disabled={disabled}
+    >
+      {children}
+    </a>
+  );
+};
 
 export const CustomDropdownSeparator = () => {
-    return <hr className="border-border/50 my-1" />;
-}
+  return <hr className="border-border/50 my-1" />;
+};
 
-export const CustomDropdownLabel = ({children}: {children: ReactNode}) => {
-    return <div className="px-4 py-2 text-sm text-muted-foreground">{children}</div>
-} 
+export const CustomDropdownLabel = ({ children }: { children: ReactNode }) => {
+  return (
+    <div className="px-4 py-2 text-sm text-muted-foreground">{children}</div>
+  );
+};

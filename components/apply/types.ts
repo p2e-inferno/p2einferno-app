@@ -1,5 +1,3 @@
-import { ReactNode } from "react";
-
 /**
  * Interface for bootcamp data used across apply components
  */

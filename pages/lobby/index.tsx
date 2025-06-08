@@ -24,7 +24,7 @@ import {
  */
 export default function LobbyPage() {
   const router = useRouter();
-  const { ready, authenticated, user } = usePrivy();
+  const { ready, authenticated } = usePrivy();
   const {
     data: dashboardData,
     loading,
@@ -38,7 +38,7 @@ export default function LobbyPage() {
     }
   }, [ready, authenticated, router]);
 
-  const handleCompletePayment = async (applicationId: string) => {
+  const handleCompletePayment = async (_applicationId: string) => {
     toast.success("Redirecting to payment portal...");
     // TODO: Implement payment completion flow
   };

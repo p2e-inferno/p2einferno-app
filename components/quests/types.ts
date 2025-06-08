@@ -1,4 +1,12 @@
-import { ReactNode } from "react";
+export interface UserTaskCompletion {
+  id: string;
+  user_id: string;
+  quest_id: string;
+  task_id: string;
+  verification_data: any;
+  reward_claimed: boolean;
+  completed_at: string;
+}
 
 export interface Quest {
   id: string;
@@ -67,7 +75,7 @@ export interface TaskCardProps {
 export interface QuestListProps {
   quests: Quest[];
   userProgress: UserQuestProgress[];
-  completedTasks: any[];
+  completedTasks: UserTaskCompletion[];
   loading: boolean;
   error: string | null;
   getQuestCompletionPercentage: (quest: Quest) => number;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Flame, Coins, ChevronRight, Sparkles } from "lucide-react";
+import { Coins, ChevronRight, Sparkles } from "lucide-react";
 import { QuestCardProps } from "./types";
 
 /**
