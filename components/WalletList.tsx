@@ -1,57 +1,13 @@
-import {
-  useCreateWallet,
-  useSolanaWallets,
-  WalletWithMetadata,
-  useUser,
-} from "@privy-io/react-auth";
-import { useCallback, useMemo, useState } from "react";
+import { useWalletManagement } from "../hooks/useWalletManagement";
 import WalletCard from "./WalletCard";
 
 export default function WalletList() {
-  const { user } = useUser();
-  const { createWallet: createEthereumWallet } = useCreateWallet();
-  const { createWallet: createSolanaWallet } = useSolanaWallets();
-  const [isCreating, setIsCreating] = useState(false);
-
-  const ethereumEmbeddedWallets = useMemo<WalletWithMetadata[]>(
-    () =>
-      (user?.linkedAccounts.filter(
-        (account) =>
-          account.type === "wallet" &&
-          account.walletClientType === "privy" &&
-          account.chainType === "ethereum"
-      ) as WalletWithMetadata[]) ?? [],
-    [user]
-  );
-
-  const solanaEmbeddedWallets = useMemo<WalletWithMetadata[]>(
-    () =>
-      (user?.linkedAccounts.filter(
-        (account) =>
-          account.type === "wallet" &&
-          account.walletClientType === "privy" &&
-          account.chainType === "solana"
-      ) as WalletWithMetadata[]) ?? [],
-    [user]
-  );
-
-  const handleCreateWallet = useCallback(
-    async (type: "ethereum" | "solana") => {
-      setIsCreating(true);
-      try {
-        if (type === "ethereum") {
-          await createEthereumWallet();
-        } else if (type === "solana") {
-          await createSolanaWallet();
-        }
-      } catch (error) {
-        console.error("Error creating wallet:", error);
-      } finally {
-        setIsCreating(false);
-      }
-    },
-    [createEthereumWallet, createSolanaWallet]
-  );
+  const {
+    ethereumEmbeddedWallets,
+    solanaEmbeddedWallets,
+    isCreating,
+    handleCreateWallet,
+  } = useWalletManagement();
 
   return (
     <div className="space-y-4">

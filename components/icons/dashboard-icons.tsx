@@ -308,3 +308,33 @@ export const LightningIcon: React.FC<IconProps> = ({
     </defs>
   </svg>
 );
+
+// Profile Icon for user profile
+export const ProfileIcon: React.FC<IconProps> = ({
+  className = "",
+  size = 24,
+}) => (
+  <svg
+    width={size}
+    height={size}
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+  >
+    <circle cx="12" cy="8" r="4" fill="url(#profile-head)" />
+    <path
+      d="M20 19V21H4V19C4 15.6863 6.68629 13 10 13H14C17.3137 13 20 15.6863 20 19Z"
+      fill="url(#profile-body)"
+    />
+    <defs>
+      <linearGradient id="profile-head" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#b794f4" />
+        <stop offset="100%" stopColor="#9f7aea" />
+      </linearGradient>
+      <linearGradient id="profile-body" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="#9f7aea" />
+        <stop offset="100%" stopColor="#805ad5" />
+      </linearGradient>
+    </defs>
+  </svg>
+);

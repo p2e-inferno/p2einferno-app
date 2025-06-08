@@ -32,7 +32,7 @@ export const fetchAndVerifyAuthorization = async (
 
 export const createPrivyClient = () => {
   const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const appSecret = process.env.PRIVY_APP_SECRET;
+  const appSecret = process.env.NEXT_PRIVY_APP_SECRET;
 
   if (!appId) {
     throw new Error(

@@ -36,6 +36,9 @@ knowledge_base/
 # Guides directory
 guides/
 
+# .cursor directory
+.cursor/
+
 # node-waf configuration
 .lock-wscript
 

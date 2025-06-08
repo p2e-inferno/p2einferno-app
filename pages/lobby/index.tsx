@@ -24,7 +24,7 @@ import {
  */
 export default function LobbyPage() {
   const router = useRouter();
-  const { ready, authenticated, user, logout } = usePrivy();
+  const { ready, authenticated, user } = usePrivy();
   const {
     data: dashboardData,
     loading,

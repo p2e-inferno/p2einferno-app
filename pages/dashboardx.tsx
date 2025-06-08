@@ -1,23 +1,12 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
-import { getAccessToken, usePrivy } from "@privy-io/react-auth";
+import { useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import Head from "next/head";
 import WalletList from "../components/WalletList";
-
-async function verifyToken() {
-  const url = "/api/verify";
-  const accessToken = await getAccessToken();
-  const result = await fetch(url, {
-    headers: {
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined),
-    },
-  });
-
-  return await result.json();
-}
+import { useVerifyToken } from "../hooks/useVerifyToken";
 
 export default function DashboardPage() {
-  const [verifyResult, setVerifyResult] = useState();
+  const { verifyResult, loading, error, verifyToken } = useVerifyToken();
   const router = useRouter();
   const {
     ready,
@@ -193,11 +182,18 @@ export default function DashboardPage() {
               )}
 
               <button
-                onClick={() => verifyToken().then(setVerifyResult)}
-                className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white border-none"
+                onClick={verifyToken}
+                disabled={loading}
+                className="text-sm bg-violet-600 hover:bg-violet-700 py-2 px-4 rounded-md text-white border-none disabled:bg-violet-400"
               >
-                Verify token on server
+                {loading ? "Verifying..." : "Verify token on server"}
               </button>
+
+              {error && (
+                <div className="w-full p-4 bg-red-100 text-red-700 rounded-md">
+                  Error: {error}
+                </div>
+              )}
 
               {Boolean(verifyResult) && (
                 <details className="w-full">

@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import { BottomDock } from "../dashboard/bottom-dock";
+import { LobbyNavigation } from "../lobby/lobby-navigation";
 
 interface LobbyLayoutProps {
   children: React.ReactNode;
@@ -27,6 +28,7 @@ export const LobbyLayout: React.FC<LobbyLayoutProps> = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-950 via-indigo-950 to-black text-white pb-32">
+      <LobbyNavigation />
       <div className="lg:max-w-[calc(100%-200px)] lg:mx-auto">{children}</div>
       <BottomDock />
     </div>
