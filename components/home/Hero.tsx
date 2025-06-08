@@ -1,6 +1,6 @@
 import React from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { Button } from "./ui/button";
+import { Button } from "../ui/button";
 import { ArrowRight, Gamepad2 } from "lucide-react";
 
 export function Hero() {

@@ -7,7 +7,15 @@ import {
   CustomDropdownSeparator,
 } from "./CustomDropdown";
 import { Button } from "./ui/button";
-import { User, LogOut, Copy, Mail, ExternalLink } from "lucide-react";
+import {
+  User,
+  LogOut,
+  Copy,
+  Mail,
+  ExternalLink,
+  Plus,
+  Unlink,
+} from "lucide-react";
 
 const Avatar = ({
   children,
@@ -24,12 +32,16 @@ const Avatar = ({
 );
 
 export function PrivyConnectButton() {
-  const { user, logout, linkEmail, linkFarcaster } = usePrivy();
+  const { user, logout, linkEmail, linkFarcaster, unlinkWallet, linkWallet } =
+    usePrivy();
   const [copied, setCopied] = useState(false);
 
   if (!user) return null;
 
-  const walletAddress = user.wallet?.address;
+  const numAccounts = user?.linkedAccounts?.length || 0;
+  const canRemoveAccount = numAccounts > 1;
+  const wallet = user?.wallet;
+  const walletAddress = wallet?.address;
   const shortAddress = walletAddress
     ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(
         walletAddress.length - 4
@@ -41,6 +53,24 @@ export function PrivyConnectButton() {
       navigator.clipboard.writeText(walletAddress);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleLinkWallet = async () => {
+    try {
+      await linkWallet();
+    } catch (error) {
+      console.error("Failed to link wallet:", error);
+    }
+  };
+
+  const handleUnlinkWallet = async () => {
+    if (wallet && wallet.address) {
+      try {
+        await unlinkWallet(wallet.address);
+      } catch (error) {
+        console.error("Failed to unlink wallet:", error);
+      }
     }
   };
 
@@ -68,6 +98,26 @@ export function PrivyConnectButton() {
         <span>{copied ? "Copied!" : "Copy Address"}</span>
       </CustomDropdownItem>
       <CustomDropdownSeparator />
+
+      {/* Wallet Management Section */}
+      <CustomDropdownItem onClick={handleLinkWallet}>
+        <Plus className="mr-2 h-4 w-4" />
+        <span>Link New Wallet</span>
+      </CustomDropdownItem>
+
+      {wallet && (
+        <CustomDropdownItem
+          onClick={handleUnlinkWallet}
+          disabled={!canRemoveAccount}
+        >
+          <Unlink className="mr-2 h-4 w-4" />
+          <span>Unlink Wallet</span>
+        </CustomDropdownItem>
+      )}
+
+      <CustomDropdownSeparator />
+
+      {/* Account Linking Section */}
       {!user.email && (
         <CustomDropdownItem onClick={linkEmail}>
           <Mail className="mr-2 h-4 w-4" />

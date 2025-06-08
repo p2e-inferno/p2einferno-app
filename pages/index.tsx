@@ -1,12 +1,12 @@
 import { GetServerSideProps } from "next";
 import { PrivyClient } from "@privy-io/server-auth";
 import Head from "next/head";
-import { Hero } from "../components/Hero";
-import { HowItWorks } from "../components/HowItWorks";
-import { Features } from "@/components/Features";
-import { About } from "@/components/About";
-import { Services } from "@/components/Services";
-import { Bootcamps } from "@/components/Bootcamps";
+import { Hero } from "@/components/home/Hero";
+import { HowItWorks } from "@/components/home/HowItWorks";
+import { Features } from "@/components/home/Features";
+import { About } from "@/components/home/About";
+import { Services } from "@/components/home/Services";
+import { Bootcamps } from "@/components/home/Bootcamps";
 import { MainLayout } from "@/components/layouts/MainLayout";
 
 export const getServerSideProps: GetServerSideProps = async ({ req }) => {
@@ -16,7 +16,7 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
   if (!cookieAuthToken) return { props: {} };
 
   const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const PRIVY_APP_SECRET = process.env.PRIVY_APP_SECRET;
+  const PRIVY_APP_SECRET = process.env.NEXT_PRIVY_APP_SECRET;
   const client = new PrivyClient(PRIVY_APP_ID!, PRIVY_APP_SECRET!);
 
   try {

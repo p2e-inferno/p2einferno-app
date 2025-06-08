@@ -6,7 +6,8 @@ import {
   FlameIcon,
   CrystalIcon,
   SwordIcon,
-  PortalIcon,
+  LightningIcon,
+  ProfileIcon,
 } from "../icons/dashboard-icons";
 
 interface DockItem {
@@ -48,10 +49,19 @@ const dockItems: DockItem[] = [
     pulseColor: "shadow-cyan-300/50",
   },
   {
-    id: "portal",
-    label: "Portal",
-    href: "/portal",
-    icon: PortalIcon,
+    id: "events",
+    label: "Events",
+    href: "/lobby/events",
+    icon: LightningIcon,
+    color: "text-cyan-400",
+    activeColor: "text-cyan-300",
+    pulseColor: "shadow-cyan-400/50",
+  },
+  {
+    id: "profile",
+    label: "Profile",
+    href: "/lobby/profile",
+    icon: ProfileIcon,
     color: "text-purple-400",
     activeColor: "text-purple-300",
     pulseColor: "shadow-purple-400/50",

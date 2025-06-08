@@ -1,0 +1,77 @@
+<svg width="200" height="200" viewBox="0 0 200 200" fill="none"
+    xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="flameGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#FDE047;stop-opacity:1" />
+            <stop offset="30%" style="stop-color:#FB923C;stop-opacity:1" />
+            <stop offset="60%" style="stop-color:#F97316;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#DC2626;stop-opacity:1" />
+        </linearGradient>
+        <linearGradient id="roseGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#FB7185;stop-opacity:1" />
+            <stop offset="50%" style="stop-color:#E11D48;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#BE123C;stop-opacity:1" />
+        </linearGradient>
+        <filter id="glow">
+            <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+            <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+    </defs>
+
+    <!-- Background circle -->
+    <circle cx="100" cy="100" r="90" fill="#1F2937" stroke="#374151" stroke-width="2"/>
+
+    <!-- Inner glow -->
+    <circle cx="100" cy="100" r="85" fill="url(#flameGradient)" opacity="0.1"/>
+
+    <!-- Rose petals base -->
+    <g transform="translate(100, 120)">
+        <!-- Bottom layer petals -->
+        <ellipse cx="-20" cy="0" rx="25" ry="15" fill="url(#roseGradient)" opacity="0.8" transform="rotate(-30)"/>
+        <ellipse cx="20" cy="0" rx="25" ry="15" fill="url(#roseGradient)" opacity="0.8" transform="rotate(30)"/>
+        <ellipse cx="0" cy="-20" rx="25" ry="15" fill="url(#roseGradient)" opacity="0.8" transform="rotate(0)"/>
+
+        <!-- Middle layer petals -->
+        <ellipse cx="-15" cy="-10" rx="20" ry="12" fill="url(#roseGradient)" opacity="0.9" transform="rotate(-45)"/>
+        <ellipse cx="15" cy="-10" rx="20" ry="12" fill="url(#roseGradient)" opacity="0.9" transform="rotate(45)"/>
+
+        <!-- Center -->
+        <circle cx="0" cy="0" r="8" fill="#BE123C"/>
+    </g>
+
+    <!-- Flame -->
+    <g transform="translate(100, 80)" filter="url(#glow)">
+        <!-- Outer flame -->
+        <path d="M0,-50 C-15,-35 -20,-20 -15,-5 C-10,5 -5,10 0,15 C5,10 10,5 15,-5 C20,-20 15,-35 0,-50Z" fill="url(#flameGradient)" opacity="0.8"/>
+
+        <!-- Inner flame -->
+        <path d="M0,-40 C-10,-30 -12,-20 -8,-10 C-4,0 -2,5 0,8 C2,5 4,0 8,-10 C12,-20 10,-30 0,-40Z" fill="#FDE047" opacity="0.9"/>
+
+        <!-- Flame core -->
+        <path d="M0,-25 C-5,-20 -6,-15 -4,-8 C-2,-2 -1,0 0,2 C1,0 2,-2 4,-8 C6,-15 5,-20 0,-25Z" fill="#FFFFFF" opacity="0.8"/>
+    </g>
+
+    <!-- Sparkles -->
+    <g opacity="0.6">
+        <circle cx="40" cy="40" r="2" fill="#FDE047">
+            <animate attributeName="opacity" values="0;1;0" dur="2s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="160" cy="50" r="2" fill="#FDE047">
+            <animate attributeName="opacity" values="0;1;0" dur="2s" begin="0.5s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="150" cy="150" r="2" fill="#FDE047">
+            <animate attributeName="opacity" values="0;1;0" dur="2s" begin="1s" repeatCount="indefinite"/>
+        </circle>
+        <circle cx="50" cy="140" r="2" fill="#FDE047">
+            <animate attributeName="opacity" values="0;1;0" dur="2s" begin="1.5s" repeatCount="indefinite"/>
+        </circle>
+    </g>
+
+    <!-- Title text (optional) -->
+    <text x="100" y="180" text-anchor="middle" fill="#F97316" font-family="Arial, sans-serif" font-size="14" font-weight="bold">
+    ROSY BEGINNINGS
+    </text>
+</svg> 

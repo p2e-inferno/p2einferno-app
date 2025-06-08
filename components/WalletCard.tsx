@@ -1,12 +1,6 @@
 import { useCallback, useState } from "react";
-import {
-  getAccessToken,
-  useSessionSigners,
-  useSignMessage,
-  useSignMessage as useSignMessageSolana,
-  WalletWithMetadata,
-} from "@privy-io/react-auth";
-import axios from "axios";
+import { useSessionSigners, WalletWithMetadata } from "@privy-io/react-auth";
+import { useMessageSigning } from "../hooks/useMessageSigning";
 
 const SESSION_SIGNER_ID = process.env.NEXT_PUBLIC_SESSION_SIGNER_ID;
 
@@ -16,11 +10,13 @@ interface WalletCardProps {
 
 export default function WalletCard({ wallet }: WalletCardProps) {
   const { addSessionSigners, removeSessionSigners } = useSessionSigners();
-  const { signMessage: signMessageEthereum } = useSignMessage();
-  const { signMessage: signMessageSolana } = useSignMessageSolana();
+  const {
+    isClientSigning,
+    isRemoteSigning,
+    handleClientSign,
+    handleRemoteSign,
+  } = useMessageSigning(wallet);
   const [isLoading, setIsLoading] = useState(false);
-  const [isRemoteSigning, setIsRemoteSigning] = useState(false);
-  const [isClientSigning, setIsClientSigning] = useState(false);
 
   // Check if this specific wallet has session signers
   const hasSessionSigners = wallet.delegated === true;
@@ -66,66 +62,6 @@ export default function WalletCard({ wallet }: WalletCardProps) {
     },
     [removeSessionSigners]
   );
-
-  const handleClientSign = useCallback(async () => {
-    setIsClientSigning(true);
-    try {
-      const message = `Signing this message to verify ownership of ${wallet.address}`;
-      let signature;
-      if (wallet.chainType === "ethereum") {
-        const result = await signMessageEthereum({ message });
-        signature = result.signature;
-      } else if (wallet.chainType === "solana") {
-        const result = await signMessageSolana({
-          message,
-        });
-        signature = result.signature;
-      }
-      console.log("Message signed on client! Signature: ", signature);
-    } catch (error) {
-      console.error("Error signing message:", error);
-    } finally {
-      setIsClientSigning(false);
-    }
-  }, [wallet]);
-
-  const handleRemoteSign = useCallback(async () => {
-    setIsRemoteSigning(true);
-    try {
-      const authToken = await getAccessToken();
-      const path =
-        wallet.chainType === "ethereum"
-          ? "/api/ethereum/personal_sign"
-          : "/api/solana/sign_message";
-      const message = `Signing this message to verify ownership of ${wallet.address}`;
-      const response = await axios.post(
-        path,
-        {
-          wallet_id: wallet.id,
-          message: message,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        }
-      );
-
-      const data = response.data;
-
-      if (response.status === 200) {
-        console.log(
-          "Message signed on server! Signature: " + data.data.signature
-        );
-      } else {
-        throw new Error(data.error || "Failed to sign message");
-      }
-    } catch (error) {
-      console.error("Error signing message:", error);
-    } finally {
-      setIsRemoteSigning(false);
-    }
-  }, [wallet.id]);
 
   return (
     <div className="flex flex-col gap-4 p-4 border border-gray-200 rounded-lg">

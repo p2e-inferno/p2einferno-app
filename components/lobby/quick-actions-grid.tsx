@@ -1,7 +1,12 @@
 import React from "react";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { FlameIcon, LightningIcon, SwordIcon } from "../icons/dashboard-icons";
+import {
+  FlameIcon,
+  LightningIcon,
+  SwordIcon,
+  ProfileIcon,
+} from "../icons/dashboard-icons";
 
 /**
  * Quick actions grid component providing navigation to key sections
@@ -9,7 +14,7 @@ import { FlameIcon, LightningIcon, SwordIcon } from "../icons/dashboard-icons";
  */
 export const QuickActionsGrid: React.FC = () => {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {/* Apply to Bootcamp */}
       <Link href="/apply" className="group">
         <div className="bg-gradient-to-br from-purple-800/30 to-purple-900/30 rounded-xl p-6 border border-purple-500/20 backdrop-blur-sm hover:border-purple-400/40 transition-all duration-300 group-hover:scale-105">
@@ -76,6 +81,29 @@ export const QuickActionsGrid: React.FC = () => {
             <ArrowRight
               size={20}
               className="text-magenta-400 group-hover:translate-x-1 transition-transform"
+            />
+          </div>
+        </div>
+      </Link>
+
+      {/* Profile */}
+      <Link href="/lobby/profile" className="group">
+        <div className="bg-gradient-to-br from-purple-800/30 to-purple-900/30 rounded-xl p-6 border border-purple-500/20 backdrop-blur-sm hover:border-purple-400/40 transition-all duration-300 group-hover:scale-105">
+          <div className="flex items-center space-x-4 mb-4">
+            <ProfileIcon
+              size={40}
+              className="text-purple-400 group-hover:animate-pulse"
+            />
+            <div>
+              <h3 className="font-bold text-lg">Profile</h3>
+              <p className="text-sm text-faded-grey">Manage identity</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-purple-400 font-medium">View</span>
+            <ArrowRight
+              size={20}
+              className="text-purple-400 group-hover:translate-x-1 transition-transform"
             />
           </div>
         </div>
