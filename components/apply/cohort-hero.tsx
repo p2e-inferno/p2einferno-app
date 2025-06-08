@@ -8,8 +8,8 @@ import {
   ChevronRight,
   Flame,
 } from "lucide-react";
-import { Button } from "../ui/button";
-import { formatCurrency } from "../../lib/bootcamp-data";
+import { Button } from "@/components/ui/button";
+import { formatCurrency } from "@/lib/bootcamp-data";
 import type { CohortHeroProps } from "./types";
 
 /**

@@ -1,16 +1,16 @@
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Button } from "../../components/ui/button";
-import { Card } from "../../components/ui/card";
-import { MainLayout } from "../../components/layouts/MainLayout";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { MainLayout } from "@/components/layouts/MainLayout";
 import {
   infernalSparksProgram,
   currentCohort,
   weeklyContent,
   formatCurrency,
   calculateTimeRemaining,
-} from "../../lib/bootcamp-data";
+} from "@/lib/bootcamp-data";
 import {
   Clock,
   Users,

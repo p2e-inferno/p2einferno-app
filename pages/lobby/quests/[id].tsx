@@ -13,7 +13,6 @@ import {
   Wallet,
   Share2,
   FileSignature,
-  Lock,
   Sparkles,
   ChevronLeft,
 } from "lucide-react";
@@ -32,15 +31,11 @@ const QuestDetailsPage = () => {
   const { id } = router.query;
   const { user } = usePrivy();
   const {
-    quests,
-    userProgress,
-    completedTasks,
-    loading: questsLoading,
     completeTask,
-    claimQuestRewards,
-    isTaskCompleted,
-    getQuestProgress,
-    getQuestCompletionPercentage,
+    claimQuestRewards: _claimQuestRewards,
+    isTaskCompleted: _isTaskCompleted,
+    getQuestProgress: _getQuestProgress,
+    getQuestCompletionPercentage: _getQuestCompletionPercentage,
     handleLinkEmail,
     handleLinkFarcaster,
     handleSignTOS,
@@ -148,7 +143,9 @@ const QuestDetailsPage = () => {
         });
 
         setTasksWithCompletion(
-          tasksData.sort((a, b) => a.task.order_index - b.task.order_index)
+          tasksData.sort(
+            (a: any, b: any) => a.task.order_index - b.task.order_index
+          )
         );
         setProgress(calculateQuestProgress(tasks, completions));
       }
@@ -170,7 +167,7 @@ const QuestDetailsPage = () => {
     }
   };
 
-  const handleTaskAction = async (task: any, progressId: string) => {
+  const handleTaskAction = async (task: any, _progressId: string) => {
     setProcessingTask(task.id);
 
     try {
@@ -205,11 +202,15 @@ const QuestDetailsPage = () => {
           result = { success: false, error: "Unknown task type" };
       }
 
-      if (result.success || result === true) {
+      if (result === true || (typeof result === "object" && result.success)) {
         toast.success("Task completed! 🔥");
         await loadQuestDetails();
       } else {
-        toast.error(result.error || "Failed to perform task action");
+        const errorMessage =
+          typeof result === "object" && result.error
+            ? result.error
+            : "Failed to perform task action";
+        toast.error(errorMessage);
       }
     } catch (error) {
       console.error("Error completing task:", error);
@@ -364,7 +365,7 @@ const QuestDetailsPage = () => {
               </h2>
 
               {tasksWithCompletion.map(
-                ({ task, completion, isCompleted, canClaim }, index) => (
+                ({ task, completion, isCompleted, canClaim }, _index) => (
                   <div
                     key={task.id}
                     className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-lg p-6 border transition-all duration-300 ${

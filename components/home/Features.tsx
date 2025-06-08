@@ -1,6 +1,11 @@
 import React from "react";
 import { Coins, Shield, Users, Zap, Gamepad2, Trophy } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription } from "./ui/card";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
 
 const features = [
   {

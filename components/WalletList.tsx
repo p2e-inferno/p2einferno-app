@@ -1,4 +1,4 @@
-import { useWalletManagement } from "../hooks/useWalletManagement";
+import { useWalletManagement } from "@/hooks/useWalletManagement";
 import WalletCard from "./WalletCard";
 
 export default function WalletList() {

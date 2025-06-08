@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import { User, Mail, Wallet, Share2 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -18,7 +17,6 @@ import {
  * Displays user information, linked accounts, and completion status
  */
 const ProfilePage = () => {
-  const router = useRouter();
   const { user, linkEmail, unlinkEmail, linkFarcaster, unlinkFarcaster } =
     usePrivy();
 

@@ -8,7 +8,7 @@ import { QuestCard } from "./quest-card";
 export const QuestList = ({
   quests,
   userProgress,
-  completedTasks,
+  completedTasks: _completedTasks,
   loading,
   error,
   getQuestCompletionPercentage,

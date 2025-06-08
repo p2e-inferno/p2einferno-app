@@ -2,15 +2,15 @@ import { useState } from "react";
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Button } from "../../components/ui/button";
-import { Card } from "../../components/ui/card";
-import { ProgressSteps } from "../../components/ui/progress-steps";
-import { LoadingButton } from "../../components/ui/loading-button";
-import { LoadingOverlay } from "../../components/ui/loading-overlay";
-import { MainLayout } from "../../components/layouts/MainLayout";
-import { infernalSparksProgram } from "../../lib/bootcamp-data";
-import { applicationApi, type ApplicationData } from "../../lib/api";
-import { useApiCall } from "../../hooks/useApiCall";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ProgressSteps } from "@/components/ui/progress-steps";
+import { LoadingButton } from "@/components/ui/loading-button";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { MainLayout } from "@/components/layouts/MainLayout";
+import { infernalSparksProgram } from "@/lib/bootcamp-data";
+import { applicationApi, type ApplicationData } from "@/lib/api";
+import { useApiCall } from "@/hooks/useApiCall";
 import toast from "react-hot-toast";
 import {
   User,

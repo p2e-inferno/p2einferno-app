@@ -2,11 +2,11 @@ import { useState } from "react";
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { Button } from "../../components/ui/button";
-import { Card } from "../../components/ui/card";
-import { MainLayout } from "../../components/layouts/MainLayout";
-import { infernalSparksProgram, formatCurrency } from "../../lib/bootcamp-data";
-import { supabase, type Application } from "../../lib/supabase";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { MainLayout } from "@/components/layouts/MainLayout";
+import { infernalSparksProgram, formatCurrency } from "@/lib/bootcamp-data";
+import { supabase, type Application } from "@/lib/supabase";
 
 interface PaymentPageProps {
   applicationId: string;
