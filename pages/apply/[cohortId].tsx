@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -23,6 +23,7 @@ import {
   CheckCircle,
   XCircle,
 } from "lucide-react";
+import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
 
 interface ApplicationPageProps {
   cohortId: string;
@@ -118,6 +119,18 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
   });
   const [isValidating, setIsValidating] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // New: Get user dashboard data to check for pending application
+  const { data: dashboardData, loading: dashboardLoading } =
+    useDashboardDataSimple();
+
+  // Check for pending application for this cohort
+  let pendingApplication = null;
+  if (dashboardData && dashboardData.applications) {
+    pendingApplication = dashboardData.applications.find(
+      (app) => app.cohort_id === cohortId && app.status === "pending"
+    );
+  }
 
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -526,6 +539,40 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
         return null;
     }
   };
+
+  // If user has a pending application, block the form and show CTA
+  if (pendingApplication) {
+    return (
+      <MainLayout>
+        <Head>
+          <title>Complete Application - P2E Inferno</title>
+        </Head>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background py-12">
+          <Card className="max-w-lg w-full p-8 text-center bg-gradient-to-br from-yellow-900/30 to-orange-900/20 border border-yellow-500/20">
+            <CheckCircle
+              size={48}
+              className="mx-auto mb-4 text-flame-yellow animate-pulse"
+            />
+            <h2 className="text-2xl font-bold mb-2 text-flame-yellow">
+              You have a pending application
+            </h2>
+            <p className="text-faded-grey mb-6">
+              You already have a pending application for this cohort. Please
+              complete your application by making payment to secure your spot.
+            </p>
+            <Button
+              asChild
+              className="w-full bg-flame-yellow text-black hover:bg-flame-orange font-bold text-lg py-3 rounded-xl"
+            >
+              <a href={`/payment/${pendingApplication.id}`}>
+                Complete Application
+              </a>
+            </Button>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
 
   return (
     <>

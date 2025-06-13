@@ -1,13 +1,7 @@
-import React, { useEffect } from "react";
-import { useRouter } from "next/router";
-import { usePrivy } from "@privy-io/react-auth";
-import Head from "next/head";
+import React from "react";
 import { toast } from "react-hot-toast";
-import { BottomDock } from "../../components/dashboard/bottom-dock";
 import { useDashboardDataSimple } from "../../hooks/useDashboardDataSimple";
 import {
-  LobbyBackground,
-  LobbyNavigation,
   WelcomeSection,
   StatsGrid,
   PendingApplicationsAlert,
@@ -16,6 +10,18 @@ import {
   LobbyLoadingState,
   LobbyErrorState,
 } from "../../components/lobby";
+import { LobbyLayout } from "../../components/layouts/lobby-layout";
+
+// Add interface to match component requirements
+interface PendingApplication {
+  id: string;
+  status: string;
+  created_at: string;
+  applications: {
+    cohort_id: string;
+    experience_level: string;
+  };
+}
 
 /**
  * Infernal Lobby - Main dashboard for authenticated users
@@ -23,8 +29,6 @@ import {
  * Route: /lobby
  */
 export default function LobbyPage() {
-  const router = useRouter();
-  const { ready, authenticated } = usePrivy();
   const {
     data: dashboardData,
     loading,
@@ -32,20 +36,10 @@ export default function LobbyPage() {
     refetch,
   } = useDashboardDataSimple();
 
-  useEffect(() => {
-    if (ready && !authenticated) {
-      router.push("/");
-    }
-  }, [ready, authenticated, router]);
-
   const handleCompletePayment = async (_applicationId: string) => {
     toast.success("Redirecting to payment portal...");
     // TODO: Implement payment completion flow
   };
-
-  if (!ready || !authenticated) {
-    return null;
-  }
 
   if (loading) {
     return <LobbyLoadingState />;
@@ -56,51 +50,37 @@ export default function LobbyPage() {
   }
 
   const { profile, applications, enrollments, stats } = dashboardData;
-  const pendingApplications = applications.filter(
-    (app) => app.status === "pending"
-  );
+  // Convert applications to the expected PendingApplication format
+  const pendingApplications: PendingApplication[] = applications
+    .filter((app) => app.status === "pending" && app.applications)
+    .map((app) => ({
+      id: app.id,
+      status: app.status,
+      created_at: app.created_at,
+      applications: {
+        cohort_id: app.applications?.cohort_id || "",
+        experience_level: app.applications?.experience_level || "",
+      },
+    }));
 
   return (
-    <>
-      <Head>
-        <title>Infernal Lobby - P2E Inferno</title>
-        <meta
-          name="description"
-          content="Your gateway to the P2E Inferno metaverse"
-        />
-      </Head>
-
-      <div
-        className="min-h-screen text-white overflow-x-hidden"
-        style={{ backgroundColor: "#100F29" }}
-      >
-        <LobbyBackground />
-        <LobbyNavigation />
-
-        {/* Main Content */}
-        <main className="relative z-10 px-4 lg:px-8 pb-32">
-          <div className="max-w-6xl mx-auto">
-            {/* Welcome Section */}
-            <div className="mb-8">
-              <WelcomeSection profile={profile} />
-              <StatsGrid stats={stats} />
-            </div>
-
-            {pendingApplications.length > 0 && (
-              <PendingApplicationsAlert
-                pendingApplications={pendingApplications}
-                onCompletePayment={handleCompletePayment}
-              />
-            )}
-
-            <QuickActionsGrid />
-
-            <CurrentEnrollments enrollments={enrollments} />
-          </div>
-        </main>
-
-        <BottomDock />
+    <LobbyLayout>
+      {/* Welcome Section */}
+      <div className="mb-8">
+        <WelcomeSection profile={profile} />
+        <StatsGrid stats={stats} />
       </div>
-    </>
+
+      {pendingApplications.length > 0 && (
+        <PendingApplicationsAlert
+          pendingApplications={pendingApplications}
+          onCompletePayment={handleCompletePayment}
+        />
+      )}
+
+      <QuickActionsGrid />
+
+      <CurrentEnrollments enrollments={enrollments} />
+    </LobbyLayout>
   );
 }

@@ -23,6 +23,7 @@ import {
   BookOpen,
   Zap,
 } from "lucide-react";
+import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
 
 /**
  * Bootcamp Listing Page - Shows available bootcamps for authenticated users
@@ -31,6 +32,7 @@ import {
 export default function BootcampListingPage() {
   const router = useRouter();
   const { ready, authenticated } = usePrivy();
+  const { data: dashboardData, loading } = useDashboardDataSimple();
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -48,6 +50,14 @@ export default function BootcampListingPage() {
   const spotsRemaining =
     currentCohort.max_participants - currentCohort.current_participants;
   const isRegistrationOpen = currentCohort.status === "open";
+
+  // Check for pending application for this cohort
+  let pendingApplication = null;
+  if (dashboardData && dashboardData.applications) {
+    pendingApplication = dashboardData.applications.find(
+      (app) => app.cohort_id === currentCohort.id && app.status === "pending"
+    );
+  }
 
   return (
     <>
@@ -232,13 +242,23 @@ export default function BootcampListingPage() {
                   {/* CTA */}
                   <div className="text-center">
                     {isRegistrationOpen ? (
-                      <Link
-                        href={`/apply/${currentCohort.id}`}
-                        className="inline-flex items-center space-x-3 bg-flame-yellow text-black px-8 py-4 rounded-xl font-bold text-lg hover:bg-flame-orange transition-all duration-300 hover:scale-105"
-                      >
-                        <span>Apply Now</span>
-                        <ArrowRight size={20} />
-                      </Link>
+                      pendingApplication ? (
+                        <Link
+                          href={`/payment/${pendingApplication.id}`}
+                          className="inline-flex items-center space-x-3 bg-flame-yellow text-black px-8 py-4 rounded-xl font-bold text-lg hover:bg-flame-orange transition-all duration-300 hover:scale-105"
+                        >
+                          <span>Complete Application</span>
+                          <ArrowRight size={20} />
+                        </Link>
+                      ) : (
+                        <Link
+                          href={`/apply/${currentCohort.id}`}
+                          className="inline-flex items-center space-x-3 bg-flame-yellow text-black px-8 py-4 rounded-xl font-bold text-lg hover:bg-flame-orange transition-all duration-300 hover:scale-105"
+                        >
+                          <span>Apply Now</span>
+                          <ArrowRight size={20} />
+                        </Link>
+                      )
                     ) : (
                       <div className="inline-flex items-center space-x-3 bg-gray-600 text-gray-300 px-8 py-4 rounded-xl font-bold text-lg cursor-not-allowed">
                         <span>Registration Closed</span>
