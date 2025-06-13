@@ -1,6 +1,6 @@
 /**
  * Database types for Supabase tables
- * 
+ *
  * These types should match your Supabase database schema.
  * Consider using `supabase gen types typescript` to auto-generate these.
  */
@@ -13,6 +13,9 @@ export interface BootcampProgram {
   max_reward_dgt: number;
   cost_naira: number;
   cost_usd: number;
+  registration_start?: string;
+  registration_end?: string;
+  lock_address?: string;
   created_at: string;
   updated_at: string;
 }
@@ -90,4 +93,4 @@ export interface UserTaskCompletion {
   verification_data: any;
   reward_claimed: boolean;
   completed_at: string;
-} 
+}
