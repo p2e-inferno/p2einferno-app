@@ -115,6 +115,9 @@ export default function BootcampForm({
   const inputClass =
     "bg-transparent border-gray-700 text-gray-100 placeholder-gray-500 focus:border-flame-yellow/50";
 
+  // Special styling for date inputs to make the calendar icon visible
+  const dateInputClass = `${inputClass} [color-scheme:dark] cursor-pointer`;
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
@@ -255,7 +258,8 @@ export default function BootcampForm({
             value={formData.registration_start}
             onChange={handleChange}
             required
-            className={inputClass}
+            className={dateInputClass}
+            onClick={(e) => e.currentTarget.showPicker()}
           />
         </div>
 
@@ -270,7 +274,8 @@ export default function BootcampForm({
             value={formData.registration_end}
             onChange={handleChange}
             required
-            className={inputClass}
+            className={dateInputClass}
+            onClick={(e) => e.currentTarget.showPicker()}
           />
         </div>
 
