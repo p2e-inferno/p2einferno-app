@@ -4,11 +4,8 @@
 -- 1) Add lock_address to cohorts (ticketing lock)
 ALTER TABLE public.cohorts ADD COLUMN IF NOT EXISTS lock_address TEXT;
 
--- Add lock_address and registration dates to bootcamp_programs table
-ALTER TABLE public.bootcamp_programs 
-  ADD COLUMN IF NOT EXISTS lock_address TEXT,
-  ADD COLUMN IF NOT EXISTS registration_start DATE,
-  ADD COLUMN IF NOT EXISTS registration_end DATE;
+-- Add lock_address to bootcamp_programs table
+ALTER TABLE public.bootcamp_programs ADD COLUMN IF NOT EXISTS lock_address TEXT;
 
 -- Add lock_address to quests table
 ALTER TABLE public.quests ADD COLUMN IF NOT EXISTS lock_address TEXT;
