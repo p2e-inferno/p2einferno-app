@@ -30,6 +30,21 @@ export interface Cohort {
   current_participants: number;
   registration_deadline: string;
   status: "open" | "closed" | "upcoming";
+  lock_address?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CohortMilestone {
+  id: string;
+  cohort_id: string;
+  name: string;
+  description: string;
+  order_index: number;
+  start_date?: string;
+  end_date?: string;
+  lock_address: string;
+  prerequisite_milestone_id?: string;
   created_at: string;
   updated_at: string;
 }
