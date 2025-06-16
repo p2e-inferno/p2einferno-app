@@ -30,6 +30,12 @@ export function Bootcamps() {
   const spotsRemaining =
     currentCohort.max_participants - currentCohort.current_participants;
 
+  // Format registration dates if available
+  const registrationPeriod = infernalSparksProgram.registration_start && 
+    infernalSparksProgram.registration_end ? 
+    `${new Date(infernalSparksProgram.registration_start).toLocaleDateString()} - ${new Date(infernalSparksProgram.registration_end).toLocaleDateString()}` : 
+    "Open Registration";
+
   return (
     <section id="bootcamps" className="py-20 md:py-32 bg-background">
       <div className="container mx-auto px-4">
@@ -106,6 +112,15 @@ export function Bootcamps() {
                   <div className="text-xl font-bold">{spotsRemaining}</div>
                   <div className="text-sm text-faded-grey">Spots Left</div>
                 </div>
+              </div>
+
+              {/* Registration Period */}
+              <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 mb-6 border border-faded-grey/20">
+                <div className="flex items-center justify-center gap-2 mb-2">
+                  <Calendar className="w-5 h-5 text-flame-yellow" />
+                  <h3 className="text-lg font-medium">Registration Period</h3>
+                </div>
+                <p className="text-center text-faded-grey">{registrationPeriod}</p>
               </div>
 
               {/* Urgency and CTA */}

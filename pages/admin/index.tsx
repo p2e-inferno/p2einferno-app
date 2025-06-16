@@ -50,10 +50,27 @@ export default function AdminDashboard() {
           <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {/* Bootcamp Card */}
           <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
-            <h2 className="text-lg font-semibold text-white mb-2">Bootcamps</h2>
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+                  <path d="M2 17l10 5 10-5"></path>
+                  <path d="M2 12l10 5 10-5"></path>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Bootcamps</h2>
+            </div>
             <p className="text-gray-400 mb-4">
               Create and manage bootcamp programs
             </p>
@@ -66,7 +83,25 @@ export default function AdminDashboard() {
 
           {/* Cohorts Card */}
           <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
-            <h2 className="text-lg font-semibold text-white mb-2">Cohorts</h2>
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="9" cy="7" r="4"></circle>
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Cohorts</h2>
+            </div>
             <p className="text-gray-400 mb-4">
               Create and manage cohorts for bootcamps
             </p>
@@ -77,9 +112,55 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
+          {/* Milestones Card */}
+          <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"></path>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Milestones</h2>
+            </div>
+            <p className="text-gray-400 mb-4">
+              Create and manage learning milestones
+            </p>
+            <p className="text-xs text-gray-500 mb-4 italic">
+              Manage milestones from within cohort details
+            </p>
+            <Link href="/admin/cohorts">
+              <Button className="w-full bg-steel-red hover:bg-steel-red/90 text-white">
+                View Cohorts
+              </Button>
+            </Link>
+          </div>
+
           {/* Quests Card */}
           <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
-            <h2 className="text-lg font-semibold text-white mb-2">Quests</h2>
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Quests</h2>
+            </div>
             <p className="text-gray-400 mb-4">
               Create and manage quest programs
             </p>
