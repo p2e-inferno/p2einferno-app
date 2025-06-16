@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyBadge } from "@/components/ui/badge";
-import { supabase } from "@/lib/supabase/client";
+import { usePrivy } from "@privy-io/react-auth";
 import type { BootcampProgram } from "@/lib/supabase/types";
 
 interface BootcampFormProps {
@@ -20,6 +20,21 @@ export default function BootcampForm({
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { getAccessToken } = usePrivy();
+
+  // Keep track of the original bootcamp ID for updates
+  const [originalBootcampId, setOriginalBootcampId] = useState<string | null>(
+    null
+  );
+
+  // Initialize form data and original ID
+  useEffect(() => {
+    if (bootcamp) {
+      setFormData(bootcamp);
+      setOriginalBootcampId(bootcamp.id);
+      console.log("Initialized with bootcamp ID:", bootcamp.id);
+    }
+  }, [bootcamp]);
 
   const [formData, setFormData] = useState<
     Partial<
@@ -80,26 +95,67 @@ export default function BootcampForm({
         throw new Error("Duration must be at least 1 week");
       }
 
+      // Validate registration dates if provided
+      if (formData.registration_start && formData.registration_end) {
+        const startDate = new Date(formData.registration_start);
+        const endDate = new Date(formData.registration_end);
+
+        if (endDate <= startDate) {
+          throw new Error("Registration end date must be after start date");
+        }
+      } else if (
+        (formData.registration_start && !formData.registration_end) ||
+        (!formData.registration_start && formData.registration_end)
+      ) {
+        throw new Error(
+          "Both registration start and end dates must be provided or left empty"
+        );
+      }
+
       const now = new Date().toISOString();
 
-      if (isEditing) {
-        const { error } = await supabase
-          .from("bootcamp_programs")
-          .update({
-            ...formData,
-            updated_at: now,
-          })
-          .eq("id", bootcamp!.id);
+      // Prepare submission data for API
+      const submissionData = {
+        ...formData,
+        id: isEditing ? originalBootcampId : formData.id,
+        name: formData.name,
+        description: formData.description,
+        duration_weeks: formData.duration_weeks,
+        max_reward_dgt: formData.max_reward_dgt,
+        cost_naira: formData.cost_naira,
+        cost_usd: formData.cost_usd,
+        registration_start: formData.registration_start || null,
+        registration_end: formData.registration_end || null,
+        lock_address: formData.lock_address || null,
+        updated_at: now,
+      } as any;
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("bootcamp_programs").insert({
-          ...formData,
-          created_at: now,
-          updated_at: now,
-        });
+      // Include created_at when creating new bootcamp
+      if (!isEditing) {
+        submissionData.created_at = now;
+      }
 
-        if (error) throw error;
+      // Get Privy access token for authorization header
+      const token = await getAccessToken();
+      if (!token) throw new Error("Authentication required");
+
+      const apiUrl = "/api/admin/bootcamps";
+      const method = isEditing ? "PUT" : "POST";
+
+      console.log(`Submitting ${method} to ${apiUrl}`, submissionData);
+
+      const response = await fetch(apiUrl, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(submissionData),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to save bootcamp");
       }
 
       // Redirect back to bootcamp list
@@ -255,9 +311,8 @@ export default function BootcampForm({
             id="registration_start"
             name="registration_start"
             type="date"
-            value={formData.registration_start}
+            value={formData.registration_start || ""}
             onChange={handleChange}
-            required
             className={dateInputClass}
             onClick={(e) => e.currentTarget.showPicker()}
           />
@@ -271,9 +326,8 @@ export default function BootcampForm({
             id="registration_end"
             name="registration_end"
             type="date"
-            value={formData.registration_end}
+            value={formData.registration_end || ""}
             onChange={handleChange}
-            required
             className={dateInputClass}
             onClick={(e) => e.currentTarget.showPicker()}
           />
