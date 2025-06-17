@@ -8,15 +8,60 @@ export interface UserProfile {
   display_name: string;
   email: string;
   wallet_address: string;
+  linked_wallets: string[];
   level: number;
   experience_points: number;
+  status: string;
+  onboarding_completed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Enrollment {
+  id: string;
+  user_profile_id: string;
+  cohort_id: string;
+  enrollment_status: string;
+  progress: {
+    modules_completed: number;
+    total_modules: number;
+  };
+  cohort?: {
+    id: string;
+    name: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Application {
+  id: string;
+  user_profile_id: string;
+  application_id: string;
+  status: string;
+  applications?: {
+    cohort_id: string;
+    user_name: string;
+    experience_level: string;
+    created_at: string;
+  };
+  created_at: string;
+}
+
+export interface Activity {
+  id: string;
+  user_profile_id: string;
+  activity_type: string;
+  activity_data: any;
+  points_earned: number;
+  created_at: string;
 }
 
 export interface UserDashboardData {
   profile: UserProfile;
-  applications: any[];
-  enrollments: any[];
-  recentActivities: any[];
+  applications: Application[];
+  enrollments: Enrollment[];
+  recentActivities: Activity[];
   stats: {
     totalApplications: number;
     completedBootcamps: number;
