@@ -198,11 +198,8 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
       toast.success("🎉 Application submitted successfully!", {
         duration: 3000,
       });
-
-      // Small delay before navigation for better UX
-      setTimeout(() => {
-        router.push(`/payment/${data.applicationId}`);
-      }, 1000);
+      console.log(data);
+      router.push(`/payment/${data.applicationId}`);
     },
     onError: (error) => {
       // Custom error handling for better user experience
