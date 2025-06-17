@@ -62,7 +62,9 @@ export default async function handler(
 
     res.status(201).json({
       success: true,
-      applicationId: data.id,
+      data: {
+        applicationId: data.id,
+      },
       message: "Application saved successfully",
     });
   } catch (error) {
