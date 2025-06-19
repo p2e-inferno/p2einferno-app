@@ -47,7 +47,7 @@ export const usePayment = (paymentData: PaymentConfig) => {
   const { execute: verifyPayment } = useApiCall({
     onSuccess: (data) => {
       console.log("Payment verified successfully:", data);
-      // router.push("/lobby");
+      router.push("/lobby");
     },
     showErrorToast: true,
   });
