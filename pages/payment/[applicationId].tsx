@@ -106,8 +106,7 @@ export default function PaymentPage({
       setDiscountApplied(true);
     }
   };
-  console.log(application);
-  console.log(totalAmount);
+
   return (
     <>
       <Head>
