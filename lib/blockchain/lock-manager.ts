@@ -1,7 +1,10 @@
-import { type Address, type Hash, formatEther } from 'viem';
-import { createBlockchainPublicClient, createBlockchainWalletClient } from './config';
-import { PUBLIC_LOCK_CONTRACT } from '../../constants';
-
+import { type Address, type Hash, formatEther } from "viem";
+import {
+  createBlockchainPublicClient,
+  createBlockchainWalletClient,
+} from "./config";
+import { PUBLIC_LOCK_CONTRACT } from "../../constants";
+const contractAddress = "0xe3Bdd0f1124ec30127C1fC6b9b2BB8FE557acefc";
 export interface GrantKeysParams {
   recipientAddress: Address;
   expirationDuration?: bigint;
@@ -28,13 +31,11 @@ export interface KeyInfo {
 export class LockManagerService {
   private publicClient;
   private walletClient;
-  private contractAddress: Address;
   private contractAbi;
 
   constructor() {
     this.publicClient = createBlockchainPublicClient();
     this.walletClient = createBlockchainWalletClient();
-    this.contractAddress = PUBLIC_LOCK_CONTRACT.address as Address;
     this.contractAbi = PUBLIC_LOCK_CONTRACT.abi;
   }
 
@@ -44,36 +45,30 @@ export class LockManagerService {
   async grantKeys({
     recipientAddress,
     expirationDuration,
-    keyManagers = [],
   }: GrantKeysParams): Promise<GrantKeysResult> {
     try {
       console.log(`Granting key to address: ${recipientAddress}`);
 
-      // Check if recipient already has a valid key
-      const existingKey = await this.checkUserHasValidKey(recipientAddress);
-      if (existingKey) {
-        console.log(`User ${recipientAddress} already has a valid key`);
-        return {
-          success: true,
-          tokenIds: [existingKey.tokenId],
-          error: 'User already has a valid key',
-        };
-      }
-
       // Get the default expiration duration if not provided
-      const duration = expirationDuration || (await this.getDefaultExpirationDuration());
+      const duration =
+        expirationDuration || (await this.getDefaultExpirationDuration());
+      const account = this.walletClient.account;
+
+      // Convert duration to timestamp (current time + duration)
+      const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
+      const expirationTimestamp = currentTimestamp + duration;
 
       // Prepare the transaction
       const { request } = await this.publicClient.simulateContract({
-        address: this.contractAddress,
+        address: contractAddress,
         abi: this.contractAbi,
-        functionName: 'grantKeys',
+        functionName: "grantKeys",
         args: [
           [recipientAddress], // recipients array
-          [duration], // expirations array
-          keyManagers.length > 0 ? keyManagers : [recipientAddress], // key managers array
+          [expirationTimestamp], // expirationTimestamps array (not duration!)
+          [account?.address], // key managers array
         ],
-        account: this.walletClient.account,
+        account: account,
       });
 
       // Execute the transaction
@@ -86,25 +81,23 @@ export class LockManagerService {
         confirmations: 2,
       });
 
-      if (receipt.status === 'success') {
-        console.log(`Key granted successfully to ${recipientAddress}`);
-        
+      if (receipt.status === "success") {
         // Extract token IDs from events if available
         const tokenIds = this.extractTokenIdsFromReceipt(receipt);
-        
+
         return {
           success: true,
           transactionHash: hash,
           tokenIds,
         };
       } else {
-        throw new Error('Transaction failed');
+        throw new Error("Transaction failed");
       }
     } catch (error: any) {
-      console.error('Error granting key:', error);
+      console.error("Error granting key:", error);
       return {
         success: false,
-        error: error.message || 'Failed to grant key',
+        error: error.message || "Failed to grant key",
       };
     }
   }
@@ -114,32 +107,32 @@ export class LockManagerService {
    */
   async checkUserHasValidKey(userAddress: Address): Promise<KeyInfo | null> {
     try {
-      const hasValidKey = await this.publicClient.readContract({
-        address: this.contractAddress,
+      const hasValidKey = (await this.publicClient.readContract({
+        address: contractAddress,
         abi: this.contractAbi,
-        functionName: 'getHasValidKey',
+        functionName: "getHasValidKey",
         args: [userAddress],
-      }) as boolean;
+      })) as boolean;
 
       if (!hasValidKey) {
         return null;
       }
 
       // Get the token ID for the user
-      const tokenId = await this.publicClient.readContract({
-        address: this.contractAddress,
+      const tokenId = (await this.publicClient.readContract({
+        address: contractAddress,
         abi: this.contractAbi,
-        functionName: 'tokenOfOwnerByIndex',
+        functionName: "tokenOfOwnerByIndex",
         args: [userAddress, 0n],
-      }) as bigint;
+      })) as bigint;
 
       // Get key expiration
-      const expirationTimestamp = await this.publicClient.readContract({
-        address: this.contractAddress,
+      const expirationTimestamp = (await this.publicClient.readContract({
+        address: contractAddress,
         abi: this.contractAbi,
-        functionName: 'keyExpirationTimestampFor',
+        functionName: "keyExpirationTimestampFor",
         args: [tokenId],
-      }) as bigint;
+      })) as bigint;
 
       return {
         tokenId,
@@ -148,7 +141,7 @@ export class LockManagerService {
         isValid: true,
       };
     } catch (error) {
-      console.error('Error checking user key:', error);
+      console.error("Error checking user key:", error);
       return null;
     }
   }
@@ -157,20 +150,8 @@ export class LockManagerService {
    * Get the default expiration duration from the contract
    */
   private async getDefaultExpirationDuration(): Promise<bigint> {
-    try {
-      const duration = await this.publicClient.readContract({
-        address: this.contractAddress,
-        abi: this.contractAbi,
-        functionName: 'expirationDuration',
-        args: [],
-      }) as bigint;
-      
-      return duration;
-    } catch (error) {
-      console.warn('Could not fetch default expiration duration, using 30 days');
-      // Default to 30 days if we can't fetch from contract
-      return BigInt(30 * 24 * 60 * 60);
-    }
+    // Default to 30 days if we can't fetch from contract
+    return BigInt(30 * 24 * 60 * 60);
   }
 
   /**
@@ -178,20 +159,23 @@ export class LockManagerService {
    */
   private extractTokenIdsFromReceipt(receipt: any): bigint[] {
     const tokenIds: bigint[] = [];
-    
+
     try {
       // Look for Transfer events in the logs
       for (const log of receipt.logs) {
-        if (log.topics[0] === '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef') {
+        if (
+          log.topics[0] ===
+          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
+        ) {
           // Transfer event topic
           const tokenId = BigInt(log.topics[3]);
           tokenIds.push(tokenId);
         }
       }
     } catch (error) {
-      console.warn('Could not extract token IDs from receipt');
+      console.warn("Could not extract token IDs from receipt");
     }
-    
+
     return tokenIds;
   }
 
@@ -202,17 +186,17 @@ export class LockManagerService {
     try {
       const account = this.walletClient.account;
       if (!account) {
-        throw new Error('Wallet client account not found');
+        throw new Error("Wallet client account not found");
       }
-      
+
       const balance = await this.publicClient.getBalance({
         address: account.address,
       });
-      
+
       return formatEther(balance);
     } catch (error) {
-      console.error('Error getting manager balance:', error);
-      return '0';
+      console.error("Error getting manager balance:", error);
+      return "0";
     }
   }
 }
