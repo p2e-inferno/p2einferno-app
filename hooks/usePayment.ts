@@ -10,6 +10,7 @@ interface PaymentConfig {
   amount: number;
   currency: Currency;
   email: string;
+  walletAddress?: string;
 }
 
 interface PaymentInitResponse {
@@ -46,6 +47,9 @@ export const usePayment = (paymentData: PaymentConfig) => {
   const { execute: verifyPayment } = useApiCall({
     onSuccess: (data) => {
       console.log("Payment verified successfully:", data);
+      if (paymentData.walletAddress) {
+        console.log("User wallet address:", paymentData.walletAddress);
+      }
       router.push("/lobby");
     },
     showErrorToast: true,
@@ -67,9 +71,12 @@ export const usePayment = (paymentData: PaymentConfig) => {
 
   const handlePaymentSuccess = useCallback(
     async (reference: string) => {
-      await verifyPayment(() => api.get(`/payment/verify/${reference}`));
+      const queryParams = paymentData.walletAddress 
+        ? `?wallet=${encodeURIComponent(paymentData.walletAddress)}`
+        : '';
+      await verifyPayment(() => api.get(`/payment/verify/${reference}${queryParams}`));
     },
-    [verifyPayment]
+    [verifyPayment, paymentData.walletAddress]
   );
 
   const processPayment = useCallback(() => {

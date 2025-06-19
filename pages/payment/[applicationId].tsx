@@ -7,7 +7,6 @@ import { Card } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { infernalSparksProgram } from "@/lib/bootcamp-data";
 import { supabase, type Application } from "@/lib/supabase";
-import { PaymentMethodSelector } from "@/components/payment/PaymentMethodSelector";
 import { PaymentSummary } from "@/components/payment/PaymentSummary";
 import dynamic from "next/dynamic";
 import { BlockchainPayment } from "@/components/payment/BlockchainPayment";
@@ -17,6 +16,7 @@ import {
   type Currency,
 } from "@/lib/payment-utils";
 import { CheckCircle, AlertCircle } from "lucide-react";
+import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
 
 // Load the Paystack component only on the client to avoid `window` references
 const PaystackPayment = dynamic(
@@ -87,6 +87,7 @@ export default function PaymentPage({
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>("NGN");
   const [discountCode, setDiscountCode] = useState("");
   const [discountApplied, setDiscountApplied] = useState(false);
+  const { data: dashboardData } = useDashboardDataSimple();
 
   const totalAmount =
     selectedCurrency === "NGN"
@@ -224,6 +225,7 @@ export default function PaymentPage({
                         }
                         currency={selectedCurrency}
                         email={application.user_email}
+                        walletAddress={dashboardData?.profile?.wallet_address}
                         onSuccess={handlePaymentSuccess}
                       />
                     ) : (

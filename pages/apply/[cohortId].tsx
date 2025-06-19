@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -17,7 +17,6 @@ import {
   ArrowLeft,
   ArrowRight,
   CheckCircle,
-  XCircle, // Keep for general error messages if any, or it might be fully delegated
 } from "lucide-react";
 import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
 
@@ -95,8 +94,9 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
     goals: [],
   });
   const [isValidating, setIsValidating] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormData, string>>>({});
-
+  const [fieldErrors, setFieldErrors] = useState<
+    Partial<Record<keyof FormData, string>>
+  >({});
 
   const { data: dashboardData, loading: dashboardLoading } =
     useDashboardDataSimple();
@@ -104,7 +104,8 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
   let pendingApplication = null;
   if (dashboardData && dashboardData.applications) {
     pendingApplication = dashboardData.applications.find(
-      (app) => app.cohort_id === cohortId && app.status === "pending"
+      (app) =>
+        app.applications?.cohort_id === cohortId && app.status === "pending"
     );
   }
 
@@ -121,7 +122,7 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
           [field]: "Please enter a valid email address",
         }));
       } else {
-         // Clear specific email error if it becomes valid
+        // Clear specific email error if it becomes valid
         setFieldErrors((prev) => {
           const newErrors = { ...prev };
           delete newErrors.user_email;
@@ -138,13 +139,14 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
         ? prev.goals.filter((g) => g !== goal)
         : [...prev.goals, goal],
     }));
-     // Clear goals error when a goal is toggled, if the error was for empty goals
-    if (fieldErrors.goals && formData.goals.length >= 0) { // Check length before toggle adjustment
-       setFieldErrors((prev) => {
-          const newErrors = { ...prev };
-          delete newErrors.goals;
-          return newErrors;
-        });
+    // Clear goals error when a goal is toggled, if the error was for empty goals
+    if (fieldErrors.goals && formData.goals.length >= 0) {
+      // Check length before toggle adjustment
+      setFieldErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.goals;
+        return newErrors;
+      });
     }
   };
 
@@ -216,15 +218,21 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
         errors.user_email = "Please enter a valid email address";
       }
     }
-    if (!formData.phone_number.trim()) errors.phone_number = "Phone number is required";
-    if (!formData.motivation.trim()) errors.motivation = "Motivation is required";
-    if (formData.goals.length === 0) errors.goals = "Please select at least one goal";
+    if (!formData.phone_number.trim())
+      errors.phone_number = "Phone number is required";
+    if (!formData.motivation.trim())
+      errors.motivation = "Motivation is required";
+    if (formData.goals.length === 0)
+      errors.goals = "Please select at least one goal";
 
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
-      toast.error("Please fix the errors in your application before submitting.");
+      toast.error(
+        "Please fix the errors in your application before submitting."
+      );
       // Try to navigate to the first step with an error
-      if (errors.user_name || errors.user_email || errors.phone_number) setCurrentStep(1);
+      if (errors.user_name || errors.user_email || errors.phone_number)
+        setCurrentStep(1);
       else if (errors.motivation || errors.goals) setCurrentStep(3);
       return;
     }
@@ -259,10 +267,7 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
         );
       case 2:
         return (
-          <ExperienceStep
-            formData={formData}
-            updateFormData={updateFormData}
-          />
+          <ExperienceStep formData={formData} updateFormData={updateFormData} />
         );
       case 3:
         return (
@@ -300,10 +305,7 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
               You already have a pending application for this cohort. Please
               complete your application by making payment to secure your spot.
             </p>
-            <Button
-              asChild
-              className="w-full bg-flame-yellow text-black hover:bg-flame-orange font-bold text-lg py-3 rounded-xl"
-            >
+            <Button className="w-full bg-flame-yellow text-black hover:bg-flame-orange font-bold text-lg py-3 rounded-xl">
               <a href={`/payment/${pendingApplication.id}`}>
                 Complete Application
               </a>
@@ -359,16 +361,21 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
 
               <LoadingOverlay
                 isLoading={isSubmitting || dashboardLoading} // Consider dashboardLoading for overlay as well
-                message={dashboardLoading ? "Checking existing applications..." : "Saving your application..."}
+                message={
+                  dashboardLoading
+                    ? "Checking existing applications..."
+                    : "Saving your application..."
+                }
               >
                 <Card className="p-8 bg-card border-faded-grey/20">
                   {renderStep()} {/* This now calls the new step components */}
-
                   <div className="flex justify-between mt-8 pt-6 border-t border-faded-grey/20">
                     <Button
                       variant="outline"
                       onClick={prevStep}
-                      disabled={currentStep === 1 || isSubmitting || isValidating}
+                      disabled={
+                        currentStep === 1 || isSubmitting || isValidating
+                      }
                       className="flex items-center gap-2"
                     >
                       <ArrowLeft className="w-4 h-4" />
@@ -380,7 +387,7 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
                         onClick={nextStep}
                         loading={isValidating}
                         loadingText="Validating..."
-                        disabled={!validateStep(currentStep) || isSubmitting }
+                        disabled={!validateStep(currentStep) || isSubmitting}
                         className="flex items-center gap-2 bg-flame-yellow hover:bg-flame-yellow/90 text-black"
                       >
                         Next

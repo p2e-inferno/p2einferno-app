@@ -9,6 +9,7 @@ interface PaystackPaymentProps {
   amount: number;
   currency: Currency;
   email: string;
+  walletAddress?: string;
   onSuccess?: () => void;
   disabled?: boolean;
 }
@@ -18,7 +19,7 @@ export function PaystackPayment({
   amount,
   currency,
   email,
-  onSuccess,
+  walletAddress,
   disabled = false,
 }: PaystackPaymentProps) {
   const { startPayment, processPayment, isInitializing, isConfigured } =
@@ -27,6 +28,7 @@ export function PaystackPayment({
       amount,
       currency,
       email,
+      walletAddress,
     });
   const [error, setError] = useState<string | null>(null);
 
