@@ -3,7 +3,6 @@ import { usePaystackPayment } from "react-paystack";
 import { useApiCall } from "./useApiCall";
 import { convertToSmallestUnit, type Currency } from "../lib/payment-utils";
 import api from "../lib/api";
-import { useRouter } from "next/navigation";
 
 interface PaymentConfig {
   applicationId: string;
@@ -20,10 +19,9 @@ interface PaymentInitResponse {
 }
 
 export const usePayment = (paymentData: PaymentConfig) => {
-  const router = useRouter();
-
   const [isInitializing, setIsInitializing] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<any>(null);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
 
   // Initialize payment with backend
   const { execute: initializePayment } = useApiCall({
@@ -47,7 +45,8 @@ export const usePayment = (paymentData: PaymentConfig) => {
   const { execute: verifyPayment } = useApiCall({
     onSuccess: (data) => {
       console.log("Payment verified successfully:", data);
-      router.push("/lobby");
+      // Use window.location to ensure clean navigation and modal cleanup
+      window.location.href = "/lobby";
     },
     showErrorToast: true,
   });
@@ -68,6 +67,7 @@ export const usePayment = (paymentData: PaymentConfig) => {
 
   const handlePaymentSuccess = useCallback(
     async (reference: string) => {
+      setIsProcessingPayment(true);
       const queryParams = paymentData.walletAddress
         ? `?wallet=${encodeURIComponent(paymentData.walletAddress)}`
         : "";
@@ -79,22 +79,32 @@ export const usePayment = (paymentData: PaymentConfig) => {
   );
 
   const processPayment = useCallback(() => {
-    if (paymentConfig && initializePaystackPayment) {
+    if (paymentConfig && initializePaystackPayment && !isProcessingPayment) {
       initializePaystackPayment({
-        onSuccess: (reference: any) => {
-          handlePaymentSuccess(reference.reference);
+        onSuccess: async (reference: any) => {
+          // Immediately handle the payment success
+          await handlePaymentSuccess(reference.reference);
         },
         onClose: () => {
-          console.log("Payment dialog closed");
+          if (!isProcessingPayment) {
+            // Reset the payment config to prevent modal from reopening
+            setPaymentConfig(null);
+          }
         },
       });
     }
-  }, [initializePaystackPayment, paymentConfig, handlePaymentSuccess]);
+  }, [
+    initializePaystackPayment,
+    paymentConfig,
+    handlePaymentSuccess,
+    isProcessingPayment,
+  ]);
 
   return {
     startPayment,
     processPayment,
     isInitializing,
     isConfigured: !!paymentConfig,
+    isProcessingPayment,
   };
 };

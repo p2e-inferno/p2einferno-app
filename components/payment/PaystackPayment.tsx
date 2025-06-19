@@ -22,15 +22,21 @@ export function PaystackPayment({
   walletAddress,
   disabled = false,
 }: PaystackPaymentProps) {
-  const { startPayment, processPayment, isInitializing, isConfigured } =
-    usePayment({
-      applicationId,
-      amount,
-      currency,
-      email,
-      walletAddress,
-    });
+  const {
+    startPayment,
+    processPayment,
+    isInitializing,
+    isConfigured,
+    isProcessingPayment,
+  } = usePayment({
+    applicationId,
+    amount,
+    currency,
+    email,
+    walletAddress,
+  });
   const [error, setError] = useState<string | null>(null);
+  const [hasProcessed, setHasProcessed] = useState(false);
 
   const handleInitializePayment = async () => {
     try {
@@ -38,21 +44,21 @@ export function PaystackPayment({
       await startPayment();
     } catch (err) {
       setError("Failed to initialize payment. Please try again.");
-      console.error("Payment initialization error:", err);
     }
   };
 
   // Auto-trigger payment flow when configured
   useEffect(() => {
-    if (isConfigured) {
+    if (isConfigured && !hasProcessed) {
       try {
+        setHasProcessed(true);
         processPayment();
       } catch (err) {
         setError("Failed to process payment. Please try again.");
-        console.error("Payment processing error:", err);
+        setHasProcessed(false);
       }
     }
-  }, [isConfigured, processPayment]);
+  }, [isConfigured, processPayment, hasProcessed]);
 
   if (error) {
     return (
@@ -89,6 +95,14 @@ export function PaystackPayment({
           <CreditCard className="w-5 h-5 mr-2" />
           Pay with Paystack
         </LoadingButton>
+      ) : isProcessingPayment ? (
+        <div className="text-center p-4 bg-blue-50 rounded-lg">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-blue-800 font-medium">Processing Payment...</p>
+          <p className="text-blue-600 text-sm">
+            Please wait while we verify your payment
+          </p>
+        </div>
       ) : (
         <div className="text-center p-4 bg-green-50 rounded-lg">
           <CheckCircle className="w-8 h-8 text-green-600 mx-auto mb-2" />
