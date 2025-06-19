@@ -30,11 +30,8 @@ export function Bootcamps() {
   const spotsRemaining =
     currentCohort.max_participants - currentCohort.current_participants;
 
-  // Format registration dates if available
-  const registrationPeriod = infernalSparksProgram.registration_start && 
-    infernalSparksProgram.registration_end ? 
-    `${new Date(infernalSparksProgram.registration_start).toLocaleDateString()} - ${new Date(infernalSparksProgram.registration_end).toLocaleDateString()}` : 
-    "Open Registration";
+  // Registration is always open
+  const registrationPeriod = "Open Registration";
 
   return (
     <section id="bootcamps" className="py-20 md:py-32 bg-background">

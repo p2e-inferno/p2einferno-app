@@ -11,10 +11,6 @@ export interface BootcampProgram {
   description: string;
   duration_weeks: number;
   max_reward_dgt: number;
-  cost_naira: number;
-  cost_usd: number;
-  registration_start?: string;
-  registration_end?: string;
   lock_address?: string;
   created_at: string;
   updated_at: string;
@@ -31,6 +27,9 @@ export interface Cohort {
   registration_deadline: string;
   status: "open" | "closed" | "upcoming";
   lock_address?: string;
+  key_managers?: string[];
+  usdt_amount?: number;
+  naira_amount?: number;
   created_at: string;
   updated_at: string;
 }
@@ -66,6 +65,8 @@ export interface Application {
   payment_method: "crypto" | "fiat";
   created_at: string;
   updated_at: string;
+  contract_address?: string;
+  key_managers_address?: string[];
 }
 
 export interface Quest {

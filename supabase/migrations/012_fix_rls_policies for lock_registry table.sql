@@ -104,59 +104,11 @@ CREATE POLICY "Service role can manage milestone records"
     FOR ALL 
     USING (auth.role() = 'service_role'); 
 
--- Create a function to validate cohort dates against bootcamp registration dates
-CREATE OR REPLACE FUNCTION validate_cohort_dates()
-RETURNS TRIGGER AS $$
-DECLARE
-    bootcamp_reg_start DATE;
-    bootcamp_reg_end DATE;
-BEGIN
-    -- Skip validation if using service_role (admin operations)
-    IF auth.role() = 'service_role' THEN
-        RETURN NEW;
-    END IF;
-    
-    -- Get the bootcamp registration dates
-    SELECT 
-        registration_start, 
-        registration_end 
-    INTO 
-        bootcamp_reg_start, 
-        bootcamp_reg_end
-    FROM 
-        public.bootcamp_programs
-    WHERE 
-        id = NEW.bootcamp_program_id;
-    
-    -- Only validate if bootcamp has registration dates set
-    IF bootcamp_reg_start IS NOT NULL AND bootcamp_reg_end IS NOT NULL THEN
-        -- Validate that registration deadline is within bootcamp registration period
-        IF NEW.registration_deadline < bootcamp_reg_start OR NEW.registration_deadline > bootcamp_reg_end THEN
-            RAISE EXCEPTION 'Cohort registration deadline must be within the bootcamp registration period (% - %)', 
-                bootcamp_reg_start, bootcamp_reg_end;
-        END IF;
-        
-        -- Validate that cohort start date is after bootcamp registration period ends
-        IF NEW.start_date < bootcamp_reg_end THEN
-            RAISE EXCEPTION 'Cohort start date must be after bootcamp registration period ends (%)', 
-                bootcamp_reg_end;
-        END IF;
-    END IF;
-    
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+-- Note: Cohort date validation function and triggers were removed in migration 015
+-- This was too restrictive as users should be able to register even after cohort starts
+-- Frontend form validation is sufficient for basic date validation
 
--- Create triggers for cohort date validation
-DROP TRIGGER IF EXISTS validate_cohort_dates_insert ON public.cohorts;
-DROP TRIGGER IF EXISTS validate_cohort_dates_update ON public.cohorts;
-
-CREATE TRIGGER validate_cohort_dates_insert
-    BEFORE INSERT ON public.cohorts
-    FOR EACH ROW
-    EXECUTE FUNCTION validate_cohort_dates();
-
-CREATE TRIGGER validate_cohort_dates_update
-    BEFORE UPDATE ON public.cohorts
-    FOR EACH ROW
-    EXECUTE FUNCTION validate_cohort_dates(); 
+-- The following code has been commented out and removed in later migration:
+-- CREATE OR REPLACE FUNCTION validate_cohort_dates() ...
+-- CREATE TRIGGER validate_cohort_dates_insert ...
+-- CREATE TRIGGER validate_cohort_dates_update ... 
