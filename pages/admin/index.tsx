@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
 import Link from "next/link";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 

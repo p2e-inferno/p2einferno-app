@@ -7,8 +7,6 @@ import { Pencil, Trash2 } from "lucide-react"; // PlusCircle is in AdminListPage
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram } from "@/lib/supabase/types";
-import { formatCurrency } from "@/lib/bootcamp-data";
-import { formatDate } from "@/lib/dateUtils"; // + Import shared function
 // useAdminAuth is now used by AdminListPageLayout, so it's not directly needed here.
 // import { useAdminAuth } from "@/hooks/useAdminAuth";
 
@@ -117,15 +115,10 @@ export default function BootcampListPage() {
                   {bootcamp.max_reward_dgt.toLocaleString()} DGT
                 </td>
                 <td className="py-4 px-4 text-sm text-white">
-                  {formatCurrency(bootcamp.cost_usd, "USD")} /{" "}
-                  {formatCurrency(bootcamp.cost_naira, "NGN")}
+                  Contact for pricing
                 </td>
                 <td className="py-4 px-4 text-sm text-white">
-                  {bootcamp.registration_start && bootcamp.registration_end
-                    ? `${formatDate(
-                        bootcamp.registration_start
-                      )} - ${formatDate(bootcamp.registration_end)}`
-                    : "Not set"}
+                  Open Registration
                 </td>
                 <td className="py-4 px-4 text-right">
                   <div className="flex justify-end space-x-2">
@@ -143,7 +136,9 @@ export default function BootcampListPage() {
                       variant="outline"
                       className="border-gray-700 hover:border-red-500 hover:text-red-500"
                       // TODO: Implement delete functionality with confirmation
-                      onClick={() => alert("Delete functionality not yet implemented.")}
+                      onClick={() =>
+                        alert("Delete functionality not yet implemented.")
+                      }
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
