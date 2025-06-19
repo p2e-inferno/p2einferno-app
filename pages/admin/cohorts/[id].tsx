@@ -1,53 +1,58 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import AdminLayout from "@/components/layouts/AdminLayout";
+// AdminLayout is not directly used, it's part of AdminEditPageLayout
+import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout"; // Import the new layout
 import CohortForm from "@/components/admin/CohortForm";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
+// ArrowLeft and Link from next/link are handled by AdminEditPageLayout
 import { supabase } from "@/lib/supabase/client";
 import type { Cohort } from "@/lib/supabase/types";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useAdminAuth } from "@/hooks/useAdminAuth"; // Keep for page-level auth if AdminEditPageLayout doesn't cover it fully
 
 export default function EditCohortPage() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading: authLoading, authenticated } = useAdminAuth(); // Page-level auth check
   const router = useRouter();
   const { id } = router.query;
 
   const [cohort, setCohort] = useState<Cohort | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // Page-specific loading for data
   const [error, setError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
 
-  // Make sure we're on the client side before redirecting
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Protect admin route
+  // Protect admin route (this is page-level, AdminEditPageLayout uses AdminLayout which might also have protection)
   useEffect(() => {
-    // Only run this effect on client-side and after auth check is complete
-    if (!isClient || loading) return;
-
-    // Redirect if not authenticated or not an admin
+    if (!isClient || authLoading) return;
     if (!authenticated || !isAdmin) {
       router.push("/");
     }
-  }, [authenticated, isAdmin, loading, router, isClient]);
+  }, [authenticated, isAdmin, authLoading, router, isClient]);
 
   // Fetch cohort data
   useEffect(() => {
-    if (!authenticated || !isAdmin || !isClient || !id) return;
+    if (!authenticated || !isAdmin || !isClient || !id) {
+      // If auth is still loading or conditions not met, don't fetch yet
+      // If no id, set loading to false if not already caught by auth checks
+      if (!id && isClient && authenticated && isAdmin) {
+          setIsLoading(false);
+          setError("Cohort ID is missing.");
+      }
+      return;
+    }
 
     async function fetchCohort() {
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
+        setError(null);
+        const { data, error: dbError } = await supabase
           .from("cohorts")
           .select("*")
           .eq("id", id)
           .single();
 
-        if (error) throw error;
+        if (dbError) throw dbError;
 
         if (!data) {
           throw new Error("Cohort not found");
@@ -63,56 +68,48 @@ export default function EditCohortPage() {
     }
 
     fetchCohort();
-  }, [authenticated, isAdmin, isClient, id]);
+  }, [authenticated, isAdmin, isClient, id, authLoading]); // Added authLoading to dependencies
 
-  // Show loading state while checking authentication
-  if (loading || !isClient) {
+  // This initial loading state is for the auth check by useAdminAuth
+  if (authLoading || !isClient) {
     return (
-      <AdminLayout>
-        <div className="w-full flex justify-center items-center min-h-[400px]">
-          <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
-        </div>
-      </AdminLayout>
+      // Using AdminLayout directly for this top-level loading state before AdminEditPageLayout can render
+      // This is because AdminEditPageLayout itself might be subject to the auth check.
+      // Alternatively, AdminEditPageLayout could have its own comprehensive loading state for auth.
+      // For now, this matches the original structure more closely for initial auth load.
+      <AdminEditPageLayout
+        title="Edit Cohort"
+        backLinkHref="/admin/cohorts"
+        backLinkText="Back to cohorts"
+        isLoading={true} // Show layout's loader during auth
+      >
+        {/* Child is empty as main content is auth-blocked or loading */}
+      </AdminEditPageLayout>
     );
   }
 
-  // Only render admin content if authenticated and is admin
+  // If redirecting, return null to avoid content flash
   if (!authenticated || !isAdmin) {
-    return null; // This avoids momentary flash of content before redirect
+    return null;
   }
 
   return (
-    <AdminLayout>
-      <div className="w-full max-w-4xl mx-auto">
-        <div className="mb-6">
-          <Link
-            href="/admin/cohorts"
-            className="text-gray-400 hover:text-white flex items-center mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back to cohorts
-          </Link>
-          <h1 className="text-2xl font-bold text-white">Edit Cohort</h1>
-          <p className="text-gray-400 mt-1">Update cohort details</p>
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-flame-yellow"></div>
-          </div>
-        ) : error ? (
-          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-            {error}
-          </div>
-        ) : cohort ? (
-          <div className="bg-card border border-gray-800 rounded-lg p-6">
-            <CohortForm cohort={cohort} isEditing />
-          </div>
-        ) : (
+    <AdminEditPageLayout
+      title="Edit Cohort"
+      backLinkHref="/admin/cohorts"
+      backLinkText="Back to cohorts"
+      isLoading={isLoading} // This is for data loading, auth loading is handled above
+      error={error}
+    >
+      {cohort ? (
+        <CohortForm cohort={cohort} isEditing />
+      ) : (
+        !isLoading && !error && !cohort ?
           <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
-            Cohort not found. It may have been deleted.
+            Cohort not found. It may have been deleted or the ID is incorrect.
           </div>
-        )}
-      </div>
-    </AdminLayout>
+        : null // Loading/Error is handled by AdminEditPageLayout based on props
+      )}
+    </AdminEditPageLayout>
   );
 }
