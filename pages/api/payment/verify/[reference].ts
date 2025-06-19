@@ -12,12 +12,17 @@ export default async function handler(
   }
 
   try {
-    const { reference } = req.query;
+    const { reference, wallet } = req.query;
 
     if (!reference || typeof reference !== "string") {
       return res.status(400).json({
         error: "Invalid payment reference",
       });
+    }
+
+    // Log wallet address if provided
+    if (wallet && typeof wallet === "string") {
+      console.log("Payment verification for wallet:", wallet);
     }
 
     // Verify payment with Paystack
@@ -122,6 +127,12 @@ export default async function handler(
       }
     }
 
+    // Log successful payment with wallet address
+    console.log("Payment verified successfully:", {
+      reference,
+      wallet: wallet || "No wallet address provided",
+    });
+
     res.status(200).json({
       success: true,
       data: {
@@ -130,6 +141,7 @@ export default async function handler(
         amount: paymentData.amount / 100, // Convert from kobo
         currency: paymentData.currency,
         paid_at: paymentData.paid_at,
+        walletAddress: wallet,
         customer: {
           email: paymentData.customer?.email,
         },
