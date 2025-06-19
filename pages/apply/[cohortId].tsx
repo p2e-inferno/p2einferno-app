@@ -85,6 +85,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
 export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     user_name: "",
     user_email: "",
@@ -202,6 +203,7 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
     onError: (error) => {
       console.error("Application submission failed:", error);
       // Error toast is handled by useApiCall by default if showErrorToast is true
+      setIsLoading(false);
     },
     showSuccessToast: false,
     showErrorToast: true,
@@ -249,6 +251,7 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
         goals: formData.goals,
         payment_method: "fiat",
       };
+      setIsLoading(true);
       await submitApplication(() => applicationApi.submit(applicationData));
     } catch (error) {
       console.error("Application submission failed (catch block):", error);
@@ -396,7 +399,7 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
                     ) : (
                       <LoadingButton
                         onClick={handleSubmitForPayment}
-                        loading={isSubmitting}
+                        loading={isSubmitting || isLoading}
                         loadingText="Saving Application..."
                         disabled={!validateStep(currentStep) || isValidating}
                         className="flex items-center gap-2 bg-steel-red hover:bg-steel-red/90 text-white"

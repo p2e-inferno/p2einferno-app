@@ -41,7 +41,8 @@
     "react-hot-toast": "^2.5.2",
     "react-paystack": "^6.0.0",
     "tailwind-merge": "^3.3.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "viem": "^2.31.3"
   },
   "devDependencies": {
     "@tsconfig/next": "^2.0.0",
