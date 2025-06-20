@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import { nanoid } from "nanoid";
 import type { QuestTask } from "@/lib/supabase/types";
 import { randomUUID } from "crypto";
 

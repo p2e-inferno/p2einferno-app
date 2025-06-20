@@ -110,14 +110,18 @@ export class GrantKeyService {
   /**
    * Check if user already has a valid key
    */
-  async userHasValidKey(walletAddress: string): Promise<boolean> {
+  async userHasValidKey(
+    walletAddress: string,
+    lockAddress: Address
+  ): Promise<boolean> {
     if (!this.isValidAddress(walletAddress)) {
       return false;
     }
 
     try {
       const keyInfo = await lockManagerService.checkUserHasValidKey(
-        walletAddress as Address
+        walletAddress as Address,
+        lockAddress
       );
       return keyInfo !== null && keyInfo.isValid;
     } catch (error) {

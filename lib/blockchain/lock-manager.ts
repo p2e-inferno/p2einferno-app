@@ -107,10 +107,13 @@ export class LockManagerService {
   /**
    * Check if a user has a valid key
    */
-  async checkUserHasValidKey(userAddress: Address): Promise<KeyInfo | null> {
+  async checkUserHasValidKey(
+    userAddress: Address,
+    lockAddress: Address
+  ): Promise<KeyInfo | null> {
     try {
       const hasValidKey = (await this.publicClient.readContract({
-        address: contractAddress,
+        address: lockAddress,
         abi: this.contractAbi,
         functionName: "getHasValidKey",
         args: [userAddress],
@@ -122,7 +125,7 @@ export class LockManagerService {
 
       // Get the token ID for the user
       const tokenId = (await this.publicClient.readContract({
-        address: contractAddress,
+        address: lockAddress,
         abi: this.contractAbi,
         functionName: "tokenOfOwnerByIndex",
         args: [userAddress, 0n],
@@ -130,7 +133,7 @@ export class LockManagerService {
 
       // Get key expiration
       const expirationTimestamp = (await this.publicClient.readContract({
-        address: contractAddress,
+        address: lockAddress,
         abi: this.contractAbi,
         functionName: "keyExpirationTimestampFor",
         args: [tokenId],
