@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyBadge } from "@/components/ui/badge";
 import { usePrivy } from "@privy-io/react-auth";
+import ImageUpload from "@/components/ui/image-upload";
 import type { BootcampProgram } from "@/lib/supabase/types";
 
 interface BootcampFormProps {
@@ -44,6 +45,7 @@ export default function BootcampForm({
       duration_weeks: 4,
       max_reward_dgt: 0,
       lock_address: "", // Using existing lock_address field from DB
+      image_url: "",
     }
   );
 
@@ -64,6 +66,13 @@ export default function BootcampForm({
     setFormData((prev) => ({
       ...prev,
       [name]: parsedValue,
+    }));
+  };
+
+  const handleImageChange = (imageUrl: string | null) => {
+    setFormData((prev) => ({
+      ...prev,
+      image_url: imageUrl || "",
     }));
   };
 
@@ -94,6 +103,7 @@ export default function BootcampForm({
         duration_weeks: formData.duration_weeks,
         max_reward_dgt: formData.max_reward_dgt,
         lock_address: formData.lock_address || null,
+        image_url: formData.image_url || null,
         updated_at: now,
       } as any;
 
@@ -248,6 +258,14 @@ export default function BootcampForm({
             onChange={handleChange}
             placeholder="e.g., 0x1234..."
             className={inputClass}
+          />
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <ImageUpload
+            value={formData.image_url}
+            onChange={handleImageChange}
+            disabled={isSubmitting}
           />
         </div>
       </div>
