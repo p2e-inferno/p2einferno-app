@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -46,62 +46,58 @@ export default function QuestDetailsPage() {
     }
   }, [authenticated, router]);
 
-  // Fetch quest details directly from Supabase
-  useEffect(() => {
-    async function fetchQuestDetails() {
-      if (!id || typeof id !== "string") return;
+  // Reusable function to fetch quest details by id
+  const fetchQuestDetails = useCallback(async (questId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        // Fetch quest with tasks using Supabase client
-        const { data: questData, error: questError } = await supabase
-          .from("quests")
-          .select(`
+      // Fetch quest with tasks
+      const { data: questData, error: questError } = await supabase
+        .from("quests")
+        .select(
+          `
             *,
             quest_tasks (*)
-          `)
-          .eq("id", id)
-          .single();
+          `
+        )
+        .eq("id", questId)
+        .single();
 
-        if (questError) throw questError;
+      if (questError) throw questError;
+      if (!questData) throw new Error("Quest not found");
 
-        if (!questData) {
-          throw new Error("Quest not found");
-        }
+      // Fetch stats
+      const { data: stats } = await supabase
+        .from("quest_statistics")
+        .select("*")
+        .eq("quest_id", questId)
+        .single();
 
-        // Fetch quest statistics from the view
-        const { data: stats } = await supabase
-          .from("quest_statistics")
-          .select("*")
-          .eq("quest_id", id)
-          .single();
+      const questWithStats: QuestDetails = {
+        ...questData,
+        stats: stats || undefined,
+      };
 
-        // Set quest with stats
-        const questWithStats: QuestDetails = {
-          ...questData,
-          stats: stats || undefined,
-        };
+      setQuest(questWithStats);
 
-        setQuest(questWithStats);
-
-        // Switch to submissions tab if there are pending submissions
-        if (stats?.pending_submissions > 0) {
-          setActiveTab("submissions");
-        }
-      } catch (err: any) {
-        console.error("Error fetching quest:", err);
-        setError(err.message || "Failed to load quest details");
-      } finally {
-        setIsLoading(false);
+      if (stats?.pending_submissions > 0) {
+        setActiveTab("submissions");
       }
+    } catch (err: any) {
+      console.error("Error fetching quest:", err);
+      setError(err.message || "Failed to load quest details");
+    } finally {
+      setIsLoading(false);
     }
+  }, []);
 
-    if (id) {
-      fetchQuestDetails();
+  // Initial fetch on mount / id change
+  useEffect(() => {
+    if (id && typeof id === "string") {
+      fetchQuestDetails(id);
     }
-  }, [id]);
+  }, [id, fetchQuestDetails]);
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {

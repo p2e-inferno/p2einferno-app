@@ -241,8 +241,7 @@ async function getUserDashboardData(userProfileId: string, supabase: any) {
     const { data: enrollData, error: enrollError } = await supabase
       .from("user_enrollments_view")
       .select("*")
-      .eq("user_profile_id", userProfileId)
-      .order("created_at", { ascending: false });
+      .eq("user_profile_id", userProfileId);
 
     if (enrollError) {
       console.error("Error fetching enrollments:", enrollError);
