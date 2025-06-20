@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { nanoid } from "nanoid";
 import type { QuestTask } from "@/lib/supabase/types";
+import { randomUUID } from "crypto";
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,19 +34,28 @@ export default async function handler(
     }
   } catch (error: any) {
     console.error("API error:", error);
-    return res.status(500).json({ error: error.message || "Internal server error" });
+    return res
+      .status(500)
+      .json({ error: error.message || "Internal server error" });
   }
 }
 
-async function getQuest(_req: NextApiRequest, res: NextApiResponse, supabase: any, questId: string) {
+async function getQuest(
+  _req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any,
+  questId: string
+) {
   try {
     // Fetch quest with tasks
     const { data: quest, error } = await supabase
       .from("quests")
-      .select(`
+      .select(
+        `
         *,
         quest_tasks (*)
-      `)
+      `
+      )
       .eq("id", questId)
       .single();
 
@@ -66,30 +76,33 @@ async function getQuest(_req: NextApiRequest, res: NextApiResponse, supabase: an
     // Fetch pending submissions if any
     const { data: submissions } = await supabase
       .from("user_task_completions")
-      .select(`
+      .select(
+        `
         *,
         task:quest_tasks!user_task_completions_task_id_fkey (
           id,
           title,
           task_type
         ),
-        profiles!user_task_completions_user_id_fkey (
+        user_profiles!user_task_completions_user_id_fkey (
           id,
           email,
           wallet_address,
-          display_name
+          display_name,
+          privy_user_id
         )
-      `)
+      `
+      )
       .eq("quest_id", questId)
       .eq("submission_status", "pending")
       .order("completed_at", { ascending: false });
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       quest: {
         ...quest,
         stats: stats || null,
-        pending_submissions: submissions || []
-      }
+        pending_submissions: submissions || [],
+      },
     });
   } catch (error: any) {
     console.error("Error fetching quest:", error);
@@ -97,7 +110,12 @@ async function getQuest(_req: NextApiRequest, res: NextApiResponse, supabase: an
   }
 }
 
-async function updateQuest(req: NextApiRequest, res: NextApiResponse, supabase: any, questId: string) {
+async function updateQuest(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any,
+  questId: string
+) {
   const { quest, tasks } = req.body;
 
   if (!quest) {
@@ -132,18 +150,33 @@ async function updateQuest(req: NextApiRequest, res: NextApiResponse, supabase: 
 
       // Insert new/updated tasks
       if (tasks.length > 0) {
-        const tasksWithIds = tasks.map((task: Partial<QuestTask>, index: number) => {
-          // Keep existing ID if it's an update, generate new if it's new
-          const taskId = task.id && !task.id.startsWith("temp") ? task.id : nanoid(10);
-          return {
-            id: taskId,
-            quest_id: questId,
-            ...task,
-            order_index: task.order_index ?? index,
-            created_at: task.created_at || now,
-            updated_at: now,
-          };
-        });
+        const tasksWithIds = tasks.map(
+          (task: Partial<QuestTask>, index: number) => {
+            // Separate the id field so we can handle it explicitly
+            const { id: incomingId, ...taskData } =
+              task as Partial<QuestTask> & {
+                id?: string | null;
+              };
+
+            const base: Partial<QuestTask> & { quest_id: string } = {
+              quest_id: questId,
+              ...taskData,
+              order_index: task.order_index ?? index,
+              created_at: task.created_at || now,
+              updated_at: now,
+            } as any;
+
+            if (incomingId && !incomingId.startsWith("temp")) {
+              // Existing task with a real UUID, keep it
+              (base as any).id = incomingId;
+            } else {
+              // New task – generate a fresh UUID so we don't violate the NOT NULL constraint
+              (base as any).id = randomUUID();
+            }
+
+            return base;
+          }
+        );
 
         const { data: tasksData, error: tasksError } = await supabase
           .from("quest_tasks")
@@ -152,19 +185,19 @@ async function updateQuest(req: NextApiRequest, res: NextApiResponse, supabase: 
 
         if (tasksError) throw tasksError;
 
-        return res.status(200).json({ 
-          success: true, 
+        return res.status(200).json({
+          success: true,
           quest: {
             ...questData,
             quest_tasks: tasksData,
-          }
+          },
         });
       }
     }
 
-    return res.status(200).json({ 
-      success: true, 
-      quest: questData 
+    return res.status(200).json({
+      success: true,
+      quest: questData,
     });
   } catch (error: any) {
     console.error("Error updating quest:", error);
@@ -172,7 +205,12 @@ async function updateQuest(req: NextApiRequest, res: NextApiResponse, supabase: 
   }
 }
 
-async function deleteQuest(_req: NextApiRequest, res: NextApiResponse, supabase: any, questId: string) {
+async function deleteQuest(
+  _req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any,
+  questId: string
+) {
   try {
     // Check if quest has any completions
     const { count } = await supabase
@@ -181,16 +219,13 @@ async function deleteQuest(_req: NextApiRequest, res: NextApiResponse, supabase:
       .eq("quest_id", questId);
 
     if (count > 0) {
-      return res.status(400).json({ 
-        error: "Cannot delete quest with user progress. Deactivate it instead." 
+      return res.status(400).json({
+        error: "Cannot delete quest with user progress. Deactivate it instead.",
       });
     }
 
     // Delete quest (tasks will be cascade deleted)
-    const { error } = await supabase
-      .from("quests")
-      .delete()
-      .eq("id", questId);
+    const { error } = await supabase.from("quests").delete().eq("id", questId);
 
     if (error) throw error;
 

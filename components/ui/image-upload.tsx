@@ -22,6 +22,7 @@ export default function ImageUpload({
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
@@ -43,7 +44,7 @@ export default function ImageUpload({
   const uploadFile = async (file: File) => {
     const validationError = validateFile(file);
     if (validationError) {
-      alert(validationError);
+      setErrorMsg(validationError);
       return;
     }
 
@@ -52,7 +53,9 @@ export default function ImageUpload({
     try {
       // Generate unique filename
       const fileExt = file.name.split(".").pop();
-      const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const fileName = `${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2)}.${fileExt}`;
 
       // Upload file to Supabase Storage
       const { data, error } = await supabase.storage
@@ -74,7 +77,7 @@ export default function ImageUpload({
       onChange(urlData.publicUrl);
     } catch (error: any) {
       console.error("Upload error:", error);
-      alert(error.message || "Failed to upload image");
+      setErrorMsg(error.message || "Failed to upload image");
     } finally {
       setIsUploading(false);
     }
@@ -102,9 +105,9 @@ export default function ImageUpload({
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    
+
     if (disabled || isUploading) return;
-    
+
     const files = e.dataTransfer.files;
     handleFileSelect(files);
   };
@@ -120,9 +123,7 @@ export default function ImageUpload({
 
       // Delete from Supabase Storage only if fileName exists
       if (fileName) {
-        await supabase.storage
-          .from(bucketName)
-          .remove([fileName]);
+        await supabase.storage.from(bucketName).remove([fileName]);
       }
 
       onChange("");
@@ -135,8 +136,25 @@ export default function ImageUpload({
 
   return (
     <div className="space-y-4">
+      {/* Error Modal */}
+      {errorMsg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg p-6 w-full max-w-md text-center space-y-4">
+            <h3 className="text-lg font-semibold text-white">Upload Error</h3>
+            <p className="text-gray-300">{errorMsg}</p>
+            <Button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              className="bg-steel-red hover:bg-steel-red/90 text-white"
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      )}
+
       <Label className="text-white">Bootcamp Image</Label>
-      
+
       {value ? (
         <div className="relative">
           <img
@@ -166,7 +184,9 @@ export default function ImageUpload({
           onDragLeave={handleDrag}
           onDragOver={handleDrag}
           onDrop={handleDrop}
-          onClick={() => !disabled && !isUploading && fileInputRef.current?.click()}
+          onClick={() =>
+            !disabled && !isUploading && fileInputRef.current?.click()
+          }
         >
           <input
             ref={fileInputRef}
@@ -176,7 +196,7 @@ export default function ImageUpload({
             className="hidden"
             disabled={disabled || isUploading}
           />
-          
+
           <div className="flex flex-col items-center space-y-3">
             {isUploading ? (
               <>
@@ -188,7 +208,8 @@ export default function ImageUpload({
                 <ImageIcon className="w-8 h-8 text-gray-400" />
                 <div>
                   <p className="text-gray-300">
-                    <span className="font-medium">Click to upload</span> or drag and drop
+                    <span className="font-medium">Click to upload</span> or drag
+                    and drop
                   </p>
                   <p className="text-sm text-gray-500">
                     PNG, JPG, WebP or GIF up to {maxSizeMB}MB
