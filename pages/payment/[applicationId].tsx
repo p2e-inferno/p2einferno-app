@@ -119,7 +119,6 @@ export default function PaymentPage({
   cohort,
   bootcamp,
 }: PaymentPageProps) {
-  console.log(application);
   const router = useRouter();
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>("NGN");
   const [discountCode, setDiscountCode] = useState("");
@@ -257,6 +256,7 @@ export default function PaymentPage({
                     {paymentMethod === "paystack" ? (
                       <PaystackPayment
                         applicationId={applicationId}
+                        cohortId={application.cohort_id}
                         amount={
                           discountApplied ? totalAmount * 0.8 : totalAmount
                         }

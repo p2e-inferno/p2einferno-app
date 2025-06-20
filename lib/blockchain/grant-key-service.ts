@@ -3,6 +3,8 @@ import { lockManagerService } from "./lock-manager";
 
 export interface GrantKeyOptions {
   walletAddress: string;
+  lockAddress: Address;
+  keyManagers: Address[];
   maxRetries?: number;
   retryDelay?: number;
 }
@@ -26,6 +28,8 @@ export class GrantKeyService {
    */
   async grantKeyToUser({
     walletAddress,
+    lockAddress,
+    keyManagers,
     maxRetries = this.DEFAULT_MAX_RETRIES,
     retryDelay = this.DEFAULT_RETRY_DELAY,
   }: GrantKeyOptions): Promise<GrantKeyResponse> {
@@ -46,6 +50,8 @@ export class GrantKeyService {
         // Attempt to grant key
         const result = await lockManagerService.grantKeys({
           recipientAddress: walletAddress as Address,
+          lockAddress,
+          keyManagers,
         });
 
         if (result.success) {
