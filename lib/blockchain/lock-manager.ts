@@ -4,9 +4,9 @@ import {
   createBlockchainWalletClient,
 } from "./config";
 import { PUBLIC_LOCK_CONTRACT } from "../../constants";
-const contractAddress = "0xe3Bdd0f1124ec30127C1fC6b9b2BB8FE557acefc";
 export interface GrantKeysParams {
   recipientAddress: Address;
+  lockAddress: Address;
   expirationDuration?: bigint;
   keyManagers?: Address[];
 }
@@ -44,6 +44,8 @@ export class LockManagerService {
    */
   async grantKeys({
     recipientAddress,
+    lockAddress,
+    keyManagers,
     expirationDuration,
   }: GrantKeysParams): Promise<GrantKeysResult> {
     try {
@@ -60,13 +62,13 @@ export class LockManagerService {
 
       // Prepare the transaction
       const { request } = await this.publicClient.simulateContract({
-        address: contractAddress,
+        address: lockAddress,
         abi: this.contractAbi,
         functionName: "grantKeys",
         args: [
           [recipientAddress], // recipients array
           [expirationTimestamp], // expirationTimestamps array (not duration!)
-          [account?.address], // key managers array
+          keyManagers, // key managers array
         ],
         account: account,
       });

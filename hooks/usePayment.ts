@@ -9,6 +9,7 @@ interface PaymentConfig {
   amount: number;
   currency: Currency;
   email: string;
+  cohortId: string;
   walletAddress?: string;
 }
 
@@ -69,7 +70,9 @@ export const usePayment = (paymentData: PaymentConfig) => {
     async (reference: string) => {
       setIsProcessingPayment(true);
       const queryParams = paymentData.walletAddress
-        ? `?wallet=${encodeURIComponent(paymentData.walletAddress)}`
+        ? `?wallet=${encodeURIComponent(paymentData.walletAddress)}&cohortId=${
+            paymentData.cohortId
+          }`
         : "";
       await verifyPayment(() =>
         api.get(`/payment/verify/${reference}${queryParams}`)

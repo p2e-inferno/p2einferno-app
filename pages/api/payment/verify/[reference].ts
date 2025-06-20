@@ -13,7 +13,7 @@ export default async function handler(
   }
 
   try {
-    const { reference, wallet } = req.query;
+    const { reference, wallet, cohortId } = req.query;
 
     if (!reference || typeof reference !== "string") {
       return res.status(400).json({
@@ -140,11 +140,20 @@ export default async function handler(
     // Grant blockchain key if wallet address is provided
     if (wallet && typeof wallet === "string") {
       console.log(`Granting blockchain key to wallet: ${wallet}`);
+      const { data: cohort } = await supabase
+        .from("cohorts")
+        .select("lock_address, key_managers")
+        .eq("id", cohortId)
+        .single();
 
       try {
         // Grant key asynchronously - don't block the payment response
         grantKeyService
-          .grantKeyToUser({ walletAddress: wallet })
+          .grantKeyToUser({
+            walletAddress: wallet,
+            lockAddress: cohort.lock_address,
+            keyManagers: cohort.key_managers,
+          })
           .then((result) => {
             if (result.success) {
               console.log(`Successfully granted key to ${wallet}`, {
