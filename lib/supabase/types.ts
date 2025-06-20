@@ -44,6 +44,8 @@ export interface CohortMilestone {
   end_date?: string;
   lock_address: string;
   prerequisite_milestone_id?: string;
+  duration_hours?: number;
+  total_reward?: number;
   created_at: string;
   updated_at: string;
 }
@@ -109,4 +111,47 @@ export interface UserTaskCompletion {
   verification_data: any;
   reward_claimed: boolean;
   completed_at: string;
+}
+
+export interface MilestoneTask {
+  id: string;
+  milestone_id: string;
+  title: string;
+  description?: string;
+  reward_amount: number;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskSubmission {
+  id: string;
+  task_id: string;
+  user_id: string;
+  submission_url: string;
+  status: "pending" | "completed" | "failed" | "retry";
+  submitted_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  feedback?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProgramHighlight {
+  id: string;
+  cohort_id: string;
+  content: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProgramRequirement {
+  id: string;
+  cohort_id: string;
+  content: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
 }

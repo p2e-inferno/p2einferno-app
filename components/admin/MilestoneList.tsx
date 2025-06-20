@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Pencil, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, ArrowUp, ArrowDown, Eye } from "lucide-react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import type { CohortMilestone } from "@/lib/supabase/types";
-import MilestoneForm from "./MilestoneForm";
+import MilestoneFormEnhanced from "./MilestoneFormEnhanced";
+import ConfirmationDialog from "@/components/ui/confirmation-dialog";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface MilestoneListProps {
   cohortId: string;
@@ -16,6 +19,9 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   const [editingMilestone, setEditingMilestone] =
     useState<CohortMilestone | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [deletingMilestone, setDeletingMilestone] = useState<CohortMilestone | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { getAccessToken } = usePrivy();
 
   // Fetch milestones
   const fetchMilestones = async () => {
@@ -57,8 +63,11 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
     const newIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
     const targetMilestone = milestones[newIndex];
 
-    // Swap order indices
-    const updatedMilestones = [...milestones];
+    if (!targetMilestone) {
+      console.error("Target milestone not found");
+      return;
+    }
+
     const currentOrderIndex = milestone.order_index;
 
     try {
@@ -83,25 +92,50 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   };
 
   // Delete milestone
-  const deleteMilestone = async (id: string) => {
-    if (!window.confirm("Are you sure you want to delete this milestone?")) {
-      return;
-    }
+  const handleDeleteClick = (milestone: CohortMilestone) => {
+    setDeletingMilestone(milestone);
+  };
+
+  const confirmDeleteMilestone = async () => {
+    if (!deletingMilestone) return;
 
     try {
-      const { error } = await supabase
-        .from("cohort_milestones")
-        .delete()
-        .eq("id", id);
+      setIsDeleting(true);
+      
+      // Get Privy access token for authorization
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error("Authentication required");
+      }
 
-      if (error) throw error;
+      const response = await fetch(`/api/admin/milestones?id=${deletingMilestone.id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ cohort_id: cohortId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Failed to delete milestone");
+      }
 
       // Refresh the milestone list
       fetchMilestones();
+      setDeletingMilestone(null);
     } catch (err: any) {
       console.error("Error deleting milestone:", err);
       setError(err.message || "Failed to delete milestone");
+    } finally {
+      setIsDeleting(false);
     }
+  };
+
+  const cancelDelete = () => {
+    setDeletingMilestone(null);
+    setIsDeleting(false);
   };
 
   // Format date
@@ -141,7 +175,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
               <h3 className="text-lg font-medium text-white mb-4">
                 Create New Milestone
               </h3>
-              <MilestoneForm
+              <MilestoneFormEnhanced
                 cohortId={cohortId}
                 onSubmitSuccess={() => {
                   setIsCreatingNew(false);
@@ -158,7 +192,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
               <h3 className="text-lg font-medium text-white mb-4">
                 Edit Milestone
               </h3>
-              <MilestoneForm
+              <MilestoneFormEnhanced
                 cohortId={cohortId}
                 milestone={editingMilestone}
                 existingMilestones={milestones.filter(
@@ -249,6 +283,16 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                       </td>
                       <td className="py-4 px-4 text-right">
                         <div className="flex justify-end space-x-2">
+                          <Link href={`/admin/cohorts/${cohortId}/milestones/${milestone.id}`}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="border-gray-700 hover:border-blue-500 hover:text-blue-400"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                          
                           <Button
                             size="sm"
                             variant="outline"
@@ -286,7 +330,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                             size="sm"
                             variant="outline"
                             className="border-gray-700 hover:border-red-500 hover:text-red-500"
-                            onClick={() => deleteMilestone(milestone.id)}
+                            onClick={() => handleDeleteClick(milestone)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -300,6 +344,23 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
           )}
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={!!deletingMilestone}
+        onClose={cancelDelete}
+        onConfirm={confirmDeleteMilestone}
+        title="Delete Milestone"
+        description={
+          deletingMilestone
+            ? `Are you sure you want to delete "${deletingMilestone.name}"? This action cannot be undone and will also delete all associated tasks and submissions.`
+            : ""
+        }
+        confirmText="Delete Milestone"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </div>
   );
 }
