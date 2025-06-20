@@ -12,6 +12,7 @@ export interface BootcampProgram {
   duration_weeks: number;
   max_reward_dgt: number;
   lock_address?: string;
+  image_url?: string;
   created_at: string;
   updated_at: string;
 }
