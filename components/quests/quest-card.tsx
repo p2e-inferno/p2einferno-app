@@ -18,7 +18,7 @@ export const QuestCard = ({
         <div className="relative h-48 mb-6 rounded-lg overflow-hidden bg-gradient-to-br from-orange-900/20 to-red-900/20">
           <div className="w-full h-full flex items-center justify-center">
             <img
-              src="/images/quests/rosy-beginnings.svg"
+              src={quest.image_url || "/images/quests/rosy-beginnings.svg"}
               alt={quest.title}
               className="w-full h-full object-contain"
             />
