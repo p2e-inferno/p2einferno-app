@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import { nanoid } from "nanoid";
+import { randomUUID } from "crypto";
 import type { QuestTask } from "@/lib/supabase/types";
 
 export default async function handler(
@@ -29,15 +29,22 @@ export default async function handler(
     }
   } catch (error: any) {
     console.error("API error:", error);
-    return res.status(500).json({ error: error.message || "Internal server error" });
+    return res
+      .status(500)
+      .json({ error: error.message || "Internal server error" });
   }
 }
 
-async function getQuests(_req: NextApiRequest, res: NextApiResponse, supabase: any) {
+async function getQuests(
+  _req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any
+) {
   try {
     const { data: quests, error } = await supabase
       .from("quests")
-      .select(`
+      .select(
+        `
         *,
         quest_tasks (
           id,
@@ -49,7 +56,8 @@ async function getQuests(_req: NextApiRequest, res: NextApiResponse, supabase: a
           input_required,
           requires_admin_review
         )
-      `)
+      `
+      )
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -68,7 +76,7 @@ async function getQuests(_req: NextApiRequest, res: NextApiResponse, supabase: a
       const questStats = stats?.find((s: any) => s.quest_id === quest.id);
       return {
         ...quest,
-        stats: questStats || null
+        stats: questStats || null,
       };
     });
 
@@ -79,11 +87,17 @@ async function getQuests(_req: NextApiRequest, res: NextApiResponse, supabase: a
   }
 }
 
-async function createQuest(req: NextApiRequest, res: NextApiResponse, supabase: any) {
+async function createQuest(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any
+) {
   const { quest, tasks } = req.body;
 
   if (!quest || !quest.title || !quest.description) {
-    return res.status(400).json({ error: "Quest title and description are required" });
+    return res
+      .status(400)
+      .json({ error: "Quest title and description are required" });
   }
 
   if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
@@ -92,7 +106,7 @@ async function createQuest(req: NextApiRequest, res: NextApiResponse, supabase: 
 
   try {
     // Start a transaction
-    const questId = nanoid(10);
+    const questId = randomUUID();
     const now = new Date().toISOString();
 
     // Create the quest
@@ -110,14 +124,16 @@ async function createQuest(req: NextApiRequest, res: NextApiResponse, supabase: 
     if (questError) throw questError;
 
     // Create tasks with proper IDs and timestamps
-    const tasksWithIds = tasks.map((task: Partial<QuestTask>, index: number) => ({
-      id: nanoid(10),
-      quest_id: questId,
-      ...task,
-      order_index: task.order_index ?? index,
-      created_at: now,
-      updated_at: now,
-    }));
+    const tasksWithIds = tasks.map(
+      (task: Partial<QuestTask>, index: number) => ({
+        id: randomUUID(),
+        quest_id: questId,
+        ...task,
+        order_index: task.order_index ?? index,
+        created_at: now,
+        updated_at: now,
+      })
+    );
 
     const { data: tasksData, error: tasksError } = await supabase
       .from("quest_tasks")
@@ -136,9 +152,9 @@ async function createQuest(req: NextApiRequest, res: NextApiResponse, supabase: 
       quest_tasks: tasksData,
     };
 
-    return res.status(201).json({ 
-      success: true, 
-      quest: createdQuest 
+    return res.status(201).json({
+      success: true,
+      quest: createdQuest,
     });
   } catch (error: any) {
     console.error("Error creating quest:", error);
