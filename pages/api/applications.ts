@@ -1,5 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "../../lib/supabase";
+import { createAdminClient } from "../../lib/supabase/server";
+import { createPrivyClient } from "../../lib/privyUtils";
+
+const supabase = createAdminClient();
+const client = createPrivyClient();
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,6 +15,31 @@ export default async function handler(
 
   try {
     const applicationData = req.body;
+
+    // Get authorization token
+    const authToken = req.headers.authorization?.replace("Bearer ", "");
+    let userProfileId: string | null = null;
+
+    if (authToken) {
+      try {
+        const verifiedClaims = await client.verifyAuthToken(authToken);
+        const privyUserId = verifiedClaims.userId;
+
+        // Get user profile
+        const { data: userProfile } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("privy_user_id", privyUserId)
+          .single();
+
+        userProfileId = userProfile?.id || null;
+      } catch (error) {
+        console.log(
+          "Auth token verification failed, proceeding without user link"
+        );
+      }
+    }
+    console.log("privyUserId", userProfileId);
 
     // Validate required fields
     const requiredFields = [
@@ -58,6 +87,17 @@ export default async function handler(
       return res.status(500).json({
         error: "Failed to save application. Please try again.",
       });
+    }
+
+    // If we have a user profile ID, create the link
+    if (userProfileId && data?.id) {
+      await supabase.from("user_application_status").insert([
+        {
+          user_profile_id: userProfileId,
+          application_id: data.id,
+          status: "pending",
+        },
+      ]);
     }
 
     res.status(201).json({

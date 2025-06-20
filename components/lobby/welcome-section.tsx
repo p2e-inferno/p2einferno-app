@@ -1,5 +1,5 @@
 import React from "react";
-import type { UserProfile } from "@/hooks/useDashboardDataSimple";
+import type { UserProfile } from "@/hooks/useDashboardData";
 
 interface WelcomeSectionProps {
   profile: UserProfile;

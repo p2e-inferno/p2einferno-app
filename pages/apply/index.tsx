@@ -22,7 +22,7 @@ import {
   BookOpen,
   Zap,
 } from "lucide-react";
-import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 /**
  * Bootcamp Listing Page - Shows available bootcamps for authenticated users
@@ -31,7 +31,7 @@ import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
 export default function BootcampListingPage() {
   const router = useRouter();
   const { ready, authenticated } = usePrivy();
-  const { data: dashboardData } = useDashboardDataSimple();
+  const { data: dashboardData } = useDashboardData();
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -55,8 +55,7 @@ export default function BootcampListingPage() {
   if (dashboardData && dashboardData.applications) {
     pendingApplication = dashboardData.applications.find(
       (app) =>
-        app.applications?.cohort_id === currentCohort.id &&
-        app.status === "pending"
+        app?.cohort_id === currentCohort.id && app.payment_status === "pending"
     );
   }
 

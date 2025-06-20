@@ -19,7 +19,8 @@ import {
   ArrowRight,
   CheckCircle,
 } from "lucide-react";
-import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
+import { useDashboardData } from "@/hooks/useDashboardData";
+import { usePrivy } from "@privy-io/react-auth";
 
 // Import step components
 import PersonalInfoStep from "@/components/apply/steps/PersonalInfoStep";
@@ -120,8 +121,13 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   }
 };
 
-export default function ApplicationPage({ cohortId, cohort, bootcamp }: ApplicationPageProps) {
+export default function ApplicationPage({
+  cohortId,
+  cohort,
+  bootcamp,
+}: ApplicationPageProps) {
   const router = useRouter();
+  const { getAccessToken } = usePrivy();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
@@ -137,14 +143,12 @@ export default function ApplicationPage({ cohortId, cohort, bootcamp }: Applicat
     Partial<Record<keyof FormData, string>>
   >({});
 
-  const { data: dashboardData, loading: dashboardLoading } =
-    useDashboardDataSimple();
+  const { data: dashboardData, loading: dashboardLoading } = useDashboardData();
 
   let pendingApplication = null;
   if (dashboardData && dashboardData.applications) {
     pendingApplication = dashboardData.applications.find(
-      (app) =>
-        app.applications?.cohort_id === cohortId && app.status === "pending"
+      (app) => app?.cohort_id === cohortId && app?.payment_status === "pending"
     );
   }
 
@@ -290,7 +294,18 @@ export default function ApplicationPage({ cohortId, cohort, bootcamp }: Applicat
         payment_method: "fiat",
       };
       setIsLoading(true);
-      await submitApplication(() => applicationApi.submit(applicationData));
+      // Retrieve the Privy access token, if available, to link the application
+      let accessToken: string | null | undefined;
+      try {
+        accessToken = await getAccessToken();
+      } catch (err) {
+        // If unable to fetch token (e.g., user not logged-in), proceed without it
+        console.warn("Unable to fetch Privy access token", err);
+      }
+
+      await submitApplication(() =>
+        applicationApi.submit(applicationData, accessToken ?? undefined)
+      );
     } catch (error) {
       console.error("Application submission failed (catch block):", error);
     }
@@ -376,9 +391,7 @@ export default function ApplicationPage({ cohortId, cohort, bootcamp }: Applicat
                 <h1 className="text-4xl font-bold font-heading mb-4">
                   Apply for {bootcamp.name}
                 </h1>
-                <p className="text-faded-grey mb-2">
-                  {cohort.name}
-                </p>
+                <p className="text-faded-grey mb-2">{cohort.name}</p>
                 <p className="text-faded-grey">
                   Join the next generation of Web3 enthusiasts
                 </p>
