@@ -5,8 +5,12 @@ import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
-import { infernalSparksProgram } from "@/lib/bootcamp-data";
-import { supabase, type Application } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase/client";
+import type {
+  Application,
+  Cohort,
+  BootcampProgram,
+} from "@/lib/supabase/types";
 import { PaymentSummary } from "@/components/payment/PaymentSummary";
 import dynamic from "next/dynamic";
 import { BlockchainPayment } from "@/components/payment/BlockchainPayment";
@@ -30,6 +34,8 @@ const PaystackPayment = dynamic(
 interface PaymentPageProps {
   applicationId: string;
   application: Application;
+  cohort: Cohort;
+  bootcamp: BootcampProgram;
 }
 
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
@@ -42,7 +48,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   }
 
   try {
-    // Fetch real application data from database
+    // Fetch application data from database
     const { data: application, error } = await supabase
       .from("applications")
       .select("*")
@@ -65,14 +71,42 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
       };
     }
 
+    // Fetch cohort details
+    const { data: cohort, error: cohortError } = await supabase
+      .from("cohorts")
+      .select("*")
+      .eq("id", application.cohort_id)
+      .single();
+
+    if (cohortError || !cohort) {
+      return {
+        notFound: true,
+      };
+    }
+
+    // Fetch bootcamp details
+    const { data: bootcamp, error: bootcampError } = await supabase
+      .from("bootcamp_programs")
+      .select("*")
+      .eq("id", cohort.bootcamp_program_id)
+      .single();
+
+    if (bootcampError || !bootcamp) {
+      return {
+        notFound: true,
+      };
+    }
+
     return {
       props: {
         applicationId,
         application,
+        cohort,
+        bootcamp,
       },
     };
   } catch (error) {
-    console.error("Error fetching application:", error);
+    console.error("Error fetching application data:", error);
     return {
       notFound: true,
     };
@@ -82,7 +116,10 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
 export default function PaymentPage({
   applicationId,
   application,
+  cohort,
+  bootcamp,
 }: PaymentPageProps) {
+  console.log(application);
   const router = useRouter();
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>("NGN");
   const [discountCode, setDiscountCode] = useState("");
@@ -91,8 +128,8 @@ export default function PaymentPage({
 
   const totalAmount =
     selectedCurrency === "NGN"
-      ? infernalSparksProgram.cost_naira
-      : infernalSparksProgram.cost_usd;
+      ? cohort.naira_amount || 0
+      : cohort.usdt_amount || 0;
 
   const paymentMethod = getPaymentMethod(selectedCurrency);
 
@@ -166,8 +203,8 @@ export default function PaymentPage({
                             <div className="font-bold">
                               {formatCurrency(
                                 currency === "NGN"
-                                  ? infernalSparksProgram.cost_naira
-                                  : infernalSparksProgram.cost_usd,
+                                  ? cohort.naira_amount || 0
+                                  : cohort.usdt_amount || 0,
                                 currency
                               )}
                             </div>
@@ -211,7 +248,8 @@ export default function PaymentPage({
                     <PaymentSummary
                       amount={totalAmount}
                       currency={selectedCurrency}
-                      bootcampName={infernalSparksProgram.name}
+                      bootcampName={bootcamp.name}
+                      cohortName={cohort.name}
                       discountAmount={discountApplied ? totalAmount * 0.2 : 0}
                     />
 
@@ -235,6 +273,8 @@ export default function PaymentPage({
                         }
                         currency={selectedCurrency}
                         email={application.user_email}
+                        lockAddress={cohort.lock_address}
+                        keyManagers={cohort.key_managers}
                         onSuccess={handlePaymentSuccess}
                       />
                     )}

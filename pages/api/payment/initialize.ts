@@ -57,16 +57,37 @@ export default async function handler(
       });
     }
 
-    // Check if application exists
+    // Check if application exists and fetch cohort data
     const { data: application, error: appError } = await supabase
       .from("applications")
-      .select("id, user_email, payment_status")
+      .select("id, user_email, payment_status, cohort_id")
       .eq("id", applicationId)
       .single();
 
     if (appError || !application) {
       return res.status(404).json({
         error: "Application not found",
+      });
+    }
+
+    // Fetch cohort data for pricing validation
+    const { data: cohort, error: cohortError } = await supabase
+      .from("cohorts")
+      .select("naira_amount, usdt_amount")
+      .eq("id", application.cohort_id)
+      .single();
+
+    if (cohortError || !cohort) {
+      return res.status(404).json({
+        error: "Cohort not found",
+      });
+    }
+
+    // Validate amount against cohort pricing
+    const expectedAmount = currency === "NGN" ? cohort.naira_amount : cohort.usdt_amount;
+    if (!expectedAmount || amount !== expectedAmount) {
+      return res.status(400).json({
+        error: `Invalid amount. Expected ${currency === "NGN" ? "₦" : "$"}${expectedAmount}`,
       });
     }
 
