@@ -196,7 +196,7 @@ async function getUserDashboardData(userProfileId: string, supabase: any) {
     } else {
       // Transform data to match expected structure
       applications =
-        appsData?.map((app) => ({
+        appsData?.map((app: any) => ({
           id: app.id,
           status: app.status,
           created_at: app.created_at,
@@ -249,7 +249,7 @@ async function getUserDashboardData(userProfileId: string, supabase: any) {
     } else {
       // Transform data to match expected structure
       enrollments =
-        enrollData?.map((enroll) => ({
+        enrollData?.map((enroll: any) => ({
           id: enroll.id,
           cohort_id: enroll.cohort_id,
           enrollment_status: enroll.enrollment_status,
@@ -325,11 +325,11 @@ async function getUserDashboardData(userProfileId: string, supabase: any) {
   const stats = {
     totalApplications: applications?.length || 0,
     completedBootcamps:
-      enrollments?.filter((e) => e.enrollment_status === "completed").length ||
-      0,
+      enrollments?.filter((e: any) => e.enrollment_status === "completed")
+        .length || 0,
     totalPoints: profile?.experience_points || 0,
     pendingPayments:
-      applications?.filter((a) => a.status === "pending").length || 0,
+      applications?.filter((a: any) => a.status === "pending").length || 0,
   };
 
   return {

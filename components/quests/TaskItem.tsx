@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Mail,
   Wallet,
@@ -7,31 +7,33 @@ import {
   Circle,
   CheckCircle2,
   Coins,
+  Link2,
+  FileText,
+  Camera,
+  CheckCircle,
+  Clock,
+  XCircle,
+  RotateCcw,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 
-// Define types for props. These should align with your actual data structures.
-// Consider creating/importing shared types for Task and TaskCompletion if they exist.
-interface Task {
-  id: string;
-  title: string;
-  description: string;
-  task_type: string; // e.g., "link_email", "link_wallet"
-  reward_amount: number;
-  order_index: number; // Or any other fields needed
+import type { QuestTask, UserTaskCompletion } from "@/lib/supabase/types";
+
+interface Task extends QuestTask {
+  // Extend QuestTask with any additional fields needed
 }
 
-interface TaskCompletion {
-  id: string; // Completion record ID
-  task_id: string;
-  reward_claimed: boolean;
-  // other completion details
+interface TaskCompletion extends UserTaskCompletion {
+  // Extend UserTaskCompletion with any additional fields needed
 }
 
 interface TaskItemProps {
   task: Task;
   completion: TaskCompletion | undefined; // A task might not be completed yet
   isQuestStarted: boolean; // To enable/disable actions if quest isn't started
-  onAction: (task: Task) => void; // Handler for completing a task
+  onAction: (task: Task, inputData?: any) => void; // Handler for completing a task
   onClaimReward: (completionId: string, amount: number) => void; // Handler for claiming reward
   processingTaskId: string | null; // ID of the task currently being processed (for loading states)
 }
@@ -54,6 +56,21 @@ const getTaskIcon = (taskType: string, isCompleted: boolean): React.ReactNode =>
       break;
     case "sign_tos":
       specificIcon = <FileSignature {...iconProps} />;
+      break;
+    case "submit_url":
+      specificIcon = <Link2 {...iconProps} />;
+      break;
+    case "submit_text":
+      specificIcon = <FileText {...iconProps} />;
+      break;
+    case "submit_proof":
+      specificIcon = <Camera {...iconProps} />;
+      break;
+    case "complete_external":
+      specificIcon = <CheckCircle {...iconProps} />;
+      break;
+    case "custom":
+      specificIcon = <Circle {...iconProps} />;
       break;
     default:
       specificIcon = <Circle {...iconProps} />; // Default icon for unknown task types
@@ -84,11 +101,72 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onClaimReward,
   processingTaskId,
 }) => {
-  const isCompleted = !!completion;
+  const [inputValue, setInputValue] = useState("");
+  
+  const isCompleted = !!completion && completion.submission_status === "completed";
+  const isPending = !!completion && completion.submission_status === "pending";
+  const isFailed = !!completion && completion.submission_status === "failed";
+  const isRetry = !!completion && completion.submission_status === "retry";
   const canClaim = isCompleted && !completion.reward_claimed;
   const isProcessing = processingTaskId === task.id || processingTaskId === completion?.id;
 
-  const taskIcon = getTaskIcon(task.task_type, isCompleted);
+  // Allow resubmission if status is retry or failed (for input-based tasks)
+  const canResubmit = (isRetry || isFailed) && task.input_required;
+
+  const handleTaskAction = () => {
+    if (task.input_required && inputValue.trim()) {
+      onAction(task, inputValue.trim());
+    } else if (!task.input_required) {
+      onAction(task);
+    }
+  };
+
+  const getStatusDisplay = () => {
+    if (isPending) {
+      return (
+        <div className="flex items-center text-orange-400 mt-2">
+          <Clock className="w-5 h-5 mr-2" />
+          <span className="font-semibold">
+            {task.requires_admin_review ? "Pending Review" : "Processing..."}
+          </span>
+        </div>
+      );
+    }
+    
+    if (isFailed) {
+      return (
+        <div className="mt-2">
+          <div className="flex items-center text-red-400 mb-2">
+            <XCircle className="w-5 h-5 mr-2" />
+            <span className="font-semibold">Submission Failed</span>
+          </div>
+          {completion?.admin_feedback && (
+            <div className="bg-red-900/20 border border-red-700 rounded p-3">
+              <p className="text-red-300 text-sm">{completion.admin_feedback}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    if (isRetry) {
+      return (
+        <div className="mt-2">
+          <div className="flex items-center text-yellow-400 mb-2">
+            <RotateCcw className="w-5 h-5 mr-2" />
+            <span className="font-semibold">Retry Requested</span>
+          </div>
+          {completion?.admin_feedback && (
+            <div className="bg-yellow-900/20 border border-yellow-700 rounded p-3">
+              <p className="text-yellow-300 text-sm">{completion.admin_feedback}</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    return null;
+  };
 
   return (
     <div
@@ -116,14 +194,48 @@ const TaskItem: React.FC<TaskItemProps> = ({
             </h3>
             <p className="text-gray-400 mb-4">{task.description}</p>
 
+            {/* Input Field for input-based tasks */}
+            {task.input_required && (!isCompleted && !isPending) && isQuestStarted && (
+              <div className="mb-4 space-y-2">
+                <Label className="text-gray-300">
+                  {task.input_label || "Your submission"}
+                </Label>
+                {task.input_validation === "textarea" ? (
+                  <Textarea
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder={task.input_placeholder || "Enter your response..."}
+                    className="bg-gray-800 border-gray-700 text-gray-100"
+                    rows={4}
+                  />
+                ) : (
+                  <Input
+                    type={task.input_validation === "number" ? "number" : 
+                          task.input_validation === "email" ? "email" : 
+                          task.input_validation === "url" ? "url" : "text"}
+                    value={inputValue}
+                    onChange={(e) => setInputValue(e.target.value)}
+                    placeholder={task.input_placeholder || "Enter here..."}
+                    className="bg-gray-800 border-gray-700 text-gray-100"
+                  />
+                )}
+              </div>
+            )}
+
             {/* Task Actions */}
-            {!isCompleted && isQuestStarted && (
+            {(!isCompleted && !isPending) && isQuestStarted && (
               <button
-                onClick={() => onAction(task)}
-                disabled={isProcessing || !isQuestStarted}
+                onClick={handleTaskAction}
+                disabled={isProcessing || !isQuestStarted || (task.input_required && !inputValue.trim())}
                 className="bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-2 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing ? "Processing..." : "Complete Task"}
+                {isProcessing 
+                  ? "Processing..." 
+                  : canResubmit 
+                    ? "Resubmit" 
+                    : task.requires_admin_review 
+                      ? "Submit for Review"
+                      : "Complete Task"}
               </button>
             )}
 
@@ -138,13 +250,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
               </button>
             )}
 
+            {/* Status Display */}
+            {getStatusDisplay()}
+
             {/* Completed Status (and reward claimed) */}
             {isCompleted && !canClaim && (
               <div className="flex items-center text-green-400 mt-2">
                 <CheckCircle2 className="w-5 h-5 mr-2" />
                 <span className="font-semibold">
-                  {completion.reward_claimed ? "Completed & Claimed" : "Completed"}
-                  {/* Shows "Completed" if reward not claimed yet but `canClaim` is false for some reason (e.g. quest not started) */}
+                  {completion?.reward_claimed ? "Completed & Claimed" : "Completed"}
                 </span>
               </div>
             )}

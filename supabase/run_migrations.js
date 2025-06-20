@@ -20,6 +20,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   },
 });
 
+/**
+ * Executes a single SQL migration file via Supabase.
+ * @param {string} filePath - Absolute path to the migration SQL file.
+ */
 async function runMigration(filePath) {
   try {
     console.log(`Running migration: ${filePath}`);

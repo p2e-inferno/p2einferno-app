@@ -38,7 +38,9 @@ const QuestDetailsPage = () => {
 
   const [questData, setQuestData] = useState<any>(null); // Should be a specific QuestDetail type
   const [loading, setLoading] = useState(true);
-  const [tasksWithCompletion, setTasksWithCompletion] = useState<TaskWithCompletion[]>([]);
+  const [tasksWithCompletion, setTasksWithCompletion] = useState<
+    TaskWithCompletion[]
+  >([]);
   const [progress, setProgress] = useState(0); // Percentage
   const [processingTask, setProcessingTask] = useState<string | null>(null); // For button loading states
 
@@ -79,17 +81,18 @@ const QuestDetailsPage = () => {
     // The actual implementation would call the relevant API endpoint.
     // For now, it simulates the call structure.
     const response = await fetch(`/api/quests/complete-task`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ questId: qId, taskId, userId: user?.id, details }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ questId: qId, taskId, userId: user?.id, details }),
     });
     if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ message: 'Failed to complete task' }));
-        throw new Error(errorData.message || 'Failed to complete task');
+      const errorData = await response
+        .json()
+        .catch(() => ({ message: "Failed to complete task" }));
+      throw new Error(errorData.message || "Failed to complete task");
     }
     return response.json();
   };
-
 
   const loadQuestDetails = async () => {
     if (!questId || !user) return;
@@ -101,20 +104,30 @@ const QuestDetailsPage = () => {
         const tasks = data.quest?.quest_tasks || [];
         const completions = data.completions || [];
 
-        const processedTasks = tasks.map((task: any) => {
-          const completion = completions.find((c: any) => c.task_id === task.id);
-          return {
-            task,
-            completion,
-            isCompleted: !!completion,
-            canClaim: !!completion && !completion.reward_claimed,
-          };
-        }).sort((a: any, b: any) => a.task.order_index - b.task.order_index);
+        const processedTasks = tasks
+          .map((task: any) => {
+            const completion = completions.find(
+              (c: any) => c.task_id === task.id
+            );
+            return {
+              task,
+              completion,
+              isCompleted: !!completion,
+              canClaim: !!completion && !completion.reward_claimed,
+            };
+          })
+          .sort((a: any, b: any) => a.task.order_index - b.task.order_index);
 
         setTasksWithCompletion(processedTasks);
 
-        const completedCount = processedTasks.filter(t => t.isCompleted).length;
-        setProgress(tasks.length > 0 ? Math.round((completedCount / tasks.length) * 100) : 0);
+        const completedCount = processedTasks.filter(
+          (t: any) => t.isCompleted
+        ).length;
+        setProgress(
+          tasks.length > 0
+            ? Math.round((completedCount / tasks.length) * 100)
+            : 0
+        );
       }
     } catch (error) {
       console.error("Error loading quest details:", error);
@@ -129,7 +142,6 @@ const QuestDetailsPage = () => {
       loadQuestDetails();
     }
   }, [questId, user]);
-
 
   const handleStartQuest = async () => {
     if (!questId) return;
@@ -160,27 +172,38 @@ const QuestDetailsPage = () => {
         case "link_email":
           // Simulate linking email - actual logic might involve Privy SDK or other services
           if (user?.email?.address) {
-             result = await completeTaskAPI(questId as string, task.id, { email: user.email.address });
+            result = await completeTaskAPI(questId as string, task.id, {
+              email: user.email.address,
+            });
           } else {
             toast.error("Please link your email in your profile first."); // Or trigger Privy email linking
             result = { success: false, error: "Email not available" };
           }
           break;
         case "link_wallet":
-          result = await completeTaskAPI(questId as string, task.id, { wallet: user?.wallet?.address });
+          result = await completeTaskAPI(questId as string, task.id, {
+            wallet: user?.wallet?.address,
+          });
           break;
         case "link_farcaster":
-            // Placeholder for Farcaster linking. Original used handleLinkFarcaster.
-            toast.info("Farcaster linking not fully implemented in this view yet.");
-            result = { success: false, error: "Farcaster linking pending."};
-            // result = await handleLinkFarcaster(questId as string, task.id); // If function is available
-            break;
+          // Placeholder for Farcaster linking. Original used handleLinkFarcaster.
+          toast.error(
+            "Farcaster linking not fully implemented in this view yet."
+          );
+          result = { success: false, error: "Farcaster linking pending." };
+          // result = await handleLinkFarcaster(questId as string, task.id); // If function is available
+          break;
         case "sign_tos":
           const signature = await signTOS();
           if (signature) {
-            result = await completeTaskAPI(questId as string, task.id, { signature });
+            result = await completeTaskAPI(questId as string, task.id, {
+              signature,
+            });
           } else {
-            result = { success: false, error: "Failed to sign Terms of Service" };
+            result = {
+              success: false,
+              error: "Failed to sign Terms of Service",
+            };
           }
           break;
         default:
@@ -195,7 +218,9 @@ const QuestDetailsPage = () => {
       }
     } catch (error: any) {
       console.error("Error completing task:", error);
-      toast.error(error.message || "An error occurred while completing the task");
+      toast.error(
+        error.message || "An error occurred while completing the task"
+      );
     } finally {
       setProcessingTask(null);
     }
@@ -213,7 +238,9 @@ const QuestDetailsPage = () => {
       }
     } catch (error: any) {
       console.error("Error claiming reward:", error);
-      toast.error(error.message || "An error occurred while claiming the reward");
+      toast.error(
+        error.message || "An error occurred while claiming the reward"
+      );
     } finally {
       setProcessingTask(null);
     }
@@ -255,7 +282,9 @@ const QuestDetailsPage = () => {
             progressPercentage={progress}
             isQuestCompleted={isQuestCompleted}
             isQuestStarted={isQuestStarted}
-            tasksCompletedCount={tasksWithCompletion.filter(t => t.isCompleted).length}
+            tasksCompletedCount={
+              tasksWithCompletion.filter((t) => t.isCompleted).length
+            }
             totalTasksCount={tasksWithCompletion.length}
             onStartQuest={!isQuestStarted ? handleStartQuest : undefined} // Only pass if not started
             isLoadingStartQuest={processingTask === "start_quest"}
@@ -264,7 +293,8 @@ const QuestDetailsPage = () => {
           {isQuestStarted && tasksWithCompletion.length > 0 && (
             <div className="space-y-4">
               <h2 className="text-2xl font-bold text-white mb-4 flex items-center">
-                <Flame className="w-6 h-6 text-orange-500 mr-2" /> {/* Re-add Flame icon for this header */}
+                <Flame className="w-6 h-6 text-orange-500 mr-2" />{" "}
+                {/* Re-add Flame icon for this header */}
                 Quest Tasks
               </h2>
               {tasksWithCompletion.map(({ task, completion }) => (
@@ -282,10 +312,15 @@ const QuestDetailsPage = () => {
           )}
 
           {!isQuestStarted && tasksWithCompletion.length > 0 && (
-             <div className="mt-8 bg-gray-800/50 rounded-xl p-6 text-center">
-                <h3 className="text-xl font-bold text-white mb-3">Start the Quest to Unlock Tasks</h3>
-                <p className="text-gray-400 mb-4">This quest has tasks waiting for you. Click "Start Quest" above to begin!</p>
-             </div>
+            <div className="mt-8 bg-gray-800/50 rounded-xl p-6 text-center">
+              <h3 className="text-xl font-bold text-white mb-3">
+                Start the Quest to Unlock Tasks
+              </h3>
+              <p className="text-gray-400 mb-4">
+                This quest has tasks waiting for you. Click "Start Quest" above
+                to begin!
+              </p>
+            </div>
           )}
 
           {isQuestCompleted && (

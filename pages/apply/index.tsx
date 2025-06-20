@@ -7,7 +7,6 @@ import { MainLayout } from "../../components/layouts/MainLayout";
 import {
   infernalSparksProgram,
   currentCohort,
-  formatCurrency,
   calculateTimeRemaining,
 } from "../../lib/bootcamp-data";
 import {
@@ -32,7 +31,7 @@ import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
 export default function BootcampListingPage() {
   const router = useRouter();
   const { ready, authenticated } = usePrivy();
-  const { data: dashboardData, loading } = useDashboardDataSimple();
+  const { data: dashboardData } = useDashboardDataSimple();
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -55,7 +54,9 @@ export default function BootcampListingPage() {
   let pendingApplication = null;
   if (dashboardData && dashboardData.applications) {
     pendingApplication = dashboardData.applications.find(
-      (app) => app.cohort_id === currentCohort.id && app.status === "pending"
+      (app) =>
+        app.applications?.cohort_id === currentCohort.id &&
+        app.status === "pending"
     );
   }
 
@@ -109,18 +110,6 @@ export default function BootcampListingPage() {
                           {infernalSparksProgram.name}
                         </h3>
                         <p className="text-faded-grey">Entry Level Bootcamp</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold text-flame-yellow">
-                        {formatCurrency(infernalSparksProgram.cost_usd, "USD")}
-                      </div>
-                      <div className="text-sm text-faded-grey">
-                        or{" "}
-                        {formatCurrency(
-                          infernalSparksProgram.cost_naira,
-                          "NGN"
-                        )}
                       </div>
                     </div>
                   </div>
