@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 // useRouter is not directly used by the page anymore
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout"; // Import the new layout
 import { Button } from "@/components/ui/button";
-import { Pencil, Calendar, Trash2 } from "lucide-react"; // PlusCircle is in AdminListPageLayout, Eye not used
+import { Pencil, Calendar, Trash2, Star } from "lucide-react"; // PlusCircle is in AdminListPageLayout, Eye not used
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
@@ -144,6 +144,16 @@ export default function CohortListPage() {
                         title="Manage milestones"
                       >
                         <Calendar className="h-4 w-4" />
+                      </Button>
+                    </Link>
+                    <Link href={`/admin/cohorts/${cohort.id}/program-details`}>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-gray-700 hover:border-flame-yellow"
+                        title="Program details"
+                      >
+                        <Star className="h-4 w-4" />
                       </Button>
                     </Link>
                     <Button

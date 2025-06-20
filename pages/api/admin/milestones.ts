@@ -64,6 +64,8 @@ export default async function handler(
         return await createMilestone(req, res, supabase);
       case "PUT":
         return await updateMilestone(req, res, supabase);
+      case "DELETE":
+        return await deleteMilestone(req, res, supabase);
       default:
         return res.status(405).json({ error: "Method not allowed" });
     }
@@ -142,6 +144,36 @@ async function updateMilestone(
     return res.status(200).json(data);
   } catch (error: any) {
     console.error("Error updating milestone:", error);
+    return res.status(400).json({ error: error.message });
+  }
+}
+
+async function deleteMilestone(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any
+) {
+  const { id } = req.query;
+
+  if (!id) {
+    return res.status(400).json({ error: "Missing milestone ID" });
+  }
+
+  try {
+    // Delete the milestone using the admin client which bypasses RLS
+    const { error } = await supabase
+      .from("cohort_milestones")
+      .delete()
+      .eq("id", id);
+
+    if (error) throw error;
+
+    return res.status(200).json({ 
+      success: true, 
+      message: "Milestone deleted successfully" 
+    });
+  } catch (error: any) {
+    console.error("Error deleting milestone:", error);
     return res.status(400).json({ error: error.message });
   }
 }

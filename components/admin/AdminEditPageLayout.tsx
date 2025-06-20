@@ -9,7 +9,7 @@ interface AdminEditPageLayoutProps {
   backLinkText: string;
   isLoading?: boolean;
   error?: string | null;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }
 
 const AdminEditPageLayout: React.FC<AdminEditPageLayoutProps> = ({
