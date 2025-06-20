@@ -24,17 +24,24 @@ export default async function handler(
     }
   } catch (error: any) {
     console.error("API error:", error);
-    return res.status(500).json({ error: error.message || "Internal server error" });
+    return res
+      .status(500)
+      .json({ error: error.message || "Internal server error" });
   }
 }
 
-async function getSubmissions(req: NextApiRequest, res: NextApiResponse, supabase: any) {
+async function getSubmissions(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any
+) {
   const { questId, status, limit = 50, offset = 0 } = req.query;
 
   try {
     let query = supabase
       .from("user_task_completions")
-      .select(`
+      .select(
+        `
         *,
         task:quest_tasks!user_task_completions_task_id_fkey (
           id,
@@ -49,7 +56,8 @@ async function getSubmissions(req: NextApiRequest, res: NextApiResponse, supabas
           display_name,
           privy_user_id
         )
-      `)
+      `
+      )
       .order("completed_at", { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
 
@@ -73,15 +81,17 @@ async function getSubmissions(req: NextApiRequest, res: NextApiResponse, supabas
 }
 
 async function updateSubmissionStatus(
-  req: NextApiRequest, 
-  res: NextApiResponse, 
+  req: NextApiRequest,
+  res: NextApiResponse,
   supabase: any,
   reviewer: any
 ) {
   const { submissionId, status, feedback } = req.body;
 
   if (!submissionId || !status) {
-    return res.status(400).json({ error: "Submission ID and status are required" });
+    return res
+      .status(400)
+      .json({ error: "Submission ID and status are required" });
   }
 
   if (!["pending", "completed", "failed", "retry"].includes(status)) {
@@ -89,7 +99,9 @@ async function updateSubmissionStatus(
   }
 
   if (status !== "completed" && !feedback?.trim()) {
-    return res.status(400).json({ error: "Feedback is required for non-completed status" });
+    return res
+      .status(400)
+      .json({ error: "Feedback is required for non-completed status" });
   }
 
   try {
@@ -114,7 +126,6 @@ async function updateSubmissionStatus(
       admin_feedback: feedback?.trim() || null,
       reviewed_by: reviewer.id,
       reviewed_at: now,
-      updated_at: now,
     };
 
     // If status is failed, ensure reward is not claimable
@@ -145,12 +156,14 @@ async function updateSubmissionStatus(
     // TODO: Send notification to user about status change
     // This could be email, in-app notification, etc.
 
-    return res.status(200).json({ 
-      success: true, 
-      message: "Submission status updated successfully" 
+    return res.status(200).json({
+      success: true,
+      message: "Submission status updated successfully",
     });
   } catch (error: any) {
     console.error("Error updating submission status:", error);
-    return res.status(500).json({ error: "Failed to update submission status" });
+    return res
+      .status(500)
+      .json({ error: "Failed to update submission status" });
   }
 }

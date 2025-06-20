@@ -5,52 +5,62 @@ import QuestForm from "@/components/admin/QuestForm";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { usePrivy } from "@privy-io/react-auth";
+import { supabase } from "@/lib/supabase/client";
 import type { Quest } from "@/lib/supabase/types";
 
 export default function EditQuestPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { getAccessToken, ready, authenticated } = usePrivy();
+  const { authenticated } = usePrivy();
   const [quest, setQuest] = useState<Quest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch quest once Privy is ready and user is authenticated
+  // Initial auth check
   useEffect(() => {
-    if (ready && authenticated && id && typeof id === "string") {
-      fetchQuest(id);
+    if (!authenticated) {
+      router.push("/");
     }
-  }, [ready, authenticated, id]);
+  }, [authenticated, router]);
 
-  const fetchQuest = async (questId: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  // Fetch quest data directly from Supabase
+  useEffect(() => {
+    async function fetchQuest() {
+      if (!id || typeof id !== "string") return;
 
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch quest with tasks using Supabase client
+        const { data, error: dbError } = await supabase
+          .from("quests")
+          .select(`
+            *,
+            quest_tasks (*)
+          `)
+          .eq("id", id)
+          .single();
+
+        if (dbError) throw dbError;
+
+        if (!data) {
+          throw new Error("Quest not found");
+        }
+
+        setQuest(data);
+      } catch (err: any) {
+        console.error("Error fetching quest:", err);
+        setError(err.message || "Failed to load quest");
+      } finally {
+        setIsLoading(false);
       }
-
-      const response = await fetch(`/api/admin/quests/${questId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch quest");
-      }
-
-      const data = await response.json();
-      setQuest(data.quest);
-    } catch (err: any) {
-      console.error("Error fetching quest:", err);
-      setError(err.message || "Failed to load quest");
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    if (id) {
+      fetchQuest();
+    }
+  }, [id]);
 
   if (isLoading) {
     return (

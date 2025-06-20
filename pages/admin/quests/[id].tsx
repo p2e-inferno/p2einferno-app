@@ -15,6 +15,7 @@ import {
 import Link from "next/link";
 import type { Quest } from "@/lib/supabase/types";
 import { usePrivy } from "@privy-io/react-auth";
+import { supabase } from "@/lib/supabase/client";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 
 interface QuestDetails extends Quest {
@@ -32,53 +33,75 @@ interface QuestDetails extends Quest {
 export default function QuestDetailsPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { getAccessToken, ready, authenticated } = usePrivy();
+  const { authenticated } = usePrivy();
   const [quest, setQuest] = useState<QuestDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Fetch quest details only when Privy is ready and the user is authenticated
+  // Initial auth check
   useEffect(() => {
-    if (ready && authenticated && id && typeof id === "string") {
-      fetchQuestDetails(id);
+    if (!authenticated) {
+      router.push("/");
     }
-  }, [ready, authenticated, id]);
+  }, [authenticated, router]);
 
-  const fetchQuestDetails = async (questId: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  // Fetch quest details directly from Supabase
+  useEffect(() => {
+    async function fetchQuestDetails() {
+      if (!id || typeof id !== "string") return;
 
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        // Fetch quest with tasks using Supabase client
+        const { data: questData, error: questError } = await supabase
+          .from("quests")
+          .select(`
+            *,
+            quest_tasks (*)
+          `)
+          .eq("id", id)
+          .single();
+
+        if (questError) throw questError;
+
+        if (!questData) {
+          throw new Error("Quest not found");
+        }
+
+        // Fetch quest statistics from the view
+        const { data: stats } = await supabase
+          .from("quest_statistics")
+          .select("*")
+          .eq("quest_id", id)
+          .single();
+
+        // Set quest with stats
+        const questWithStats: QuestDetails = {
+          ...questData,
+          stats: stats || undefined,
+        };
+
+        setQuest(questWithStats);
+
+        // Switch to submissions tab if there are pending submissions
+        if (stats?.pending_submissions > 0) {
+          setActiveTab("submissions");
+        }
+      } catch (err: any) {
+        console.error("Error fetching quest:", err);
+        setError(err.message || "Failed to load quest details");
+      } finally {
+        setIsLoading(false);
       }
-
-      const response = await fetch(`/api/admin/quests/${questId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch quest details");
-      }
-
-      const data = await response.json();
-      setQuest(data.quest);
-
-      // Switch to submissions tab if there are pending submissions
-      if (data.quest.stats?.pending_submissions > 0) {
-        setActiveTab("submissions");
-      }
-    } catch (err: any) {
-      console.error("Error fetching quest:", err);
-      setError(err.message || "Failed to load quest details");
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    if (id) {
+      fetchQuestDetails();
+    }
+  }, [id]);
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {
@@ -246,9 +269,11 @@ export default function QuestDetailsPage() {
                 <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-gray-400 text-sm">Completed</p>
+                      <p className="text-gray-400 text-sm">
+                        Completed Submissions
+                      </p>
                       <p className="text-2xl font-bold text-green-400">
-                        {quest.stats.completed_users}
+                        {quest.stats.completed_submissions}
                       </p>
                     </div>
                     <CheckCircle2 className="w-8 h-8 text-green-600" />

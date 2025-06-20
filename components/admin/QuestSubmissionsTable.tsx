@@ -5,7 +5,10 @@ import { usePrivy } from "@privy-io/react-auth";
 import { supabase } from "@/lib/supabase/client";
 import { Eye, Filter } from "lucide-react";
 import SubmissionReviewModal from "./SubmissionReviewModal";
-import type { UserTaskCompletion, SubmissionStatus } from "@/lib/supabase/types";
+import type {
+  UserTaskCompletion,
+  SubmissionStatus,
+} from "@/lib/supabase/types";
 
 interface QuestSubmissionsTableProps {
   questId: string;
@@ -27,7 +30,11 @@ interface SubmissionWithDetails extends UserTaskCompletion {
   };
 }
 
-const statusOptions: { value: SubmissionStatus | "all"; label: string; color: string }[] = [
+const statusOptions: {
+  value: SubmissionStatus | "all";
+  label: string;
+  color: string;
+}[] = [
   { value: "all", label: "All", color: "gray" },
   { value: "pending", label: "Pending", color: "orange" },
   { value: "completed", label: "Completed", color: "green" },
@@ -35,13 +42,19 @@ const statusOptions: { value: SubmissionStatus | "all"; label: string; color: st
   { value: "retry", label: "Retry", color: "yellow" },
 ];
 
-export default function QuestSubmissionsTable({ questId, onStatusUpdate }: QuestSubmissionsTableProps) {
+export default function QuestSubmissionsTable({
+  questId,
+  onStatusUpdate,
+}: QuestSubmissionsTableProps) {
   const { getAccessToken } = usePrivy();
   const [submissions, setSubmissions] = useState<SubmissionWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "all">("all");
-  const [selectedSubmission, setSelectedSubmission] = useState<SubmissionWithDetails | null>(null);
+  const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "all">(
+    "all"
+  );
+  const [selectedSubmission, setSelectedSubmission] =
+    useState<SubmissionWithDetails | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   useEffect(() => {
@@ -53,11 +66,7 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
       setIsLoading(true);
       setError(null);
 
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
+      // Build the query
       let query = supabase
         .from("user_task_completions")
         .select(`
@@ -65,7 +74,8 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
           task:quest_tasks!user_task_completions_task_id_fkey (
             id,
             title,
-            task_type
+            task_type,
+            input_label
           ),
           user:user_profiles!user_task_completions_user_id_fkey (
             id,
@@ -78,6 +88,7 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
         .eq("quest_id", questId)
         .order("completed_at", { ascending: false });
 
+      // Apply status filter if not "all"
       if (statusFilter !== "all") {
         query = query.eq("submission_status", statusFilter);
       }
@@ -100,7 +111,11 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
     setIsReviewModalOpen(true);
   };
 
-  const handleStatusUpdate = async (submissionId: string, newStatus: SubmissionStatus, feedback?: string) => {
+  const handleStatusUpdate = async (
+    submissionId: string,
+    newStatus: SubmissionStatus,
+    feedback?: string
+  ) => {
     try {
       const token = await getAccessToken();
       if (!token) {
@@ -126,7 +141,7 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
 
       // Refresh submissions
       await fetchSubmissions();
-      
+
       // Notify parent to refresh stats
       if (onStatusUpdate) {
         onStatusUpdate();
@@ -135,12 +150,12 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
       setIsReviewModalOpen(false);
     } catch (err: any) {
       console.error("Error updating submission:", err);
-      alert(err.message || "Failed to update submission");
+      setError(err.message || "Failed to update submission");
     }
   };
 
   const getStatusBadge = (status: SubmissionStatus) => {
-    const config = statusOptions.find(s => s.value === status);
+    const config = statusOptions.find((s) => s.value === status);
     if (!config) return null;
 
     const colorClasses = {
@@ -152,7 +167,9 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
     };
 
     return (
-      <Badge className={colorClasses[config.color as keyof typeof colorClasses]}>
+      <Badge
+        className={colorClasses[config.color as keyof typeof colorClasses]}
+      >
         {config.label}
       </Badge>
     );
@@ -189,7 +206,9 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
             {statusOptions.map((option) => (
               <button
                 key={option.value}
-                onClick={() => setStatusFilter(option.value as SubmissionStatus | "all")}
+                onClick={() =>
+                  setStatusFilter(option.value as SubmissionStatus | "all")
+                }
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
                   statusFilter === option.value
                     ? "bg-flame-yellow text-black"
@@ -212,21 +231,38 @@ export default function QuestSubmissionsTable({ questId, onStatusUpdate }: Quest
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-gray-800">
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">User</th>
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">Task</th>
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">Submission</th>
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">Date</th>
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">Status</th>
-                <th className="py-3 px-4 text-right text-sm font-medium text-gray-400">Actions</th>
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                  User
+                </th>
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                  Task
+                </th>
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                  Submission
+                </th>
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                  Date
+                </th>
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                  Status
+                </th>
+                <th className="py-3 px-4 text-right text-sm font-medium text-gray-400">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody>
               {submissions.map((submission) => (
-                <tr key={submission.id} className="border-b border-gray-800 hover:bg-gray-900">
+                <tr
+                  key={submission.id}
+                  className="border-b border-gray-800 hover:bg-gray-900"
+                >
                   <td className="py-4 px-4 text-sm">
                     <div>
                       <p className="text-white font-medium">
-                        {submission.user?.display_name || submission.user?.email || "Unknown User"}
+                        {submission.user?.display_name ||
+                          submission.user?.email ||
+                          "Unknown User"}
                       </p>
                       {submission.user?.wallet_address && (
                         <p className="text-gray-400 text-xs">
