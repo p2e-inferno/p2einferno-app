@@ -61,9 +61,19 @@ export const applicationApi = {
    * Submit a new application
    */
   async submit(
-    applicationData: ApplicationData
+    applicationData: ApplicationData,
+    accessToken?: string
   ): Promise<ApiResponse<{ applicationId: string }>> {
-    const response = await api.post("/applications", applicationData);
+    // Prepare headers only if we have an access token
+    const config = accessToken
+      ? {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      : undefined;
+
+    const response = await api.post("/applications", applicationData, config);
     return response.data;
   },
 };

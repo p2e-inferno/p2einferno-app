@@ -20,7 +20,7 @@ import {
   type Currency,
 } from "@/lib/payment-utils";
 import { CheckCircle, AlertCircle } from "lucide-react";
-import { useDashboardDataSimple } from "@/hooks/useDashboardDataSimple";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 // Load the Paystack component only on the client to avoid `window` references
 const PaystackPayment = dynamic(
@@ -123,7 +123,7 @@ export default function PaymentPage({
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>("NGN");
   const [discountCode, setDiscountCode] = useState("");
   const [discountApplied, setDiscountApplied] = useState(false);
-  const { data: dashboardData } = useDashboardDataSimple();
+  const { data: dashboardData } = useDashboardData();
 
   const totalAmount =
     selectedCurrency === "NGN"
