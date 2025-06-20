@@ -1,10 +1,6 @@
 import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 
-// List of admin email addresses
-const ADMIN_EMAILS = [
-  // Add admin emails here, for now we'll allow any authenticated user to be admin
-];
 
 /**
  * Custom hook for admin authentication

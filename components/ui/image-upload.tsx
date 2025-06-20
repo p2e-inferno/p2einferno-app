@@ -82,7 +82,10 @@ export default function ImageUpload({
 
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    uploadFile(files[0]);
+    const file = files[0];
+    if (file) {
+      uploadFile(file);
+    }
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -115,16 +118,18 @@ export default function ImageUpload({
       const pathParts = url.pathname.split("/");
       const fileName = pathParts[pathParts.length - 1];
 
-      // Delete from Supabase Storage
-      await supabase.storage
-        .from(bucketName)
-        .remove([fileName]);
+      // Delete from Supabase Storage only if fileName exists
+      if (fileName) {
+        await supabase.storage
+          .from(bucketName)
+          .remove([fileName]);
+      }
 
-      onChange(null);
+      onChange("");
     } catch (error) {
       console.error("Error removing image:", error);
       // Still remove from form even if storage deletion fails
-      onChange(null);
+      onChange("");
     }
   };
 

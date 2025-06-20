@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { verifyPrivyToken } from "@/lib/auth/privy-server";
 

@@ -9,14 +9,12 @@ import {
 import {
   infernalSparksProgram,
   currentCohort,
-  formatCurrency,
   calculateTimeRemaining,
 } from "@/lib/bootcamp-data";
 import {
   Clock,
   Users,
   Trophy,
-  DollarSign,
   Calendar,
   Flame,
   ChevronRight,
@@ -97,13 +95,7 @@ export function Bootcamps() {
                   </div>
                   <div className="text-sm text-faded-grey">Max DG</div>
                 </div>
-                <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 text-center border border-faded-grey/20">
-                  <DollarSign className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
-                  <div className="text-xl font-bold">
-                    {formatCurrency(infernalSparksProgram.cost_usd, "USD")}
-                  </div>
-                  <div className="text-sm text-faded-grey">Starting at</div>
-                </div>
+
                 <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 text-center border border-faded-grey/20">
                   <Users className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
                   <div className="text-xl font-bold">{spotsRemaining}</div>
@@ -117,7 +109,9 @@ export function Bootcamps() {
                   <Calendar className="w-5 h-5 text-flame-yellow" />
                   <h3 className="text-lg font-medium">Registration Period</h3>
                 </div>
-                <p className="text-center text-faded-grey">{registrationPeriod}</p>
+                <p className="text-center text-faded-grey">
+                  {registrationPeriod}
+                </p>
               </div>
 
               {/* Urgency and CTA */}
