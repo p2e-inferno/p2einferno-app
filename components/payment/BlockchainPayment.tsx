@@ -6,6 +6,8 @@ interface BlockchainPaymentProps {
   amount: number;
   currency: Currency;
   email: string;
+  lockAddress?: string;
+  keyManagers?: string[];
   onSuccess?: () => void;
   disabled?: boolean;
 }
@@ -13,6 +15,8 @@ interface BlockchainPaymentProps {
 export function BlockchainPayment({
   amount,
   currency,
+  lockAddress,
+  keyManagers,
 }: BlockchainPaymentProps) {
   return (
     <div className="text-center p-8 bg-blue-50 rounded-lg border border-blue-200">

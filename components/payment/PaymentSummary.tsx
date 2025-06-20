@@ -4,6 +4,7 @@ interface PaymentSummaryProps {
   amount: number;
   currency: Currency;
   bootcampName: string;
+  cohortName?: string;
   discountAmount?: number;
 }
 
@@ -11,6 +12,7 @@ export function PaymentSummary({
   amount,
   currency,
   bootcampName,
+  cohortName,
   discountAmount = 0,
 }: PaymentSummaryProps) {
   const subtotal = amount + discountAmount;
@@ -21,7 +23,10 @@ export function PaymentSummary({
       <h3 className="text-lg font-bold mb-4">Order Summary</h3>
       <div className="space-y-3">
         <div className="flex justify-between">
-          <span className="text-faded-grey">{bootcampName}</span>
+          <div className="text-faded-grey">
+            <div>{bootcampName}</div>
+            {cohortName && <div className="text-sm">{cohortName}</div>}
+          </div>
           <span>{formatCurrency(subtotal, currency)}</span>
         </div>
 

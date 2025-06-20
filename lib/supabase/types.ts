@@ -68,8 +68,6 @@ export interface Application {
   payment_method: "crypto" | "fiat";
   created_at: string;
   updated_at: string;
-  contract_address?: string;
-  key_managers_address?: string[];
 }
 
 export interface Quest {
@@ -84,10 +82,10 @@ export interface Quest {
   quest_tasks: QuestTask[];
 }
 
-export type TaskType = 
-  | "link_email" 
-  | "link_wallet" 
-  | "link_farcaster" 
+export type TaskType =
+  | "link_email"
+  | "link_wallet"
+  | "link_farcaster"
   | "sign_tos"
   | "submit_url"
   | "submit_text"
@@ -95,7 +93,12 @@ export type TaskType =
   | "complete_external"
   | "custom";
 
-export type InputValidationType = "url" | "text" | "email" | "number" | "textarea";
+export type InputValidationType =
+  | "url"
+  | "text"
+  | "email"
+  | "number"
+  | "textarea";
 
 export interface QuestTask {
   id: string;

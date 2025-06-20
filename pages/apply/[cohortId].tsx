@@ -8,7 +8,8 @@ import { ProgressSteps } from "@/components/ui/progress-steps";
 import { LoadingButton } from "@/components/ui/loading-button";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { MainLayout } from "@/components/layouts/MainLayout";
-import { infernalSparksProgram } from "@/lib/bootcamp-data";
+import { supabase } from "@/lib/supabase/client";
+import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
 import { applicationApi, type ApplicationData } from "@/lib/api";
 import { useApiCall } from "@/hooks/useApiCall";
 import toast from "react-hot-toast";
@@ -28,6 +29,8 @@ import ReviewStep from "@/components/apply/steps/ReviewStep";
 
 interface ApplicationPageProps {
   cohortId: string;
+  cohort: Cohort;
+  bootcamp: BootcampProgram;
 }
 
 // FormData remains the single source of truth for the form
@@ -69,20 +72,55 @@ const applicationSteps = [
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const cohortId = params?.cohortId as string;
 
-  if (cohortId !== "infernal-sparks-cohort-1") {
+  if (!cohortId) {
     return {
       notFound: true,
     };
   }
 
-  return {
-    props: {
-      cohortId,
-    },
-  };
+  try {
+    // Fetch cohort details
+    const { data: cohort, error: cohortError } = await supabase
+      .from("cohorts")
+      .select("*")
+      .eq("id", cohortId)
+      .single();
+
+    if (cohortError || !cohort) {
+      return {
+        notFound: true,
+      };
+    }
+
+    // Fetch bootcamp details
+    const { data: bootcamp, error: bootcampError } = await supabase
+      .from("bootcamp_programs")
+      .select("*")
+      .eq("id", cohort.bootcamp_program_id)
+      .single();
+
+    if (bootcampError || !bootcamp) {
+      return {
+        notFound: true,
+      };
+    }
+
+    return {
+      props: {
+        cohortId,
+        cohort,
+        bootcamp,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching cohort/bootcamp data:", error);
+    return {
+      notFound: true,
+    };
+  }
 };
 
-export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
+export default function ApplicationPage({ cohortId, cohort, bootcamp }: ApplicationPageProps) {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -322,10 +360,10 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
   return (
     <>
       <Head>
-        <title>Apply - {infernalSparksProgram.name} | P2E INFERNO</title>
+        <title>Apply - {bootcamp.name} | P2E INFERNO</title>
         <meta
           name="description"
-          content="Apply for the Infernal Sparks bootcamp"
+          content={`Apply for ${bootcamp.name} - ${cohort.name}`}
         />
         <link rel="icon" href="/favicon.ico" />
       </Head>
@@ -336,8 +374,11 @@ export default function ApplicationPage({ cohortId }: ApplicationPageProps) {
             <div className="max-w-4xl mx-auto">
               <div className="text-center mb-12">
                 <h1 className="text-4xl font-bold font-heading mb-4">
-                  Apply for {infernalSparksProgram.name}
+                  Apply for {bootcamp.name}
                 </h1>
+                <p className="text-faded-grey mb-2">
+                  {cohort.name}
+                </p>
                 <p className="text-faded-grey">
                   Join the next generation of Web3 enthusiasts
                 </p>
