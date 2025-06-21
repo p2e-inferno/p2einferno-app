@@ -1,0 +1,67 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+### Development
+```bash
+npm run dev        # Start development server on http://localhost:3000
+npm run build      # Build for production
+npm run start      # Start production server
+npm run lint       # Run ESLint, Prettier check, and TypeScript type checking
+npm run format     # Format code with Prettier
+```
+
+## Architecture Overview
+
+This is a Next.js application with Pages Router that implements a Play-to-Earn (P2E) gamified education platform for Web3/blockchain learning.
+
+### Tech Stack
+- **Frontend**: Next.js (Pages Router), TypeScript, React
+- **Styling**: Tailwind CSS with custom dark theme
+- **Authentication**: Privy (@privy-io/react-auth) for Web3 auth
+- **Database**: Supabase (PostgreSQL with Row-Level Security)
+- **State**: React hooks, no global state management library
+- **HTTP**: Axios with custom API client setup
+
+### Key Patterns
+
+1. **API Structure**: All API endpoints follow `/pages/api/[resource]/[action].ts` pattern with standardized `ApiResponse<T>` type:
+   ```typescript
+   type ApiResponse<T> = {
+     success: boolean;
+     data?: T;
+     error?: string;
+   }
+   ```
+
+2. **Database Access**: Use Supabase client from `lib/supabase/client.ts`. Types are auto-generated in `lib/supabase/types.ts`.
+
+3. **Authentication**: Privy wrapper prevents SSR issues. Check authentication state with Privy hooks.
+
+4. **Component Organization**: 
+   - UI components in `/components/ui/` follow shadcn/ui patterns
+   - Feature components grouped by feature (e.g., `/components/quests/`)
+   - Layout components in `/components/layouts/`
+
+5. **Custom Hooks**: API calls use `useApiCall` hook for consistent error handling and loading states.
+
+### Environment Variables
+Required in `.env.local`:
+- `NEXT_PUBLIC_PRIVY_APP_ID`
+- `NEXT_PRIVY_APP_SECRET` 
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+
+### Database Schema
+Main tables include:
+- `profiles`: User profiles with XP, levels, and Web3 identities
+- `quests`: Gamified tasks with metadata
+- `quest_tasks`: Individual tasks within quests
+- `applications`: Bootcamp applications
+- `enrollments`: Course enrollments
+- `cohorts`: Bootcamp cohorts
+
+All tables use Row-Level Security (RLS) policies for authorization.

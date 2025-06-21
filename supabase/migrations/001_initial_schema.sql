@@ -73,8 +73,6 @@ CREATE TABLE public.bootcamp_programs (
     description TEXT NOT NULL,
     duration_weeks INTEGER NOT NULL,
     max_reward_dgt INTEGER NOT NULL DEFAULT 0,
-    cost_naira INTEGER NOT NULL DEFAULT 0,
-    cost_usd INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

@@ -1,6 +1,6 @@
 import React from "react";
 import { toast } from "react-hot-toast";
-import { useDashboardDataSimple } from "../../hooks/useDashboardDataSimple";
+import { useDashboardData } from "../../hooks/useDashboardData";
 import {
   WelcomeSection,
   StatsGrid,
@@ -11,16 +11,14 @@ import {
   LobbyErrorState,
 } from "../../components/lobby";
 import { LobbyLayout } from "../../components/layouts/lobby-layout";
+import { Application } from "@/lib/supabase";
 
 // Add interface to match component requirements
 interface PendingApplication {
   id: string;
   status: string;
   created_at: string;
-  applications: {
-    cohort_id: string;
-    experience_level: string;
-  };
+  applications: Application;
 }
 
 /**
@@ -29,12 +27,7 @@ interface PendingApplication {
  * Route: /lobby
  */
 export default function LobbyPage() {
-  const {
-    data: dashboardData,
-    loading,
-    error,
-    refetch,
-  } = useDashboardDataSimple();
+  const { data: dashboardData, loading, error, refetch } = useDashboardData();
 
   const handleCompletePayment = async (_applicationId: string) => {
     toast.success("Redirecting to payment portal...");
@@ -51,16 +44,13 @@ export default function LobbyPage() {
 
   const { profile, applications, enrollments, stats } = dashboardData;
   // Convert applications to the expected PendingApplication format
-  const pendingApplications: PendingApplication[] = applications
-    .filter((app) => app.status === "pending" && app.applications)
-    .map((app) => ({
+  const pendingApplications: PendingApplication[] = (applications as any[])
+    .filter((app: any) => app.applications?.payment_status === "pending")
+    .map((app: any) => ({
       id: app.id,
-      status: app.status,
+      status: app.applications?.payment_status || "pending",
       created_at: app.created_at,
-      applications: {
-        cohort_id: app.applications?.cohort_id || "",
-        experience_level: app.applications?.experience_level || "",
-      },
+      applications: app.applications,
     }));
 
   return (

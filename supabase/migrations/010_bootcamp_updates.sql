@@ -1,14 +1,16 @@
--- Add registration date fields to bootcamp_programs table if they don't exist
-ALTER TABLE IF EXISTS public.bootcamp_programs
-ADD COLUMN IF NOT EXISTS registration_start DATE,
-ADD COLUMN IF NOT EXISTS registration_end DATE;
+-- This migration originally added registration date fields to bootcamp_programs table
+-- These fields have been removed in migration 014_remove_registration_dates_add_cohort_fields.sql
+-- Keeping this section for historical reference but commenting out the changes
 
--- Update existing bootcamp programs with default registration dates if they're NULL
-UPDATE public.bootcamp_programs
-SET 
-  registration_start = '2024-01-01',
-  registration_end = '2024-12-31'
-WHERE registration_start IS NULL OR registration_end IS NULL;
+-- ALTER TABLE IF EXISTS public.bootcamp_programs
+-- ADD COLUMN IF NOT EXISTS registration_start DATE,
+-- ADD COLUMN IF NOT EXISTS registration_end DATE;
+
+-- UPDATE public.bootcamp_programs
+-- SET 
+--   registration_start = '2024-01-01',
+--   registration_end = '2024-12-31'
+-- WHERE registration_start IS NULL OR registration_end IS NULL;
 
 -- Ensure RLS policies for bootcamp_programs and cohorts are properly set up
 -- Drop existing policies if they exist

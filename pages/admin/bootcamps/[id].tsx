@@ -1,15 +1,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
-import AdminLayout from "@/components/layouts/AdminLayout";
+import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout"; // Import the new layout
 import BootcampForm from "@/components/admin/BootcampForm";
-import { ArrowLeft } from "lucide-react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram } from "@/lib/supabase/types";
 
 export default function EditBootcampPage() {
-  const { authenticated } = usePrivy();
+  const { authenticated } = usePrivy(); // Keep Privy auth for now, can be reviewed if AdminEditPageLayout handles all auth
   const router = useRouter();
   const { id } = router.query;
 
@@ -17,12 +15,15 @@ export default function EditBootcampPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Protect admin route
+  // Initial auth check (basic, as AdminEditPageLayout doesn't have usePrivy, only useAdminAuth)
+  // This can be refined if auth logic is centralized further.
+  // For now, the page-level auth check is kept.
+  // useAdminAuth could be added here if needed, or rely on AdminLayout's potential protection.
   useEffect(() => {
     if (!authenticated) {
-      router.push("/");
+      router.push("/"); // Redirect if not authenticated via Privy
     }
-    // TODO: Add admin role check when role-based auth is implemented
+    // TODO: Add admin role check when role-based auth is implemented if not handled by a wrapper
   }, [authenticated, router]);
 
   // Fetch bootcamp data
@@ -32,13 +33,14 @@ export default function EditBootcampPage() {
 
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
+        setError(null); // Reset error before fetch
+        const { data, error: dbError } = await supabase
           .from("bootcamp_programs")
           .select("*")
           .eq("id", id)
           .single();
 
-        if (error) throw error;
+        if (dbError) throw dbError;
 
         if (!data) {
           throw new Error("Bootcamp not found");
@@ -53,43 +55,38 @@ export default function EditBootcampPage() {
       }
     }
 
-    if (authenticated && id) {
+    if (authenticated && id) { // Proceed if authenticated and id is present
       fetchBootcamp();
+    } else if (!id) {
+      setIsLoading(false);
+      // setError("Bootcamp ID is missing."); // Or handle as appropriate
     }
   }, [authenticated, id]);
 
-  return (
-    <AdminLayout>
-      <div className="w-full max-w-4xl mx-auto">
-        <div className="mb-6">
-          <Link
-            href="/admin/bootcamps"
-            className="text-gray-400 hover:text-white flex items-center mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back to bootcamps
-          </Link>
-          <h1 className="text-2xl font-bold text-white">Edit Bootcamp</h1>
-          <p className="text-gray-400 mt-1">Update bootcamp program details</p>
-        </div>
+  // If Privy auth is not yet determined, or not authenticated, can show a loader or message.
+  // However, AdminEditPageLayout also has its own loader.
+  // For this refactor, we assume Privy handles its loading/redirect before this page fully renders.
 
-        {isLoading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-flame-yellow"></div>
-          </div>
-        ) : error ? (
-          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-            {error}
-          </div>
-        ) : bootcamp ? (
-          <div className="bg-card border border-gray-800 rounded-lg p-6">
-            <BootcampForm bootcamp={bootcamp} isEditing />
-          </div>
-        ) : (
+  return (
+    <AdminEditPageLayout
+      title="Edit Bootcamp"
+      backLinkHref="/admin/bootcamps"
+      backLinkText="Back to bootcamps"
+      isLoading={isLoading}
+      error={error}
+    >
+      {bootcamp ? (
+        <BootcampForm bootcamp={bootcamp} isEditing />
+      ) : (
+        // This specific "Bootcamp not found" message can be shown if !isLoading && !error && !bootcamp
+        // AdminEditPageLayout will show general error if `error` prop is set.
+        // If no error, but no bootcamp, and not loading, it implies not found.
+        !isLoading && !error && !bootcamp ?
           <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
-            Bootcamp not found. It may have been deleted.
+            Bootcamp not found. It may have been deleted or the ID is incorrect.
           </div>
-        )}
-      </div>
-    </AdminLayout>
+        : null // Loading/Error is handled by AdminEditPageLayout
+      )}
+    </AdminEditPageLayout>
   );
 }

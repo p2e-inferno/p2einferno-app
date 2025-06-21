@@ -11,11 +11,8 @@ export interface BootcampProgram {
   description: string;
   duration_weeks: number;
   max_reward_dgt: number;
-  cost_naira: number;
-  cost_usd: number;
-  registration_start?: string;
-  registration_end?: string;
   lock_address?: string;
+  image_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +28,9 @@ export interface Cohort {
   registration_deadline: string;
   status: "open" | "closed" | "upcoming";
   lock_address?: string;
+  key_managers?: string[];
+  usdt_amount?: number;
+  naira_amount?: number;
   created_at: string;
   updated_at: string;
 }
@@ -45,6 +45,8 @@ export interface CohortMilestone {
   end_date?: string;
   lock_address: string;
   prerequisite_milestone_id?: string;
+  duration_hours?: number;
+  total_reward?: number;
   created_at: string;
   updated_at: string;
 }
@@ -72,21 +74,48 @@ export interface Quest {
   id: string;
   title: string;
   description: string;
+  image_url?: string;
   total_reward: number;
   is_active: boolean;
   created_at: string;
+  updated_at: string;
   quest_tasks: QuestTask[];
 }
+
+export type TaskType =
+  | "link_email"
+  | "link_wallet"
+  | "link_farcaster"
+  | "sign_tos"
+  | "submit_url"
+  | "submit_text"
+  | "submit_proof"
+  | "complete_external"
+  | "custom";
+
+export type InputValidationType =
+  | "url"
+  | "text"
+  | "email"
+  | "number"
+  | "textarea";
 
 export interface QuestTask {
   id: string;
   quest_id: string;
   title: string;
   description: string;
-  task_type: "link_email" | "link_wallet" | "link_farcaster" | "sign_tos";
+  task_type: TaskType;
   verification_method: string;
   reward_amount: number;
   order_index: number;
+  input_required?: boolean;
+  input_label?: string;
+  input_placeholder?: string;
+  input_validation?: InputValidationType;
+  requires_admin_review?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface UserQuestProgress {
@@ -100,12 +129,62 @@ export interface UserQuestProgress {
   updated_at: string;
 }
 
+export type SubmissionStatus = "pending" | "completed" | "failed" | "retry";
+
 export interface UserTaskCompletion {
   id: string;
   user_id: string;
   quest_id: string;
   task_id: string;
   verification_data: any;
+  submission_data?: any;
+  submission_status?: SubmissionStatus;
+  admin_feedback?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
   reward_claimed: boolean;
   completed_at: string;
+}
+
+export interface MilestoneTask {
+  id: string;
+  milestone_id: string;
+  title: string;
+  description?: string;
+  reward_amount: number;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskSubmission {
+  id: string;
+  task_id: string;
+  user_id: string;
+  submission_url: string;
+  status: "pending" | "completed" | "failed" | "retry";
+  submitted_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  feedback?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProgramHighlight {
+  id: string;
+  cohort_id: string;
+  content: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProgramRequirement {
+  id: string;
+  cohort_id: string;
+  content: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
 }

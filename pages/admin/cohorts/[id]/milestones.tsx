@@ -8,12 +8,19 @@ import { supabase } from "@/lib/supabase/client";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 
+interface CohortWithProgram extends Cohort {
+  bootcamp_program?: {
+    id: string;
+    name: string;
+  };
+}
+
 export default function CohortMilestonesPage() {
   const { isAdmin, loading, authenticated } = useAdminAuth();
   const router = useRouter();
   const { id } = router.query;
 
-  const [cohort, setCohort] = useState<Cohort | null>(null);
+  const [cohort, setCohort] = useState<CohortWithProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isClient, setIsClient] = useState(false);
@@ -61,7 +68,7 @@ export default function CohortMilestonesPage() {
           throw new Error("Cohort not found");
         }
 
-        setCohort(data);
+        setCohort(data as CohortWithProgram);
       } catch (err: any) {
         console.error("Error fetching cohort:", err);
         setError(err.message || "Failed to load cohort");

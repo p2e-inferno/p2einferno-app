@@ -10,9 +10,9 @@ export function Hero() {
     login();
   };
 
-  const handleCohortRedirect = () => {
+  const handleBootcampRedirect = () => {
     try {
-      window.location.href = "/cohort/infernal-sparks-cohort-1";
+      window.location.href = "/#bootcamps";
     } catch (error) {
       console.error("Navigation error:", error);
     }
@@ -58,10 +58,10 @@ export function Hero() {
             </Button>
           ) : (
             <Button
-              onClick={handleCohortRedirect}
+              onClick={handleBootcampRedirect}
               className="group bg-flame-yellow hover:bg-flame-yellow/90 text-black font-bold py-3 px-6 rounded-full text-lg transition-transform transform hover:scale-105"
             >
-              Join our next cohort
+              Explore Bootcamps
               <Gamepad2 className="ml-2 h-5 w-5 transition-transform group-hover:rotate-12" />
             </Button>
           )}

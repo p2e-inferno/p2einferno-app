@@ -3,9 +3,9 @@ import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { CopyBadge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase/client";
+import { usePrivy } from "@privy-io/react-auth";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { nanoid } from "nanoid";
 
@@ -25,9 +25,10 @@ export default function CohortForm({
     []
   );
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
-  const [selectedBootcamp, setSelectedBootcamp] =
-    useState<BootcampProgram | null>(null);
-  const [dateWarning, setDateWarning] = useState<string | null>(null);
+  const { getAccessToken } = usePrivy();
+  const [keyManagersInput, setKeyManagersInput] = useState<string>(
+    cohort?.key_managers?.join(", ") || ""
+  );
 
   const [formData, setFormData] = useState<Partial<Cohort>>(
     cohort || {
@@ -41,6 +42,9 @@ export default function CohortForm({
       registration_deadline: "",
       status: "upcoming",
       lock_address: "",
+      key_managers: [],
+      usdt_amount: 0,
+      naira_amount: 0,
     }
   );
 
@@ -67,76 +71,6 @@ export default function CohortForm({
     fetchBootcampPrograms();
   }, []);
 
-  // Update selected bootcamp when bootcamp_program_id changes
-  useEffect(() => {
-    if (formData.bootcamp_program_id && bootcampPrograms.length > 0) {
-      const bootcamp = bootcampPrograms.find(
-        (program) => program.id === formData.bootcamp_program_id
-      );
-      setSelectedBootcamp(bootcamp || null);
-
-      // Reset warning
-      setDateWarning(null);
-
-      // Check dates against bootcamp registration period
-      validateDatesAgainstBootcamp(
-        formData.start_date,
-        formData.end_date,
-        formData.registration_deadline,
-        bootcamp
-      );
-    }
-  }, [
-    formData.bootcamp_program_id,
-    formData.start_date,
-    formData.end_date,
-    formData.registration_deadline,
-    bootcampPrograms,
-  ]);
-
-  const validateDatesAgainstBootcamp = (
-    startDate?: string,
-    endDate?: string,
-    regDeadline?: string,
-    bootcamp?: BootcampProgram | null
-  ) => {
-    if (!bootcamp || !startDate || !endDate || !regDeadline) return;
-
-    // Only validate if bootcamp has registration dates set
-    if (bootcamp.registration_start && bootcamp.registration_end) {
-      const bootcampRegStart = new Date(bootcamp.registration_start);
-      const bootcampRegEnd = new Date(bootcamp.registration_end);
-      const cohortStart = new Date(startDate);
-      const cohortEnd = new Date(endDate);
-      const cohortRegDeadline = new Date(regDeadline);
-
-      let warnings = [];
-
-      // Check if cohort start date is after bootcamp registration period
-      if (cohortStart < bootcampRegEnd) {
-        warnings.push(
-          "Cohort start date should be after bootcamp registration period ends"
-        );
-      }
-
-      // Check if cohort registration deadline is within bootcamp registration period
-      if (
-        cohortRegDeadline < bootcampRegStart ||
-        cohortRegDeadline > bootcampRegEnd
-      ) {
-        warnings.push(
-          "Cohort registration deadline should be within bootcamp registration period"
-        );
-      }
-
-      if (warnings.length > 0) {
-        setDateWarning(warnings.join(". "));
-      } else {
-        setDateWarning(null);
-      }
-    }
-  };
-
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
@@ -146,8 +80,13 @@ export default function CohortForm({
     let parsedValue: string | number = value;
 
     // Parse numeric values
-    if (name === "max_participants" || name === "current_participants") {
-      parsedValue = value === "" ? 0 : parseInt(value, 10);
+    if (
+      name === "max_participants" ||
+      name === "current_participants" ||
+      name === "usdt_amount" ||
+      name === "naira_amount"
+    ) {
+      parsedValue = value === "" ? 0 : parseFloat(value);
     }
 
     setFormData((prev) => ({
@@ -176,61 +115,46 @@ export default function CohortForm({
       // Validate dates
       const startDate = new Date(formData.start_date);
       const endDate = new Date(formData.end_date);
-      const regDeadline = new Date(formData.registration_deadline);
 
       if (endDate <= startDate) {
         throw new Error("End date must be after start date");
       }
 
-      if (regDeadline > startDate) {
-        throw new Error(
-          "Registration deadline must be before or on the start date"
-        );
-      }
-
-      // Additional validation against bootcamp registration period
-      if (
-        selectedBootcamp?.registration_start &&
-        selectedBootcamp?.registration_end
-      ) {
-        const bootcampRegStart = new Date(selectedBootcamp.registration_start);
-        const bootcampRegEnd = new Date(selectedBootcamp.registration_end);
-
-        // Enforce that cohort registration deadline is within bootcamp registration period
-        if (regDeadline < bootcampRegStart || regDeadline > bootcampRegEnd) {
-          throw new Error(
-            `Registration deadline must be within the bootcamp registration period (${bootcampRegStart.toLocaleDateString()} - ${bootcampRegEnd.toLocaleDateString()})`
-          );
-        }
-
-        // Enforce that cohort start date is after bootcamp registration period ends
-        if (startDate < bootcampRegEnd) {
-          throw new Error(
-            `Cohort start date must be after bootcamp registration period ends (${bootcampRegEnd.toLocaleDateString()})`
-          );
-        }
-      }
-
       const now = new Date().toISOString();
 
-      if (isEditing) {
-        const { error } = await supabase
-          .from("cohorts")
-          .update({
-            ...formData,
-            updated_at: now,
-          })
-          .eq("id", cohort!.id);
+      // Process key managers from comma-separated string to array
+      const keyManagers = keyManagersInput
+        .split(",")
+        .map((addr) => addr.trim())
+        .filter((addr) => addr.length > 0);
 
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.from("cohorts").insert({
-          ...formData,
-          created_at: now,
-          updated_at: now,
-        });
+      const dataToSave = {
+        ...formData,
+        key_managers: keyManagers,
+      };
 
-        if (error) throw error;
+      const apiUrl = "/api/admin/cohorts";
+      const method = isEditing ? "PUT" : "POST";
+
+      const token = await getAccessToken();
+      if (!token) throw new Error("Authentication required");
+
+      const response = await fetch(apiUrl, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(
+          isEditing
+            ? { ...dataToSave, id: cohort!.id }
+            : { ...dataToSave, created_at: now, updated_at: now }
+        ),
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to save cohort");
       }
 
       // Redirect back to cohort list
@@ -254,13 +178,6 @@ export default function CohortForm({
       {error && (
         <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
           {error}
-        </div>
-      )}
-
-      {dateWarning && (
-        <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
-          <p className="font-medium">Warning:</p>
-          <p>{dateWarning}</p>
         </div>
       )}
 
@@ -334,19 +251,6 @@ export default function CohortForm({
               Bootcamp program cannot be changed after creation.
             </p>
           )}
-          {selectedBootcamp?.registration_start &&
-            selectedBootcamp?.registration_end && (
-              <p className="text-sm text-amber-400 mt-1">
-                Bootcamp registration period:{" "}
-                {new Date(
-                  selectedBootcamp.registration_start
-                ).toLocaleDateString()}{" "}
-                -{" "}
-                {new Date(
-                  selectedBootcamp.registration_end
-                ).toLocaleDateString()}
-              </p>
-            )}
         </div>
 
         <div className="space-y-2">
@@ -463,6 +367,63 @@ export default function CohortForm({
           />
           <p className="text-sm text-gray-400 mt-1">
             Optional: Unlock Protocol lock address for cohort access NFTs
+          </p>
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="key_managers" className="text-white">
+            Key Managers Wallets
+          </Label>
+          <Input
+            id="key_managers"
+            name="key_managers"
+            value={keyManagersInput}
+            onChange={(e) => setKeyManagersInput(e.target.value)}
+            placeholder="e.g., 0xabc..., 0xdef..., 0x123..."
+            className={inputClass}
+          />
+          <p className="text-sm text-gray-400 mt-1">
+            Optional: Comma-separated list of wallet addresses for key managers
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="usdt_amount" className="text-white">
+            USDT Amount
+          </Label>
+          <Input
+            id="usdt_amount"
+            name="usdt_amount"
+            type="number"
+            step="0.01"
+            value={formData.usdt_amount}
+            onChange={handleChange}
+            min={0}
+            placeholder="0.00"
+            className={inputClass}
+          />
+          <p className="text-sm text-gray-400 mt-1">
+            Optional: Cohort price in USDT
+          </p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="naira_amount" className="text-white">
+            Naira Amount
+          </Label>
+          <Input
+            id="naira_amount"
+            name="naira_amount"
+            type="number"
+            step="0.01"
+            value={formData.naira_amount}
+            onChange={handleChange}
+            min={0}
+            placeholder="0.00"
+            className={inputClass}
+          />
+          <p className="text-sm text-gray-400 mt-1">
+            Optional: Cohort price in Naira
           </p>
         </div>
       </div>

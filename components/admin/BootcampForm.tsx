@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyBadge } from "@/components/ui/badge";
 import { usePrivy } from "@privy-io/react-auth";
+import ImageUpload from "@/components/ui/image-upload";
 import type { BootcampProgram } from "@/lib/supabase/types";
 
 interface BootcampFormProps {
@@ -36,25 +37,15 @@ export default function BootcampForm({
     }
   }, [bootcamp]);
 
-  const [formData, setFormData] = useState<
-    Partial<
-      BootcampProgram & {
-        registration_start?: string;
-        registration_end?: string;
-      }
-    >
-  >(
+  const [formData, setFormData] = useState<Partial<BootcampProgram>>(
     bootcamp || {
       id: "",
       name: "",
       description: "",
       duration_weeks: 4,
       max_reward_dgt: 0,
-      cost_naira: 0,
-      cost_usd: 0,
-      registration_start: "",
-      registration_end: "",
       lock_address: "", // Using existing lock_address field from DB
+      image_url: "",
     }
   );
 
@@ -67,9 +58,7 @@ export default function BootcampForm({
     // Parse numeric values
     if (
       name === "duration_weeks" ||
-      name === "max_reward_dgt" ||
-      name === "cost_naira" ||
-      name === "cost_usd"
+      name === "max_reward_dgt"
     ) {
       parsedValue = value === "" ? 0 : parseInt(value, 10);
     }
@@ -77,6 +66,13 @@ export default function BootcampForm({
     setFormData((prev) => ({
       ...prev,
       [name]: parsedValue,
+    }));
+  };
+
+  const handleImageChange = (imageUrl: string | null) => {
+    setFormData((prev) => ({
+      ...prev,
+      image_url: imageUrl || "",
     }));
   };
 
@@ -95,22 +91,6 @@ export default function BootcampForm({
         throw new Error("Duration must be at least 1 week");
       }
 
-      // Validate registration dates if provided
-      if (formData.registration_start && formData.registration_end) {
-        const startDate = new Date(formData.registration_start);
-        const endDate = new Date(formData.registration_end);
-
-        if (endDate <= startDate) {
-          throw new Error("Registration end date must be after start date");
-        }
-      } else if (
-        (formData.registration_start && !formData.registration_end) ||
-        (!formData.registration_start && formData.registration_end)
-      ) {
-        throw new Error(
-          "Both registration start and end dates must be provided or left empty"
-        );
-      }
 
       const now = new Date().toISOString();
 
@@ -122,11 +102,8 @@ export default function BootcampForm({
         description: formData.description,
         duration_weeks: formData.duration_weeks,
         max_reward_dgt: formData.max_reward_dgt,
-        cost_naira: formData.cost_naira,
-        cost_usd: formData.cost_usd,
-        registration_start: formData.registration_start || null,
-        registration_end: formData.registration_end || null,
         lock_address: formData.lock_address || null,
+        image_url: formData.image_url || null,
         updated_at: now,
       } as any;
 
@@ -170,9 +147,6 @@ export default function BootcampForm({
   // Common input styling for better visibility on dark backgrounds
   const inputClass =
     "bg-transparent border-gray-700 text-gray-100 placeholder-gray-500 focus:border-flame-yellow/50";
-
-  // Special styling for date inputs to make the calendar icon visible
-  const dateInputClass = `${inputClass} [color-scheme:dark] cursor-pointer`;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -271,67 +245,7 @@ export default function BootcampForm({
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="cost_naira" className="text-white">
-            Cost in Naira (NGN)
-          </Label>
-          <Input
-            id="cost_naira"
-            name="cost_naira"
-            type="number"
-            value={formData.cost_naira}
-            onChange={handleChange}
-            min={0}
-            required
-            className={inputClass}
-          />
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="cost_usd" className="text-white">
-            Cost in USD
-          </Label>
-          <Input
-            id="cost_usd"
-            name="cost_usd"
-            type="number"
-            value={formData.cost_usd}
-            onChange={handleChange}
-            min={0}
-            required
-            className={inputClass}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="registration_start" className="text-white">
-            Registration Start Date
-          </Label>
-          <Input
-            id="registration_start"
-            name="registration_start"
-            type="date"
-            value={formData.registration_start || ""}
-            onChange={handleChange}
-            className={dateInputClass}
-            onClick={(e) => e.currentTarget.showPicker()}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="registration_end" className="text-white">
-            Registration End Date
-          </Label>
-          <Input
-            id="registration_end"
-            name="registration_end"
-            type="date"
-            value={formData.registration_end || ""}
-            onChange={handleChange}
-            className={dateInputClass}
-            onClick={(e) => e.currentTarget.showPicker()}
-          />
-        </div>
 
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="lock_address" className="text-white">
@@ -344,6 +258,14 @@ export default function BootcampForm({
             onChange={handleChange}
             placeholder="e.g., 0x1234..."
             className={inputClass}
+          />
+        </div>
+
+        <div className="space-y-2 md:col-span-2">
+          <ImageUpload
+            value={formData.image_url}
+            onChange={handleImageChange}
+            disabled={isSubmitting}
           />
         </div>
       </div>
