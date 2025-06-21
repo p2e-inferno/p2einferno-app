@@ -83,7 +83,13 @@ const QuestDetailsPage = () => {
     const response = await fetch(`/api/quests/complete-task`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ questId: qId, taskId, userId: user?.id, details }),
+      body: JSON.stringify({ 
+        questId: qId, 
+        taskId, 
+        userId: user?.id, 
+        verificationData: details,
+        inputData: details.inputData 
+      }),
     });
     if (!response.ok) {
       const errorData = await response
@@ -161,7 +167,7 @@ const QuestDetailsPage = () => {
     }
   };
 
-  const handleTaskAction = async (task: any) => {
+  const handleTaskAction = async (task: any, inputData?: string) => {
     if (!questId) return;
     setProcessingTask(task.id);
     try {
@@ -204,6 +210,41 @@ const QuestDetailsPage = () => {
               success: false,
               error: "Failed to sign Terms of Service",
             };
+          }
+          break;
+        case "submit_url":
+        case "submit_text":
+        case "submit_proof":
+          // These task types require input data
+          if (inputData && inputData.trim()) {
+            result = await completeTaskAPI(questId as string, task.id, { inputData });
+          } else {
+            result = { 
+              success: false, 
+              error: `Please provide ${task.input_label || 'required information'}` 
+            };
+          }
+          break;
+        case "complete_external":
+          // External tasks are completed outside the platform
+          result = await completeTaskAPI(questId as string, task.id, {
+            completed_external: true,
+            timestamp: new Date().toISOString()
+          });
+          break;
+        case "custom":
+          // Custom tasks may or may not require input
+          if (task.input_required && inputData) {
+            result = await completeTaskAPI(questId as string, task.id, { inputData });
+          } else if (task.input_required) {
+            result = { 
+              success: false, 
+              error: `Please provide ${task.input_label || 'required input'}` 
+            };
+          } else {
+            result = await completeTaskAPI(questId as string, task.id, {
+              custom_action: true
+            });
           }
           break;
         default:

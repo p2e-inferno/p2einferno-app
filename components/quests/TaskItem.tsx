@@ -114,9 +114,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const canResubmit = (isRetry || isFailed) && task.input_required;
 
   const handleTaskAction = () => {
-    if (task.input_required && inputValue.trim()) {
-      onAction(task, inputValue.trim());
-    } else if (!task.input_required) {
+    if (task.input_required) {
+      if (inputValue.trim()) {
+        onAction(task, inputValue.trim());
+      } else {
+        // Don't call onAction if input is required but empty
+        // The error message will be shown in the UI
+        return;
+      }
+    } else {
       onAction(task);
     }
   };
@@ -224,19 +230,28 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
             {/* Task Actions */}
             {(!isCompleted && !isPending) && isQuestStarted && (
-              <button
-                onClick={handleTaskAction}
-                disabled={isProcessing || !isQuestStarted || (task.input_required && !inputValue.trim())}
-                className="bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-2 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessing 
-                  ? "Processing..." 
-                  : canResubmit 
-                    ? "Resubmit" 
-                    : task.requires_admin_review 
-                      ? "Submit for Review"
-                      : "Complete Task"}
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={handleTaskAction}
+                  disabled={isProcessing || !isQuestStarted || (task.input_required && !inputValue.trim())}
+                  className="bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-2 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isProcessing 
+                    ? "Processing..." 
+                    : canResubmit 
+                      ? "Resubmit" 
+                      : task.requires_admin_review 
+                        ? "Submit for Review"
+                        : "Complete Task"}
+                </button>
+                
+                {/* Show validation message when input is required but missing */}
+                {task.input_required && !inputValue.trim() && (
+                  <p className="text-red-400 text-sm">
+                    Please provide {task.input_label?.toLowerCase() || 'required information'} to continue
+                  </p>
+                )}
+              </div>
             )}
 
             {/* Claim Reward Button */}

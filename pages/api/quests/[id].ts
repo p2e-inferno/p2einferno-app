@@ -33,6 +33,11 @@ export default async function handler(
           verification_method,
           reward_amount,
           order_index,
+          input_required,
+          input_label,
+          input_placeholder,
+          input_validation,
+          requires_admin_review,
           created_at
         )
       `

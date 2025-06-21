@@ -17,16 +17,39 @@ export default async function handler(
     const supabase = createAdminClient();
 
     // Look up the user profile to verify admin privileges
-    const { data: userProfile } = await supabase
+    let { data: userProfile } = await supabase
       .from("user_profiles")
-      .select("id, wallet_address")
+      .select("id, wallet_address, privy_user_id, email, display_name")
       .eq("privy_user_id", user.id)
       .single();
 
+    // If user profile doesn't exist, create it
     if (!userProfile) {
-      return res
-        .status(403)
-        .json({ error: "Forbidden: User profile not found" });
+      const profileData = {
+        privy_user_id: user.id,
+        display_name: `Admin${user.id.slice(-6)}`, // Generate a display name
+        experience_points: 0,
+        level: 1,
+        onboarding_completed: true,
+        status: "active",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { data: newProfile, error: createError } = await supabase
+        .from("user_profiles")
+        .insert([profileData])
+        .select("id, wallet_address, privy_user_id, email, display_name")
+        .single();
+
+      if (createError) {
+        console.error("Error creating user profile:", createError);
+        return res
+          .status(500)
+          .json({ error: "Failed to create user profile" });
+      }
+
+      userProfile = newProfile;
     }
 
     // Determine admin status
