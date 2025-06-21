@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePrivy } from "@privy-io/react-auth";
-import { supabase } from "@/lib/supabase/client";
 import { Eye, Filter } from "lucide-react";
 import SubmissionReviewModal from "./SubmissionReviewModal";
 import type {
@@ -66,38 +65,35 @@ export default function QuestSubmissionsTable({
       setIsLoading(true);
       setError(null);
 
-      // Build the query
-      let query = supabase
-        .from("user_task_completions")
-        .select(`
-          *,
-          task:quest_tasks!user_task_completions_task_id_fkey (
-            id,
-            title,
-            task_type,
-            input_label
-          ),
-          user:user_profiles!user_task_completions_user_id_fkey (
-            id,
-            email,
-            wallet_address,
-            display_name,
-            privy_user_id
-          )
-        `)
-        .eq("quest_id", questId)
-        .order("completed_at", { ascending: false });
-
-      // Apply status filter if not "all"
-      if (statusFilter !== "all") {
-        query = query.eq("submission_status", statusFilter);
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error("Authentication required");
       }
 
-      const { data, error: queryError } = await query;
+      const params = new URLSearchParams();
+      params.append("questId", questId);
+      if (statusFilter !== "all") {
+        params.append("status", statusFilter);
+      }
 
-      if (queryError) throw queryError;
+      const response = await fetch(
+        `/api/admin/quests/submissions?${params.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
 
-      setSubmissions(data || []);
+      if (!response.ok) {
+        throw new Error("Failed to fetch submissions");
+      }
+
+      const json = (await response.json()) as {
+        submissions: SubmissionWithDetails[];
+      };
+      setSubmissions(json.submissions || []);
     } catch (err: any) {
       console.error("Error fetching submissions:", err);
       setError(err.message || "Failed to load submissions");
