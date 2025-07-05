@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   CustomDropdown,
@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Plus,
   Unlink,
+  RefreshCcw,
 } from "lucide-react";
 
 const Avatar = ({
@@ -31,21 +32,77 @@ const Avatar = ({
 );
 
 export function PrivyConnectButton() {
-  const { user, logout, linkEmail, linkFarcaster, unlinkWallet, linkWallet } =
-    usePrivy();
+  const {
+    user,
+    logout,
+    linkEmail,
+    linkFarcaster,
+    unlinkWallet,
+    linkWallet,
+    login,
+  } = usePrivy();
   const [copied, setCopied] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+
+  // Helper to shorten any address for UI
+  const shorten = (addr: string) =>
+    `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const readProviderAddress = async () => {
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        try {
+          const accounts: string[] | undefined = await (
+            window as any
+          ).ethereum.request({
+            method: "eth_accounts",
+          });
+          if (isMounted) {
+            let addr: string | null = null;
+            if (Array.isArray(accounts) && accounts.length > 0) {
+              addr = accounts[0] as string;
+            }
+            setConnectedAddress(addr ?? null);
+          }
+        } catch (err) {
+          console.warn("Unable to fetch accounts from provider", err);
+        }
+      }
+    };
+
+    readProviderAddress();
+
+    // Also update whenever accounts change
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      const handler = (accounts: string[]) => {
+        let addr: string | null = null;
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          addr = accounts[0] as string;
+        }
+        setConnectedAddress(addr ?? null);
+      };
+      (window as any).ethereum.on("accountsChanged", handler);
+      return () => {
+        (window as any).ethereum.removeListener("accountsChanged", handler);
+        isMounted = false;
+      };
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const walletAddress = connectedAddress || user?.wallet?.address || null;
+  const shortAddress = walletAddress ? shorten(walletAddress) : "No wallet";
 
   if (!user) return null;
 
-  const numAccounts = user?.linkedAccounts?.length || 0;
+  const numAccounts = user.linkedAccounts?.length ?? 0;
   const canRemoveAccount = numAccounts > 1;
-  const wallet = user?.wallet;
-  const walletAddress = wallet?.address;
-  const shortAddress = walletAddress
-    ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(
-        walletAddress.length - 4
-      )}`
-    : "No wallet";
 
   const copyAddress = () => {
     if (walletAddress) {
@@ -64,12 +121,24 @@ export function PrivyConnectButton() {
   };
 
   const handleUnlinkWallet = async () => {
-    if (wallet && wallet.address) {
+    if (walletAddress) {
       try {
-        await unlinkWallet(wallet.address);
+        await unlinkWallet(walletAddress);
       } catch (error) {
         console.error("Failed to unlink wallet:", error);
       }
+    }
+  };
+
+  const handleRefreshConnection = async () => {
+    setIsRefreshing(true);
+    try {
+      // Re-login to refresh the wallet connection
+      await login();
+    } catch (error) {
+      console.error("Failed to refresh user:", error);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -96,6 +165,15 @@ export function PrivyConnectButton() {
         <Copy className="mr-2 h-4 w-4" />
         <span>{copied ? "Copied!" : "Copy Address"}</span>
       </CustomDropdownItem>
+      <CustomDropdownItem
+        onClick={handleRefreshConnection}
+        disabled={isRefreshing}
+      >
+        <RefreshCcw
+          className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+        />
+        <span>{isRefreshing ? "Refreshing..." : "Refresh Connection"}</span>
+      </CustomDropdownItem>
       <CustomDropdownSeparator />
 
       {/* Wallet Management Section */}
@@ -104,7 +182,7 @@ export function PrivyConnectButton() {
         <span>Link New Wallet</span>
       </CustomDropdownItem>
 
-      {wallet && (
+      {walletAddress && (
         <CustomDropdownItem
           onClick={handleUnlinkWallet}
           disabled={!canRemoveAccount}

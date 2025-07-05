@@ -9,35 +9,37 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 
-// Validate environment variables
+// Validate environment variables - now with optional private key
 const validateEnvironment = () => {
+  // Private key is now optional since we're only using read operations
   if (!process.env.LOCK_MANAGER_PRIVATE_KEY) {
-    throw new Error(
-      "LOCK_MANAGER_PRIVATE_KEY is not set in environment variables"
+    console.warn(
+      "LOCK_MANAGER_PRIVATE_KEY not set - write operations will be disabled"
     );
+    return null;
   }
 
-  // Ensure private key is properly formatted
+  // Only validate the private key if it's provided
   const privateKey = process.env.LOCK_MANAGER_PRIVATE_KEY;
-  if (!privateKey.startsWith("0x")) {
+  if (privateKey && !privateKey.startsWith("0x")) {
     throw new Error("LOCK_MANAGER_PRIVATE_KEY must start with 0x");
   }
 
-  if (privateKey.length !== 66) {
+  if (privateKey && privateKey.length !== 66) {
     throw new Error(
       "LOCK_MANAGER_PRIVATE_KEY must be 64 characters long (excluding 0x prefix)"
     );
   }
 
-  return privateKey as `0x${string}`;
+  return privateKey as `0x${string}` | null;
 };
 
 // ---------------------------------------------------------------------------
 // Chain configuration
 // ---------------------------------------------------------------------------
 // Default to Base Sepolia (test-net) to avoid accidental main-net transactions
-// and the “grantKeys returned no data (0x)” error that occurs when the contract
-// isn’t deployed on Base main-net. You can override the network by setting the
+// and the "grantKeys returned no data (0x)" error that occurs when the contract
+// isn't deployed on Base main-net. You can override the network by setting the
 // environment variable BLOCKCHAIN_NETWORK to "base" (main-net) or
 // "base-sepolia".
 
@@ -65,10 +67,11 @@ export const CHAIN_CONFIG = {
   rpcUrl: process.env.BASE_RPC_URL || defaultRpc,
 };
 
-// Create account from private key
-const createLockManagerAccount = (): Account => {
+// Create account from private key - now returns null if private key isn't available
+const createLockManagerAccount = (): Account | null => {
   try {
     const privateKey = validateEnvironment();
+    if (!privateKey) return null;
     return privateKeyToAccount(privateKey);
   } catch (error) {
     console.error("Failed to create lock manager account:", error);
@@ -84,9 +87,15 @@ export const createBlockchainPublicClient = () => {
   }) as PublicClient;
 };
 
-// Create wallet client for writing to blockchain
+// Create wallet client for writing to blockchain - now returns null if account isn't available
 export const createBlockchainWalletClient = () => {
   const account = createLockManagerAccount();
+
+  // If we don't have a private key, we can't create a wallet client
+  if (!account) {
+    console.warn("No private key available - write operations will not work");
+    return null;
+  }
 
   return createWalletClient({
     account,

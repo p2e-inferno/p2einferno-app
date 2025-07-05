@@ -1,7 +1,7 @@
 import React from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Gamepad2 } from "lucide-react";
+import { ArrowRight, Gamepad2, DoorOpen } from "lucide-react";
 
 export function Hero() {
   const { login, authenticated, ready } = usePrivy();
@@ -13,6 +13,14 @@ export function Hero() {
   const handleBootcampRedirect = () => {
     try {
       window.location.href = "/#bootcamps";
+    } catch (error) {
+      console.error("Navigation error:", error);
+    }
+  };
+
+  const handleEnterApp = () => {
+    try {
+      window.location.href = "/lobby";
     } catch (error) {
       console.error("Navigation error:", error);
     }
@@ -57,13 +65,22 @@ export function Hero() {
               <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
             </Button>
           ) : (
-            <Button
-              onClick={handleBootcampRedirect}
-              className="group bg-flame-yellow hover:bg-flame-yellow/90 text-black font-bold py-3 px-6 rounded-full text-lg transition-transform transform hover:scale-105"
-            >
-              Explore Bootcamps
-              <Gamepad2 className="ml-2 h-5 w-5 transition-transform group-hover:rotate-12" />
-            </Button>
+            <div className="flex gap-4">
+              <Button
+                onClick={handleBootcampRedirect}
+                className="group bg-flame-yellow hover:bg-flame-yellow/90 text-black font-bold py-3 px-6 rounded-full text-lg transition-transform transform hover:scale-105"
+              >
+                Explore Bootcamps
+                <Gamepad2 className="ml-2 h-5 w-5 transition-transform group-hover:rotate-12" />
+              </Button>
+              <Button
+                onClick={handleEnterApp}
+                className="group bg-steel-red hover:bg-steel-red/90 text-white font-bold py-3 px-6 rounded-full text-lg transition-transform transform hover:scale-105"
+              >
+                Enter App
+                <DoorOpen className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </Button>
+            </div>
           )}
         </div>
 

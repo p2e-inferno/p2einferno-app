@@ -4,27 +4,16 @@ import AdminLayout from "@/components/layouts/AdminLayout";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
+import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 
 export default function AdminDashboard() {
   const { isAdmin, loading, authenticated } = useAdminAuth();
-  const router = useRouter();
   const [isClient, setIsClient] = useState(false);
 
-  // Make sure we're on the client side before redirecting
+  // Make sure we're on the client side before rendering
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  // Protect admin route
-  useEffect(() => {
-    // Only run this effect on client-side and after auth check is complete
-    if (!isClient || loading) return;
-
-    // Redirect if not authenticated or not an admin
-    if (!authenticated || !isAdmin) {
-      router.push("/");
-    }
-  }, [authenticated, isAdmin, loading, router, isClient]);
 
   // Show loading state while checking authentication
   if (loading || !isClient) {
@@ -37,9 +26,11 @@ export default function AdminDashboard() {
     );
   }
 
-  // Only render admin content if authenticated and is admin
+  // Show access required message if not authenticated or not an admin
   if (!authenticated || !isAdmin) {
-    return null; // This avoids momentary flash of content before redirect
+    return (
+      <AdminAccessRequired message="You need admin access to view the dashboard" />
+    );
   }
 
   return (

@@ -1,51 +1,27 @@
 import { useState, useEffect } from "react";
-// useRouter is not directly used by the page anymore, AdminListPageLayout handles redirection if needed.
-// import { useRouter } from "next/router";
-import AdminListPageLayout from "@/components/admin/AdminListPageLayout"; // Import the new layout
+import { useRouter } from "next/router";
+import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2 } from "lucide-react"; // PlusCircle is in AdminListPageLayout
+import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram } from "@/lib/supabase/types";
-// useAdminAuth is now used by AdminListPageLayout, so it's not directly needed here.
-// import { useAdminAuth } from "@/hooks/useAdminAuth";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { usePrivy } from "@privy-io/react-auth";
+import { withAdminAuth } from "@/components/admin/withAdminAuth";
 
-export default function BootcampListPage() {
-  // const { isAdmin, loading, authenticated } = useAdminAuth(); // Handled by AdminListPageLayout
-  // const router = useRouter(); // Handled by AdminListPageLayout
+function BootcampsPage() {
+  const router = useRouter();
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
-  const [isLoading, setIsLoading] = useState(true); // Page-specific loading for data
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  // const [isClient, setIsClient] = useState(false); // Handled by AdminListPageLayout
-
   const { getAccessToken } = usePrivy();
-
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bootcampToDelete, setBootcampToDelete] =
     useState<BootcampProgram | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // useEffect(() => { // Client check handled by AdminListPageLayout
-  //   setIsClient(true);
-  // }, []);
-
-  // useEffect(() => { // Auth protection handled by AdminListPageLayout
-  //   if (!isClient || loading) return;
-  //   if (!authenticated || !isAdmin) {
-  //     router.push("/");
-  //   }
-  // }, [authenticated, isAdmin, loading, router, isClient]);
-
-  // Fetch bootcamps - This logic remains in the page
   useEffect(() => {
-    // The AdminListPageLayout handles the auth check, so we assume if this effect runs,
-    // the user is authenticated and is an admin.
-    // However, an explicit check for isAdmin (if available from a hook here) could be an extra safety,
-    // or rely on AdminListPageLayout to prevent rendering if not admin.
-    // For now, fetchBootcamps is called without re-checking auth status here.
-
     async function fetchBootcamps() {
       try {
         setIsLoading(true);
@@ -66,42 +42,40 @@ export default function BootcampListPage() {
     }
 
     fetchBootcamps();
-  }, []); // Runs once on component mount after initial auth by layout
-
-  // formatDate is now imported
-
-  // The main loading state for auth is handled by AdminListPageLayout.
-  // The page still needs to manage its own `isLoading` for the data fetch.
+  }, []);
 
   async function handleConfirmDelete() {
     if (!bootcampToDelete) return;
+
     try {
       setIsDeleting(true);
-      const token = await getAccessToken();
+      const accessToken = await getAccessToken();
+
+      // Call API to delete the bootcamp
       const response = await fetch(
         `/api/admin/bootcamps/${bootcampToDelete.id}`,
         {
           method: "DELETE",
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${accessToken}`,
           },
         }
       );
 
       if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(data?.error || "Failed to delete bootcamp");
+        throw new Error("Failed to delete bootcamp");
       }
 
-      // Remove bootcamp locally
-      setBootcamps((prev) => prev.filter((b) => b.id !== bootcampToDelete.id));
-      setDeleteDialogOpen(false);
-      setBootcampToDelete(null);
+      // Remove from UI
+      setBootcamps((prev) =>
+        prev.filter((bootcamp) => bootcamp.id !== bootcampToDelete.id)
+      );
     } catch (err: any) {
-      console.error("Delete error:", err);
-      setError(err.message || "Failed to delete bootcamp");
+      console.error("Error deleting bootcamp:", err);
     } finally {
       setIsDeleting(false);
+      setDeleteDialogOpen(false);
+      setBootcampToDelete(null);
     }
   }
 
@@ -111,7 +85,7 @@ export default function BootcampListPage() {
         title="Bootcamp Programs"
         newButtonText="New Bootcamp"
         newButtonLink="/admin/bootcamps/new"
-        isLoading={isLoading} // Pass the data loading state
+        isLoading={isLoading}
         error={error}
         isEmpty={!isLoading && !error && bootcamps.length === 0}
         emptyStateTitle="No bootcamps found"
@@ -154,7 +128,7 @@ export default function BootcampListPage() {
                     {bootcamp.duration_weeks} weeks
                   </td>
                   <td className="py-4 px-4 text-sm text-white">
-                    {bootcamp.max_reward_dgt.toLocaleString()} DGT
+                    {bootcamp.max_reward_dgt?.toLocaleString() || 0} DGT
                   </td>
                   <td className="py-4 px-4 text-sm text-white">
                     Contact for pricing
@@ -192,16 +166,23 @@ export default function BootcampListPage() {
           </table>
         </div>
       </AdminListPageLayout>
+
       <ConfirmationDialog
         isOpen={deleteDialogOpen}
         onClose={() => setDeleteDialogOpen(false)}
         onConfirm={handleConfirmDelete}
         title="Delete Bootcamp"
-        description="Are you sure you want to delete this bootcamp? This action cannot be undone."
+        description={`Are you sure you want to delete ${bootcampToDelete?.name}? This action cannot be undone.`}
         confirmText="Delete"
-        variant="danger"
+        cancelText="Cancel"
         isLoading={isDeleting}
       />
     </>
   );
 }
+
+// Export the page wrapped in admin authentication
+export default withAdminAuth(
+  BootcampsPage,
+  "You need admin access to manage bootcamps"
+);

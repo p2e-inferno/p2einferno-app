@@ -35,12 +35,14 @@ export class LockManagerService {
 
   constructor() {
     this.publicClient = createBlockchainPublicClient();
-    this.walletClient = createBlockchainWalletClient();
+    this.walletClient = createBlockchainWalletClient(); // May be null if no private key
     this.contractAbi = PUBLIC_LOCK_CONTRACT.abi;
   }
 
   /**
    * Grant keys to a recipient address
+   * NOTE: This operation requires a wallet client with a private key.
+   * Currently disabled until LOCK_MANAGER_PRIVATE_KEY is configured.
    */
   async grantKeys({
     recipientAddress,
@@ -48,6 +50,18 @@ export class LockManagerService {
     keyManagers,
     expirationDuration,
   }: GrantKeysParams): Promise<GrantKeysResult> {
+    // Check if wallet client is available
+    if (!this.walletClient) {
+      console.error(
+        "Grant keys operation not available - No private key configured"
+      );
+      return {
+        success: false,
+        error:
+          "Write operations disabled - LOCK_MANAGER_PRIVATE_KEY not configured",
+      };
+    }
+
     try {
       console.log(`Granting key to address: ${recipientAddress}`);
 
@@ -106,45 +120,92 @@ export class LockManagerService {
 
   /**
    * Check if a user has a valid key
+   * This is a read-only operation that works without a private key
+   * @param userAddress The user's wallet address
+   * @param lockAddress The lock contract address
+   * @param forceRefresh Whether to bypass cache and force a fresh check
    */
   async checkUserHasValidKey(
     userAddress: Address,
-    lockAddress: Address
+    lockAddress: Address,
+    forceRefresh = false
   ): Promise<KeyInfo | null> {
     try {
+      // Add cache-busting parameter if forceRefresh is true
+      const cacheOptions = forceRefresh
+        ? { multicallAddress: undefined } // This forces viem to not use its internal cache
+        : {};
+
+      // First check if the user has a valid key
       const hasValidKey = (await this.publicClient.readContract({
         address: lockAddress,
         abi: this.contractAbi,
         functionName: "getHasValidKey",
         args: [userAddress],
+        ...cacheOptions,
       })) as boolean;
 
       if (!hasValidKey) {
+        console.log(
+          `User ${userAddress} does not have a valid key for lock ${lockAddress}`
+        );
         return null;
       }
 
-      // Get the token ID for the user
-      const tokenId = (await this.publicClient.readContract({
+      // Check if the user has any keys at all
+      const balance = (await this.publicClient.readContract({
         address: lockAddress,
         abi: this.contractAbi,
-        functionName: "tokenOfOwnerByIndex",
-        args: [userAddress, 0n],
+        functionName: "balanceOf",
+        args: [userAddress],
+        ...cacheOptions,
       })) as bigint;
 
-      // Get key expiration
-      const expirationTimestamp = (await this.publicClient.readContract({
-        address: lockAddress,
-        abi: this.contractAbi,
-        functionName: "keyExpirationTimestampFor",
-        args: [tokenId],
-      })) as bigint;
+      if (balance === 0n) {
+        console.log(`User ${userAddress} has 0 keys for lock ${lockAddress}`);
+        return null;
+      }
 
-      return {
-        tokenId,
-        owner: userAddress,
-        expirationTimestamp,
-        isValid: true,
-      };
+      try {
+        // Get the token ID for the user
+        const tokenId = (await this.publicClient.readContract({
+          address: lockAddress,
+          abi: this.contractAbi,
+          functionName: "tokenOfOwnerByIndex",
+          args: [userAddress, 0n],
+          ...cacheOptions,
+        })) as bigint;
+
+        // Get key expiration
+        const expirationTimestamp = (await this.publicClient.readContract({
+          address: lockAddress,
+          abi: this.contractAbi,
+          functionName: "keyExpirationTimestampFor",
+          args: [tokenId],
+          ...cacheOptions,
+        })) as bigint;
+
+        // Check if the key has expired
+        const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
+        const isExpired = expirationTimestamp <= currentTimestamp;
+
+        return {
+          tokenId,
+          owner: userAddress,
+          expirationTimestamp,
+          isValid: !isExpired,
+        };
+      } catch (error) {
+        console.error("Error getting token details:", error);
+        // Even though getHasValidKey returned true, we couldn't get the token details
+        // This might happen if the contract doesn't implement ERC721Enumerable
+        return {
+          tokenId: 0n,
+          owner: userAddress,
+          expirationTimestamp: 0n,
+          isValid: true, // We trust getHasValidKey
+        };
+      }
     } catch (error) {
       console.error("Error checking user key:", error);
       return null;
@@ -186,14 +247,20 @@ export class LockManagerService {
 
   /**
    * Get the balance of the lock manager account
+   * NOTE: This operation requires a wallet client with a private key.
+   * Currently disabled until LOCK_MANAGER_PRIVATE_KEY is configured.
    */
   async getManagerBalance(): Promise<string> {
+    // Check if wallet client is available
+    if (!this.walletClient || !this.walletClient.account) {
+      console.warn(
+        "Get manager balance operation not available - No private key configured"
+      );
+      return "0";
+    }
+
     try {
       const account = this.walletClient.account;
-      if (!account) {
-        throw new Error("Wallet client account not found");
-      }
-
       const balance = await this.publicClient.getBalance({
         address: account.address,
       });

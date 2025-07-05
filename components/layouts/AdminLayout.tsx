@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { FlameIcon } from "../icons/dashboard-icons";
 import AdminNavigation from "../admin/AdminNavigation";
+import { PrivyConnectButton } from "../PrivyConnectButton";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -47,7 +48,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 </span>
               </Link>
             </div>
-            <div>
+            <div className="flex items-center space-x-2">
+              <PrivyConnectButton />
               {/* Mobile menu button */}
               <button
                 onClick={toggleMobileMenu}
@@ -102,6 +104,11 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Desktop header */}
+        <div className="hidden md:flex md:items-center md:justify-end md:px-6 md:py-4 border-b border-gray-800 bg-black">
+          <PrivyConnectButton />
         </div>
 
         {/* Main content */}

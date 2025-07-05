@@ -1,22 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 import { randomUUID } from "crypto";
 import type { QuestTask } from "@/lib/supabase/types";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const user = await getPrivyUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    // TODO: Add proper admin role check
-    // For now, we'll allow all authenticated users (update this in production)
-
     const supabase = createAdminClient();
 
     switch (req.method) {
@@ -35,55 +24,28 @@ export default async function handler(
   }
 }
 
+// Wrap the handler with admin authentication middleware
+export default withAdminAuth(handler);
+
 async function getQuests(
-  _req: NextApiRequest,
+  req: NextApiRequest,
   res: NextApiResponse,
   supabase: any
 ) {
   try {
-    const { data: quests, error } = await supabase
+    const { data, error } = await supabase
       .from("quests")
-      .select(
-        `
-        *,
-        quest_tasks (
-          id,
-          title,
-          description,
-          task_type,
-          reward_amount,
-          order_index,
-          input_required,
-          requires_admin_review
-        )
-      `
-      )
+      .select("*, quest_tasks(*)")
       .order("created_at", { ascending: false });
 
     if (error) throw error;
 
-    // Fetch quest statistics
-    const { data: stats, error: statsError } = await supabase
-      .from("quest_statistics")
-      .select("*");
-
-    if (statsError) {
-      console.error("Error fetching quest statistics:", statsError);
-    }
-
-    // Combine quests with stats
-    const questsWithStats = (quests || []).map((quest: any) => {
-      const questStats = stats?.find((s: any) => s.quest_id === quest.id);
-      return {
-        ...quest,
-        stats: questStats || null,
-      };
-    });
-
-    return res.status(200).json({ quests: questsWithStats });
+    return res.status(200).json(data);
   } catch (error: any) {
     console.error("Error fetching quests:", error);
-    return res.status(500).json({ error: "Failed to fetch quests" });
+    return res
+      .status(500)
+      .json({ error: error.message || "Failed to fetch quests" });
   }
 }
 
@@ -92,72 +54,65 @@ async function createQuest(
   res: NextApiResponse,
   supabase: any
 ) {
-  const { quest, tasks } = req.body;
+  const { title, description, image_url, tasks, xp_reward, status } = req.body;
 
-  if (!quest || !quest.title || !quest.description) {
-    return res
-      .status(400)
-      .json({ error: "Quest title and description are required" });
+  if (!title) {
+    return res.status(400).json({ error: "Title is required" });
   }
 
-  if (!tasks || !Array.isArray(tasks) || tasks.length === 0) {
-    return res.status(400).json({ error: "At least one task is required" });
-  }
-
+  // Start a transaction
   try {
-    // Start a transaction
-    const questId = randomUUID();
-    const now = new Date().toISOString();
-
-    // Create the quest
-    const { data: questData, error: questError } = await supabase
+    // 1. Insert the quest
+    const { data: quest, error: questError } = await supabase
       .from("quests")
       .insert({
-        id: questId,
-        ...quest,
-        created_at: now,
-        updated_at: now,
+        title,
+        description,
+        image_url,
+        xp_reward: xp_reward || 0,
+        status: status || "draft",
       })
       .select()
       .single();
 
     if (questError) throw questError;
 
-    // Create tasks with proper IDs and timestamps
-    const tasksWithIds = tasks.map(
-      (task: Partial<QuestTask>, index: number) => ({
-        id: randomUUID(),
-        quest_id: questId,
-        ...task,
-        order_index: task.order_index ?? index,
-        created_at: now,
-        updated_at: now,
-      })
-    );
+    // 2. If tasks are provided, insert them
+    if (tasks && Array.isArray(tasks) && tasks.length > 0) {
+      const questTasks = tasks.map(
+        (task: Partial<QuestTask>, index: number) => ({
+          quest_id: quest.id,
+          title: task.title,
+          description: task.description,
+          order_index: index,
+          xp_reward: task.xp_reward || 0,
+          submission_type: task.submission_type || "text",
+          verification_type: task.verification_type || "manual",
+          required: task.required !== undefined ? task.required : true,
+        })
+      );
 
-    const { data: tasksData, error: tasksError } = await supabase
-      .from("quest_tasks")
-      .insert(tasksWithIds)
-      .select();
+      const { error: tasksError } = await supabase
+        .from("quest_tasks")
+        .insert(questTasks);
 
-    if (tasksError) {
-      // Rollback quest creation if tasks fail
-      await supabase.from("quests").delete().eq("id", questId);
-      throw tasksError;
+      if (tasksError) throw tasksError;
     }
 
-    // Return the created quest with tasks
-    const createdQuest = {
-      ...questData,
-      quest_tasks: tasksData,
-    };
+    // 3. Return the created quest with its tasks
+    const { data: fullQuest, error: fetchError } = await supabase
+      .from("quests")
+      .select("*, quest_tasks(*)")
+      .eq("id", quest.id)
+      .single();
 
-    return res.status(201).json({
-      success: true,
-      quest: createdQuest,
-    });
+    if (fetchError) throw fetchError;
+
+    return res.status(201).json(fullQuest);
   } catch (error: any) {
     console.error("Error creating quest:", error);
-    return res.status(500).json({ error: "Failed to create quest" });
+    return res
+      .status(500)
+      .json({ error: error.message || "Failed to create quest" });
   }
 }

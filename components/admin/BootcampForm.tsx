@@ -8,6 +8,8 @@ import { CopyBadge } from "@/components/ui/badge";
 import { usePrivy } from "@privy-io/react-auth";
 import ImageUpload from "@/components/ui/image-upload";
 import type { BootcampProgram } from "@/lib/supabase/types";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import { AuthError } from "@/components/ui/auth-error";
 
 interface BootcampFormProps {
   bootcamp?: BootcampProgram;
@@ -21,7 +23,11 @@ export default function BootcampForm({
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { getAccessToken } = usePrivy();
+
+  const adminApi = useAdminApi({
+    redirectOnAuthError: false,
+    showAuthErrorModal: true,
+  });
 
   // Keep track of the original bootcamp ID for updates
   const [originalBootcampId, setOriginalBootcampId] = useState<string | null>(
@@ -49,6 +55,19 @@ export default function BootcampForm({
     }
   );
 
+  // Clear local error when adminApi error is cleared
+  useEffect(() => {
+    if (!adminApi.error) {
+      setError(null);
+    }
+  }, [adminApi.error]);
+
+  const handleAuthRefresh = () => {
+    // Clear local error and trigger re-authentication
+    setError(null);
+    // User will need to refresh the page or re-login manually
+  };
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
@@ -56,10 +75,7 @@ export default function BootcampForm({
     let parsedValue: string | number = value;
 
     // Parse numeric values
-    if (
-      name === "duration_weeks" ||
-      name === "max_reward_dgt"
-    ) {
+    if (name === "duration_weeks" || name === "max_reward_dgt") {
       parsedValue = value === "" ? 0 : parseInt(value, 10);
     }
 
@@ -83,7 +99,7 @@ export default function BootcampForm({
 
     try {
       // Validate required fields
-      if (!formData.name || !formData.description || !formData.id) {
+      if (!formData.name || !formData.description) {
         throw new Error("Please fill in all required fields");
       }
 
@@ -91,12 +107,8 @@ export default function BootcampForm({
         throw new Error("Duration must be at least 1 week");
       }
 
-
-      const now = new Date().toISOString();
-
       // Prepare submission data for API
-      const submissionData = {
-        ...formData,
+      const apiData: any = {
         id: isEditing ? originalBootcampId : formData.id,
         name: formData.name,
         description: formData.description,
@@ -104,42 +116,48 @@ export default function BootcampForm({
         max_reward_dgt: formData.max_reward_dgt,
         lock_address: formData.lock_address || null,
         image_url: formData.image_url || null,
-        updated_at: now,
-      } as any;
+        updated_at: new Date().toISOString(),
+      };
 
-      // Include created_at when creating new bootcamp
+      // Add created_at for new bootcamps
       if (!isEditing) {
-        submissionData.created_at = now;
+        apiData.created_at = new Date().toISOString();
       }
 
-      // Get Privy access token for authorization header
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
-      const apiUrl = "/api/admin/bootcamps";
+      const endpoint = "/api/admin/bootcamps";
       const method = isEditing ? "PUT" : "POST";
 
-      console.log(`Submitting ${method} to ${apiUrl}`, submissionData);
-
-      const response = await fetch(apiUrl, {
+      const response = await adminApi.adminFetch(endpoint, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(submissionData),
+        body: JSON.stringify(apiData),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to save bootcamp");
+      if (response.error) {
+        throw new Error(response.error);
       }
 
-      // Redirect back to bootcamp list
-      router.push("/admin/bootcamps");
-    } catch (err: any) {
-      console.error("Error saving bootcamp:", err);
-      setError(err.message || "Failed to save bootcamp");
+      if (response.data) {
+        // Success! Show success message or redirect
+        if (!isEditing) {
+          // Reset form after creating new bootcamp
+          setFormData({
+            id: "",
+            name: "",
+            description: "",
+            duration_weeks: 4,
+            max_reward_dgt: 0,
+            lock_address: "",
+            image_url: "",
+          });
+        }
+
+        // Redirect back to bootcamp list
+        router.push("/admin/bootcamps");
+      }
+    } catch (error: any) {
+      console.error("Error saving bootcamp:", error);
+      setError(error.message || "Failed to save bootcamp");
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -150,11 +168,11 @@ export default function BootcampForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      <AuthError
+        error={error}
+        onClear={() => setError(null)}
+        className="mb-4"
+      />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         <div className="space-y-2">
@@ -244,8 +262,6 @@ export default function BootcampForm({
             className={inputClass}
           />
         </div>
-
-
 
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="lock_address" className="text-white">

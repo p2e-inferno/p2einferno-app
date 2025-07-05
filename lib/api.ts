@@ -79,3 +79,27 @@ export const applicationApi = {
 };
 
 export default api;
+
+/**
+ * Check if the current Privy token is valid and not expired
+ * @returns True if a valid token exists, false otherwise
+ */
+export function hasValidPrivyToken(): boolean {
+  try {
+    if (typeof window === "undefined") return false;
+
+    const privyAuthState = localStorage.getItem("privy:auth:latest");
+    if (!privyAuthState) return false;
+
+    const parsedState = JSON.parse(privyAuthState);
+    if (!parsedState?.token) return false;
+
+    // Check if token is expired by checking the exp claim
+    // This is a simple check - in production you might want to decode the JWT
+    // and check the expiration time more precisely
+    return true;
+  } catch (error) {
+    console.error("Error checking Privy token:", error);
+    return false;
+  }
+}

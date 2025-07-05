@@ -3,8 +3,12 @@ import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
+import { withAdminFormErrorHandling } from "@/components/admin/withAdminFormErrorHandling";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+
+// Wrap the BootcampForm with our error handling HOC
+const AdminBootcampForm = withAdminFormErrorHandling(BootcampForm);
 
 export default function NewBootcampPage() {
   const { authenticated } = usePrivy();
@@ -35,7 +39,7 @@ export default function NewBootcampPage() {
         </div>
 
         <div className="bg-card border border-gray-800 rounded-lg p-6">
-          <BootcampForm />
+          <AdminBootcampForm />
         </div>
       </div>
     </AdminLayout>

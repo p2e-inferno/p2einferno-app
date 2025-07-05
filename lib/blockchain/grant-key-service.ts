@@ -18,6 +18,8 @@ export interface GrantKeyResponse {
 
 /**
  * High-level service for granting keys with error handling and retry logic
+ * NOTE: Write operations require LOCK_MANAGER_PRIVATE_KEY to be configured.
+ * Currently, only read operations are fully supported.
  */
 export class GrantKeyService {
   private readonly DEFAULT_MAX_RETRIES = 1;
@@ -25,6 +27,7 @@ export class GrantKeyService {
 
   /**
    * Grant a key to a user wallet with automatic retry on failure
+   * NOTE: This operation requires LOCK_MANAGER_PRIVATE_KEY to be configured.
    */
   async grantKeyToUser({
     walletAddress,
@@ -53,6 +56,16 @@ export class GrantKeyService {
           lockAddress,
           keyManagers,
         });
+
+        // If operation failed because write operations are disabled
+        if (result.error?.includes("LOCK_MANAGER_PRIVATE_KEY not configured")) {
+          return {
+            success: false,
+            error:
+              "Admin key granting is currently disabled. Contact the system administrator to enable this feature.",
+            retryCount: attempt,
+          };
+        }
 
         if (result.success) {
           console.log(`Successfully granted key to ${walletAddress}`);
@@ -109,6 +122,7 @@ export class GrantKeyService {
 
   /**
    * Check if user already has a valid key
+   * This is a read-only operation that works without a private key
    */
   async userHasValidKey(
     walletAddress: string,
@@ -147,6 +161,7 @@ export class GrantKeyService {
       "Invalid private key",
       "Contract not found",
       "Function not found",
+      "LOCK_MANAGER_PRIVATE_KEY not configured",
     ];
 
     return permanentErrors.some((permError) =>

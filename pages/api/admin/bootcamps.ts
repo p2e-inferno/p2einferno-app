@@ -1,89 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    // Ensure user is authenticated via Privy
-    const user = await getPrivyUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     // Initialize Supabase admin client (service role)
     const supabase = createAdminClient();
-
-    // Look up the user profile to verify admin privileges
-    let { data: userProfile } = await supabase
-      .from("user_profiles")
-      .select("id, wallet_address, privy_user_id, email, display_name")
-      .eq("privy_user_id", user.id)
-      .single();
-
-    // If user profile doesn't exist, create it
-    if (!userProfile) {
-      const profileData = {
-        privy_user_id: user.id,
-        display_name: `Admin${user.id.slice(-6)}`, // Generate a display name
-        experience_points: 0,
-        level: 1,
-        onboarding_completed: true,
-        status: "active",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      const { data: newProfile, error: createError } = await supabase
-        .from("user_profiles")
-        .insert([profileData])
-        .select("id, wallet_address, privy_user_id, email, display_name")
-        .single();
-
-      if (createError) {
-        console.error("Error creating user profile:", createError);
-        return res
-          .status(500)
-          .json({ error: "Failed to create user profile" });
-      }
-
-      userProfile = newProfile;
-    }
-
-    // Determine admin status
-    let isAdmin = false;
-
-    // 1. Check DB role via is_admin() RPC
-    const { data: adminDbCheck, error: adminError } = await supabase.rpc(
-      "is_admin",
-      {
-        user_id: userProfile.id,
-      }
-    );
-
-    if (adminError) throw adminError;
-
-    if (adminDbCheck) isAdmin = true;
-
-    // 2. Fallback to dev-mode wallet allow-list (comma-separated addresses)
-    if (!isAdmin && process.env.DEV_ADMIN_ADDRESSES) {
-      const devAdmins = process.env.DEV_ADMIN_ADDRESSES.split(",")
-        .map((a) => a.trim().toLowerCase())
-        .filter(Boolean);
-
-      if (
-        userProfile.wallet_address &&
-        devAdmins.includes(userProfile.wallet_address.toLowerCase())
-      ) {
-        isAdmin = true;
-      }
-    }
-
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Forbidden: Admins only" });
-    }
 
     // Handle the request method
     switch (req.method) {
@@ -101,6 +23,9 @@ export default async function handler(
       .json({ error: error.message || "Internal server error" });
   }
 }
+
+// Wrap the handler with admin authentication middleware
+export default withAdminAuth(handler);
 
 async function createBootcamp(
   req: NextApiRequest,
@@ -123,16 +48,17 @@ async function createBootcamp(
     // Insert bootcamp (will bypass RLS due to service role)
     const { data, error } = await supabase
       .from("bootcamp_programs")
-      .insert(bootcamp)
-      .select()
-      .single();
+      .insert([bootcamp])
+      .select();
 
     if (error) throw error;
 
-    return res.status(201).json(data);
+    return res.status(201).json(data[0]);
   } catch (error: any) {
     console.error("Error creating bootcamp:", error);
-    return res.status(400).json({ error: error.message });
+    return res
+      .status(500)
+      .json({ error: error.message || "Failed to create bootcamp" });
   }
 }
 
@@ -144,25 +70,26 @@ async function updateBootcamp(
   const { id, ...bootcamp } = req.body;
 
   if (!id) {
-    return res.status(400).json({ error: "Missing bootcamp ID" });
+    return res.status(400).json({ error: "Bootcamp ID is required" });
   }
 
   try {
-    const now = new Date().toISOString();
-    bootcamp.updated_at = now;
+    // Update timestamp
+    bootcamp.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
       .from("bootcamp_programs")
       .update(bootcamp)
       .eq("id", id)
-      .select()
-      .single();
+      .select();
 
     if (error) throw error;
 
-    return res.status(200).json(data);
+    return res.status(200).json(data[0]);
   } catch (error: any) {
     console.error("Error updating bootcamp:", error);
-    return res.status(400).json({ error: error.message });
+    return res
+      .status(500)
+      .json({ error: error.message || "Failed to update bootcamp" });
   }
 }
