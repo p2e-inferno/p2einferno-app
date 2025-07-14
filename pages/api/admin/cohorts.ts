@@ -16,7 +16,7 @@ export default async function handler(
     // Check admin privileges
     const { data: userProfile } = await supabase
       .from("user_profiles")
-      .select("id, wallet_address")
+      .select("id, wallet_address, metadata, linked_wallets")
       .eq("privy_user_id", user.id)
       .single();
 
@@ -26,28 +26,94 @@ export default async function handler(
         .json({ error: "Forbidden: User profile not found" });
     }
 
+    // Get current wallet address from Privy user
+    const currentWalletAddress = user.wallet?.address;
+    
+    // Update profile with current wallet address if different
+    if (currentWalletAddress && currentWalletAddress !== userProfile.wallet_address) {
+      console.log("Updating user profile wallet address:", {
+        old: userProfile.wallet_address,
+        new: currentWalletAddress
+      });
+      
+      const { error: updateError } = await supabase
+        .from("user_profiles")
+        .update({ 
+          wallet_address: currentWalletAddress,
+          linked_wallets: userProfile.linked_wallets || []
+        })
+        .eq("id", userProfile.id);
+      
+      if (updateError) {
+        console.error("Error updating wallet address:", updateError);
+      } else {
+        userProfile.wallet_address = currentWalletAddress;
+      }
+    }
+
+    console.log("Admin check for user:", {
+      userId: user.id,
+      profileId: userProfile.id,
+      walletAddress: userProfile.wallet_address,
+      currentWallet: currentWalletAddress,
+      metadata: userProfile.metadata,
+      linkedWallets: userProfile.linked_wallets
+    });
+
     // Determine admin status: DB function or DEV allow-list
     let isAdmin = false;
     const { data: adminDbCheck, error: adminErr } = await supabase.rpc(
       "is_admin",
       { user_id: userProfile.id }
     );
-    if (adminErr) throw adminErr;
-    if (adminDbCheck) isAdmin = true;
+    if (adminErr) {
+      console.error("Admin DB check error:", adminErr);
+      throw adminErr;
+    }
+    if (adminDbCheck) {
+      isAdmin = true;
+      console.log("Admin access granted via database role");
+    }
 
+    // Check DEV_ADMIN_ADDRESSES if not admin via DB
     if (!isAdmin && process.env.DEV_ADMIN_ADDRESSES) {
       const devAdmins = process.env.DEV_ADMIN_ADDRESSES.split(",")
         .map((a) => a.trim().toLowerCase())
         .filter(Boolean);
-      if (
-        userProfile.wallet_address &&
-        devAdmins.includes(userProfile.wallet_address.toLowerCase())
-      )
+      
+      // Check both wallet_address and linked_wallets
+      const userWallets = [
+        userProfile.wallet_address?.toLowerCase(),
+        ...(userProfile.linked_wallets || []).map(w => w.toLowerCase())
+      ].filter(Boolean);
+      
+      console.log("Checking DEV_ADMIN_ADDRESSES:", {
+        devAdmins,
+        userWallets,
+        isMatch: userWallets.some(wallet => devAdmins.includes(wallet))
+      });
+
+      if (userWallets.some(wallet => devAdmins.includes(wallet))) {
         isAdmin = true;
+        console.log("Admin access granted via DEV_ADMIN_ADDRESSES");
+      }
     }
 
-    if (!isAdmin)
-      return res.status(403).json({ error: "Forbidden: Admins only" });
+    if (!isAdmin) {
+      console.log("Admin access denied for user:", user.id);
+      return res.status(403).json({ 
+        error: "Forbidden: Admins only",
+        details: {
+          userId: user.id,
+          walletAddress: userProfile.wallet_address,
+          linkedWallets: userProfile.linked_wallets,
+          hasDbRole: adminDbCheck,
+          devAdmins: process.env.DEV_ADMIN_ADDRESSES
+        }
+      });
+    }
+
+    console.log("Admin access granted for user:", user.id);
 
     switch (req.method) {
       case "POST":

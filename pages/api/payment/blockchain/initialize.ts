@@ -11,7 +11,7 @@ interface BlockchainPaymentRequest {
   amount: number;
   currency: Currency;
   email: string;
-  walletAddress?: string;
+  walletAddress: string; // Required for crypto payments
 }
 
 export default async function handler(
@@ -26,9 +26,9 @@ export default async function handler(
     const { applicationId, amount, currency, email, walletAddress }: BlockchainPaymentRequest = req.body;
 
     // Validate required fields
-    if (!applicationId || !amount || !currency || !email) {
+    if (!applicationId || !amount || !currency || !email || !walletAddress) {
       return res.status(400).json({
-        error: "Missing required fields: applicationId, amount, currency, email"
+        error: "Missing required fields: applicationId, amount, currency, email, walletAddress"
       });
     }
 
@@ -39,6 +39,13 @@ export default async function handler(
       });
     }
 
+    // Validate wallet address
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return res.status(400).json({
+        error: "Invalid wallet address format"
+      });
+    }
+
     // Validate amount
     if (!validatePaymentAmount(amount, currency)) {
       return res.status(400).json({
@@ -46,10 +53,19 @@ export default async function handler(
       });
     }
 
-    // Check if application exists
+    // Check if application exists and get cohort details
     const { data: application, error: appError } = await supabase
       .from("applications")
-      .select("id, user_email, payment_status")
+      .select(`
+        id, 
+        user_email, 
+        payment_status,
+        cohorts!inner(
+          id,
+          lock_address,
+          title
+        )
+      `)
       .eq("id", applicationId)
       .single();
 
@@ -66,28 +82,32 @@ export default async function handler(
       });
     }
 
+    // Verify cohort has lock address configured
+    if (!application.cohorts?.lock_address) {
+      return res.status(400).json({
+        error: "Cohort lock address not configured. Contact support."
+      });
+    }
+
     // Generate payment reference
     const reference = generatePaymentReference();
-
-    // For now, return a placeholder for blockchain payment
-    // This would typically integrate with a Web3 payment processor
-    // or generate a wallet address for direct crypto payment
     
     // Save payment transaction to database
     const { error: transactionError } = await supabase
       .from("payment_transactions")
       .insert({
         application_id: applicationId,
-        paystack_reference: reference, // Using same field for reference
+        paystack_reference: reference,
         amount,
         currency,
-        amount_in_kobo: Math.round(amount * 100), // For consistency, store cents
+        amount_in_kobo: Math.round(amount * 100),
         status: "pending",
         payment_method: "blockchain",
         metadata: {
           applicationId,
           walletAddress,
           paymentType: "blockchain",
+          lockAddress: application.cohorts.lock_address,
         },
       });
 
@@ -111,15 +131,14 @@ export default async function handler(
         paymentMethod: "blockchain",
         currency,
         amount,
-        // In a real implementation, you would return:
-        // - Wallet address to send crypto to
-        // - QR code for payment
-        // - Smart contract address if applicable
-        // - Payment deadline
-        message: "Blockchain payment initialized. Please send payment to the provided address.",
-        // Placeholder data:
-        walletAddress: "0x742d35Cc6419C40f12Cc33f22b04b4E8b6a5d5e8", // Example
-        qrCode: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=0x742d35Cc6419C40f12Cc33f22b04b4E8b6a5d5e8:${amount}`,
+        lockAddress: application.cohorts.lock_address,
+        cohortTitle: application.cohorts.title,
+        walletAddress, // Purchaser's wallet
+        instructions: {
+          step1: "Connect your wallet to Base network",
+          step2: "Call purchase() on the lock contract",
+          step3: "Key NFT will be automatically minted to your wallet",
+        }
       },
     });
 

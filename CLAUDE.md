@@ -24,6 +24,7 @@ This is a Next.js application with Pages Router that implements a Play-to-Earn (
 - **Database**: Supabase (PostgreSQL with Row-Level Security)
 - **State**: React hooks, no global state management library
 - **HTTP**: Axios with custom API client setup
+- **Token-gating**: Unlock Protocol for access control and token gating
 
 ### Key Patterns
 

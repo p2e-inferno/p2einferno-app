@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,11 +98,12 @@ export default function CohortForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setError(null);
+    setError("");
 
     try {
       // Validate required fields
       if (
+        !formData.id ||
         !formData.name ||
         !formData.bootcamp_program_id ||
         !formData.start_date ||
@@ -113,10 +114,7 @@ export default function CohortForm({
       }
 
       // Validate dates
-      const startDate = new Date(formData.start_date);
-      const endDate = new Date(formData.end_date);
-
-      if (endDate <= startDate) {
+      if (new Date(formData.end_date) <= new Date(formData.start_date)) {
         throw new Error("End date must be after start date");
       }
 
@@ -154,14 +152,25 @@ export default function CohortForm({
 
       if (!response.ok) {
         const err = await response.json();
-        throw new Error(err.error || "Failed to save cohort");
+        
+        // Handle specific error cases with better UX
+        if (err.error === "Forbidden: User profile not found") {
+          setError("Your admin profile needs to be set up. Please contact the system administrator or try logging out and back in.");
+        } else if (err.error === "Forbidden: Admins only") {
+          setError("You don't have admin permissions. Please contact the system administrator if you believe this is an error.");
+        } else if (err.error?.includes("Forbidden")) {
+          setError("Access denied. Please ensure you have proper admin permissions.");
+        } else {
+          throw new Error(err.error || "Failed to save cohort");
+        }
+      } else {
+        // Redirect back to cohort list
+        router.push("/admin/cohorts");
       }
-
-      // Redirect back to cohort list
-      router.push("/admin/cohorts");
     } catch (err: any) {
       console.error("Error saving cohort:", err);
       setError(err.message || "Failed to save cohort");
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -177,7 +186,27 @@ export default function CohortForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-          {error}
+          <div className="flex items-start space-x-3">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-red-300">Error creating cohort</h3>
+              <p className="mt-1 text-sm text-red-200">{error}</p>
+              {error.includes("admin") && (
+                <div className="mt-2 text-xs text-red-200">
+                  <p>If you believe you should have admin access:</p>
+                  <ul className="list-disc list-inside mt-1 space-y-1">
+                    <li>Try logging out and logging back in</li>
+                    <li>Ensure your wallet is connected properly</li>
+                    <li>Contact the system administrator</li>
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

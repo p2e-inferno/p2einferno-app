@@ -18,11 +18,60 @@ export default async function handler(
     // Verify admin role via user_profiles metadata.role === 'admin'
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("metadata")
+      .select("id, wallet_address, metadata, linked_wallets")
       .eq("privy_user_id", user.id)
       .single();
 
-    if (!profile || profile.metadata?.role !== "admin") {
+    if (!profile) {
+      return res.status(403).json({ error: "User profile not found" });
+    }
+
+    // Get current wallet address from Privy user
+    const currentWalletAddress = user.wallet?.address;
+    
+    // Update profile with current wallet address if different
+    if (currentWalletAddress && currentWalletAddress !== profile.wallet_address) {
+      console.log("Updating user profile wallet address:", {
+        old: profile.wallet_address,
+        new: currentWalletAddress
+      });
+      
+      const { error: updateError } = await supabase
+        .from("user_profiles")
+        .update({ 
+          wallet_address: currentWalletAddress,
+          linked_wallets: profile.linked_wallets || []
+        })
+        .eq("id", profile.id);
+      
+      if (updateError) {
+        console.error("Error updating wallet address:", updateError);
+      } else {
+        profile.wallet_address = currentWalletAddress;
+      }
+    }
+
+    // Check admin status
+    let isAdmin = profile.metadata?.role === "admin";
+
+    // If not admin via DB, check DEV_ADMIN_ADDRESSES
+    if (!isAdmin && process.env.DEV_ADMIN_ADDRESSES) {
+      const devAdmins = process.env.DEV_ADMIN_ADDRESSES.split(",")
+        .map((a) => a.trim().toLowerCase())
+        .filter(Boolean);
+      
+      // Check both wallet_address and linked_wallets
+      const userWallets = [
+        profile.wallet_address?.toLowerCase(),
+        ...(profile.linked_wallets || []).map(w => w.toLowerCase())
+      ].filter(Boolean);
+      
+      if (userWallets.some(wallet => devAdmins.includes(wallet))) {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAdmin) {
       return res.status(403).json({ error: "Admins only" });
     }
 
