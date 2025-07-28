@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
 
 export default async function handler(
   req: NextApiRequest,
@@ -26,28 +26,39 @@ export default async function handler(
       return res.status(403).json({ error: "User profile not found" });
     }
 
-    // Get current wallet address from Privy user
-    const currentWalletAddress = user.wallet?.address;
-    
-    // Update profile with current wallet address if different
-    if (currentWalletAddress && currentWalletAddress !== profile.wallet_address) {
-      console.log("Updating user profile wallet address:", {
-        old: profile.wallet_address,
-        new: currentWalletAddress
+    // Get current wallet addresses from Privy API
+    const userWalletAddresses = await getUserWalletAddresses(user.id);
+    const currentWalletAddress =
+      userWalletAddresses.length > 0 ? userWalletAddresses[0] : null;
+
+    // Update profile with current wallet addresses if different
+    const needsWalletUpdate =
+      currentWalletAddress && currentWalletAddress !== profile.wallet_address;
+    const needsLinkedWalletsUpdate =
+      JSON.stringify(userWalletAddresses.sort()) !==
+      JSON.stringify((profile.linked_wallets || []).sort());
+
+    if (needsWalletUpdate || needsLinkedWalletsUpdate) {
+      console.log("Updating user profile wallet information:", {
+        oldWalletAddress: profile.wallet_address,
+        newWalletAddress: currentWalletAddress,
+        oldLinkedWallets: profile.linked_wallets,
+        newLinkedWallets: userWalletAddresses,
       });
-      
+
       const { error: updateError } = await supabase
         .from("user_profiles")
-        .update({ 
+        .update({
           wallet_address: currentWalletAddress,
-          linked_wallets: profile.linked_wallets || []
+          linked_wallets: userWalletAddresses,
         })
         .eq("id", profile.id);
-      
+
       if (updateError) {
-        console.error("Error updating wallet address:", updateError);
+        console.error("Error updating wallet information:", updateError);
       } else {
         profile.wallet_address = currentWalletAddress;
+        profile.linked_wallets = userWalletAddresses;
       }
     }
 
@@ -59,14 +70,18 @@ export default async function handler(
       const devAdmins = process.env.DEV_ADMIN_ADDRESSES.split(",")
         .map((a) => a.trim().toLowerCase())
         .filter(Boolean);
-      
-      // Check both wallet_address and linked_wallets
-      const userWallets = [
+
+      // Use all wallet addresses from Privy (most up-to-date source) + database fallback
+      const allUserWallets = [
+        ...userWalletAddresses.map((w) => w.toLowerCase()),
         profile.wallet_address?.toLowerCase(),
-        ...(profile.linked_wallets || []).map(w => w.toLowerCase())
+        ...(profile.linked_wallets || []).map((w) => w.toLowerCase()),
       ].filter(Boolean);
-      
-      if (userWallets.some(wallet => devAdmins.includes(wallet))) {
+
+      // Remove duplicates
+      const uniqueUserWallets = [...new Set(allUserWallets)];
+
+      if (uniqueUserWallets.some((wallet) => devAdmins.includes(wallet))) {
         isAdmin = true;
       }
     }

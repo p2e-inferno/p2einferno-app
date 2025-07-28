@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
 
 /**
  * Debug endpoint to help diagnose admin setup issues
@@ -30,8 +30,8 @@ export default async function handler(
         suggestions: [
           "Make sure you're logged in with Privy",
           "Check that your wallet is connected",
-          "Try logging out and back in"
-        ]
+          "Try logging out and back in",
+        ],
       });
     }
 
@@ -48,10 +48,9 @@ export default async function handler(
     let adminDbCheck = null;
     let adminErr = null;
     if (userProfile) {
-      const { data: adminResult, error } = await supabase.rpc(
-        "is_admin",
-        { user_id: userProfile.id }
-      );
+      const { data: adminResult, error } = await supabase.rpc("is_admin", {
+        user_id: userProfile.id,
+      });
       adminDbCheck = adminResult;
       adminErr = error;
     }
@@ -59,21 +58,31 @@ export default async function handler(
     // Check environment variables
     const envCheck = {
       hasDevAdminAddresses: !!process.env.DEV_ADMIN_ADDRESSES,
-      devAdminAddresses: process.env.DEV_ADMIN_ADDRESSES ? 
-        process.env.DEV_ADMIN_ADDRESSES.split(",").map(a => a.trim()) : null,
+      devAdminAddresses: process.env.DEV_ADMIN_ADDRESSES
+        ? process.env.DEV_ADMIN_ADDRESSES.split(",").map((a) => a.trim())
+        : null,
       hasAdminLockAddress: !!process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS,
     };
 
+    // Get current wallet addresses from Privy API
+    const userWalletAddresses = await getUserWalletAddresses(user.id);
+    const currentWallet =
+      userWalletAddresses.length > 0 ? userWalletAddresses[0] : null;
+
     // Check if current wallet is in dev admin list
-    const currentWallet = user.wallet?.address;
-    const userWallets = [
+    const allUserWallets = [
+      ...userWalletAddresses.map((w) => w.toLowerCase()),
       userProfile?.wallet_address?.toLowerCase(),
-      ...(userProfile?.linked_wallets || []).map(w => w.toLowerCase())
+      ...(userProfile?.linked_wallets || []).map((w) => w.toLowerCase()),
     ].filter(Boolean);
 
-    const isDevAdmin = envCheck.devAdminAddresses?.some(devAdmin => 
-      userWallets.some(wallet => wallet === devAdmin.toLowerCase())
-    ) || false;
+    // Remove duplicates
+    const uniqueUserWallets = [...new Set(allUserWallets)];
+
+    const isDevAdmin =
+      envCheck.devAdminAddresses?.some((devAdmin) =>
+        uniqueUserWallets.some((wallet) => wallet === devAdmin.toLowerCase())
+      ) || false;
 
     const debugInfo = {
       debug: "Admin Debug Information",
@@ -81,7 +90,8 @@ export default async function handler(
       user: {
         privyId: user.id,
         currentWallet,
-        hasWallet: !!user.wallet,
+        privyWallets: userWalletAddresses,
+        hasWallet: userWalletAddresses.length > 0,
       },
       profile: {
         exists: !!userProfile,
@@ -96,7 +106,7 @@ export default async function handler(
         isDevAdmin,
         environmentCheck: envCheck,
       },
-      recommendations: []
+      recommendations: [],
     };
 
     // Generate recommendations
@@ -132,7 +142,6 @@ export default async function handler(
     }
 
     return res.status(200).json(debugInfo);
-
   } catch (error: any) {
     console.error("Debug API error:", error);
     return res.status(500).json({
@@ -142,8 +151,8 @@ export default async function handler(
       suggestions: [
         "Check server logs for more details",
         "Verify database connection",
-        "Check environment variables"
-      ]
+        "Check environment variables",
+      ],
     });
   }
 }
