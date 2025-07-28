@@ -1,4 +1,5 @@
 import React from "react";
+import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import {
@@ -27,11 +28,21 @@ interface PendingApplication {
  * Route: /lobby
  */
 export default function LobbyPage() {
+  const router = useRouter();
   const { data: dashboardData, loading, error, refetch } = useDashboardData();
 
-  const handleCompletePayment = async (_applicationId: string) => {
-    toast.success("Redirecting to payment portal...");
-    // TODO: Implement payment completion flow
+  const handleCompletePayment = async (applicationId: string) => {
+    try {
+      toast.loading("Redirecting to payment portal...");
+
+      // Navigate to the payment page with the application ID
+      await router.push(`/payment/${applicationId}`);
+
+      toast.dismiss();
+    } catch (error) {
+      console.error("Failed to redirect to payment:", error);
+      toast.error("Failed to redirect to payment page");
+    }
   };
 
   if (loading) {
@@ -47,7 +58,7 @@ export default function LobbyPage() {
   const pendingApplications: PendingApplication[] = (applications as any[])
     .filter((app: any) => app.applications?.payment_status === "pending")
     .map((app: any) => ({
-      id: app.id,
+      id: app.application_id, // Use the actual application ID, not user_application_status ID
       status: app.applications?.payment_status || "pending",
       created_at: app.created_at,
       applications: app.applications,
