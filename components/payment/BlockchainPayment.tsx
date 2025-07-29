@@ -1,12 +1,12 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { formatCurrency, type Currency } from "../../lib/payment-utils";
 import { AlertCircle, Wallet, ExternalLink, CheckCircle } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { abi as PublicLockABI } from "../../constants/public_lock_abi";
-import { parseEther, formatEther } from "viem";
 
 interface BlockchainPaymentProps {
   applicationId: string;
+  cohortId: string;
   amount: number;
   currency: Currency;
   email: string;
@@ -25,6 +25,7 @@ interface PaymentData {
 
 export function BlockchainPayment({
   applicationId,
+  cohortId,
   amount,
   currency,
   email,
@@ -56,6 +57,7 @@ export function BlockchainPayment({
         },
         body: JSON.stringify({
           applicationId,
+          cohortId,
           amount,
           currency,
           email,
@@ -121,7 +123,7 @@ export function BlockchainPayment({
       }
 
       // Create contract interface
-      const { createPublicClient, createWalletClient, custom, parseEther } = await import("viem");
+      const { createPublicClient, createWalletClient, custom } = await import("viem");
       const { base } = await import("viem/chains");
 
       const publicClient = createPublicClient({

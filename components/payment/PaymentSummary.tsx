@@ -15,7 +15,7 @@ export function PaymentSummary({
   cohortName,
   discountAmount = 0,
 }: PaymentSummaryProps) {
-  const subtotal = amount + discountAmount;
+  const subtotal = amount - discountAmount;
   const total = amount;
 
   return (
@@ -27,7 +27,7 @@ export function PaymentSummary({
             <div>{bootcampName}</div>
             {cohortName && <div className="text-sm">{cohortName}</div>}
           </div>
-          <span>{formatCurrency(subtotal, currency)}</span>
+          <span>{formatCurrency(total, currency)}</span>
         </div>
 
         {discountAmount > 0 && (
@@ -42,16 +42,15 @@ export function PaymentSummary({
         <div className="flex justify-between font-bold text-lg">
           <span>Total</span>
           <span className="text-flame-yellow">
-            {formatCurrency(total, currency)}
+            {formatCurrency(subtotal, currency)}
           </span>
         </div>
 
         <div className="text-xs text-faded-grey mt-4">
           <p>
-            {currency === "NGN" 
+            {currency === "NGN"
               ? "Secure payment powered by Paystack. All transactions are encrypted and secure."
-              : "Blockchain payment will be processed on-chain with crypto wallets."
-            }
+              : "Blockchain payment will be processed on-chain with crypto wallets."}
           </p>
         </div>
       </div>

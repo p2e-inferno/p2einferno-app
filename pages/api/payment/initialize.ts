@@ -150,7 +150,7 @@ export default async function handler(
       .from("payment_transactions")
       .insert({
         application_id: applicationId,
-        paystack_reference: officialReference,
+        payment_reference: officialReference,
         paystack_access_code: paystackData.data.access_code,
         amount,
         currency,

@@ -63,7 +63,7 @@ export default async function handler(
           ...paymentData,
         },
       })
-      .eq("paystack_reference", reference)
+      .eq("payment_reference", reference)
       .select("application_id, status");
 
     let transaction = Array.isArray(transactionRows)

@@ -64,7 +64,7 @@ async function handleSuccessfulCharge(data: any) {
         paid_at: new Date(data.paid_at),
         metadata: { ...data },
       })
-      .eq("paystack_reference", reference)
+      .eq("payment_reference", reference)
       .select("application_id")
       .single();
 
@@ -102,7 +102,7 @@ async function handleFailedCharge(data: any) {
         paystack_gateway_response: data.gateway_response,
         metadata: { ...data },
       })
-      .eq("paystack_reference", reference);
+      .eq("payment_reference", reference);
 
   } catch (error) {
     console.error("Error handling failed charge:", error);

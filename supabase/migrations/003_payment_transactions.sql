@@ -6,7 +6,7 @@ CREATE TABLE public.payment_transactions (
   application_id UUID NOT NULL REFERENCES public.applications(id) ON DELETE CASCADE,
   
   -- Payment details
-  paystack_reference VARCHAR(255) NOT NULL UNIQUE,
+  payment_reference VARCHAR(255) NOT NULL UNIQUE,
   paystack_access_code VARCHAR(255),
   
   -- Amount and currency
@@ -44,7 +44,7 @@ CREATE TABLE public.payment_transactions (
 
 -- Create indexes for better performance
 CREATE INDEX idx_payment_transactions_application_id ON public.payment_transactions(application_id);
-CREATE INDEX idx_payment_transactions_paystack_reference ON public.payment_transactions(paystack_reference);
+CREATE INDEX idx_payment_transactions_payment_reference ON public.payment_transactions(payment_reference);
 CREATE INDEX idx_payment_transactions_status ON public.payment_transactions(status);
 CREATE INDEX idx_payment_transactions_created_at ON public.payment_transactions(created_at);
 

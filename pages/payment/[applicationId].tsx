@@ -257,9 +257,7 @@ export default function PaymentPage({
                       <PaystackPayment
                         applicationId={applicationId}
                         cohortId={application.cohort_id}
-                        amount={
-                          discountApplied ? totalAmount * 0.8 : totalAmount
-                        }
+                        amount={totalAmount}
                         currency={selectedCurrency}
                         email={application.user_email}
                         walletAddress={dashboardData?.profile?.wallet_address}
@@ -268,9 +266,8 @@ export default function PaymentPage({
                     ) : (
                       <BlockchainPayment
                         applicationId={applicationId}
-                        amount={
-                          discountApplied ? totalAmount * 0.8 : totalAmount
-                        }
+                        cohortId={application.cohort_id}
+                        amount={totalAmount}
                         currency={selectedCurrency}
                         email={application.user_email}
                         lockAddress={cohort.lock_address}

@@ -8,6 +8,7 @@ import {
 
 interface BlockchainPaymentRequest {
   applicationId: string;
+  cohortId: string;
   amount: number;
   currency: Currency;
   email: string;
@@ -23,12 +24,13 @@ export default async function handler(
   }
 
   try {
-    const { applicationId, amount, currency, email, walletAddress }: BlockchainPaymentRequest = req.body;
+    const { applicationId, cohortId, amount, currency, email, walletAddress }: BlockchainPaymentRequest = req.body;
 
     // Validate required fields
-    if (!applicationId || !amount || !currency || !email || !walletAddress) {
+    if (!applicationId || !cohortId || !amount || !currency || !email || !walletAddress) {
       return res.status(400).json({
-        error: "Missing required fields: applicationId, amount, currency, email, walletAddress"
+        error:
+          "Missing required fields: applicationId, cohortId, amount, currency, email, walletAddress",
       });
     }
 
@@ -56,16 +58,19 @@ export default async function handler(
     // Check if application exists and get cohort details
     const { data: application, error: appError } = await supabase
       .from("applications")
-      .select(`
+      .select(
+        `
         id, 
         user_email, 
         payment_status,
         cohorts!inner(
           id,
           lock_address,
-          title
+          name,
+          usdt_amount
         )
-      `)
+      `
+      )
       .eq("id", applicationId)
       .single();
 
@@ -81,9 +86,22 @@ export default async function handler(
         error: "Payment already completed for this application"
       });
     }
+  const cohort = application.cohorts.find((c: any) => c.id === cohortId);
+    
+    if (!cohort) {
+      return res.status(404).json({
+        error: "Cohort not found contact support."
+      });
+    }
+    
+    if(cohort.usdt_amount !== amount) {
+      return res.status(400).json({
+        error: "Invalid amount. Please use the correct amount for this cohort."
+      });
+    }
 
     // Verify cohort has lock address configured
-    if (!application.cohorts?.lock_address) {
+    if (!cohort?.lock_address) {
       return res.status(400).json({
         error: "Cohort lock address not configured. Contact support."
       });
@@ -97,7 +115,7 @@ export default async function handler(
       .from("payment_transactions")
       .insert({
         application_id: applicationId,
-        paystack_reference: reference,
+        payment_reference: reference,
         amount,
         currency,
         amount_in_kobo: Math.round(amount * 100),
@@ -107,7 +125,7 @@ export default async function handler(
           applicationId,
           walletAddress,
           paymentType: "blockchain",
-          lockAddress: application.cohorts.lock_address,
+          lockAddress: cohort?.lock_address,
         },
       });
 
@@ -131,8 +149,8 @@ export default async function handler(
         paymentMethod: "blockchain",
         currency,
         amount,
-        lockAddress: application.cohorts.lock_address,
-        cohortTitle: application.cohorts.title,
+        lockAddress: cohort?.lock_address,
+        cohortTitle: cohort?.name,
         walletAddress, // Purchaser's wallet
         instructions: {
           step1: "Connect your wallet to Base network",
