@@ -113,24 +113,6 @@ const AdditionalLockABI = [
     stateMutability: "view",
     type: "function",
   },
-  // Grant keys function for lock managers
-  {
-    inputs: [
-      {
-        internalType: "uint256[]",
-        name: "_expirationTimestamps",
-        type: "uint256[]",
-      },
-      { internalType: "address[]", name: "_recipients", type: "address[]" },
-      { internalType: "address[]", name: "_keyManagers", type: "address[]" },
-    ],
-    name: "grantKeys",
-    outputs: [
-      { internalType: "uint256[]", name: "tokenIds", type: "uint256[]" },
-    ],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
 ] as const;
 
 // Combine existing ABI with additional functions
@@ -707,10 +689,10 @@ export const grantKeys = async (
       keyManagers ||
       recipients.map(() => "0x0000000000000000000000000000000000000000");
 
-    // Grant the keys
+    // Grant the keys using correct parameter order: recipients, expirationTimestamps, keyManagers
     const tx = await lockContract.grantKeys(
-      expirationTimestamps,
       recipients,
+      expirationTimestamps,
       keyManagersArray
     );
 
