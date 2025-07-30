@@ -21,6 +21,7 @@ interface PendingApplication {
   status: string;
   created_at: string;
   applications: Application;
+  needsReconciliation?: boolean; // Flag for data inconsistencies
 }
 
 /**
@@ -56,15 +57,32 @@ export default function LobbyPage() {
 
   const { profile, applications, enrollments, stats } = dashboardData;
   // Convert applications to the expected PendingApplication format
+  // Include applications that need attention (pending payment OR data inconsistencies)
   const pendingApplications: PendingApplication[] = (applications as any[])
-    .filter((app: any) => app.applications?.payment_status === "pending")
-    .map((app: any) => ({
-      id: app.id, // user_application_status ID
-      application_id: app.application_id, // actual application ID for API calls
-      status: app.applications?.payment_status || "pending",
-      created_at: app.created_at,
-      applications: app.applications,
-    }));
+    .filter((app: any) => {
+      const paymentStatus = app.applications?.payment_status;
+      const userAppStatus = app.status; // user_application_status.status
+
+      // Show if payment is pending OR there's a status mismatch
+      return (
+        paymentStatus === "pending" ||
+        (paymentStatus === "completed" && userAppStatus === "pending")
+      );
+    })
+    .map((app: any) => {
+      const paymentStatus = app.applications?.payment_status;
+      const userAppStatus = app.status;
+      const needsReconciliation = paymentStatus !== userAppStatus;
+
+      return {
+        id: app.id, // user_application_status ID
+        application_id: app.application_id, // actual application ID for API calls
+        status: paymentStatus || "pending",
+        created_at: app.created_at,
+        applications: app.applications,
+        needsReconciliation,
+      };
+    });
 
   return (
     <LobbyLayout>

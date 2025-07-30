@@ -144,7 +144,7 @@ const CompleteLockABI = [...PUBLIC_LOCK_CONTRACT.abi, ...AdditionalLockABI];
 /**
  * Create read-only provider for blockchain operations
  */
-const getReadOnlyProvider = () => {
+export const getReadOnlyProvider = () => {
   return new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
 };
 

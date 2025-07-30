@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { HomeIcon, BookOpen, Users, Award } from "lucide-react";
+import { HomeIcon, BookOpen, Users, Award, FileText, CreditCard } from "lucide-react";
 
 interface AdminNavigationProps {
   onClick?: () => void;
@@ -12,6 +12,8 @@ export const adminNavItems = [
   { name: "Dashboard", href: "/admin", icon: HomeIcon },
   { name: "Bootcamps", href: "/admin/bootcamps", icon: BookOpen },
   { name: "Cohorts", href: "/admin/cohorts", icon: Users },
+  { name: "Applications", href: "/admin/applications", icon: FileText },
+  { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "Quests", href: "/admin/quests", icon: Award },
 ];
 

@@ -40,7 +40,7 @@ export default function AdminDashboard() {
           <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Bootcamp Card */}
           <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
             <div className="flex items-center mb-4">
@@ -102,6 +102,38 @@ export default function AdminDashboard() {
             </Link>
           </div>
 
+          {/* Applications Card */}
+          <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14,2 14,8 20,8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10,9 9,9 8,9"></polyline>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Applications</h2>
+            </div>
+            <p className="text-gray-400 mb-4">
+              Manage user applications and resolve data inconsistencies
+            </p>
+            <Link href="/admin/applications">
+              <Button className="w-full bg-steel-red hover:bg-steel-red/90 text-white">
+                Manage Applications
+              </Button>
+            </Link>
+          </div>
+
           {/* Milestones Card */}
           <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
             <div className="flex items-center mb-4">
@@ -157,6 +189,35 @@ export default function AdminDashboard() {
             <Link href="/admin/quests">
               <Button className="w-full bg-steel-red hover:bg-steel-red/90 text-white">
                 Manage Quests
+              </Button>
+            </Link>
+          </div>
+
+          {/* Payments Card */}
+          <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect>
+                  <line x1="1" y1="10" x2="23" y2="10"></line>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Payments</h2>
+            </div>
+            <p className="text-gray-400 mb-4">
+              Manage payment transactions and reconcile stuck payments
+            </p>
+            <Link href="/admin/payments">
+              <Button className="w-full bg-steel-red hover:bg-steel-red/90 text-white">
+                Manage Payments
               </Button>
             </Link>
           </div>

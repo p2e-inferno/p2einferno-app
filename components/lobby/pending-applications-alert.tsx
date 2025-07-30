@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { AlertTriangle, CreditCard, X, Trash2 } from "lucide-react";
+import { AlertTriangle, CreditCard, X, Trash2, Settings } from "lucide-react";
 
 interface PendingApplication {
   id: string;
   application_id: string; // Add this to get the actual application ID
   status: string;
   created_at: string;
+  needsReconciliation?: boolean; // Flag for data inconsistencies
   applications: {
     cohort_id: string;
     experience_level: string;
@@ -25,6 +26,7 @@ export const PendingApplicationsAlert: React.FC<
   PendingApplicationsAlertProps
 > = ({ pendingApplications, onCompletePayment, onRefresh }) => {
   const [cancelingApp, setCancelingApp] = useState<string | null>(null);
+  const [reconcilingApp, setReconcilingApp] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState<string | null>(
     null
   );
@@ -56,6 +58,41 @@ export const PendingApplicationsAlert: React.FC<
     } finally {
       setCancelingApp(null);
       setShowConfirmDialog(null);
+    }
+  };
+
+  const handleReconcileApplication = async (applicationId: string) => {
+    setReconcilingApp(applicationId);
+
+    try {
+      const response = await fetch('/api/user/applications/reconcile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ applicationId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to reconcile application');
+      }
+
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('Application reconciled successfully');
+        onRefresh?.();
+      } else {
+        throw new Error(result.message || 'Reconciliation failed');
+      }
+    } catch (error) {
+      console.error('Failed to reconcile application:', error);
+      alert(
+        error instanceof Error ? error.message : 'Failed to reconcile application'
+      );
+    } finally {
+      setReconcilingApp(null);
     }
   };
 
@@ -118,13 +155,31 @@ export const PendingApplicationsAlert: React.FC<
                       </p>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => onCompletePayment(app.application_id)}
-                        className="flex items-center space-x-2 bg-flame-yellow text-black px-4 py-2 rounded-lg hover:bg-flame-orange transition-colors font-medium"
-                      >
-                        <CreditCard size={16} />
-                        <span>Complete Payment</span>
-                      </button>
+                      {app.needsReconciliation ? (
+                        <button
+                          onClick={() =>
+                            handleReconcileApplication(app.application_id)
+                          }
+                          disabled={reconcilingApp === app.application_id}
+                          className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:opacity-50"
+                        >
+                          <Settings size={16} />
+                          <span>
+                            {reconcilingApp === app.application_id
+                              ? "Reconciling..."
+                              : "Resolve Application"}
+                          </span>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => onCompletePayment(app.application_id)}
+                          className="flex items-center space-x-2 bg-flame-yellow text-black px-4 py-2 rounded-lg hover:bg-flame-orange transition-colors font-medium"
+                        >
+                          <CreditCard size={16} />
+                          <span>Complete Payment</span>
+                        </button>
+                      )}
+                      {!app.needsReconciliation && (
                       <button
                         onClick={() => setShowConfirmDialog(app.application_id)}
                         disabled={cancelingApp === app.application_id}
@@ -132,8 +187,9 @@ export const PendingApplicationsAlert: React.FC<
                         title="Cancel application"
                       >
                         <Trash2 size={14} />
-                        <span className="text-sm">Cancel</span>
-                      </button>
+                          <span className="text-sm">Cancel Application</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

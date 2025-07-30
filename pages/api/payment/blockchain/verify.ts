@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../../lib/supabase/server";
-import { unlockUtils } from "../../../../lib/unlock/lockUtils";
+import { getReadOnlyProvider } from "../../../../lib/unlock/lockUtils";
 import { CHAIN_CONFIG } from "../../../../lib/blockchain/config";
-import { ethers } from "ethers";
 
 const supabase = createAdminClient();
 
@@ -42,7 +41,7 @@ export default async function handler(
       });
     }
 
-    // Handle failed payment case
+    // Handle failed payment case (user rejected or tx failure pre-chain)
     if (failed || !transactionHash) {
       console.log(
         `Recording failed payment for reference: ${paymentReference}`
@@ -61,43 +60,40 @@ export default async function handler(
 
       if (updateError) {
         console.error("Failed to update payment transaction:", updateError);
-        return res.status(500).json({
-          error: "Failed to update payment record",
-        });
+        return res
+          .status(500)
+          .json({ error: "Failed to update payment record" });
       }
 
-      return res.status(200).json({
-        success: false,
-        error: errorMessage || "Payment failed",
-      });
+      return res
+        .status(200)
+        .json({ success: false, error: errorMessage || "Payment failed" });
     }
 
     console.log(`Verifying blockchain transaction: ${transactionHash}`);
 
-    // Get transaction receipt from blockchain
-    const provider = unlockUtils.getReadOnlyProvider();
+    // ─────────────────────────────────────────────────────────────
+    // 1.  Get the on-chain receipt & basic sanity checks
+    // ─────────────────────────────────────────────────────────────
+    const provider = getReadOnlyProvider();
 
     let receipt;
     try {
       receipt = await provider.getTransactionReceipt(transactionHash);
     } catch (error) {
       console.error("Failed to get transaction receipt:", error);
-      return res.status(400).json({
-        error: "Transaction not found on blockchain",
-      });
+      return res
+        .status(400)
+        .json({ error: "Transaction not found on blockchain" });
     }
 
     if (!receipt) {
-      return res.status(400).json({
-        error: "Transaction not found",
-      });
+      return res.status(400).json({ error: "Transaction not found" });
     }
 
-    // Verify transaction was successful
     if (receipt.status !== 1) {
       console.log(`Transaction failed on blockchain: ${transactionHash}`);
 
-      // Update database with failed status
       await supabase
         .from("payment_transactions")
         .update({
@@ -111,84 +107,125 @@ export default async function handler(
         })
         .eq("payment_reference", paymentReference);
 
-      return res.status(400).json({
-        error: "Transaction failed on blockchain",
-      });
+      return res
+        .status(400)
+        .json({ error: "Transaction failed on blockchain" });
     }
 
-    // Extract key token ID from Transfer events
+    // Extract keyTokenId (if any) from Transfer logs
     let keyTokenId: string | null = null;
-
     if (receipt.logs) {
-      // Transfer event signature: Transfer(address,address,uint256)
       const transferEventTopic =
         "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-
       for (const log of receipt.logs) {
         if (log.topics[0] === transferEventTopic && log.topics.length >= 4) {
-          // In Transfer events: topics[0] = event signature, topics[1] = from, topics[2] = to, topics[3] = tokenId
           try {
-            keyTokenId = BigInt(log.topics[3]).toString();
-            console.log(`Extracted key token ID: ${keyTokenId}`);
-            break; // Take the first transfer event (mint event)
-          } catch (error) {
-            console.warn("Failed to parse token ID from log:", error);
+            keyTokenId = BigInt(log.topics[3]!).toString();
+            break;
+          } catch (_) {
+            /* ignore parse errors */
           }
         }
       }
     }
 
-    // Verify we're on the correct network
+    // Extra network sanity
     const transaction = await provider.getTransaction(transactionHash);
     if (!transaction) {
-      return res.status(400).json({
-        error: "Could not verify transaction details",
-      });
+      return res
+        .status(400)
+        .json({ error: "Could not verify transaction details" });
     }
 
-    // Update payment transaction in database
-    const { error: updateError } = await supabase
+    // ─────────────────────────────────────────────────────────────
+    // 2.  Write / update payment_transactions with fallbacks
+    // ─────────────────────────────────────────────────────────────
+    const successUpdateFields = {
+      status: "success",
+      transaction_hash: transactionHash,
+      key_token_id: keyTokenId,
+      network_chain_id: CHAIN_CONFIG.chain.id,
+      metadata: {
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString(),
+        effectiveGasPrice: String((receipt as any).effectiveGasPrice ?? ""),
+        verifiedAt: new Date().toISOString(),
+      },
+    } as const;
+
+    // ❶ Primary update by payment_reference
+    let { data: txRows, error: updateError } = await supabase
       .from("payment_transactions")
-      .update({
-        status: "success",
+      .update(successUpdateFields)
+      .eq("payment_reference", paymentReference)
+      .select("application_id");
+
+    let transactionRow = Array.isArray(txRows) ? txRows[0] : txRows;
+
+    // ❷ Fallback update by application_id (reference mismatch)
+    if (updateError || !transactionRow) {
+      const { data: appTxRows, error: appErr } = await supabase
+        .from("payment_transactions")
+        .update({
+          ...successUpdateFields,
+          metadata: {
+            ...successUpdateFields.metadata,
+            reconciledVia: "fallback-application-id",
+          },
+        })
+        .eq("application_id", applicationId)
+        .select("application_id");
+
+      transactionRow = Array.isArray(appTxRows) ? appTxRows[0] : appTxRows;
+      updateError = appErr;
+    }
+
+    // ❸ Still nothing?  → mark as processing so reconcile can fix later
+    if (updateError || !transactionRow) {
+      console.error(
+        "Primary & fallback update failed – inserting processing row:",
+        updateError
+      );
+
+      await supabase.from("payment_transactions").upsert({
+        application_id: applicationId,
+        payment_reference: paymentReference,
+        status: "processing",
         transaction_hash: transactionHash,
-        key_token_id: keyTokenId,
         network_chain_id: CHAIN_CONFIG.chain.id,
         metadata: {
-          blockNumber: receipt.blockNumber,
-          gasUsed: receipt.gasUsed.toString(),
-          effectiveGasPrice: receipt.effectiveGasPrice?.toString(),
-          verifiedAt: new Date().toISOString(),
+          fallback: true,
+          originalError: updateError?.message ?? "No matching row",
+          createdAt: new Date().toISOString(),
         },
-      })
-      .eq("payment_reference", paymentReference);
-
-    if (updateError) {
-      console.error("Failed to update payment transaction:", updateError);
-      return res.status(500).json({
-        error: "Failed to update payment record",
       });
+
+      await supabase
+        .from("applications")
+        .update({ payment_status: "processing" })
+        .eq("id", applicationId);
+
+      return res.status(202).json({ success: true, processing: true });
     }
 
-    // Update application status to completed
+    // ─────────────────────────────────────────────────────────────
+    // 3.  Mark application as completed (normal success path)
+    // ─────────────────────────────────────────────────────────────
     const { error: appUpdateError } = await supabase
       .from("applications")
-      .update({
-        payment_status: "completed",
-        application_status: "submitted",
-      })
+      .update({ payment_status: "completed", application_status: "submitted" })
       .eq("id", applicationId);
 
     if (appUpdateError) {
       console.error("Failed to update application status:", appUpdateError);
-      return res.status(500).json({
-        error: "Failed to update application status",
-      });
+      return res
+        .status(500)
+        .json({ error: "Failed to update application status" });
     }
 
     console.log(`Payment verification successful for ${paymentReference}`);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       data: {
         transactionHash,
@@ -200,8 +237,6 @@ export default async function handler(
     });
   } catch (error) {
     console.error("Blockchain payment verification error:", error);
-    res.status(500).json({
-      error: "Internal server error",
-    });
+    res.status(500).json({ error: "Internal server error" });
   }
 }

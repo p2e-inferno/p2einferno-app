@@ -32,7 +32,9 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         {/* Sidebar */}
         <div className="w-64 bg-gray-900 min-h-screen p-6">
           <div className="mb-8">
-            <h1 className="text-2xl font-bold text-flame-yellow">Admin Panel</h1>
+            <h1 className="text-2xl font-bold text-flame-yellow">
+              Admin Panel
+            </h1>
             <p className="text-gray-400 text-sm">P2E Inferno Management</p>
           </div>
 
@@ -60,6 +62,12 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
             >
               Quests
+            </a>
+            <a
+              href="/admin/payments"
+              className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              Payments
             </a>
           </nav>
         </div>
