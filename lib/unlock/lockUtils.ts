@@ -1,6 +1,6 @@
 import { type Address, type Hash, parseEther, formatEther } from "viem";
 import { base, baseSepolia } from "viem/chains";
-import { ethers } from "ethers";
+import { ethers, parseUnits, formatUnits } from "ethers";
 import { CHAIN_CONFIG } from "../blockchain/config";
 import { PUBLIC_LOCK_CONTRACT } from "../../constants";
 
@@ -113,6 +113,25 @@ const AdditionalLockABI = [
     stateMutability: "view",
     type: "function",
   },
+  // Token address function to check what token the lock uses
+  {
+    inputs: [],
+    name: "tokenAddress",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+// ERC20 ABI for token operations
+const ERC20_ABI = [
+  {
+    inputs: [],
+    name: "decimals",
+    outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
 // Combine existing ABI with additional functions
@@ -143,6 +162,37 @@ const getFactoryAddress = (): Address => {
     );
   }
   return factoryAddress;
+};
+
+/**
+ * Get the number of decimals for a token
+ */
+const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
+  // ETH has 18 decimals
+  if (tokenAddress === "0x0000000000000000000000000000000000000000") {
+    return 18;
+  }
+
+  try {
+    const provider = getReadOnlyProvider();
+    const tokenContract = new ethers.Contract(
+      tokenAddress,
+      ERC20_ABI,
+      provider
+    ) as any;
+    const decimals = await tokenContract.decimals();
+    return Number(decimals);
+  } catch (error) {
+    console.error(`Error fetching decimals for token ${tokenAddress}:`, error);
+    return 18; // Default to 18 if we can't determine
+  }
+};
+
+/**
+ * Parse token amount to proper decimal format
+ */
+const parseTokenAmount = (amount: string, decimals: number): bigint => {
+  return parseUnits(amount, decimals);
 };
 
 /**
@@ -332,14 +382,24 @@ export const getUserKeyBalance = async (
 };
 
 /**
- * Gets the current key price for a lock
+ * Gets the current key price for a lock with proper decimal formatting
  */
 export const getKeyPrice = async (
   lockAddress: string
-): Promise<{ price: bigint; priceInEth: string }> => {
+): Promise<{
+  price: bigint;
+  priceFormatted: string;
+  tokenAddress: string;
+  decimals: number;
+}> => {
   try {
     if (!ethers.isAddress(lockAddress) || lockAddress === "Unknown") {
-      return { price: 0n, priceInEth: "0" };
+      return {
+        price: 0n,
+        priceFormatted: "0",
+        tokenAddress: "0x0000000000000000000000000000000000000000",
+        decimals: 18,
+      };
     }
 
     const provider = getReadOnlyProvider();
@@ -348,15 +408,31 @@ export const getKeyPrice = async (
       CompleteLockABI,
       provider
     ) as any;
+
+    // Get both price and token address from the contract
     const price = await lockContract.keyPrice();
+    const tokenAddress = await lockContract.tokenAddress();
+
+    // Get the correct decimals for this token
+    const decimals = await getTokenDecimals(tokenAddress);
+
+    // Format the price using the correct decimals
+    const priceFormatted = formatUnits(BigInt(price.toString()), decimals);
 
     return {
       price: BigInt(price.toString()),
-      priceInEth: formatEther(BigInt(price.toString())),
+      priceFormatted,
+      tokenAddress,
+      decimals,
     };
   } catch (error) {
     console.error(`Error fetching key price for ${lockAddress}:`, error);
-    return { price: 0n, priceInEth: "0" };
+    return {
+      price: 0n,
+      priceFormatted: "0",
+      tokenAddress: "0x0000000000000000000000000000000000000000",
+      decimals: 18,
+    };
   }
 };
 
@@ -366,11 +442,10 @@ export const getKeyPrice = async (
 
 /**
  * Purchase a key from an existing lock using Privy wallet
+ * Supports both ETH and ERC20 payments automatically based on lock configuration
  */
 export const purchaseKey = async (
   lockAddress: string,
-  price: number, // Price in ETH
-  currency: string,
   wallet: any
 ): Promise<PurchaseResult> => {
   try {
@@ -399,49 +474,77 @@ export const purchaseKey = async (
       signer
     ) as any;
 
-    const keyPriceWei = currency === "FREE" ? 0n : parseEther(price.toString());
-
-    // Verify on-chain price matches expected price
+    // Get the key price and token address directly from the contract
     const onChainKeyPrice = await lockContract.keyPrice();
-    if (BigInt(onChainKeyPrice.toString()) !== keyPriceWei) {
-      console.error(
-        `Price mismatch: Expected ${keyPriceWei}, but on-chain price is ${onChainKeyPrice}`
-      );
-      throw new Error(
-        "The key price has changed. Please refresh and try again."
-      );
-    }
+    const lockTokenAddress = await lockContract.tokenAddress();
 
-    console.log(
-      `Calling purchase for recipient: ${
-        wallet.address
-      } with value: ${keyPriceWei.toString()} wei`
-    );
+    // Determine if this is ETH or ERC20 payment
+    const isETHPayment =
+      lockTokenAddress === "0x0000000000000000000000000000000000000000";
 
-    const tx = await lockContract.purchase(
-      [keyPriceWei], // _values
-      [wallet.address], // _recipients
-      ["0x0000000000000000000000000000000000000000"], // _referrers
-      ["0x0000000000000000000000000000000000000000"], // _keyManagers
-      ["0x"], // _data
-      {
-        value: keyPriceWei, // Send ETH with the transaction
+    console.log(`Lock token address: ${lockTokenAddress}`);
+    console.log(`Key price from contract: ${onChainKeyPrice.toString()}`);
+    console.log(`Payment type: ${isETHPayment ? "ETH" : "ERC20"}`);
+
+    // Handle ERC20 token payments (USDC, etc.)
+    if (!isETHPayment && onChainKeyPrice > 0n) {
+      const tx = await lockContract.purchase(
+        [onChainKeyPrice], // _values (exact token amount from contract)
+        [wallet.address], // _recipients
+        ["0x0000000000000000000000000000000000000000"], // _referrers
+        ["0x0000000000000000000000000000000000000000"], // _keyManagers
+        ["0x"] // _data
+        // No ETH value for ERC20 payments
+      );
+
+      console.log("ERC20 purchase transaction sent:", tx.hash);
+
+      const receipt = await tx.wait();
+      console.log("Transaction receipt:", receipt);
+
+      if (receipt.status !== 1) {
+        throw new Error("Transaction failed. Please try again.");
       }
-    );
 
-    console.log("Purchase transaction sent:", tx.hash);
-
-    const receipt = await tx.wait();
-    console.log("Transaction receipt:", receipt);
-
-    if (receipt.status !== 1) {
-      throw new Error("Transaction failed. Please try again.");
+      return {
+        success: true,
+        transactionHash: tx.hash,
+      };
     }
 
-    return {
-      success: true,
-      transactionHash: tx.hash,
-    };
+    // Handle ETH payments
+    else {
+      console.log(
+        `Calling ETH purchase for recipient: ${
+          wallet.address
+        } with value: ${onChainKeyPrice.toString()} wei`
+      );
+
+      const tx = await lockContract.purchase(
+        [onChainKeyPrice], // _values
+        [wallet.address], // _recipients
+        ["0x0000000000000000000000000000000000000000"], // _referrers
+        ["0x0000000000000000000000000000000000000000"], // _keyManagers
+        ["0x"], // _data
+        {
+          value: onChainKeyPrice, // Send ETH with the transaction
+        }
+      );
+
+      console.log("ETH purchase transaction sent:", tx.hash);
+
+      const receipt = await tx.wait();
+      console.log("Transaction receipt:", receipt);
+
+      if (receipt.status !== 1) {
+        throw new Error("Transaction failed. Please try again.");
+      }
+
+      return {
+        success: true,
+        transactionHash: tx.hash,
+      };
+    }
   } catch (error) {
     console.error("Error purchasing key:", error);
 
@@ -455,7 +558,10 @@ export const purchaseKey = async (
           "Transaction was cancelled. Please try again when ready.";
       } else if (error.message.includes("insufficient funds")) {
         errorMessage =
-          "Insufficient funds to purchase the key. Please add more ETH to your wallet.";
+          "Insufficient funds to purchase the key. Please add more crypto to your wallet.";
+      } else if (error.message.includes("ERC20: insufficient allowance")) {
+        errorMessage =
+          "Please approve the USDC spending first. The approval transaction will be requested before payment.";
       } else {
         errorMessage = error.message;
       }
@@ -505,12 +611,24 @@ export const deployLock = async (
       signer
     ) as any;
 
-    // Convert price to wei (assuming ETH/native token)
+    // Convert price to wei (assuming USDC with 6 decimals, but Unlock uses 18 decimal representation)
     const keyPriceWei =
       config.currency === "FREE" ? 0n : parseEther(config.price.toString());
 
-    // Token address (0x0 for native ETH)
-    const tokenAddress = "0x0000000000000000000000000000000000000000";
+    // Use USDC token address for payments (0x0 for native ETH, but we prefer USDC)
+    const tokenAddress =
+      config.currency === "FREE"
+        ? "0x0000000000000000000000000000000000000000" // Free locks use ETH address
+        : CHAIN_CONFIG.usdcTokenAddress ||
+          "0x0000000000000000000000000000000000000000";
+
+    console.log(
+      `Deploying lock with token address: ${tokenAddress} (${
+        tokenAddress === "0x0000000000000000000000000000000000000000"
+          ? "ETH"
+          : "USDC"
+      })`
+    );
 
     // Create calldata using PublicLock's ABI to encode the initialize function
     const lockInterface = new ethers.Interface(AdditionalLockABI);

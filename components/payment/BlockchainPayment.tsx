@@ -1,8 +1,18 @@
 import { useState } from "react";
+import { useRouter } from "next/router";
 import { formatCurrency, type Currency } from "../../lib/payment-utils";
-import { AlertCircle, Wallet, ExternalLink, CheckCircle } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
-import { abi as PublicLockABI } from "../../constants/public_lock_abi";
+import {
+  AlertCircle,
+  Wallet,
+  ExternalLink,
+  CheckCircle,
+  X,
+} from "lucide-react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { toast } from "react-hot-toast";
+import { unlockUtils } from "../../lib/unlock/lockUtils";
+import { CHAIN_CONFIG } from "../../lib/blockchain/config";
+import { SuccessScreen } from "../ui/SuccessScreen";
 
 interface BlockchainPaymentProps {
   applicationId: string;
@@ -23,6 +33,13 @@ interface PaymentData {
   walletAddress: string;
 }
 
+interface PaymentResult {
+  success: boolean;
+  transactionHash?: string;
+  keyTokenId?: string;
+  error?: string;
+}
+
 export function BlockchainPayment({
   applicationId,
   cohortId,
@@ -33,21 +50,30 @@ export function BlockchainPayment({
   disabled,
 }: BlockchainPaymentProps) {
   const { user, authenticated } = usePrivy();
+  const { wallets } = useWallets();
+  const wallet = wallets[0]; // Use wallets from useWallets() hook
+  const router = useRouter();
+
   const [isLoading, setIsLoading] = useState(false);
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [transactionHash, setTransactionHash] = useState<string | null>(null);
-
-  const walletAddress = user?.wallet?.address;
+  const [result, setResult] = useState<PaymentResult | null>(null);
 
   const initializePayment = async () => {
-    if (!walletAddress) {
-      setError("Please connect your wallet first");
+    if (!wallet?.address) {
+      const errorMsg = "Please connect your wallet first";
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     setIsLoading(true);
     setError(null);
+
+    // Show loading toast
+    toast.loading("Initializing blockchain payment...", {
+      id: "payment-init",
+    });
 
     try {
       const response = await fetch("/api/payment/blockchain/initialize", {
@@ -61,7 +87,7 @@ export function BlockchainPayment({
           amount,
           currency,
           email,
-          walletAddress,
+          walletAddress: wallet.address,
         }),
       });
 
@@ -72,116 +98,187 @@ export function BlockchainPayment({
       }
 
       setPaymentData(result.data);
+
+      // Success feedback
+      toast.success("Payment initialized! Ready to purchase.", {
+        id: "payment-init",
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Payment initialization failed");
+      const errorMessage =
+        err instanceof Error ? err.message : "Payment initialization failed";
+      setError(errorMessage);
+      toast.error(`❌ ${errorMessage}`, {
+        id: "payment-init",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
   const executePurchase = async () => {
-    if (!paymentData || !walletAddress || !window.ethereum) {
-      setError("Missing payment data or wallet not connected");
+    if (!paymentData || !wallet?.address) {
+      const errorMsg = "Missing payment data or wallet not connected";
+      setError(errorMsg);
+      toast.error(errorMsg);
       return;
     }
 
     setIsLoading(true);
     setError(null);
 
+    // Show initial processing toast
+    toast.loading("Processing transaction...", {
+      id: "payment-tx",
+    });
+
     try {
-      // Request account access
-      await window.ethereum.request({ method: "eth_requestAccounts" });
+      // Get key price to determine if this is a free or paid purchase
+      toast.loading("Getting key price...", {
+        id: "payment-tx",
+      });
 
-      // Switch to Base network (8453)
-      try {
-        await window.ethereum.request({
-          method: "wallet_switchEthereumChain",
-          params: [{ chainId: "0x2105" }], // Base mainnet
-        });
-      } catch (switchError: any) {
-        // Network doesn't exist, add it
-        if (switchError.code === 4902) {
-          await window.ethereum.request({
-            method: "wallet_addEthereumChain",
-            params: [
-              {
-                chainId: "0x2105",
-                chainName: "Base",
-                nativeCurrency: {
-                  name: "Ether",
-                  symbol: "ETH",
-                  decimals: 18,
-                },
-                rpcUrls: ["https://mainnet.base.org"],
-                blockExplorerUrls: ["https://basescan.org"],
-              },
-            ],
-          });
-        } else {
-          throw switchError;
+      const keyPrice = await unlockUtils.getKeyPrice(paymentData.lockAddress);
+      const priceAmount = parseFloat(keyPrice.priceFormatted);
+      const isETH =
+        keyPrice.tokenAddress === "0x0000000000000000000000000000000000000000";
+      const tokenSymbol = isETH ? "ETH" : "USDC";
+
+      console.log(
+        `Purchasing key for ${priceAmount} ${tokenSymbol} (Token: ${keyPrice.tokenAddress})`
+      );
+
+      // Update toast for purchase execution
+      toast.loading(
+        priceAmount === 0
+          ? "Minting free key..."
+          : `Purchasing key for ${priceAmount} ${tokenSymbol}...`,
+        {
+          id: "payment-tx",
         }
+      );
+
+      // Execute purchase using lockUtils (it will auto-detect ETH vs ERC20)
+      const purchaseResult = await unlockUtils.purchaseKey(
+        paymentData.lockAddress,
+        wallet
+      );
+
+      if (!purchaseResult.success) {
+        throw new Error(purchaseResult.error || "Purchase failed");
       }
 
-      // Create contract interface
-      const { createPublicClient, createWalletClient, custom } = await import("viem");
-      const { base } = await import("viem/chains");
+      console.log("Purchase successful:", purchaseResult.transactionHash);
 
-      const publicClient = createPublicClient({
-        chain: base,
-        transport: custom(window.ethereum),
+      // Update toast for verification
+      toast.loading("Verifying transaction...", {
+        id: "payment-tx",
       });
 
-      const walletClient = createWalletClient({
-        chain: base,
-        transport: custom(window.ethereum),
+      // Verify the blockchain transaction
+      const verifyResponse = await fetch("/api/payment/blockchain/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          transactionHash: purchaseResult.transactionHash,
+          applicationId,
+          paymentReference: paymentData.reference,
+        }),
       });
 
-      // Get key price from contract
-      const keyPrice = await publicClient.readContract({
-        address: paymentData.lockAddress as `0x${string}`,
-        abi: PublicLockABI,
-        functionName: "keyPrice",
-      });
+      const verifyResult = await verifyResponse.json();
 
-      // Prepare purchase transaction
-      const { request } = await publicClient.simulateContract({
-        address: paymentData.lockAddress as `0x${string}`,
-        abi: PublicLockABI,
-        functionName: "purchase",
-        args: [
-          [keyPrice], // _values
-          [walletAddress as `0x${string}`], // _recipients
-          [walletAddress as `0x${string}`], // _referrers
-          [walletAddress as `0x${string}`], // _keyManagers
-          ["0x"], // _data
-        ],
-        value: keyPrice as bigint,
-        account: walletAddress as `0x${string}`,
-      });
-
-      // Execute transaction
-      const hash = await walletClient.writeContract(request);
-      setTransactionHash(hash);
-
-      // Wait for confirmation
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-      if (receipt.status === "success") {
-        // Update payment status
-        await fetch(`/api/payment/verify/${paymentData.reference}`, {
-          method: "GET",
-        });
-
-        setError(null);
-        onSuccess?.();
-      } else {
-        throw new Error("Transaction failed");
+      if (!verifyResponse.ok) {
+        throw new Error(verifyResult.error || "Payment verification failed");
       }
+
+      setResult({
+        success: true,
+        transactionHash: purchaseResult.transactionHash,
+        keyTokenId: verifyResult.keyTokenId,
+      });
+
+      setError(null);
+
+      // Show success toast
+      toast.success("🎉 Payment successful! NFT key minted!", {
+        id: "payment-tx",
+        duration: 5000,
+      });
+
+      onSuccess?.();
     } catch (err: any) {
       console.error("Purchase failed:", err);
-      setError(err.message || "Transaction failed");
+
+      let errorMessage = "Transaction failed";
+      let toastMessage = "❌ Transaction failed";
+
+      if (
+        err.message?.includes("User rejected") ||
+        err.message?.includes("user rejected")
+      ) {
+        errorMessage = "Transaction was cancelled by user";
+        toastMessage = "🚫 Transaction cancelled by user";
+      } else if (err.message?.includes("insufficient funds")) {
+        errorMessage = "Insufficient funds for transaction";
+        toastMessage =
+          "💰 Insufficient funds - please add more USDC to your wallet";
+      } else if (err.message?.includes("ERC20: insufficient allowance")) {
+        errorMessage = "USDC approval required";
+        toastMessage = "💳 Please approve USDC spending and try again";
+      } else if (err.message?.includes("network")) {
+        errorMessage = "Network error - please try again";
+        toastMessage = "🌐 Network error - please try again";
+      } else if (err.message) {
+        errorMessage = err.message;
+        toastMessage = `❌ ${err.message}`;
+      }
+
+      setError(errorMessage);
+
+      // Show specific error toast
+      toast.error(toastMessage, {
+        id: "payment-tx",
+        duration: 6000,
+      });
+
+      // Record failed payment attempt in database
+      try {
+        await fetch("/api/payment/blockchain/verify", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            transactionHash: null,
+            applicationId,
+            paymentReference: paymentData.reference,
+            failed: true,
+            errorMessage,
+          }),
+        });
+      } catch (dbError) {
+        console.error("Failed to record payment failure:", dbError);
+      }
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const resetPayment = () => {
+    setPaymentData(null);
+    setResult(null);
+    setError(null);
+  };
+
+  const handleRedirectToLobby = async () => {
+    try {
+      await router.push("/lobby");
+    } catch (error) {
+      console.error("Failed to redirect to lobby:", error);
+      // Fallback: use window.location if router fails
+      window.location.href = "/lobby";
     }
   };
 
@@ -199,25 +296,23 @@ export function BlockchainPayment({
     );
   }
 
-  if (transactionHash) {
+  if (result?.success) {
+    const explorerUrl = unlockUtils.getBlockExplorerUrl(
+      result.transactionHash!
+    );
+
     return (
-      <div className="text-center p-8 bg-green-50 rounded-lg border border-green-200">
-        <CheckCircle className="w-16 h-16 text-green-600 mx-auto mb-4" />
-        <h3 className="font-bold text-green-800 mb-2 text-xl">
-          Payment Successful!
-        </h3>
-        <p className="text-green-700 mb-4">
-          Your NFT key has been minted to your wallet.
-        </p>
-        <a
-          href={`https://basescan.org/tx/${transactionHash}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 text-green-600 hover:text-green-800"
-        >
-          View Transaction <ExternalLink className="w-4 h-4" />
-        </a>
-      </div>
+      <SuccessScreen
+        title="🎉 Payment Successful!"
+        message="Your NFT key has been minted to your wallet!"
+        transactionHash={result.transactionHash}
+        keyTokenId={result.keyTokenId}
+        blockExplorerUrl={explorerUrl}
+        countdownSeconds={5}
+        onRedirect={handleRedirectToLobby}
+        redirectLabel="Return to Lobby"
+        showCountdown={true}
+      />
     );
   }
 
@@ -230,11 +325,16 @@ export function BlockchainPayment({
             Blockchain Payment
           </h3>
           <p className="text-blue-700 mb-4">
-            Pay {formatCurrency(amount, currency)} with cryptocurrency directly to the lock contract.
+            Pay {formatCurrency(amount, currency)} with cryptocurrency directly
+            to the lock contract.
+          </p>
+          <p className="text-sm text-blue-600 mb-4">
+            Network: {CHAIN_CONFIG.chain.name} (Chain ID:{" "}
+            {CHAIN_CONFIG.chain.id})
           </p>
           <button
             onClick={initializePayment}
-            disabled={isLoading || disabled}
+            disabled={isLoading || disabled || !wallet}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50"
           >
             {isLoading ? "Initializing..." : "Initialize Crypto Payment"}
@@ -242,22 +342,41 @@ export function BlockchainPayment({
         </div>
       ) : (
         <div className="p-6 bg-white rounded-lg border border-gray-200">
-          <h3 className="font-bold text-gray-800 mb-4 text-lg">
-            Complete Purchase for {paymentData.cohortTitle}
-          </h3>
-          
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-bold text-gray-800 text-lg">
+              Complete Purchase for {paymentData.cohortTitle}
+            </h3>
+            <button
+              onClick={resetPayment}
+              className="text-gray-400 hover:text-gray-600"
+              title="Start over"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
           <div className="space-y-3 mb-6 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Amount:</span>
-              <span className="font-medium">{formatCurrency(amount, currency)}</span>
+              <span className="font-medium">
+                {formatCurrency(amount, currency)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-gray-600">Network:</span>
+              <span className="font-medium">{CHAIN_CONFIG.chain.name}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Lock Contract:</span>
-              <span className="font-mono text-xs">{paymentData.lockAddress}</span>
+              <span className="font-mono text-xs break-all">
+                {paymentData.lockAddress}
+              </span>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600">Your Wallet:</span>
-              <span className="font-mono text-xs">{walletAddress}</span>
+              <span className="font-mono text-xs break-all">
+                {wallet?.address}
+              </span>
             </div>
           </div>
 
@@ -266,7 +385,9 @@ export function BlockchainPayment({
             disabled={isLoading || disabled}
             className="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-200 disabled:opacity-50"
           >
-            {isLoading ? "Processing Transaction..." : "Purchase Key with Crypto"}
+            {isLoading
+              ? "Processing Transaction..."
+              : "Purchase Key with Crypto"}
           </button>
         </div>
       )}

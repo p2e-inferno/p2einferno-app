@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyBadge } from "@/components/ui/badge";
-import { usePrivy } from "@privy-io/react-auth";
+
 import ImageUpload from "@/components/ui/image-upload";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";

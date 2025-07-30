@@ -17,6 +17,7 @@ import { Application } from "@/lib/supabase";
 // Add interface to match component requirements
 interface PendingApplication {
   id: string;
+  application_id: string; // Add this field for the actual application ID
   status: string;
   created_at: string;
   applications: Application;
@@ -58,7 +59,8 @@ export default function LobbyPage() {
   const pendingApplications: PendingApplication[] = (applications as any[])
     .filter((app: any) => app.applications?.payment_status === "pending")
     .map((app: any) => ({
-      id: app.application_id, // Use the actual application ID, not user_application_status ID
+      id: app.id, // user_application_status ID
+      application_id: app.application_id, // actual application ID for API calls
       status: app.applications?.payment_status || "pending",
       created_at: app.created_at,
       applications: app.applications,
@@ -76,6 +78,7 @@ export default function LobbyPage() {
         <PendingApplicationsAlert
           pendingApplications={pendingApplications}
           onCompletePayment={handleCompletePayment}
+          onRefresh={refetch}
         />
       )}
 

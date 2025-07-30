@@ -16,7 +16,6 @@ const validateEnvironment = () => {
     console.warn(
       "LOCK_MANAGER_PRIVATE_KEY not set - write operations will be disabled"
     );
-    return null;
   }
 
   // Only validate the private key if it's provided
@@ -28,6 +27,19 @@ const validateEnvironment = () => {
   if (privateKey && privateKey.length !== 66) {
     throw new Error(
       "LOCK_MANAGER_PRIVATE_KEY must be 64 characters long (excluding 0x prefix)"
+    );
+  }
+
+  // Validate USDC token addresses
+  if (!process.env.USDC_ADDRESS_BASE_MAINNET) {
+    console.warn(
+      "USDC_ADDRESS_BASE_MAINNET not set - USDC payments on mainnet will be disabled"
+    );
+  }
+
+  if (!process.env.USDC_ADDRESS_BASE_SEPOLIA) {
+    console.warn(
+      "USDC_ADDRESS_BASE_SEPOLIA not set - USDC payments on testnet will be disabled"
     );
   }
 
@@ -50,21 +62,33 @@ const resolveChain = () => {
   switch (network) {
     case "base":
     case "mainnet":
-      return { chain: base, defaultRpc: "https://mainnet.base.org" } as const;
+      return {
+        chain: base,
+        defaultRpc: "https://mainnet.base.org",
+        usdcTokenAddress: process.env.USDC_ADDRESS_BASE_MAINNET,
+        networkName: "Base Mainnet",
+      } as const;
     case "base-sepolia":
     default:
       return {
         chain: baseSepolia,
         defaultRpc: "https://sepolia.base.org",
+        usdcTokenAddress: process.env.USDC_ADDRESS_BASE_SEPOLIA,
+        networkName: "Base Sepolia",
       } as const;
   }
 };
 
-const { chain, defaultRpc } = resolveChain();
+const { chain, defaultRpc, usdcTokenAddress, networkName } = resolveChain();
+
+// Run environment validation
+validateEnvironment();
 
 export const CHAIN_CONFIG = {
   chain,
   rpcUrl: process.env.BASE_RPC_URL || defaultRpc,
+  usdcTokenAddress,
+  networkName,
 };
 
 // Create account from private key - now returns null if private key isn't available
