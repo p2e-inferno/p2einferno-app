@@ -218,7 +218,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                   const timeRemaining = calculateTimeRemaining(
                     cohort.registration_deadline
                   );
-                  const isOpen = cohort.status === "open";
+                  const isOpen = cohort.status === "open" && spotsRemaining > 0 && timeRemaining !== "Registration Closed";
 
                   return (
                     <Card
@@ -230,23 +230,31 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                         <div
                           className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-3 py-1 ${
                             isOpen
-                              ? "bg-flame-yellow/20 border-flame-yellow/30"
-                              : "bg-faded-grey/20 border-faded-grey/30"
+                              ? "bg-green-500/20 border-green-500/30"
+                              : cohort.status === "upcoming"
+                              ? "bg-blue-500/20 border-blue-500/30"
+                              : "bg-red-500/20 border-red-500/30"
                           }`}
                         >
                           <div
                             className={`w-2 h-2 rounded-full ${
                               isOpen
-                                ? "bg-flame-yellow animate-pulse"
-                                : "bg-faded-grey"
+                                ? "bg-green-500 animate-pulse"
+                                : cohort.status === "upcoming"
+                                ? "bg-blue-500"
+                                : "bg-red-500"
                             }`}
                           ></div>
                           <span
                             className={`font-medium text-sm ${
-                              isOpen ? "text-flame-yellow" : "text-faded-grey"
+                              isOpen ? "text-green-400" : cohort.status === "upcoming" ? "text-blue-400" : "text-red-400"
                             }`}
                           >
-                            {isOpen ? "Open" : cohort.status}
+                            {isOpen ? "Open" : 
+                             cohort.status === "upcoming" ? "Coming Soon" :
+                             spotsRemaining <= 0 ? "Full" :
+                             timeRemaining === "Registration Closed" ? "Closed" : 
+                             cohort.status.charAt(0).toUpperCase() + cohort.status.slice(1)}
                           </span>
                         </div>
                       </div>

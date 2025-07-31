@@ -132,7 +132,10 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
   };
 
   const handleBeginApplication = () => {
-    router.push(`/apply/${cohortId}`);
+    // Only allow navigation if registration is open and spots are available
+    if (cohort?.status === "open" && spotsRemaining > 0) {
+      router.push(`/apply/${cohortId}`);
+    }
   };
 
   const calculateTimeRemaining = (deadline: string) => {
@@ -181,6 +184,7 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
 
   const timeRemaining = calculateTimeRemaining(cohort.registration_deadline);
   const spotsRemaining = cohort.max_participants - cohort.current_participants;
+  const isRegistrationOpen = cohort.status === "open" && spotsRemaining > 0 && timeRemaining !== "Registration Closed";
 
   return (
     <>
@@ -210,10 +214,32 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
 
           <div className="relative z-10 container mx-auto text-center px-4 text-white">
             {/* Status Badge */}
-            <div className="inline-flex items-center gap-2 bg-flame-yellow/20 backdrop-blur-sm border border-flame-yellow/30 rounded-full px-4 py-2 mb-6">
-              <div className="w-2 h-2 bg-flame-yellow rounded-full animate-pulse"></div>
-              <span className="text-flame-yellow font-medium text-sm">
-                {cohort.status === "open" ? "Registration Open" : cohort.status}
+            <div className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-4 py-2 mb-6 ${
+              isRegistrationOpen 
+                ? "bg-green-500/20 border-green-500/30" 
+                : cohort.status === "upcoming"
+                ? "bg-blue-500/20 border-blue-500/30"
+                : "bg-red-500/20 border-red-500/30"
+            }`}>
+              <div className={`w-2 h-2 rounded-full ${
+                isRegistrationOpen 
+                  ? "bg-green-500 animate-pulse" 
+                  : cohort.status === "upcoming"
+                  ? "bg-blue-500"
+                  : "bg-red-500"
+              }`}></div>
+              <span className={`font-medium text-sm ${
+                isRegistrationOpen 
+                  ? "text-green-400" 
+                  : cohort.status === "upcoming"
+                  ? "text-blue-400"
+                  : "text-red-400"
+              }`}>
+                {isRegistrationOpen ? "Registration Open" : 
+                 cohort.status === "upcoming" ? "Coming Soon" : 
+                 spotsRemaining <= 0 ? "Cohort Full" :
+                 timeRemaining === "Registration Closed" ? "Registration Closed" : 
+                 cohort.status.charAt(0).toUpperCase() + cohort.status.slice(1)}
               </span>
             </div>
 
@@ -285,17 +311,21 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
             </div>
 
             {/* CTA Button */}
-            <Button
-              onClick={handleBeginApplication}
-              disabled={cohort.status !== "open" || spotsRemaining <= 0}
-              className="group bg-flame-yellow hover:bg-flame-yellow/90 text-black font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 shadow-lg disabled:bg-faded-grey/20 disabled:text-faded-grey disabled:cursor-not-allowed"
-            >
-              {cohort.status === "open" && spotsRemaining > 0 ? "Begin Application" : 
-               spotsRemaining <= 0 ? "Cohort Full" : "Registration Closed"}
-              {cohort.status === "open" && spotsRemaining > 0 && (
+            {isRegistrationOpen ? (
+              <Button
+                onClick={handleBeginApplication}
+                className="group bg-flame-yellow hover:bg-flame-yellow/90 text-black font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 shadow-lg"
+              >
+                Begin Application
                 <ChevronRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-              )}
-            </Button>
+              </Button>
+            ) : (
+              <div className="bg-faded-grey/20 text-faded-grey font-bold py-4 px-8 rounded-full text-lg cursor-not-allowed inline-flex items-center gap-2">
+                {spotsRemaining <= 0 ? "Cohort Full" : 
+                 timeRemaining === "Registration Closed" ? "Registration Closed" : 
+                 cohort.status === "upcoming" ? "Registration Opens Soon" : "Not Available"}
+              </div>
+            )}
 
             <p className="mt-4 text-sm text-faded-grey">
               Secure your spot with a registration fee. Full payment due after acceptance.
@@ -420,17 +450,21 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
 
                 {/* Final CTA */}
                 <div className="text-center pt-8">
-                  <Button
-                    onClick={handleBeginApplication}
-                    disabled={cohort.status !== "open" || spotsRemaining <= 0}
-                    className="group bg-steel-red hover:bg-steel-red/90 text-white font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 w-full disabled:bg-faded-grey/20 disabled:text-faded-grey disabled:cursor-not-allowed"
-                  >
-                    {cohort.status === "open" && spotsRemaining > 0 ? "Start Your Web3 Journey" : 
-                     spotsRemaining <= 0 ? "Cohort Full" : "Registration Closed"}
-                    {cohort.status === "open" && spotsRemaining > 0 && (
+                  {isRegistrationOpen ? (
+                    <Button
+                      onClick={handleBeginApplication}
+                      className="group bg-steel-red hover:bg-steel-red/90 text-white font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 w-full"
+                    >
+                      Start Your Web3 Journey
                       <Flame className="ml-2 h-5 w-5 transition-transform group-hover:rotate-12" />
-                    )}
-                  </Button>
+                    </Button>
+                  ) : (
+                    <div className="bg-faded-grey/20 text-faded-grey font-bold py-4 px-8 rounded-full text-lg cursor-not-allowed w-full text-center">
+                      {spotsRemaining <= 0 ? "Cohort Full" : 
+                       timeRemaining === "Registration Closed" ? "Registration Closed" : 
+                       cohort.status === "upcoming" ? "Registration Opens Soon" : "Not Available"}
+                    </div>
+                  )}
                   <p className="mt-4 text-sm text-faded-grey">
                     Join {cohort.current_participants} other aspiring Web3 enthusiasts
                   </p>

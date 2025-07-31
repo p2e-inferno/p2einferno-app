@@ -2,6 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../../lib/supabase/server";
 import { getReadOnlyProvider } from "../../../../lib/unlock/lockUtils";
 import { CHAIN_CONFIG } from "../../../../lib/blockchain/config";
+import { enrollmentService } from "../../../../lib/services/enrollment-service";
 
 const supabase = createAdminClient();
 
@@ -221,6 +222,20 @@ export default async function handler(
       return res
         .status(500)
         .json({ error: "Failed to update application status" });
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 4.  Create enrollment for the completed application
+    // ─────────────────────────────────────────────────────────────
+    console.log(`Creating enrollment for application ${applicationId}`);
+    const enrollmentResult = await enrollmentService.createEnrollmentForCompletedApplication(applicationId);
+    
+    if (!enrollmentResult.success) {
+      console.error("Failed to create enrollment:", enrollmentResult.error);
+      // Don't fail the entire verification, just log the error
+      // The user can still use the reconcile endpoint to fix this later
+    } else {
+      console.log("Enrollment created successfully:", enrollmentResult.message);
     }
 
     console.log(`Payment verification successful for ${paymentReference}`);

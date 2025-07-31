@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../../lib/supabase/server";
 import { grantKeyService } from "../../../../lib/blockchain";
+import { enrollmentService } from "../../../../lib/services/enrollment-service";
 
 const supabase = createAdminClient();
 
@@ -121,10 +122,9 @@ export default async function handler(
       });
     }
 
-    // If payment was successful, update application status
-
+    // If payment was successful, update application status and create enrollment
     if (paymentData.status === "success" && transaction) {
-      console.log("superbase saving");
+      console.log("Updating application status and creating enrollment");
       const { error: appUpdateError } = await supabase
         .from("applications")
         .update({
@@ -135,6 +135,17 @@ export default async function handler(
 
       if (appUpdateError) {
         console.error("Failed to update application status:", appUpdateError);
+      } else {
+        // Create enrollment for the completed application
+        console.log(`Creating enrollment for application ${transaction.application_id}`);
+        const enrollmentResult = await enrollmentService.createEnrollmentForCompletedApplication(transaction.application_id);
+        
+        if (!enrollmentResult.success) {
+          console.error("Failed to create enrollment:", enrollmentResult.error);
+          // Don't fail the entire verification, just log the error
+        } else {
+          console.log("Enrollment created successfully:", enrollmentResult.message);
+        }
       }
     }
     // Grant blockchain key if wallet address is provided

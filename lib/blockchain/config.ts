@@ -52,12 +52,12 @@ const validateEnvironment = () => {
 // Default to Base Sepolia (test-net) to avoid accidental main-net transactions
 // and the "grantKeys returned no data (0x)" error that occurs when the contract
 // isn't deployed on Base main-net. You can override the network by setting the
-// environment variable BLOCKCHAIN_NETWORK to "base" (main-net) or
+// environment variable NEXT_PUBLIC_BLOCKCHAIN_NETWORK to "base" (main-net) or
 // "base-sepolia".
 
 const resolveChain = () => {
   const network = (
-    process.env.BLOCKCHAIN_NETWORK || "base-sepolia"
+    process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia"
   ).toLowerCase();
   switch (network) {
     case "base":

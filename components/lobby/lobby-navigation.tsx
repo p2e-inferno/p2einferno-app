@@ -9,7 +9,7 @@ import { PrivyConnectButton } from "../PrivyConnectButton";
  */
 export const LobbyNavigation: React.FC = () => {
   return (
-    <nav className="relative z-10 flex items-center justify-between p-4 lg:px-8">
+    <nav className="relative z-20 flex items-center justify-between p-4 lg:px-8">
       <Link
         href="/lobby"
         className="flex items-center space-x-3 hover:opacity-80 transition-opacity"

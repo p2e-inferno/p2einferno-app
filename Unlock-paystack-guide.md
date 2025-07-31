@@ -86,7 +86,7 @@ PAYSTACK_SECRET_KEY=sk_test_your_paystack_secret_key
 NEXT_PUBLIC_APP_URL=https://your-app-domain.com
 LOCK_MANAGER_PRIVATE_KEY=0x_your_ethereum_private_key
 BASE_RPC_URL=https://sepolia.base.org
-BLOCKCHAIN_NETWORK=base-sepolia
+NEXT_PUBLIC_BLOCKCHAIN_NETWORK=base-sepolia
 ```
 
 ## Required NPM Packages
@@ -112,7 +112,7 @@ import { base, baseSepolia } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
 
 const getChain = () => {
-  const network = process.env.BLOCKCHAIN_NETWORK || 'base-sepolia';
+  const network = process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || 'base-sepolia';
   return network === 'base' ? base : baseSepolia;
 };
 

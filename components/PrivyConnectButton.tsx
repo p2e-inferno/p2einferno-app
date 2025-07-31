@@ -6,6 +6,8 @@ import {
   CustomDropdownLabel,
   CustomDropdownSeparator,
 } from "./CustomDropdown";
+import { WalletDetailsModal } from "./WalletDetailsModal";
+import { useWalletBalances } from "@/hooks/useWalletBalances";
 import {
   User,
   LogOut,
@@ -15,6 +17,7 @@ import {
   Plus,
   Unlink,
   RefreshCcw,
+  Eye,
 } from "lucide-react";
 
 const Avatar = ({
@@ -44,6 +47,10 @@ export function PrivyConnectButton() {
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const [showWalletModal, setShowWalletModal] = useState(false);
+  
+  // Use the wallet balances hook
+  const { balances, loading: balancesLoading } = useWalletBalances();
 
   // Helper to shorten any address for UI
   const shorten = (addr: string) =>
@@ -98,6 +105,10 @@ export function PrivyConnectButton() {
 
   const walletAddress = connectedAddress || user?.wallet?.address || null;
   const shortAddress = walletAddress ? shorten(walletAddress) : "No wallet";
+  
+  const handleViewWalletDetails = () => {
+    setShowWalletModal(true);
+  };
 
   if (!user) return null;
 
@@ -152,15 +163,52 @@ export function PrivyConnectButton() {
   );
 
   return (
-    <CustomDropdown trigger={trigger} align="end">
-      <CustomDropdownLabel>
-        <div className="flex flex-col space-y-1">
-          <p className="text-sm font-medium leading-none">My Wallet</p>
-          <p className="text-xs leading-none text-muted-foreground">
-            {shortAddress}
-          </p>
-        </div>
-      </CustomDropdownLabel>
+    <>
+      <CustomDropdown trigger={trigger} align="end">
+        <CustomDropdownLabel>
+          <div className="flex flex-col space-y-1">
+            <p className="text-sm font-medium leading-none">My Wallet</p>
+            <p className="text-xs leading-none text-muted-foreground">
+              {shortAddress}
+            </p>
+          </div>
+        </CustomDropdownLabel>
+        
+        {/* Balance Display */}
+        {walletAddress && (
+          <div className="px-4 py-2 border-b border-border/50">
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">ETH:</span>
+                <span className="font-medium">
+                  {balancesLoading ? (
+                    <div className="w-12 h-3 bg-muted animate-pulse rounded" />
+                  ) : (
+                    balances.eth.formatted
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">{balances.usdc.symbol}:</span>
+                <span className="font-medium">
+                  {balancesLoading ? (
+                    <div className="w-12 h-3 bg-muted animate-pulse rounded" />
+                  ) : (
+                    balances.usdc.formatted
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Wallet Details */}
+        {walletAddress && (
+          <CustomDropdownItem onClick={handleViewWalletDetails}>
+            <Eye className="mr-2 h-4 w-4" />
+            <span>View Wallet Details</span>
+          </CustomDropdownItem>
+        )}
       <CustomDropdownItem onClick={copyAddress}>
         <Copy className="mr-2 h-4 w-4" />
         <span>{copied ? "Copied!" : "Copy Address"}</span>
@@ -208,10 +256,20 @@ export function PrivyConnectButton() {
         </CustomDropdownItem>
       )}
       <CustomDropdownSeparator />
-      <CustomDropdownItem onClick={logout}>
-        <LogOut className="mr-2 h-4 w-4" />
-        <span>Log out</span>
-      </CustomDropdownItem>
-    </CustomDropdown>
+        <CustomDropdownItem onClick={logout}>
+          <LogOut className="mr-2 h-4 w-4" />
+          <span>Log out</span>
+        </CustomDropdownItem>
+      </CustomDropdown>
+      
+      {/* Wallet Details Modal */}
+      {walletAddress && (
+        <WalletDetailsModal
+          isOpen={showWalletModal}
+          onClose={() => setShowWalletModal(false)}
+          walletAddress={walletAddress}
+        />
+      )}
+    </>
   );
 }

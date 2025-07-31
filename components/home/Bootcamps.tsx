@@ -123,22 +123,51 @@ export function Bootcamps() {
 
         <div className="max-w-4xl mx-auto space-y-8">
           {bootcamps.map((bootcamp) => {
-            const activeCohort = bootcamp.cohorts.find(c => c.status === "open") || bootcamp.cohorts[0];
+            // Find open cohort first, then upcoming, then most recent
+            const openCohort = bootcamp.cohorts.find(c => c.status === "open");
+            const upcomingCohort = bootcamp.cohorts.find(c => c.status === "upcoming");
+            const activeCohort = openCohort || upcomingCohort || bootcamp.cohorts[0];
+            
             const spotsRemaining = activeCohort 
               ? activeCohort.max_participants - activeCohort.current_participants 
               : 0;
             const timeRemaining = activeCohort 
               ? calculateTimeRemaining(activeCohort.registration_deadline)
               : "No Active Cohort";
+            const isRegistrationOpen = activeCohort?.status === "open" && 
+              spotsRemaining > 0 && 
+              timeRemaining !== "Registration Closed";
 
             return (
               <Card key={bootcamp.id} className="relative bg-gradient-to-br from-steel-red/10 via-background to-flame-yellow/10 border-steel-red/20 hover:border-flame-yellow/50 transition-all duration-500 transform hover:-translate-y-2 shadow-2xl">
                 {/* Status Badge */}
                 <div className="absolute top-4 right-4 z-10">
-                  <div className="inline-flex items-center gap-2 bg-flame-yellow/20 backdrop-blur-sm border border-flame-yellow/30 rounded-full px-3 py-1">
-                    <div className="w-2 h-2 bg-flame-yellow rounded-full animate-pulse"></div>
-                    <span className="text-flame-yellow font-medium text-sm">
-                      {activeCohort?.status === "open" ? "Registration Open" : "Coming Soon"}
+                  <div className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-3 py-1 ${
+                    isRegistrationOpen 
+                      ? "bg-green-500/20 border-green-500/30" 
+                      : activeCohort?.status === "upcoming"
+                      ? "bg-blue-500/20 border-blue-500/30"
+                      : "bg-red-500/20 border-red-500/30"
+                  }`}>
+                    <div className={`w-2 h-2 rounded-full ${
+                      isRegistrationOpen 
+                        ? "bg-green-500 animate-pulse" 
+                        : activeCohort?.status === "upcoming"
+                        ? "bg-blue-500"
+                        : "bg-red-500"
+                    }`}></div>
+                    <span className={`font-medium text-sm ${
+                      isRegistrationOpen 
+                        ? "text-green-400" 
+                        : activeCohort?.status === "upcoming"
+                        ? "text-blue-400"
+                        : "text-red-400"
+                    }`}>
+                      {isRegistrationOpen ? "Registration Open" : 
+                       activeCohort?.status === "upcoming" ? "Coming Soon" : 
+                       activeCohort?.status === "closed" ? "Registration Closed" :
+                       timeRemaining === "Registration Closed" ? "Registration Closed" :
+                       spotsRemaining <= 0 ? "Cohort Full" : "Registration Closed"}
                     </span>
                   </div>
                 </div>
@@ -197,7 +226,11 @@ export function Bootcamps() {
                         <h3 className="text-lg font-medium">Registration Period</h3>
                       </div>
                       <p className="text-center text-faded-grey">
-                        {activeCohort.status === "open" ? "Open Registration" : "Coming Soon"}
+                        {isRegistrationOpen ? "Open Registration" : 
+                         activeCohort.status === "upcoming" ? "Coming Soon" : 
+                         activeCohort.status === "closed" ? "Registration Closed" :
+                         timeRemaining === "Registration Closed" ? "Registration Closed" :
+                         spotsRemaining <= 0 ? "Cohort Full" : "Registration Closed"}
                       </p>
                     </div>
                   )}
