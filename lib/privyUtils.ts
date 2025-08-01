@@ -41,8 +41,13 @@ export const createPrivyClient = () => {
   }
 
   if (!appSecret) {
-    throw new Error("PRIVY_APP_SECRET environment variable is required");
+    throw new Error("NEXT_PRIVY_APP_SECRET environment variable is required");
   }
 
-  return new PrivyClient(appId, appSecret);
+  try {
+    return new PrivyClient(appId, appSecret);
+  } catch (error) {
+    console.error("Failed to create PrivyClient:", error);
+    throw new Error(`PrivyClient initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 };

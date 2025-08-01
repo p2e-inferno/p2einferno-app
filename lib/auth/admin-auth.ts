@@ -66,19 +66,33 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
           linkedAccountsCount: userProfile.linkedAccounts?.length || 0,
         });
 
-        // Extract wallet addresses from linked accounts
-        const walletAddresses: string[] = [];
+        // Extract wallet addresses from linked accounts, prioritizing external wallets
+        const externalWallets: string[] = [];
+        const embeddedWallets: string[] = [];
 
         if (userProfile.linkedAccounts) {
           for (const account of userProfile.linkedAccounts) {
             if (account.type === "wallet" && account.address) {
-              walletAddresses.push(account.address);
-              console.log(
-                `[ADMIN AUTH] Found wallet address: ${account.address}`
-              );
+              console.log(`[ADMIN AUTH] Found wallet: ${account.address} (${account.connectorType || 'unknown'})`);
+              
+              // Prioritize external wallets - those with connectorType other than 'embedded'
+              if (account.connectorType && account.connectorType !== 'embedded') {
+                // This is an external wallet (MetaMask, WalletConnect, etc.)
+                externalWallets.push(account.address);
+                console.log(`[ADMIN AUTH] ✅ External wallet: ${account.address}`);
+              } else {
+                // This is an embedded wallet
+                embeddedWallets.push(account.address);
+                console.log(`[ADMIN AUTH] 📱 Embedded wallet: ${account.address}`);
+              }
             }
           }
         }
+
+        console.log(`[ADMIN AUTH] Found ${externalWallets.length} external, ${embeddedWallets.length} embedded wallets`);
+
+        // Prioritize external wallets over embedded wallets
+        const walletAddresses = [...externalWallets, ...embeddedWallets];
 
         console.log(
           `[ADMIN AUTH] Total wallet addresses found: ${walletAddresses.length}`

@@ -3,6 +3,7 @@ import { createAdminClient } from "../../../../lib/supabase/server";
 import { getReadOnlyProvider } from "../../../../lib/unlock/lockUtils";
 import { CHAIN_CONFIG } from "../../../../lib/blockchain/config";
 import { enrollmentService } from "../../../../lib/services/enrollment-service";
+import { StatusSyncService } from "../../../../lib/services/status-sync-service";
 
 const supabase = createAdminClient();
 
@@ -210,22 +211,54 @@ export default async function handler(
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 3.  Mark application as completed (normal success path)
+    // 3.  Get user profile for status synchronization
     // ─────────────────────────────────────────────────────────────
-    const { error: appUpdateError } = await supabase
+    const { data: application, error: appError } = await supabase
       .from("applications")
-      .update({ payment_status: "completed", application_status: "submitted" })
-      .eq("id", applicationId);
+      .select(`
+        id,
+        user_email,
+        user_profiles!applications_user_email_fkey (
+          id
+        )
+      `)
+      .eq("id", applicationId)
+      .single();
 
-    if (appUpdateError) {
-      console.error("Failed to update application status:", appUpdateError);
-      return res
-        .status(500)
-        .json({ error: "Failed to update application status" });
+    if (appError || !application) {
+      console.error("Failed to get application:", appError);
+      return res.status(500).json({ error: "Failed to get application details" });
+    }
+
+    const userProfileId = application.user_profiles?.id;
+    if (!userProfileId) {
+      console.error("No user profile found for application:", applicationId);
+      return res.status(500).json({ error: "User profile not found" });
     }
 
     // ─────────────────────────────────────────────────────────────
-    // 4.  Create enrollment for the completed application
+    // 4.  Use status sync service for comprehensive status update
+    // ─────────────────────────────────────────────────────────────
+    console.log(`Syncing status for application ${applicationId}`);
+    const statusSyncResult = await StatusSyncService.syncApplicationStatus({
+      applicationId,
+      userProfileId,
+      paymentStatus: 'completed',
+      applicationStatus: 'approved', // Auto-approve on successful payment
+      reason: 'Blockchain payment verified'
+    });
+
+    if (!statusSyncResult.success) {
+      console.error("Failed to sync application status:", statusSyncResult.error);
+      // Fallback to old method if status sync fails
+      await supabase
+        .from("applications")
+        .update({ payment_status: "completed", application_status: "approved" })
+        .eq("id", applicationId);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // 5.  Create enrollment for the completed application
     // ─────────────────────────────────────────────────────────────
     console.log(`Creating enrollment for application ${applicationId}`);
     const enrollmentResult = await enrollmentService.createEnrollmentForCompletedApplication(applicationId);
@@ -236,6 +269,14 @@ export default async function handler(
       // The user can still use the reconcile endpoint to fix this later
     } else {
       console.log("Enrollment created successfully:", enrollmentResult.message);
+      
+      // Update status to enrolled if enrollment was successful
+      await StatusSyncService.syncApplicationStatus({
+        applicationId,
+        userProfileId,
+        enrollmentStatus: 'active',
+        reason: 'Enrollment created after payment verification'
+      });
     }
 
     console.log(`Payment verification successful for ${paymentReference}`);

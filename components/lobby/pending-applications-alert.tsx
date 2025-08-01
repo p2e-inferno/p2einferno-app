@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { AlertTriangle, CreditCard, X, Trash2, Settings } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface PendingApplication {
   id: string;
@@ -25,6 +26,7 @@ interface PendingApplicationsAlertProps {
 export const PendingApplicationsAlert: React.FC<
   PendingApplicationsAlertProps
 > = ({ pendingApplications, onCompletePayment, onRefresh }) => {
+  const { user, getAccessToken } = usePrivy();
   const [cancelingApp, setCancelingApp] = useState<string | null>(null);
   const [reconcilingApp, setReconcilingApp] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState<string | null>(
@@ -62,15 +64,31 @@ export const PendingApplicationsAlert: React.FC<
   };
 
   const handleReconcileApplication = async (applicationId: string) => {
+    if (!user) {
+      alert('User not authenticated');
+      return;
+    }
+
     setReconcilingApp(applicationId);
 
     try {
+      const token = await getAccessToken();
+      
+      // Use the same pattern as dashboard data hook
+      const requestData = {
+        applicationId,
+        privyUserId: user.id,
+        email: user.email?.address,
+        walletAddress: user.wallet?.address,
+      };
+
       const response = await fetch('/api/user/applications/reconcile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ applicationId }),
+        body: JSON.stringify(requestData),
       });
 
       if (!response.ok) {

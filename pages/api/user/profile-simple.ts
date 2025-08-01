@@ -1,17 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../lib/supabase/server";
-import { createPrivyClient } from "../../../lib/privyUtils";
 
-// Use admin client (service role) to bypass RLS for profile CRUD
+// Simplified user profile endpoint that doesn't rely on Privy token verification
 const supabase = createAdminClient();
-
-// Initialize Privy client with error handling
-let client: any = null;
-try {
-  client = createPrivyClient();
-} catch (error) {
-  console.error("Failed to initialize Privy client:", error);
-}
 
 interface UserProfile {
   id: string;
@@ -47,13 +38,10 @@ async function createOrUpdateUserProfile(
   privyUserId: string,
   userData: any
 ): Promise<UserProfile> {
-  // Extract data from multiple possible sources
-  const email = userData.email?.address || userData.email || null;
-  const walletAddress = userData.wallet?.address || userData.walletAddress || null;
-  const linkedWallets = userData.linkedWallets || 
-    (userData.linkedAccounts
-      ?.filter((acc: any) => acc.type === "wallet")
-      ?.map((w: any) => w.address)) || [];
+  // Extract data from request body
+  const email = userData.email || null;
+  const walletAddress = userData.walletAddress || null;
+  const linkedWallets = userData.linkedWallets || [];
   
   const profileData = {
     privy_user_id: privyUserId,
@@ -67,6 +55,7 @@ async function createOrUpdateUserProfile(
         : `Infernal${privyUserId.slice(-6)}`),
   };
 
+  // Check if profile exists
   const { data: existingProfile, error: profileError } = await supabase
     .from("user_profiles")
     .select("*")
@@ -74,7 +63,6 @@ async function createOrUpdateUserProfile(
     .single();
 
   if (profileError && profileError.code !== 'PGRST116') {
-    // PGRST116 is "not found", which is expected for new users
     console.error("Error checking existing profile:", profileError);
     throw new Error(`Database error: ${profileError.message}`);
   }
@@ -118,7 +106,6 @@ async function createOrUpdateUserProfile(
       ]);
     } catch (activityError) {
       console.error("Error logging registration activity:", activityError);
-      // Don't fail the entire operation for logging errors
     }
 
     return data;
@@ -140,8 +127,8 @@ async function getUserDashboardData(
     throw new Error(`Failed to fetch profile: ${profileError.message}`);
   }
 
-  // Get user applications with status (non-blocking)
-  const { data: applications, error: applicationsError } = await supabase
+  // Get user applications with status (graceful fallback)
+  const { data: applications } = await supabase
     .from("user_application_status")
     .select(
       `
@@ -159,35 +146,23 @@ async function getUserDashboardData(
     )
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
-  
-  if (applicationsError) {
-    console.error("Error fetching applications:", applicationsError);
-  }
 
-  // Get bootcamp enrollments (non-blocking)
-  const { data: enrollments, error: enrollmentsError } = await supabase
+  // Get bootcamp enrollments (graceful fallback)
+  const { data: enrollments } = await supabase
     .from("bootcamp_enrollments")
     .select("*")
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
-  
-  if (enrollmentsError) {
-    console.error("Error fetching enrollments:", enrollmentsError);
-  }
 
-  // Get recent activities (non-blocking)
-  const { data: recentActivities, error: activitiesError } = await supabase
+  // Get recent activities (graceful fallback)
+  const { data: recentActivities } = await supabase
     .from("user_activities")
     .select("*")
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false })
     .limit(10);
-  
-  if (activitiesError) {
-    console.error("Error fetching activities:", activitiesError);
-  }
 
-  // Calculate stats
+  // Calculate stats with safe defaults
   const stats = {
     totalApplications: applications?.length || 0,
     completedBootcamps:
@@ -212,86 +187,41 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    // Get authorization token from request
-    const authToken = req.headers.authorization?.replace("Bearer ", "");
-    if (!authToken) {
-      return res.status(401).json({ error: "Authorization token required" });
+    if (req.method !== "POST") {
+      return res.status(405).json({ error: "Method not allowed" });
     }
 
-    // Verify the token with Privy (best effort)
-    let verifiedClaims: any;
-    let privyUserId: string | null = null;
-
-    // Skip Privy verification and use body data directly for now
-    // This avoids the network and initialization issues
-    privyUserId = req.body?.privyUserId;
-    
-    if (!privyUserId && client) {
-      try {
-        verifiedClaims = await client.verifyAuthToken(authToken);
-        privyUserId = verifiedClaims?.userId;
-      } catch (verifyErr) {
-        console.error(
-          "Privy token verification failed – using body data",
-          verifyErr
-        );
-      }
-    }
+    // Get privyUserId from request body directly
+    const { privyUserId } = req.body;
 
     if (!privyUserId) {
-      return res
-        .status(401)
-        .json({ error: "Invalid user token and no privyUserId provided" });
+      return res.status(400).json({ error: "privyUserId is required in request body" });
     }
 
-    if (req.method === "GET" || req.method === "POST") {
-      // Choose the richest source of user data we have
-      const userDataForProfile = verifiedClaims || req.body;
+    console.log(`Processing profile request for user: ${privyUserId}`);
 
-      const profile = await createOrUpdateUserProfile(
-        privyUserId,
-        userDataForProfile
-      );
+    // Create or update user profile
+    const profile = await createOrUpdateUserProfile(privyUserId, req.body);
 
-      // Get dashboard data
-      const dashboardData = await getUserDashboardData(profile.id);
+    // Get dashboard data
+    const dashboardData = await getUserDashboardData(profile.id);
 
-      res.status(200).json({
-        success: true,
-        data: dashboardData,
-      });
-    } else if (req.method === "PUT") {
-      // Update user profile
-      const updates = req.body;
+    res.status(200).json({
+      success: true,
+      data: dashboardData,
+    });
 
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .update(updates)
-        .eq("privy_user_id", privyUserId)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      res.status(200).json({
-        success: true,
-        data: data,
-        message: "Profile updated successfully",
-      });
-    } else {
-      res.status(405).json({ error: "Method not allowed" });
-    }
   } catch (error: any) {
-    console.error("User profile API error:", {
+    console.error("Simple user profile API error:", {
       message: error.message,
       stack: error.stack,
-      name: error.name,
-      fullError: error,
+      privyUserId: req.body?.privyUserId,
     });
+    
     res.status(500).json({
       error: "Failed to process request",
       details: error.message,
-      errorType: error.name,
+      errorType: error.name || "UnknownError",
     });
   }
 }

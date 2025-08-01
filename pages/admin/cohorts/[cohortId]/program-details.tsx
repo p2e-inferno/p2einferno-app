@@ -14,7 +14,7 @@ import { useAdminAuth } from "@/hooks/useAdminAuth";
 export default function ProgramDetailsPage() {
   const { isAdmin, loading, authenticated } = useAdminAuth();
   const router = useRouter();
-  const { id } = router.query;
+  const { cohortId } = router.query;
 
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [highlights, setHighlights] = useState<ProgramHighlight[]>([]);
@@ -37,10 +37,10 @@ export default function ProgramDetailsPage() {
   }, [authenticated, isAdmin, loading, router, isClient]);
 
   useEffect(() => {
-    if (!authenticated || !isAdmin || !isClient || !id) return;
+    if (!authenticated || !isAdmin || !isClient || !cohortId) return;
 
     fetchData();
-  }, [authenticated, isAdmin, isClient, id]);
+  }, [authenticated, isAdmin, isClient, cohortId]);
 
   const fetchData = async () => {
     try {
@@ -56,7 +56,7 @@ export default function ProgramDetailsPage() {
             name
           )
         `)
-        .eq("id", id)
+        .eq("id", cohortId)
         .single();
 
       if (cohortError) throw cohortError;

@@ -20,48 +20,22 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 
 interface Application {
-  id: string;
-  user_email: string;
+  id: string; // This is the user_application_status ID
+  application_id: string; // This is the actual application ID
+  user_profile_id: string;
+  status: string; // user_application_status.status
+  created_at: string;
+  cohort_id: string;
+  cohort_name?: string;
   user_name: string;
-  phone_number: string;
+  user_email: string;
+  experience_level: string;
   payment_status: string;
   application_status: string;
-  created_at: string;
-  updated_at: string;
-  cohort_id: string;
-  cohorts: {
-    id: string;
-    name: string;
-    start_date: string;
-    end_date: string;
-    lock_address: string;
-  };
-  payment_transactions: Array<{
-    id: string;
-    status: string;
-    payment_reference: string;
-    transaction_hash: string;
-    payment_method: string;
-    created_at: string;
-  }>;
-  user_profiles: {
-    id: string;
-    username: string;
-    wallet_address: string;
-    display_name: string;
-    privy_user_id: string;
-  };
-  user_application_status: Array<{
-    id: string;
-    status: string;
-    created_at: string;
-    updated_at: string;
-  }>;
-  enrollments: Array<{
+  bootcamp_enrollments?: Array<{
     id: string;
     enrollment_status: string;
-    enrolled_at: string;
-    completed_at: string;
+    created_at: string;
   }>;
 }
 
@@ -143,9 +117,17 @@ const AdminApplicationsPage: React.FC = () => {
 
   const handleReconcile = async (applicationId: string, actions: string[]) => {
     try {
+      console.log('Reconciling application:', applicationId, 'with actions:', actions);
+      if (!applicationId) {
+        throw new Error("Application ID is required");
+      }
       setReconcilingIds((prev) => new Set(prev).add(applicationId));
 
       const accessToken = await getAccessToken();
+      if (!accessToken) {
+        throw new Error("Authentication failed - please refresh the page");
+      }
+
       const response = await fetch("/api/admin/applications/reconcile", {
         method: "POST",
         headers: {
@@ -212,19 +194,22 @@ const AdminApplicationsPage: React.FC = () => {
 
   const detectInconsistencies = (app: Application) => {
     const issues = [];
-    const userAppStatus = app.user_application_status?.[0]?.status;
-    const hasEnrollment = app.enrollments && app.enrollments.length > 0;
-    const hasPaymentRecord = app.payment_transactions && app.payment_transactions.length > 0;
-
-    if (app.payment_status !== userAppStatus) {
-      issues.push('Status mismatch');
+    const paymentStatus = app.payment_status;
+    const hasEnrollment = app.bootcamp_enrollments && app.bootcamp_enrollments.length > 0;
+    
+    // For successful payments, status should be 'approved', not 'under_review' or 'pending'
+    if (paymentStatus === 'completed' && (app.status === 'under_review' || app.status === 'pending')) {
+      issues.push('Needs approval');
     }
-    if (app.payment_status === 'completed' && !hasEnrollment) {
+    
+    // For approved applications with completed payments, check if enrollment is missing
+    if (paymentStatus === 'completed' && app.status === 'approved' && !hasEnrollment) {
       issues.push('Missing enrollment');
     }
-    if (app.payment_status === 'completed' && !hasPaymentRecord) {
-      issues.push('Missing payment record');
-    }
+    
+    // Note: We're not checking for missing payment records here
+    // because the data structure doesn't include payment transaction data
+    // This should be handled by the backend reconcile service
 
     return issues;
   };
@@ -233,12 +218,10 @@ const AdminApplicationsPage: React.FC = () => {
     const actions = [];
     const issues = detectInconsistencies(app);
 
-    if (issues.includes('Status mismatch')) {
-      actions.push('sync_status');
+    if (issues.includes('Needs approval')) {
+      actions.push('approve_application');
     }
-    if (issues.includes('Missing payment record')) {
-      actions.push('create_payment_record');
-    }
+    
     if (issues.includes('Missing enrollment')) {
       actions.push('create_enrollment');
     }
@@ -448,10 +431,10 @@ const AdminApplicationsPage: React.FC = () => {
                     const suggestedActions = getSuggestedActions(application);
                     
                     return (
-                      <tr key={application.id} className="hover:bg-gray-900/30">
+                      <tr key={application.application_id} className="hover:bg-gray-900/30">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-mono text-gray-300">
-                            {application.id.slice(0, 8)}...
+                            {application.application_id.slice(0, 8)}...
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -461,25 +444,19 @@ const AdminApplicationsPage: React.FC = () => {
                           <div className="text-xs text-gray-500">
                             {application.user_email}
                           </div>
-                          {application.user_profiles?.wallet_address && (
-                            <div className="text-xs font-mono text-gray-500">
-                              {application.user_profiles.wallet_address.slice(0, 6)}...
-                              {application.user_profiles.wallet_address.slice(-4)}
-                            </div>
-                          )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-300">
-                            {application.cohorts?.name || 'Unknown'}
+                            {application.cohort_name || application.cohort_id || 'Unknown'}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={getPaymentStatusBadge(application.payment_status)}>
+                          <span className={getPaymentStatusBadge(application.payment_status || '')}>
                             {application.payment_status}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={getApplicationStatusBadge(application.application_status)}>
+                          <span className={getApplicationStatusBadge(application.application_status || '')}>
                             {application.application_status}
                           </span>
                         </td>
@@ -506,12 +483,12 @@ const AdminApplicationsPage: React.FC = () => {
                           <div className="flex space-x-2">
                             {suggestedActions.length > 0 && (
                               <Button
-                                onClick={() => handleReconcile(application.id, suggestedActions)}
-                                disabled={reconcilingIds.has(application.id)}
+                                onClick={() => handleReconcile(application.application_id, suggestedActions)}
+                                disabled={reconcilingIds.has(application.application_id)}
                                 size="sm"
                                 className="bg-flame-yellow hover:bg-flame-yellow/90 text-black"
                               >
-                                {reconcilingIds.has(application.id) ? (
+                                {reconcilingIds.has(application.application_id) ? (
                                   <>
                                     <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
                                     Reconciling...

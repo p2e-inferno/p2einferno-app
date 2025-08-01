@@ -18,7 +18,7 @@ interface CohortWithProgram extends Cohort {
 export default function CohortMilestonesPage() {
   const { isAdmin, loading, authenticated } = useAdminAuth();
   const router = useRouter();
-  const { id } = router.query;
+  const { cohortId } = router.query;
 
   const [cohort, setCohort] = useState<CohortWithProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,7 +43,7 @@ export default function CohortMilestonesPage() {
 
   // Fetch cohort data
   useEffect(() => {
-    if (!authenticated || !isAdmin || !isClient || !id) return;
+    if (!authenticated || !isAdmin || !isClient || !cohortId) return;
 
     async function fetchCohort() {
       try {
@@ -59,7 +59,7 @@ export default function CohortMilestonesPage() {
             )
           `
           )
-          .eq("id", id)
+          .eq("id", cohortId)
           .single();
 
         if (error) throw error;
@@ -78,7 +78,7 @@ export default function CohortMilestonesPage() {
     }
 
     fetchCohort();
-  }, [authenticated, isAdmin, isClient, id]);
+  }, [authenticated, isAdmin, isClient, cohortId]);
 
   // Show loading state while checking authentication
   if (loading || !isClient) {

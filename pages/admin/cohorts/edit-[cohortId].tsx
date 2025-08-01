@@ -11,7 +11,7 @@ import { useAdminAuth } from "@/hooks/useAdminAuth"; // Keep for page-level auth
 export default function EditCohortPage() {
   const { isAdmin, loading: authLoading, authenticated } = useAdminAuth(); // Page-level auth check
   const router = useRouter();
-  const { id } = router.query;
+  const { cohortId } = router.query;
 
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [isLoading, setIsLoading] = useState(true); // Page-specific loading for data
@@ -32,10 +32,10 @@ export default function EditCohortPage() {
 
   // Fetch cohort data
   useEffect(() => {
-    if (!authenticated || !isAdmin || !isClient || !id) {
+    if (!authenticated || !isAdmin || !isClient || !cohortId) {
       // If auth is still loading or conditions not met, don't fetch yet
-      // If no id, set loading to false if not already caught by auth checks
-      if (!id && isClient && authenticated && isAdmin) {
+      // If no cohortId, set loading to false if not already caught by auth checks
+      if (!cohortId && isClient && authenticated && isAdmin) {
           setIsLoading(false);
           setError("Cohort ID is missing.");
       }
@@ -49,7 +49,7 @@ export default function EditCohortPage() {
         const { data, error: dbError } = await supabase
           .from("cohorts")
           .select("*")
-          .eq("id", id)
+          .eq("id", cohortId)
           .single();
 
         if (dbError) throw dbError;
@@ -68,7 +68,7 @@ export default function EditCohortPage() {
     }
 
     fetchCohort();
-  }, [authenticated, isAdmin, isClient, id, authLoading]); // Added authLoading to dependencies
+  }, [authenticated, isAdmin, isClient, cohortId, authLoading]); // Added authLoading to dependencies
 
   // This initial loading state is for the auth check by useAdminAuth
   if (authLoading || !isClient) {

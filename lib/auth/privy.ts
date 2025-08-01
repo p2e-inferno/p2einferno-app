@@ -68,8 +68,18 @@ export async function getPrivyUser(
     }
 
     // Verify token with Privy
-    const privy = getPrivyClient();
-    const claims = await privy.verifyAuthToken(token);
+    let claims: any;
+    try {
+      const privy = getPrivyClient();
+      claims = await privy.verifyAuthToken(token);
+    } catch (error) {
+      console.error("Error verifying Privy token:", error);
+      return null;
+    }
+
+    if (!claims || !claims.userId) {
+      return null;
+    }
 
     const baseUser = {
       id: claims.userId,
