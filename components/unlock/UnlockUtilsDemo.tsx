@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { useWallets } from "@privy-io/react-auth";
 import { unlockUtils } from "../../lib/unlock/lockUtils";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -11,7 +11,7 @@ import { Label } from "../ui/label";
  * This demonstrates the unlock-magic-portal approach working with Privy
  */
 export function UnlockUtilsDemo() {
-  const { user, authenticated } = usePrivy();
+
   const { wallets } = useWallets();
   const wallet = wallets[0]; // Use wallets from useWallets() hook
 
@@ -38,7 +38,7 @@ export function UnlockUtilsDemo() {
   // Add manager form
   const [managerAddress, setManagerAddress] = useState("");
 
-  const testLockAddress = "0x1234567890123456789012345678901234567890"; // Example address
+
 
   // Helper function to convert BigInt values to strings for display
   const serializeResults = (data: any): any => {
@@ -89,7 +89,7 @@ export function UnlockUtilsDemo() {
         totalKeys,
         keyPrice: {
           price: keyPrice.price.toString(), // Convert BigInt to string
-          priceInEth: keyPrice.priceInEth,
+          priceInEth: keyPrice.priceFormatted,
         },
         userOwnership: ownership,
         userBalance: balance,
@@ -115,13 +115,8 @@ export function UnlockUtilsDemo() {
     setLoading(true);
 
     try {
-      // Get current price first
-      const { priceInEth } = await unlockUtils.getKeyPrice(lockAddress);
-
       const result = await unlockUtils.purchaseKey(
         lockAddress,
-        parseFloat(priceInEth),
-        priceInEth === "0" ? "FREE" : "ETH",
         wallet
       );
 
@@ -310,7 +305,6 @@ export function UnlockUtilsDemo() {
                       setLockConfig({ ...lockConfig, name: e.target.value })
                     }
                     placeholder="Lock Name"
-                    size="sm"
                   />
                 </div>
                 <div>
@@ -321,7 +315,6 @@ export function UnlockUtilsDemo() {
                       setLockConfig({ ...lockConfig, keyPrice: e.target.value })
                     }
                     placeholder="0.01"
-                    size="sm"
                   />
                 </div>
               </div>
@@ -338,7 +331,6 @@ export function UnlockUtilsDemo() {
                         maxNumberOfKeys: parseInt(e.target.value),
                       })
                     }
-                    size="sm"
                   />
                 </div>
                 <div>
@@ -352,7 +344,6 @@ export function UnlockUtilsDemo() {
                         expirationDuration: parseInt(e.target.value),
                       })
                     }
-                    size="sm"
                   />
                 </div>
               </div>
@@ -400,7 +391,6 @@ export function UnlockUtilsDemo() {
                   onChange={(e) =>
                     setGrantConfig({ ...grantConfig, duration: e.target.value })
                   }
-                  size="sm"
                 />
               </div>
 
@@ -502,7 +492,7 @@ export function UnlockUtilsDemo() {
                 • <code>checkKeyOwnership()</code> - Check if user owns key
               </li>
               <li>
-                • <code>getUserKeyBalance()</code> - Get user's key balance
+                • <code>getUserKeyBalance()</code> - Get user&apos;s key balance
               </li>
             </ul>
           </div>

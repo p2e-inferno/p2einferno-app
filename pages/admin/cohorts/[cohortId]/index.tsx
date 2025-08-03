@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
 import { 
@@ -7,14 +7,14 @@ import {
   CheckCircle, 
   AlertCircle, 
   Clock, 
-  Filter,
-  Download,
+
+
   RefreshCw,
   Settings
 } from 'lucide-react';
-import { AdminLayout } from '../../../../components/layouts/AdminLayout';
+import AdminLayout from '../../../../components/layouts/AdminLayout';
 import { withAdminAuth } from '../../../../components/admin/withAdminAuth';
-import { getStatusConfig } from '../../../../lib/types/application-status';
+
 
 interface CohortApplication {
   id: string;
@@ -68,7 +68,7 @@ const CohortDetailPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
   
-  const fetchCohortData = async () => {
+  const fetchCohortData = useCallback(async () => {
     if (!cohortId || typeof cohortId !== 'string') return;
     
     try {
@@ -96,7 +96,7 @@ const CohortDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [cohortId]);
   
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -115,7 +115,7 @@ const CohortDetailPage: React.FC = () => {
       
       if (!response.ok) throw new Error('Reconciliation failed');
       
-      const result = await response.json();
+      await response.json();
       toast.success('Application reconciled successfully');
       await fetchCohortData(); // Refresh data
     } catch (error) {
@@ -128,7 +128,7 @@ const CohortDetailPage: React.FC = () => {
     const applicationsNeedingReconciliation = applications.filter(app => app.needs_reconciliation);
     
     if (applicationsNeedingReconciliation.length === 0) {
-      toast.info('No applications need reconciliation');
+      toast('No applications need reconciliation');
       return;
     }
     
@@ -152,7 +152,7 @@ const CohortDetailPage: React.FC = () => {
   
   useEffect(() => {
     fetchCohortData();
-  }, [cohortId]);
+  }, [fetchCohortData]);
   
   if (loading) {
     return (

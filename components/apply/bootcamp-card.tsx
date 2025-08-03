@@ -107,7 +107,7 @@ export const BootcampCard: React.FC<BootcampCardProps> = ({
 
         {/* Key Features */}
         <div className="mb-8">
-          <h4 className="text-xl font-bold mb-4">What You'll Learn</h4>
+          <h4 className="text-xl font-bold mb-4">What You&apos;ll Learn</h4>
           <div className="grid md:grid-cols-2 gap-4">
             <div className="flex items-start space-x-3">
               <Zap size={20} className="text-flame-yellow mt-1 flex-shrink-0" />

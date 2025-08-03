@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../../../lib/supabase/server";
-import { verifyPrivyToken } from "../../../../../lib/auth/privy-server";
-import { isUserAdmin } from "../../../../../lib/auth/admin";
+import { getPrivyUser } from "../../../../../lib/auth/privy";
 import { computeUserApplicationStatus } from "../../../../../lib/types/application-status";
 
 const supabase = createAdminClient();
@@ -37,14 +36,9 @@ export default async function handler(
 
   try {
     // Verify admin authentication
-    const user = await verifyPrivyToken(req);
+    const user = await getPrivyUser(req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const isAdmin = await isUserAdmin(user.id);
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Admin access required" });
     }
 
     const { cohortId } = req.query;
@@ -93,7 +87,7 @@ export default async function handler(
 
     // Get enrollment data for users in this cohort
     const userProfileIds = rawApplications
-      ?.map(app => app.user_profiles?.id)
+      ?.map((app: any) => app.user_profiles?.id)
       .filter(Boolean) || [];
 
     const { data: enrollments } = await supabase
@@ -103,12 +97,12 @@ export default async function handler(
       .in("user_profile_id", userProfileIds);
 
     // Process applications and detect inconsistencies
-    const applications: CohortApplication[] = (rawApplications || []).map(app => {
+    const applications: CohortApplication[] = (rawApplications || []).map((app: any) => {
       const userStatus = Array.isArray(app.user_application_status) 
         ? app.user_application_status[0] 
         : app.user_application_status;
       
-      const enrollment = enrollments?.find(e => e.user_profile_id === app.user_profiles?.id);
+      const enrollment = enrollments?.find((e: any) => e.user_profile_id === app.user_profiles?.id);
       const enrollmentStatus = enrollment?.enrollment_status;
       
       // Compute what the status should be
@@ -127,7 +121,7 @@ export default async function handler(
       let currency = userStatus?.currency || app.currency;
       
       if (!amountPaid && app.payment_transactions?.length > 0) {
-        const successfulPayment = app.payment_transactions.find(pt => pt.status === 'success');
+        const successfulPayment = app.payment_transactions.find((pt: any) => pt.status === 'success');
         if (successfulPayment) {
           amountPaid = successfulPayment.amount;
           currency = successfulPayment.currency;

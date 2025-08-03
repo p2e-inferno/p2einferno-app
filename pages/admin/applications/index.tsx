@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/layouts/AdminLayout";
@@ -73,7 +73,7 @@ const AdminApplicationsPage: React.FC = () => {
     }
   }, [authenticated, isAdmin, authLoading, router, isClient]);
 
-  const fetchApplications = async () => {
+  const fetchApplications = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -107,13 +107,13 @@ const AdminApplicationsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [selectedStatus, selectedPaymentStatus, getAccessToken]);
 
   useEffect(() => {
     if (authenticated && isAdmin && isClient) {
       fetchApplications();
     }
-  }, [authenticated, isAdmin, isClient, selectedStatus, selectedPaymentStatus]);
+  }, [authenticated, isAdmin, isClient, fetchApplications]);
 
   const handleReconcile = async (applicationId: string, actions: string[]) => {
     try {
@@ -503,8 +503,7 @@ const AdminApplicationsPage: React.FC = () => {
                             )}
                             <Button
                               onClick={() => {
-                                // TODO: Implement application details view
-                                toast.info('Application details view coming soon');
+                                toast('Application details view coming soon');
                               }}
                               size="sm"
                               variant="outline"

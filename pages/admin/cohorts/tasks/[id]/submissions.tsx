@@ -20,7 +20,7 @@ interface TaskWithMilestone extends MilestoneTask {
 export default function TaskSubmissionsPage() {
   const { isAdmin, loading, authenticated } = useAdminAuth();
   const router = useRouter();
-  const { cohortId } = router.query;
+  const { id } = router.query;
 
   const [task, setTask] = useState<TaskWithMilestone | null>(null);
   const [isLoading, setIsLoading] = useState(true);

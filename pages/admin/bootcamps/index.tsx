@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useRouter } from "next/router";
+
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2 } from "lucide-react";
@@ -11,7 +11,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
 
 function BootcampsPage() {
-  const router = useRouter();
+
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -184,5 +184,5 @@ function BootcampsPage() {
 // Export the page wrapped in admin authentication
 export default withAdminAuth(
   BootcampsPage,
-  "You need admin access to manage bootcamps"
+  { message: "You need admin access to manage bootcamps" }
 );

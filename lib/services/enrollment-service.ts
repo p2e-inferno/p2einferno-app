@@ -12,24 +12,7 @@ interface EnrollmentResult {
   message?: string;
 }
 
-interface Application {
-  id: string;
-  user_email: string;
-  cohort_id: string;
-  payment_status: string;
-  application_status: string;
-  cohorts: {
-    id: string;
-    name: string;
-    start_date: string;
-    end_date: string;
-  };
-  user_profiles: {
-    id: string;
-    email?: string;
-    privy_user_id: string;
-  };
-}
+
 
 export const enrollmentService = {
   /**
@@ -78,7 +61,7 @@ export const enrollmentService = {
 
       // Check if enrollment already exists
       const { data: existingEnrollment, error: enrollmentCheckError } = await supabase
-        .from('enrollments')
+        .from('bootcamp_enrollments')
         .select('id, enrollment_status')
         .eq('user_profile_id', app.user_profiles.id)
         .eq('cohort_id', app.cohort_id)
@@ -102,17 +85,13 @@ export const enrollmentService = {
 
       // Create new enrollment
       const { data: newEnrollment, error: createError } = await supabase
-        .from('enrollments')
+        .from('bootcamp_enrollments')
         .insert({
           user_profile_id: app.user_profiles.id,
           cohort_id: app.cohort_id,
-          enrollment_status: 'active',
-          enrolled_at: new Date().toISOString(),
-          metadata: {
-            createdBy: 'enrollment-service',
-            applicationId: applicationId,
-            cohortName: app.cohorts?.name
-          }
+          enrollment_status: 'enrolled',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -213,7 +192,7 @@ export const enrollmentService = {
         if (!app.user_profiles?.id) continue;
 
         const { data: enrollment } = await supabase
-          .from('enrollments')
+          .from('bootcamp_enrollments')
           .select('id')
           .eq('user_profile_id', app.user_profiles.id)
           .eq('cohort_id', app.cohort_id)

@@ -365,7 +365,7 @@ export function BlockchainPayment({
             Verification Needed
           </h4>
           <p className="text-sm text-yellow-700 mb-3">
-            Your transaction succeeded on-chain, but we couldn't update your
+            Your transaction succeeded on-chain, but we couldn&apos;t update your
             status. Please retry verification.
           </p>
           <button

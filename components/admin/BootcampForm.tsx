@@ -62,11 +62,7 @@ export default function BootcampForm({
     }
   }, [adminApi.error]);
 
-  const handleAuthRefresh = () => {
-    // Clear local error and trigger re-authentication
-    setError(null);
-    // User will need to refresh the page or re-login manually
-  };
+
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>

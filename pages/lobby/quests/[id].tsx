@@ -358,7 +358,7 @@ const QuestDetailsPage = () => {
                 Start the Quest to Unlock Tasks
               </h3>
               <p className="text-gray-400 mb-4">
-                This quest has tasks waiting for you. Click "Start Quest" above
+                This quest has tasks waiting for you. Click &quot;Start Quest&quot; above
                 to begin!
               </p>
             </div>

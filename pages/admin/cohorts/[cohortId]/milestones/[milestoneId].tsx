@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import TaskList from "@/components/admin/TaskList";
@@ -35,13 +35,7 @@ export default function MilestoneDetailsPage() {
     }
   }, [authenticated, isAdmin, loading, router, isClient]);
 
-  useEffect(() => {
-    if (!authenticated || !isAdmin || !isClient || !milestoneId) return;
-
-    fetchMilestone();
-  }, [authenticated, isAdmin, isClient, milestoneId]);
-
-  const fetchMilestone = async () => {
+  const fetchMilestone = useCallback(async () => {
     try {
       setIsLoading(true);
       const { data, error } = await supabase
@@ -73,7 +67,13 @@ export default function MilestoneDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [milestoneId]);
+
+  useEffect(() => {
+    if (!authenticated || !isAdmin || !isClient || !milestoneId) return;
+
+    fetchMilestone();
+  }, [authenticated, isAdmin, isClient, milestoneId, fetchMilestone]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {

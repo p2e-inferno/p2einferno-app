@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 
@@ -39,36 +40,36 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           </div>
 
           <nav className="space-y-2">
-            <a
+            <Link
               href="/admin"
               className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
             >
               Dashboard
-            </a>
-            <a
+            </Link>
+            <Link
               href="/admin/cohorts"
               className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
             >
               Cohorts
-            </a>
-            <a
+            </Link>
+            <Link
               href="/admin/bootcamps"
               className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
             >
               Bootcamps
-            </a>
-            <a
+            </Link>
+            <Link
               href="/admin/quests"
               className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
             >
               Quests
-            </a>
-            <a
+            </Link>
+            <Link
               href="/admin/payments"
               className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
             >
               Payments
-            </a>
+            </Link>
           </nav>
         </div>
 

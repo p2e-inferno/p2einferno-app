@@ -20,7 +20,7 @@ export default async function handler(
   }
 
   if (req.method === "DELETE") {
-    return handleDeleteApplication(req, res, id);
+    return handleDeleteApplication(res, id);
   }
 
   return res.status(405).json({ error: "Method not allowed" });
@@ -30,7 +30,6 @@ export default async function handler(
  * Cancel/delete an application and cleanup related data
  */
 async function handleDeleteApplication(
-  req: NextApiRequest,
   res: NextApiResponse,
   applicationId: string
 ) {

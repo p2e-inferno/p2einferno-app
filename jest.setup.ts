@@ -1,14 +1,14 @@
 import "@testing-library/jest-dom";
+import React from "react";
 
 // Add polyfills for TextEncoder/TextDecoder (needed for viem)
-const { TextEncoder, TextDecoder } = require("util");
+const { TextEncoder } = require("util");
 global.TextEncoder = TextEncoder;
-global.TextDecoder = TextDecoder;
 
 // Mock crypto.getRandomValues (needed for ethers.js)
 Object.defineProperty(global, "crypto", {
   value: {
-    getRandomValues: (arr) => {
+    getRandomValues: function(arr: Uint8Array) {
       for (let i = 0; i < arr.length; i++) {
         arr[i] = Math.floor(Math.random() * 256);
       }
@@ -50,7 +50,7 @@ jest.mock("@privy-io/react-auth", () => ({
     logout: jest.fn(),
   }),
   useWallets: () => ({ wallets: [] }),
-  PrivyProvider: ({ children }) => children,
+  PrivyProvider: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 // Mock window.ethereum for crypto tests

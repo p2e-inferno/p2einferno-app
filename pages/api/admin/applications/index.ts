@@ -73,7 +73,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .order('created_at', { ascending: false })
       .range(offset, offset + Number(limit) - 1);
 
-    console.log('Executing applications query...');
     const { data: applications, error } = await query;
 
     if (error) {
@@ -84,12 +83,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
-    console.log(`Fetched ${applications?.length || 0} applications`);
-    console.log('First application:', applications?.[0]);
-
     // Fetch enrollment data and cohort names separately
-    const userProfileIds = applications?.map(app => app.user_profile_id) || [];
-    const cohortIds = applications?.map(app => app.cohort_id).filter(Boolean) || [];
+    const userProfileIds = applications?.map((app: any) => app.user_profile_id) || [];
+    const cohortIds = applications?.map((app: any) => app.cohort_id).filter(Boolean) || [];
     
     // Fetch cohort names
     let cohorts: any[] = [];
@@ -102,12 +98,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       cohorts = cohortData || [];
     }
     
-    console.log('User profile IDs:', userProfileIds.length);
-    console.log('Cohort IDs:', cohortIds.length);
-    
     let enrollments: any[] = [];
     if (userProfileIds.length > 0 && cohortIds.length > 0) {
-      console.log('Fetching enrollment data...');
       const { data: enrollmentData, error: enrollmentError } = await supabase
         .from('bootcamp_enrollments')
         .select('id, user_profile_id, cohort_id, enrollment_status, created_at')
@@ -118,13 +110,12 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         console.error('Error fetching enrollments:', enrollmentError);
         // Continue without enrollments rather than failing
       } else {
-        console.log(`Fetched ${enrollmentData?.length || 0} enrollments`);
         enrollments = enrollmentData || [];
       }
     }
 
     // Combine applications with their enrollment data and cohort info
-    const applicationsWithEnrollments = applications?.map(app => {
+    const applicationsWithEnrollments = applications?.map((app: any) => {
       const cohort = cohorts.find(c => c.id === app.cohort_id);
       return {
         ...app,
@@ -154,15 +145,15 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Calculate stats from the combined data
     const stats = {
       total: count || 0,
-      pending: applicationsWithEnrollments.filter(app => app.payment_status === 'pending').length || 0,
-      completed: applicationsWithEnrollments.filter(app => app.payment_status === 'completed').length || 0,
-      failed: applicationsWithEnrollments.filter(app => app.payment_status === 'failed').length || 0,
-      inconsistent: applicationsWithEnrollments.filter(app => {
+      pending: applicationsWithEnrollments.filter((app: any) => app.payment_status === 'pending').length || 0,
+      completed: applicationsWithEnrollments.filter((app: any) => app.payment_status === 'completed').length || 0,
+      failed: applicationsWithEnrollments.filter((app: any) => app.payment_status === 'failed').length || 0,
+      inconsistent: applicationsWithEnrollments.filter((app: any) => {
         const paymentStatus = app.payment_status;
         const status = app.status;
         return paymentStatus === 'completed' && (status === 'under_review' || status === 'pending');
       }).length || 0,
-      missingEnrollments: applicationsWithEnrollments.filter(app => {
+      missingEnrollments: applicationsWithEnrollments.filter((app: any) => {
         const paymentStatus = app.payment_status;
         const status = app.status;
         const hasEnrollment = app.bootcamp_enrollments && app.bootcamp_enrollments.length > 0;

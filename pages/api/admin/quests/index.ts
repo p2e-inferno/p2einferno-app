@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
-import { randomUUID } from "crypto";
+
 import type { QuestTask } from "@/lib/supabase/types";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -10,7 +10,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     switch (req.method) {
       case "GET":
-        return await getQuests(req, res, supabase);
+        return await getQuests(res, supabase);
       case "POST":
         return await createQuest(req, res, supabase);
       default:
@@ -28,7 +28,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 export default withAdminAuth(handler);
 
 async function getQuests(
-  req: NextApiRequest,
   res: NextApiResponse,
   supabase: any
 ) {
@@ -85,10 +84,10 @@ async function createQuest(
           title: task.title,
           description: task.description,
           order_index: index,
-          xp_reward: task.xp_reward || 0,
-          submission_type: task.submission_type || "text",
-          verification_type: task.verification_type || "manual",
-          required: task.required !== undefined ? task.required : true,
+          reward_amount: (task as any).xp_reward || 0,
+          submission_type: (task as any).submission_type || "text",
+          verification_type: (task as any).verification_type || "manual",
+          required: (task as any).required !== undefined ? (task as any).required : true,
         })
       );
 

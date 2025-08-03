@@ -30,6 +30,9 @@ export default async function handler(
         reward_claimed,
         quest_tasks!user_task_completions_task_id_fkey (
           reward_amount
+        ),
+        user_profiles!user_task_completions_user_id_fkey (
+          id
         )
       `
       )
@@ -57,10 +60,26 @@ export default async function handler(
         details: updateError.message,
       });
     }
-
-    // Here you would typically add the DG tokens to the user's balance
-    // For now, we'll just return success
+    
     const rewardAmount = completion.quest_tasks?.reward_amount || 0;
+
+    // Award XP to the user by calling the RPC function
+    const { error: rpcError } = await supabase.rpc('award_xp_to_user', {
+      p_user_id: completion.user_profiles.id,
+      p_xp_amount: rewardAmount,
+      p_activity_type: 'task_reward_claimed',
+      p_activity_data: {
+        quest_id: completion.quest_id,
+        task_id: completion.task_id,
+        completion_id: completion.id,
+        reward_amount: rewardAmount
+      }
+    });
+    
+    if (rpcError) {
+      console.error("Error awarding XP:", rpcError);
+      // Don't fail the transaction, but log the error
+    }
 
     res.status(200).json({
       success: true,

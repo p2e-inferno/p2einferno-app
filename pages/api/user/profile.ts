@@ -40,6 +40,7 @@ interface UserDashboardData {
     completedBootcamps: number;
     totalPoints: number;
     pendingPayments: number;
+    questsCompleted: number;
   };
 }
 
@@ -187,6 +188,17 @@ async function getUserDashboardData(
     console.error("Error fetching activities:", activitiesError);
   }
 
+  // Get quest completion statistics (non-blocking)
+  const { data: questProgress, error: questError } = await supabase
+    .from("user_quest_progress")
+    .select("*")
+    .eq("user_id", profile.privy_user_id)
+    .eq("is_completed", true);
+  
+  if (questError) {
+    console.error("Error fetching quest progress:", questError);
+  }
+
   // Calculate stats
   const stats = {
     totalApplications: applications?.length || 0,
@@ -196,6 +208,7 @@ async function getUserDashboardData(
     totalPoints: profile.experience_points || 0,
     pendingPayments:
       applications?.filter((_a: any) => _a.applications?.payment_status === "pending").length || 0,
+    questsCompleted: questProgress?.length || 0,
   };
 
   return {

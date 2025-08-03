@@ -13,6 +13,7 @@ import {
   Clock,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 import { usePrivy } from "@privy-io/react-auth";
 import { supabase } from "@/lib/supabase/client";
@@ -223,9 +224,11 @@ export default function QuestDetailsPage() {
               <div className="flex items-start gap-6">
                 {quest.image_url && (
                   <div className="w-32 h-32 rounded-lg overflow-hidden bg-gray-800 flex-shrink-0">
-                    <img
+                    <Image
                       src={quest.image_url}
                       alt={quest.title}
+                      width={128}
+                      height={128}
                       className="w-full h-full object-cover"
                     />
                   </div>

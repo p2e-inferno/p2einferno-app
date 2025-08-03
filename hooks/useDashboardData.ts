@@ -54,6 +54,7 @@ export interface UserDashboardData {
     completedBootcamps: number;
     totalPoints: number;
     pendingPayments: number;
+    questsCompleted: number; // Added for live stats
   };
 }
 
@@ -91,7 +92,7 @@ export const useDashboardData = (): UseDashboardDataResult => {
             ?.map((w) => w.address) || [],
       };
 
-      const response = await fetch("/api/user/profile", {
+      const response = await fetch("/api/user/profile-simple", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

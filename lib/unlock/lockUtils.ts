@@ -1,6 +1,6 @@
-import { type Address, type Hash, parseEther, formatEther } from "viem";
+import { type Address, parseEther } from "viem";
 import { base, baseSepolia } from "viem/chains";
-import { ethers, parseUnits, formatUnits } from "ethers";
+import { ethers, formatUnits } from "ethers";
 import { CHAIN_CONFIG } from "../blockchain/config";
 import { PUBLIC_LOCK_CONTRACT } from "../../constants";
 
@@ -188,12 +188,7 @@ const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
   }
 };
 
-/**
- * Parse token amount to proper decimal format
- */
-const parseTokenAmount = (amount: string, decimals: number): bigint => {
-  return parseUnits(amount, decimals);
-};
+
 
 /**
  * Create ethers provider and signer from Privy wallet

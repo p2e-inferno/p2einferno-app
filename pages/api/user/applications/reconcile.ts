@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../../lib/supabase/server";
 import { createPrivyClient } from "../../../../lib/privyUtils";
-import { enrollmentService } from "../../../../lib/services/enrollment-service";
+
 import { StatusSyncService } from "../../../../lib/services/status-sync-service";
 
 interface UserReconcileRequest {

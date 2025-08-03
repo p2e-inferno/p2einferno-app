@@ -173,7 +173,7 @@ export default function BootcampListingPage() {
                   {/* Key Features */}
                   <div className="mb-8">
                     <h4 className="text-xl font-bold mb-4">
-                      What You'll Learn
+                      What You&apos;ll Learn
                     </h4>
                     <div className="grid md:grid-cols-2 gap-4">
                       <div className="flex items-start space-x-3">
@@ -265,7 +265,7 @@ export default function BootcampListingPage() {
                   More Bootcamps Coming Soon
                 </h3>
                 <p className="text-faded-grey mb-6">
-                  We're developing advanced bootcamps for intermediate and
+                  We&apos;re developing advanced bootcamps for intermediate and
                   expert Web3 practitioners
                 </p>
                 <div className="grid md:grid-cols-2 gap-4 max-w-2xl mx-auto">

@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -34,7 +35,7 @@ const QRCodeDisplay: React.FC<{ address: string; size?: number }> = ({
   return (
     <div className="flex flex-col items-center space-y-3">
       <div className="bg-white p-3 sm:p-4 rounded-lg">
-        <img 
+        <Image 
           src={qrUrl} 
           alt="Wallet Address QR Code"
           width={size}

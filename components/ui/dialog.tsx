@@ -22,11 +22,12 @@ export function Dialog({
   
   // Use controlled state if provided, otherwise use internal state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
-  const setOpen = (newOpen: boolean) => {
+  const setOpen: React.Dispatch<React.SetStateAction<boolean>> = (newOpen) => {
+    const value = typeof newOpen === 'function' ? newOpen(open) : newOpen;
     if (onOpenChange) {
-      onOpenChange(newOpen);
+      onOpenChange(value);
     } else {
-      setInternalOpen(newOpen);
+      setInternalOpen(value);
     }
   };
 

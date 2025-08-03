@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { UnlockPurchaseButton } from "../unlock/UnlockPurchaseButton";
 import { Button } from "../ui/button";
@@ -79,22 +79,8 @@ export default function AdminAccessRequired({
     };
   }, []);
 
-  // Run access check whenever providerAddress changes (and is non-null)
-  useEffect(() => {
-    if (!providerAddress || !adminLockAddress) return;
-
-    // Reset status while checking
-    setAccessStatus({
-      hasAccess: false,
-      expirationDate: null,
-      isChecking: true,
-    });
-
-    checkAccessStatus(providerAddress, true);
-  }, [providerAddress, adminLockAddress]);
-
   // Function to check if user has access and get expiration date
-  const checkAccessStatus = async (addr: string, forceRefresh = false) => {
+  const checkAccessStatus = useCallback(async (addr: string, forceRefresh = false) => {
     if (!addr || !adminLockAddress) return;
 
     setAccessStatus((prev) => ({ ...prev, isChecking: true }));
@@ -133,7 +119,21 @@ export default function AdminAccessRequired({
     }
 
     // No further actions here; avoid recursive calls.
-  };
+  }, [adminLockAddress]);
+
+  // Run access check whenever providerAddress changes (and is non-null)
+  useEffect(() => {
+    if (!providerAddress || !adminLockAddress) return;
+
+    // Reset status while checking
+    setAccessStatus({
+      hasAccess: false,
+      expirationDate: null,
+      isChecking: true,
+    });
+
+    checkAccessStatus(providerAddress, true);
+  }, [providerAddress, adminLockAddress, checkAccessStatus]);
 
   // Handler for refreshing wallet status
   const handleRefreshStatus = async () => {

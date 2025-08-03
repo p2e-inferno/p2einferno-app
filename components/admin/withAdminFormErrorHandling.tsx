@@ -15,7 +15,7 @@ export function withAdminFormErrorHandling<P extends object>(
 ) {
   return function WithAdminFormErrorHandling(props: P) {
     const [error, setError] = useState<string | null>(null);
-    const { isAdmin, authenticated } = useAdminAuth();
+    const { authenticated } = useAdminAuth();
     const adminApi = useAdminApi({
       redirectOnAuthError: false,
       showAuthErrorModal: true,

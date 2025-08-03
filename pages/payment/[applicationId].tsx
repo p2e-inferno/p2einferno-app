@@ -270,8 +270,8 @@ export default function PaymentPage({
                         amount={totalAmount}
                         currency={selectedCurrency}
                         email={application.user_email}
-                        lockAddress={cohort.lock_address}
-                        keyManagers={cohort.key_managers}
+                        lockAddress={cohort.lock_address || ""}
+
                         onSuccess={handlePaymentSuccess}
                       />
                     )}

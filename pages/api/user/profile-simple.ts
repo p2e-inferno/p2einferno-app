@@ -31,6 +31,7 @@ interface UserDashboardData {
     completedBootcamps: number;
     totalPoints: number;
     pendingPayments: number;
+    questsCompleted: number;
   };
 }
 
@@ -162,6 +163,13 @@ async function getUserDashboardData(
     .order("created_at", { ascending: false })
     .limit(10);
 
+  // Get quest completion statistics (graceful fallback)
+  const { data: questProgress } = await supabase
+    .from("user_quest_progress")
+    .select("*")
+    .eq("user_id", profile.privy_user_id)
+    .eq("is_completed", true);
+
   // Calculate stats with safe defaults
   const stats = {
     totalApplications: applications?.length || 0,
@@ -171,6 +179,7 @@ async function getUserDashboardData(
     totalPoints: profile.experience_points || 0,
     pendingPayments:
       applications?.filter((_a: any) => _a.applications?.payment_status === "pending").length || 0,
+    questsCompleted: questProgress?.length || 0,
   };
 
   return {

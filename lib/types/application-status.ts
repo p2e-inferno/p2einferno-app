@@ -109,7 +109,7 @@ export function canTransition<T extends keyof typeof VALID_TRANSITIONS>(
   from: typeof VALID_TRANSITIONS[T] extends Record<infer K, any> ? K : never,
   to: string
 ): boolean {
-  const validTransitions = VALID_TRANSITIONS[type][from] as readonly string[];
+  const validTransitions = (VALID_TRANSITIONS as any)[type][from] as readonly string[];
   return validTransitions.includes(to);
 }
 

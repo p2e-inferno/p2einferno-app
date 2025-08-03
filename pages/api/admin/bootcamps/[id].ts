@@ -75,7 +75,7 @@ export default async function handler(
       const allUserWallets = [
         ...userWalletAddresses.map((w) => w.toLowerCase()),
         profile.wallet_address?.toLowerCase(),
-        ...(profile.linked_wallets || []).map((w) => w.toLowerCase()),
+        ...(profile.linked_wallets || []).map((w: any) => w.toLowerCase()),
       ].filter(Boolean);
 
       // Remove duplicates

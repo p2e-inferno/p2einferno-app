@@ -31,7 +31,7 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({
       <div className="text-center mb-8">
         <h2 className="text-2xl font-bold mb-2">Personal Information</h2>
         <p className="text-faded-grey">
-          Let's start with your basic details
+          Let&apos;s start with your basic details
         </p>
       </div>
 

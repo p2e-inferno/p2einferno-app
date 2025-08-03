@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase/client";
 import { Pencil, Eye, Trash2, Coins, CheckCircle2, Users } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 
 interface QuestWithStats extends Quest {
@@ -155,9 +156,11 @@ export default function AdminQuestsPage() {
               <div className="flex items-start space-x-4 flex-1">
                 {quest.image_url && (
                   <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-800 flex-shrink-0">
-                    <img
+                    <Image
                       src={quest.image_url}
                       alt={quest.title}
+                      width={80}
+                      height={80}
                       className="w-full h-full object-cover"
                     />
                   </div>

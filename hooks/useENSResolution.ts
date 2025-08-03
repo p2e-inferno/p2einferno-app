@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { createPublicClient, http } from "viem";
 import { mainnet, base } from "viem/chains";
-import { ENS } from "@ensdomains/ensjs";
+import { getEnsName } from "viem/ens";
 
 interface ENSResolutionResult {
   ensName: string | null;
@@ -48,14 +48,10 @@ export const useENSResolution = (
           transport: http(),
         });
 
-        // Initialize ENS client
-        const ensInstance = new ENS();
-
         // Resolve ENS name on mainnet
         let ensName: string | null = null;
         try {
-          ensName = await ensInstance.getName({
-            client: mainnetClient,
+          ensName = await getEnsName(mainnetClient, {
             address: address as `0x${string}`,
           });
         } catch (err) {
@@ -65,8 +61,7 @@ export const useENSResolution = (
         // Resolve basename on Base network
         let basename: string | null = null;
         try {
-          basename = await ensInstance.getName({
-            client: baseClient,
+          basename = await getEnsName(baseClient, {
             address: address as `0x${string}`,
           });
         } catch (err) {

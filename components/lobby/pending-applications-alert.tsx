@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertTriangle, CreditCard, X, Trash2, Settings } from "lucide-react";
+import { AlertTriangle, CreditCard, Trash2, Settings } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 
 interface PendingApplication {

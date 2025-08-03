@@ -90,8 +90,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ formData }) => {
               </h3>
               <p className="text-sm text-green-700 mb-3">
                 Your application is complete and ready to submit. After
-                clicking "Pay Registration Fee", your application will be
-                saved securely and you'll be redirected to the payment page.
+                clicking &quot;Pay Registration Fee&quot;, your application will be
+                saved securely and you&apos;ll be redirected to the payment page.
               </p>
               <div className="bg-green-100 p-3 rounded-md">
                 <p className="text-xs text-green-800 font-medium">

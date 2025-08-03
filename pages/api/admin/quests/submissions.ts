@@ -105,10 +105,18 @@ async function updateSubmissionStatus(
   }
 
   try {
-    // Get the current submission
+    // Get the current submission with task details
     const { data: currentSubmission, error: fetchError } = await supabase
       .from("user_task_completions")
-      .select("*")
+      .select(`
+        *,
+        task:quest_tasks!user_task_completions_task_id_fkey (
+          title
+        ),
+        user:user_profiles!user_task_completions_user_id_fkey (
+          id
+        )
+      `)
       .eq("id", submissionId)
       .single();
 
@@ -140,6 +148,32 @@ async function updateSubmissionStatus(
 
     if (updateError) throw updateError;
 
+    // Create a notification for the user
+    const notificationTitle = `Task submission reviewed: ${status}`;
+    let notificationMessage = `Your submission for the task "${currentSubmission.task.title}" has been reviewed.`;
+    
+    if (status === "completed") {
+      notificationMessage = `Congratulations! Your submission for "${currentSubmission.task.title}" has been approved. You can now claim your reward.`;
+    } else if (status === "failed") {
+      notificationMessage = `Your submission for "${currentSubmission.task.title}" was not approved. Please review the feedback and try again.`;
+    } else if (status === "retry") {
+      notificationMessage = `Your submission for "${currentSubmission.task.title}" needs some adjustments. Please review the feedback and resubmit.`;
+    }
+
+    const { error: notificationError } = await supabase
+      .from("notifications")
+      .insert({
+        user_profile_id: currentSubmission.user.id,
+        title: notificationTitle,
+        message: notificationMessage,
+        link: `/lobby/quests/${currentSubmission.quest_id}`
+      });
+
+    if (notificationError) {
+      console.error("Failed to create notification:", notificationError);
+      // Don't fail the main operation if notification creation fails
+    }
+
     // Recalculate quest progress for the user
     if (status === "completed" || status === "failed") {
       try {
@@ -152,9 +186,6 @@ async function updateSubmissionStatus(
         // Don't fail the main operation if progress update fails
       }
     }
-
-    // TODO: Send notification to user about status change
-    // This could be email, in-app notification, etc.
 
     return res.status(200).json({
       success: true,

@@ -18,7 +18,7 @@ export function withAdminAuth<P extends object>(
   }
 ) {
   return function WithAdminAuth(props: P) {
-    const { isAdmin, loading, authenticated, refreshAdminStatus } =
+    const { isAdmin, loading, refreshAdminStatus } =
       useAdminAuth();
     const router = useRouter();
     const [isRefreshing, setIsRefreshing] = useState(false);

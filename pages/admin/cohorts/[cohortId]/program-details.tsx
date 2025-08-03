@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import ProgramHighlightsForm from "@/components/admin/ProgramHighlightsForm";
@@ -36,13 +36,7 @@ export default function ProgramDetailsPage() {
     }
   }, [authenticated, isAdmin, loading, router, isClient]);
 
-  useEffect(() => {
-    if (!authenticated || !isAdmin || !isClient || !cohortId) return;
-
-    fetchData();
-  }, [authenticated, isAdmin, isClient, cohortId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -68,7 +62,7 @@ export default function ProgramDetailsPage() {
       const { data: highlightsData } = await supabase
         .from("program_highlights")
         .select("*")
-        .eq("cohort_id", id)
+        .eq("cohort_id", cohortId)
         .order("order_index");
 
       setHighlights(highlightsData || []);
@@ -77,7 +71,7 @@ export default function ProgramDetailsPage() {
       const { data: requirementsData } = await supabase
         .from("program_requirements")
         .select("*")
-        .eq("cohort_id", id)
+        .eq("cohort_id", cohortId)
         .order("order_index");
 
       setRequirements(requirementsData || []);
@@ -87,7 +81,13 @@ export default function ProgramDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [cohortId]);
+
+  useEffect(() => {
+    if (!authenticated || !isAdmin || !isClient || !cohortId) return;
+
+    fetchData();
+  }, [authenticated, isAdmin, isClient, cohortId, fetchData]);
 
   const handleHighlightsSuccess = () => {
     fetchData();

@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { Gamepad2 } from "lucide-react";
 import { PrivyConnectButton } from "../PrivyConnectButton";
+import { NotificationBell } from './NotificationBell'; // Import the new component
 
 /**
  * Navigation component for the infernal lobby
@@ -23,7 +24,8 @@ export const LobbyNavigation: React.FC = () => {
         </div>
       </Link>
 
-      <div className="flex items-center">
+      <div className="flex items-center gap-2">
+        <NotificationBell />
         <PrivyConnectButton />
       </div>
     </nav>

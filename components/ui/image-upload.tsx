@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload, X, Image as ImageIcon } from "lucide-react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase/client";
 
 interface ImageUploadProps {
@@ -157,9 +158,11 @@ export default function ImageUpload({
 
       {value ? (
         <div className="relative">
-          <img
+          <Image
             src={value}
             alt="Bootcamp image"
+            width={400}
+            height={192}
             className="w-full h-48 object-cover rounded-lg border border-gray-700"
           />
           <Button

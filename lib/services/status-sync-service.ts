@@ -332,7 +332,7 @@ export class StatusSyncService {
           current.applicationStatus === 'approved' && 
           !current.enrollmentStatus) {
         
-        const { data: enrollmentData, error: enrollmentError } = await supabase
+        const { error: enrollmentError } = await supabase
           .from('bootcamp_enrollments')
           .insert({
             user_profile_id: userProfileId,

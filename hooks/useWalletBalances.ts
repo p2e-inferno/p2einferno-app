@@ -105,9 +105,11 @@ export const useWalletBalances = () => {
 
         // Fetch USDC balance
         try {
-          const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
-          usdcBalance = await usdcContract.balanceOf(walletAddress);
-          usdcSymbol = await usdcContract.symbol();
+          if (provider) {
+            const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
+            usdcBalance = await (usdcContract as any).balanceOf(walletAddress);
+            usdcSymbol = await (usdcContract as any).symbol();
+          }
         } catch (usdcError) {
           console.warn('Error fetching USDC balance:', usdcError);
         }
@@ -163,11 +165,13 @@ export const useWalletBalances = () => {
       let usdcSymbol = 'USDC';
 
       try {
-        const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
-        [usdcBalance, usdcSymbol] = await Promise.all([
-          usdcContract.balanceOf(walletAddress) as Promise<bigint>,
-          usdcContract.symbol() as Promise<string>,
-        ]);
+        if (provider) {
+          const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
+          [usdcBalance, usdcSymbol] = await Promise.all([
+            (usdcContract as any).balanceOf(walletAddress) as Promise<bigint>,
+            (usdcContract as any).symbol() as Promise<string>,
+          ]);
+        }
       } catch (usdcError) {
         console.warn('Error fetching USDC balance during refresh:', usdcError);
       }

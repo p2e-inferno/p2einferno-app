@@ -1,12 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../../lib/supabase/server";
 import { withAdminAuth } from "../../../../lib/auth/admin-auth";
-import { enrollmentService } from "../../../../lib/services/enrollment-service";
+
 import { StatusSyncService } from "../../../../lib/services/status-sync-service";
 
 interface ReconcileRequest {
   applicationId: string;
-  actions?: ('sync_status' | 'create_payment_record' | 'create_enrollment')[];
+  actions?: ('sync_status' | 'create_payment_record' | 'create_enrollment' | 'approve_application')[];
 }
 
 interface ReconcileResult {
@@ -91,8 +91,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     console.log(`Admin reconciling application ${applicationId} with specific actions:`, actions);
 
     // Get application details directly from tables to avoid view caching issues
-    console.log('Querying for application:', applicationId);
-    
     // First get the user_application_status record
     const { data: userAppStatus, error: statusError } = await supabase
       .from('user_application_status')
@@ -140,15 +138,6 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       application_status: appDetails.application_status
     };
 
-    console.log('Combined application data:', application);
-
-    console.log('Found application:', {
-      id: application.id,
-      application_id: application.application_id,
-      user_profile_id: application.user_profile_id,
-      status: application.status,
-      payment_status: application.payment_status
-    });
 
     const results: ReconcileResult[] = [];
 
@@ -367,12 +356,6 @@ async function createMissingPaymentRecord(supabase: any, application: any): Prom
  */
 async function createMissingEnrollment(supabase: any, application: any): Promise<ReconcileResult> {
   try {
-    console.log('Creating enrollment for application:', application.application_id);
-    console.log('Enrollment data:', {
-      user_profile_id: application.user_profile_id,
-      cohort_id: application.cohort_id
-    });
-
     // Create enrollment in bootcamp_enrollments table
     const { data, error: enrollError } = await supabase
       .from('bootcamp_enrollments')
@@ -387,13 +370,6 @@ async function createMissingEnrollment(supabase: any, application: any): Promise
       .single();
 
     if (enrollError) {
-      console.error('Enrollment creation error:', {
-        code: enrollError.code,
-        message: enrollError.message,
-        details: enrollError.details,
-        hint: enrollError.hint
-      });
-      
       // If enrollment already exists, that's okay
       if (enrollError.code === '23505') { // unique constraint violation
         return {
@@ -405,8 +381,6 @@ async function createMissingEnrollment(supabase: any, application: any): Promise
         throw new Error(`Failed to create enrollment: ${enrollError.message}`);
       }
     }
-
-    console.log('Enrollment created successfully:', data);
 
     return {
       action: 'create_enrollment',
@@ -446,8 +420,6 @@ async function approveApplication(supabase: any, application: any): Promise<Reco
     }
 
     // 2. Create enrollment in bootcamp_enrollments table (only if it doesn't exist)
-    console.log('Checking if enrollment already exists...');
-    
     // First check if enrollment already exists
     const { data: existingEnrollment, error: checkError } = await supabase
       .from('bootcamp_enrollments')
@@ -457,19 +429,10 @@ async function approveApplication(supabase: any, application: any): Promise<Reco
       .single();
 
     if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows found
-      console.error('Error checking existing enrollment:', checkError);
       throw new Error(`Failed to check existing enrollment: ${checkError.message}`);
     }
 
-    if (existingEnrollment) {
-      console.log('Enrollment already exists, skipping creation');
-    } else {
-      console.log('Creating enrollment with data:', {
-        user_profile_id: application.user_profile_id,
-        cohort_id: application.cohort_id,
-        enrollment_status: 'enrolled'
-      });
-      
+    if (!existingEnrollment) {
       const { error: enrollError } = await supabase
         .from('bootcamp_enrollments')
         .insert({
@@ -481,21 +444,10 @@ async function approveApplication(supabase: any, application: any): Promise<Reco
         });
 
       if (enrollError) {
-        console.error('Enrollment creation error:', {
-          code: enrollError.code,
-          message: enrollError.message,
-          details: enrollError.details,
-          hint: enrollError.hint
-        });
-        
         // If enrollment already exists, that's okay (race condition)
         if (enrollError.code !== '23505') { // unique constraint violation
           throw new Error(`Failed to create enrollment: ${enrollError.message}`);
-        } else {
-          console.log('Enrollment created by another process, continuing...');
         }
-      } else {
-        console.log('Enrollment created successfully');
       }
     }
 

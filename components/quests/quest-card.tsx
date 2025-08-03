@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Coins, ChevronRight, Sparkles } from "lucide-react";
 import { QuestCardProps } from "./types";
 
@@ -17,9 +18,11 @@ export const QuestCard = ({
         {/* Quest Image */}
         <div className="relative h-48 mb-6 rounded-lg overflow-hidden bg-gradient-to-br from-orange-900/20 to-red-900/20">
           <div className="w-full h-full flex items-center justify-center">
-            <img
+            <Image
               src={quest.image_url || "/images/quests/rosy-beginnings.svg"}
               alt={quest.title}
+              width={192}
+              height={192}
               className="w-full h-full object-contain"
             />
           </div>

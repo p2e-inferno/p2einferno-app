@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "@/lib/supabase/server";
+
 import { getPrivyUser } from "@/lib/auth/privy";
 import { Address } from "viem";
 import { lockManagerService } from "../blockchain/lock-manager";

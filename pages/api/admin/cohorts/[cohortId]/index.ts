@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../../../lib/supabase/server";
-import { verifyPrivyToken } from "../../../../../lib/auth/privy-server";
-import { isUserAdmin } from "../../../../../lib/auth/admin";
+import { getPrivyUser } from "../../../../../lib/auth/privy";
 
 const supabase = createAdminClient();
 
@@ -19,14 +18,9 @@ export default async function handler(
 
   try {
     // Verify admin authentication
-    const user = await verifyPrivyToken(req);
+    const user = await getPrivyUser(req);
     if (!user) {
       return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const isAdmin = await isUserAdmin(user.id);
-    if (!isAdmin) {
-      return res.status(403).json({ error: "Admin access required" });
     }
 
     const { cohortId } = req.query;
