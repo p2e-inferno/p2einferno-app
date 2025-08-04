@@ -12,12 +12,13 @@ interface BlockchainPaymentRequest {
   amount: number;
   currency: Currency;
   email: string;
-  walletAddress: string; // Required for crypto payments
+  walletAddress: string;
+  chainId: number; // NEW: Added chainId
 }
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -33,6 +34,7 @@ export default async function handler(
       currency,
       email,
       walletAddress,
+      chainId, // NEW: Destructure chainId
     }: BlockchainPaymentRequest = req.body;
 
     // Validate required fields
@@ -42,11 +44,11 @@ export default async function handler(
       !amount ||
       !currency ||
       !email ||
-      !walletAddress
+      !walletAddress ||
+      !chainId
     ) {
       return res.status(400).json({
-        error:
-          "Missing required fields: applicationId, cohortId, amount, currency, email, walletAddress",
+        error: "Missing required fields, including chainId.",
       });
     }
 
@@ -66,70 +68,47 @@ export default async function handler(
 
     // Validate amount
     if (!validatePaymentAmount(amount, currency)) {
-      return res.status(400).json({
-        error: `Invalid amount. Minimum is $1 for blockchain payments`,
-      });
+      return res
+        .status(400)
+        .json({
+          error: `Invalid amount. Minimum is $1 for blockchain payments`,
+        });
     }
 
-    // Check if application exists and get cohort details
+    // Check application and cohort details
     const { data: application, error: appError } = await supabaseAdmin
       .from("applications")
       .select(
-        `
-        id, 
-        user_email, 
-        payment_status,
-        cohorts!inner(
-          id,
-          lock_address,
-          name,
-          usdt_amount
-        )
-      `
+        `id, payment_status, cohorts!inner(id, lock_address, name, usdt_amount)`,
       )
       .eq("id", applicationId)
       .single();
 
     if (appError || !application) {
-      return res.status(404).json({
-        error: "Application not found",
-      });
+      return res.status(404).json({ error: "Application not found" });
     }
-
-    // Check if payment is already completed
     if (application.payment_status === "completed") {
-      return res.status(400).json({
-        error: "Payment already completed for this application",
-      });
+      return res
+        .status(400)
+        .json({ error: "Payment already completed for this application" });
     }
 
-    const cohort = Array.isArray(application.cohorts)
-      ? application.cohorts[0]
-      : application.cohorts;
-
-    if (!cohort) {
-      return res.status(404).json({
-        error: "Cohort not found contact support.",
-      });
+    const cohort = application.cohorts;
+    if (!cohort || cohort.usdt_amount !== amount) {
+      return res.status(400).json({ error: "Invalid amount for this cohort." });
     }
-
-    if (cohort.usdt_amount !== amount) {
-      return res.status(400).json({
-        error: "Invalid amount. Please use the correct amount for this cohort.",
-      });
-    }
-
-    // Verify cohort has lock address configured
-    if (!cohort?.lock_address) {
-      return res.status(400).json({
-        error: "Cohort lock address not configured. Contact support.",
-      });
+    if (!cohort.lock_address) {
+      return res
+        .status(400)
+        .json({
+          error: "Cohort lock address not configured. Contact support.",
+        });
     }
 
     // Generate payment reference
     const reference = generatePaymentReference();
 
-    // Save payment transaction to database
+    // Save payment transaction, now including chainId
     const { error: transactionError } = await supabaseAdmin
       .from("payment_transactions")
       .insert({
@@ -137,48 +116,33 @@ export default async function handler(
         payment_reference: reference,
         amount,
         currency,
-        amount_in_kobo: Math.round(amount * 100),
         status: "pending",
         payment_method: "blockchain",
+        network_chain_id: chainId, // NEW: Store the chainId
         metadata: {
           applicationId,
           walletAddress,
           paymentType: "blockchain",
-          lockAddress: cohort?.lock_address,
+          lockAddress: cohort.lock_address,
         },
       });
 
     if (transactionError) {
       console.error(
         "Failed to save blockchain payment transaction:",
-        transactionError
+        transactionError,
       );
-      return res.status(500).json({
-        error: "Failed to save payment transaction",
-      });
+      return res
+        .status(500)
+        .json({ error: "Failed to save payment transaction" });
     }
-
-    // Update application status
-    await supabaseAdmin
-      .from("applications")
-      .update({ payment_status: "pending" })
-      .eq("id", applicationId);
 
     res.status(200).json({
       success: true,
       data: {
         reference,
-        paymentMethod: "blockchain",
-        currency,
-        amount,
-        lockAddress: cohort?.lock_address,
-        cohortTitle: cohort?.name,
-        walletAddress, // Purchaser's wallet
-        instructions: {
-          step1: "Connect your wallet to Base network",
-          step2: "Call purchase() on the lock contract",
-          step3: "Key NFT will be automatically minted to your wallet",
-        },
+        lockAddress: cohort.lock_address,
+        cohortTitle: cohort.name,
       },
     });
   } catch (error) {

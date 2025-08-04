@@ -37,16 +37,22 @@ This is a Next.js application with Pages Router that implements a Play-to-Earn (
    }
    ```
 
-2. **Database Access**: Use Supabase client from `lib/supabase/client.ts`. Types are auto-generated in `lib/supabase/types.ts`.
+2. **Database Access**: Use Supabase client from `lib/supabase/client.ts`. 
 
-3. **Authentication**: Privy wrapper prevents SSR issues. Check authentication state with Privy hooks.
+3. **Type System**: 
+   - **Manual Types**: `lib/supabase/types.ts` - Business logic interfaces (BootcampProgram, Cohort, etc.)
+   - **Auto-Generated Types**: `lib/supabase/types-gen.ts` - Complete database schema types from Supabase
+   - **Regenerate database types**: `source .env.local && npx supabase gen types typescript --linked > lib/supabase/types-gen.ts`
+   - **NEVER** create `types.ts` in project root - use the lib/supabase/ directory
 
-4. **Component Organization**: 
+4. **Authentication**: Privy wrapper prevents SSR issues. Check authentication state with Privy hooks.
+
+5. **Component Organization**: 
    - UI components in `/components/ui/` follow shadcn/ui patterns
    - Feature components grouped by feature (e.g., `/components/quests/`)
    - Layout components in `/components/layouts/`
 
-5. **Custom Hooks**: API calls use `useApiCall` hook for consistent error handling and loading states.
+6. **Custom Hooks**: API calls use `useApiCall` hook for consistent error handling and loading states.
 
 ### Environment Variables
 Required in `.env.local`:
