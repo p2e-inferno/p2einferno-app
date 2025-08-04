@@ -42,29 +42,103 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     console.log(`Admin reconciling application ${applicationId}`);
     console.log('Request body:', { applicationId, actions });
+    
+    // First verify the application exists
+    const { data: appCheck, error: appCheckError } = await supabase
+      .from("applications")
+      .select("id, user_email")
+      .eq("id", applicationId)
+      .single();
+      
+    console.log('Application lookup result:', { appCheck, appCheckError });
 
     // If no specific actions provided, use the new comprehensive reconcile service
     if (!actions || actions.length === 0) {
-      // Get application and user profile ID through user_application_status
-      const { data: applicationStatus, error: appError } = await supabase
-        .from("user_application_status")
-        .select(`
-          id,
-          user_profile_id,
-          application_id,
-          status
-        `)
-        .eq("application_id", applicationId)
+      // Get user profile ID directly from application (much simpler now!)
+      const { data: application, error: appError } = await supabase
+        .from("applications")
+        .select("id, user_profile_id, user_email")
+        .eq("id", applicationId)
         .single();
 
-      if (appError || !applicationStatus) {
+      if (appError || !application) {
         return res.status(404).json({ error: "Application not found" });
       }
 
-      const userProfileId = applicationStatus.user_profile_id;
+      let userProfileId = application.user_profile_id;
+
+      // Fallback for old applications that don't have user_profile_id set
       if (!userProfileId) {
-        return res.status(404).json({ error: "User profile not found for application" });
+        console.log(`Application ${applicationId} missing user_profile_id, trying email lookup as fallback`);
+        const { data: userProfile, error: profileError } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("email", application.user_email)
+          .single();
+
+        if (profileError || !userProfile) {
+          console.error(`User profile not found for email: ${application.user_email}`, profileError);
+          return res.status(404).json({ 
+            error: "User profile not found for application. User may need to create a profile first." 
+          });
+        }
+        
+        userProfileId = userProfile.id;
+        
+        // Update the application with the found user_profile_id for future use
+        await supabase
+          .from("applications")
+          .update({ user_profile_id: userProfileId })
+          .eq("id", applicationId);
+          
+        console.log(`Updated application ${applicationId} with user_profile_id ${userProfileId}`);
       }
+
+      if (!userProfileId) {
+        return res.status(404).json({ 
+          error: "User profile not found for application. User may need to create a profile first." 
+        });
+      }
+
+      // Create user_application_status record if it doesn't exist (this is the main issue)
+      const { data: existingStatus } = await supabase
+        .from("user_application_status")
+        .select("id")
+        .eq("application_id", applicationId)
+        .eq("user_profile_id", userProfileId);
+
+      if (!existingStatus || existingStatus.length === 0) {
+        console.log(`Creating missing user_application_status record for application ${applicationId}`);
+        await supabase
+          .from("user_application_status")
+          .insert({
+            user_profile_id: userProfileId,
+            application_id: applicationId,
+            status: 'pending'
+          });
+      }
+
+      // Update payment transaction to success (to remove from admin payments list)
+      await supabase
+        .from("payment_transactions")
+        .update({
+          status: 'success',
+          metadata: {
+            reconciledAt: new Date().toISOString(),
+            reconciledBy: 'admin',
+            originalStatus: 'processing'
+          }
+        })
+        .eq("application_id", applicationId);
+
+      // Update application status to completed/approved
+      await supabase
+        .from("applications")
+        .update({
+          payment_status: 'completed',
+          application_status: 'approved'
+        })
+        .eq("id", applicationId);
 
       // Use the comprehensive status sync service
       const reconcileResult = await StatusSyncService.reconcileApplicationStatus(
@@ -80,9 +154,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         });
       }
 
+      console.log(`Successfully reconciled application ${applicationId} - should now be filtered out of payments list`);
+
       return res.status(200).json({
         success: true,
-        message: "Application status reconciled successfully by admin",
+        message: "Payment reconciled successfully! Transaction has been marked as completed.",
         data: reconcileResult.data
       });
     }

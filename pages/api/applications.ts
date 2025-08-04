@@ -74,6 +74,7 @@ export default async function handler(
       payment_status: "pending",
       application_status: "draft",
       payment_method: applicationData.payment_method || "fiat",
+      user_profile_id: userProfileId, // Add direct relationship
     };
 
     const { data, error } = await supabase

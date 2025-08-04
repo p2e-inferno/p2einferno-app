@@ -31,6 +31,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         metadata,
         applications!payment_transactions_application_id_fkey (
           user_email,
+          user_profile_id,
           cohorts (
             name,
             lock_address
@@ -54,10 +55,38 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         (tx: any) => tx.applications && tx.applications.user_email
       ) || [];
 
+    // For each transaction, fetch user profile data if user_profile_id exists
+    const enrichedTransactions = await Promise.all(
+      validTransactions.map(async (tx: any) => {
+        if (tx.applications.user_profile_id) {
+          const { data: userProfile } = await supabase
+            .from("user_profiles")
+            .select("wallet_address")
+            .eq("id", tx.applications.user_profile_id)
+            .single();
+          
+          return {
+            ...tx,
+            applications: {
+              ...tx.applications,
+              user_profiles: userProfile ? { wallet_address: userProfile.wallet_address } : null
+            }
+          };
+        }
+        return {
+          ...tx,
+          applications: {
+            ...tx.applications,
+            user_profiles: null
+          }
+        };
+      })
+    );
+
     res.status(200).json({
       success: true,
-      transactions: validTransactions,
-      count: validTransactions.length,
+      transactions: enrichedTransactions,
+      count: enrichedTransactions.length,
     });
   } catch (error) {
     console.error("Admin payments API error:", error);

@@ -91,12 +91,35 @@ BEGIN
     SET enrollment_status = 'active', updated_at = NOW()
     RETURNING id INTO v_new_enrollment_id;
 
-    -- 5. Update the user_application_status to 'enrolled'
-    UPDATE public.user_application_status
-    SET
+    -- 5. Create or update the user_application_status to 'enrolled'
+    INSERT INTO public.user_application_status (
+        user_profile_id, 
+        application_id, 
+        status, 
+        payment_method, 
+        amount_paid, 
+        currency, 
+        completed_at
+    )
+    SELECT 
+        v_user_profile_id, 
+        p_application_id, 
+        'enrolled', 
+        p_payment_method,
+        -- Get amount and currency from the application
+        a.total_amount,
+        a.currency,
+        NOW()
+    FROM public.applications a 
+    WHERE a.id = p_application_id
+    ON CONFLICT (user_profile_id, application_id) 
+    DO UPDATE SET
         status = 'enrolled',
-        updated_at = NOW()
-    WHERE application_id = p_application_id AND user_profile_id = v_user_profile_id;
+        payment_method = EXCLUDED.payment_method,
+        amount_paid = EXCLUDED.amount_paid,
+        currency = EXCLUDED.currency,
+        completed_at = EXCLUDED.completed_at,
+        updated_at = NOW();
 
     -- 6. Log the payment activity and award XP
     INSERT INTO public.user_activities (user_profile_id, activity_type, activity_data, points_earned)

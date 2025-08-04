@@ -17,20 +17,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     // Check the status of the transaction in our database.
-    // The webhook will have updated this. We poll this endpoint from the frontend.
+    // This endpoint only checks what the webhook has updated - no direct Paystack API calls
     const { data: transaction, error } = await supabase
       .from('payment_transactions')
-      .select('status, application_id')
+      .select('status, application_id, created_at')
       .eq('payment_reference', reference)
       .single();
 
     if (error || !transaction) {
-      return res.status(404).json({ status: 'pending', message: 'Transaction not yet found.' });
+      // Transaction not found - either invalid reference or webhook hasn't processed yet
+      return res.status(200).json({ 
+        success: false,
+        status: 'pending', 
+        message: 'Payment is being processed. Please wait...' 
+      });
     }
 
+    // Return the current status from our database (set by webhook)
     res.status(200).json({
       success: transaction.status === 'success',
-      message: transaction.status === 'success' ? 'Payment verified successfully' : 'Payment verification pending',
+      message: transaction.status === 'success' 
+        ? 'Payment verified successfully' 
+        : transaction.status === 'failed'
+        ? 'Payment failed'
+        : 'Payment is being processed',
       data: {
         status: transaction.status,
         applicationId: transaction.application_id,

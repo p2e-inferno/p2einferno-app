@@ -2,8 +2,8 @@
 -- This populates the database with test data for development
 
 -- Insert sample bootcamp program
-INSERT INTO public.bootcamp_programs (id, name, description, duration_weeks, max_reward_dgt, cost_naira, cost_usd) VALUES
-(uuid_generate_v4(), 'Infernal Sparks', 'Master the fundamentals of Web3 and join the P2E Inferno community through hands-on experience and real-world applications.', 8, 24000, 50000, 50);
+INSERT INTO public.bootcamp_programs (id, name, description, duration_weeks, max_reward_dgt) VALUES
+(uuid_generate_v4(), 'Infernal Sparks', 'Master the fundamentals of Web3 and join the P2E Inferno community through hands-on experience and real-world applications.', 8, 24000);
 
 -- Insert sample cohort
 INSERT INTO public.cohorts (id, bootcamp_program_id, name, start_date, end_date, max_participants, current_participants, registration_deadline, status) VALUES

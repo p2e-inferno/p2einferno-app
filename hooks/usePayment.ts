@@ -23,6 +23,7 @@ export const usePayment = (paymentData: PaymentConfig) => {
   const [isInitializing, setIsInitializing] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<any>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [pollingProgress, setPollingProgress] = useState({ current: 0, total: 0 });
 
   // Initialize payment with backend
   const { execute: initializePayment } = useApiCall({
@@ -74,11 +75,59 @@ export const usePayment = (paymentData: PaymentConfig) => {
             paymentData.cohortId
           }`
         : "";
-      await verifyPayment(() =>
-        api.get(`/payment/verify/${reference}${queryParams}`)
-      );
+
+      // Enterprise polling approach - wait for webhook to update database
+      const maxPollingTime = 180000; // 3 minutes total
+      const pollInterval = 3000; // Poll every 3 seconds
+      const maxAttempts = Math.floor(maxPollingTime / pollInterval);
+      
+      console.log(`Starting webhook polling for payment ${reference}`);
+      console.log(`Will poll ${maxAttempts} times over ${maxPollingTime/1000} seconds`);
+      
+      // Initialize progress
+      setPollingProgress({ current: 0, total: maxAttempts });
+      
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        // Update progress
+        setPollingProgress({ current: attempt, total: maxAttempts });
+        try {
+          console.log(`Polling attempt ${attempt}/${maxAttempts} - waiting for webhook...`);
+          
+          const response = await api.get(`/payment/verify/${reference}${queryParams}`);
+          
+          // Check if webhook has updated the status
+          if (response.data?.success) {
+            console.log('Webhook processed successfully! Payment verified.');
+            await verifyPayment(() => Promise.resolve(response));
+            break;
+          } else if (response.data?.data?.status === 'failed') {
+            console.log('Payment failed according to webhook');
+            throw new Error('Payment failed');
+          } else {
+            // Still pending, continue polling
+            console.log(`Status: ${response.data?.data?.status || 'pending'} - continuing to poll...`);
+          }
+          
+          if (attempt === maxAttempts) {
+            throw new Error('Payment verification timeout. Please contact support if payment was successful.');
+          }
+          
+          // Wait before next poll
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          
+        } catch (error: any) {
+          // If it's a timeout error, throw it
+          if (attempt === maxAttempts || error.message.includes('timeout') || error.message.includes('failed')) {
+            throw error;
+          }
+          
+          // For network errors, continue polling
+          console.log(`Network error on attempt ${attempt}, continuing...`);
+          await new Promise(resolve => setTimeout(resolve, pollInterval));
+        }
+      }
     },
-    [verifyPayment, paymentData.walletAddress]
+    [verifyPayment, paymentData.walletAddress, paymentData.cohortId]
   );
 
   const processPayment = useCallback(() => {
@@ -109,5 +158,6 @@ export const usePayment = (paymentData: PaymentConfig) => {
     isInitializing,
     isConfigured: !!paymentConfig,
     isProcessingPayment,
+    pollingProgress,
   };
 };

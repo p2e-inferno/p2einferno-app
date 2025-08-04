@@ -30,6 +30,7 @@ export function PaystackPayment({
     isInitializing,
     isConfigured,
     isProcessingPayment,
+    pollingProgress,
   } = usePayment({
     applicationId,
     amount,
@@ -99,11 +100,46 @@ export function PaystackPayment({
           Pay with Paystack
         </LoadingButton>
       ) : isProcessingPayment ? (
-        <div className="text-center p-4 bg-blue-50 rounded-lg">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-          <p className="text-blue-800 font-medium">Processing Payment...</p>
-          <p className="text-blue-600 text-sm">
-            Please wait while we verify your payment
+        <div className="text-center p-6 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-center justify-center mb-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+            <div className="flex space-x-1">
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+              <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            </div>
+          </div>
+          <h3 className="text-blue-800 font-bold text-lg mb-2">Verifying Your Payment</h3>
+          <p className="text-blue-700 mb-3">
+            Your payment is being processed by our secure payment system. This usually takes 30-60 seconds.
+          </p>
+          <div className="bg-blue-100 rounded-lg p-3 mb-3">
+            <p className="text-blue-800 text-sm font-medium mb-2">What&apos;s happening:</p>
+            <p className="text-blue-700 text-xs mb-3">
+              • Payment submitted to Paystack ✓<br/>
+              • Waiting for webhook confirmation...<br/>
+              • Processing enrollment automatically
+            </p>
+            {pollingProgress.total > 0 && (
+              <div className="mt-2">
+                <div className="flex justify-between text-xs text-blue-700 mb-1">
+                  <span>Verification Progress</span>
+                  <span>{pollingProgress.current} / {pollingProgress.total}</span>
+                </div>
+                <div className="w-full bg-blue-200 rounded-full h-1.5">
+                  <div 
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-300" 
+                    style={{ width: `${(pollingProgress.current / pollingProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-blue-600 mt-1">
+                  Estimated time: {Math.max(0, Math.floor((pollingProgress.total - pollingProgress.current) * 3))}s remaining
+                </p>
+              </div>
+            )}
+          </div>
+          <p className="text-blue-600 text-xs">
+            Please don&apos;t refresh this page. You&apos;ll be redirected automatically once verified.
           </p>
         </div>
       ) : (

@@ -56,44 +56,100 @@ async function createOrUpdateUserProfile(
         : `Infernal${privyUserId.slice(-6)}`),
   };
 
-  // Check if profile exists
-  const { data: existingProfile, error: profileError } = await supabase
-    .from("user_profiles")
-    .select("*")
-    .eq("privy_user_id", privyUserId)
-    .single();
+  // Check if profile exists with retry logic for network issues
+  let existingProfile;
+  let retryCount = 0;
+  const maxRetries = 3;
+  
+  while (retryCount < maxRetries) {
+    try {
+      const { data, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("privy_user_id", privyUserId)
+        .single();
 
-  if (profileError && profileError.code !== 'PGRST116') {
-    console.error("Error checking existing profile:", profileError);
-    throw new Error(`Database error: ${profileError.message}`);
+      if (profileError && profileError.code !== 'PGRST116') {
+        console.error("Error checking existing profile:", {
+          message: profileError.message || 'Unknown error',
+          code: profileError.code || 'NO_CODE',
+          details: profileError.details || 'No details'
+        });
+        throw new Error(`Database error: ${profileError.message || 'Unknown database error'}`);
+      }
+      
+      existingProfile = data;
+      break; // Success, exit retry loop
+      
+    } catch (error) {
+      retryCount++;
+      console.error(`Attempt ${retryCount} failed for profile check:`, {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        isNetworkError: error instanceof Error && error.message.includes('fetch failed')
+      });
+      
+      if (retryCount >= maxRetries) {
+        throw new Error(`Network error after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+      
+      // Wait before retry (exponential backoff)
+      await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+    }
   }
 
-  if (existingProfile) {
-    // Update existing profile
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .update(profileData)
-      .eq("privy_user_id", privyUserId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error updating profile:", error);
-      throw new Error(`Failed to update profile: ${error.message}`);
+  // Helper function to retry database operations
+  const executeWithRetry = async (operation: () => Promise<any>, operationName: string) => {
+    let retryCount = 0;
+    while (retryCount < maxRetries) {
+      try {
+        return await operation();
+      } catch (error) {
+        retryCount++;
+        console.error(`${operationName} attempt ${retryCount} failed:`, {
+          message: error instanceof Error ? error.message : 'Unknown error',
+          isNetworkError: error instanceof Error && error.message.includes('fetch failed')
+        });
+        
+        if (retryCount >= maxRetries) {
+          throw new Error(`${operationName} failed after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
     }
+  };
+
+  if (existingProfile) {
+    // Update existing profile with retry
+    const { data } = await executeWithRetry(async () => {
+      const result = await supabase
+        .from("user_profiles")
+        .update(profileData)
+        .eq("privy_user_id", privyUserId)
+        .select()
+        .single();
+      
+      if (result.error) {
+        throw new Error(`Failed to update profile: ${result.error.message || 'Unknown error'}`);
+      }
+      return result;
+    }, "Profile update");
+
     return data;
   } else {
-    // Create new profile
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .insert([profileData])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error creating profile:", error);
-      throw new Error(`Failed to create profile: ${error.message}`);
-    }
+    // Create new profile with retry
+    const { data } = await executeWithRetry(async () => {
+      const result = await supabase
+        .from("user_profiles")
+        .insert([profileData])
+        .select()
+        .single();
+      
+      if (result.error) {
+        throw new Error(`Failed to create profile: ${result.error.message || 'Unknown error'}`);
+      }
+      return result;
+    }, "Profile creation");
 
     // Log user registration activity (non-blocking)
     try {
@@ -195,42 +251,61 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  // Set a timeout for the entire request
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000);
+  });
+
   try {
-    if (req.method !== "POST") {
-      return res.status(405).json({ error: "Method not allowed" });
-    }
-
-    // Get privyUserId from request body directly
-    const { privyUserId } = req.body;
-
-    if (!privyUserId) {
-      return res.status(400).json({ error: "privyUserId is required in request body" });
-    }
-
-    console.log(`Processing profile request for user: ${privyUserId}`);
-
-    // Create or update user profile
-    const profile = await createOrUpdateUserProfile(privyUserId, req.body);
-
-    // Get dashboard data
-    const dashboardData = await getUserDashboardData(profile.id);
-
-    res.status(200).json({
-      success: true,
-      data: dashboardData,
-    });
-
-  } catch (error: any) {
+    // Race the actual handler against the timeout
+    const result = await Promise.race([
+      handleRequest(req, res),
+      timeoutPromise
+    ]);
+    return result;
+  } catch (error) {
     console.error("Simple user profile API error:", {
-      message: error.message,
-      stack: error.stack,
-      privyUserId: req.body?.privyUserId,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : 'No stack trace',
+      privyUserId: req.body?.privyUserId
     });
-    
-    res.status(500).json({
-      error: "Failed to process request",
-      details: error.message,
-      errorType: error.name || "UnknownError",
+
+    if (error instanceof Error && error.message.includes('timeout')) {
+      return res.status(504).json({ 
+        error: "Request timeout - please try again", 
+        details: "The request took too long to complete" 
+      });
+    }
+
+    return res.status(500).json({ 
+      error: "Internal server error", 
+      details: "Please try again later" 
     });
   }
+}
+
+async function handleRequest(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  // Get privyUserId from request body directly
+  const { privyUserId } = req.body;
+
+  if (!privyUserId) {
+    return res.status(400).json({ error: "privyUserId is required in request body" });
+  }
+
+  console.log(`Processing profile request for user: ${privyUserId}`);
+
+  // Create or update user profile
+  const profile = await createOrUpdateUserProfile(privyUserId, req.body);
+
+  // Get dashboard data
+  const dashboardData = await getUserDashboardData(profile.id);
+
+  return res.status(200).json({
+    success: true,
+    data: dashboardData,
+  });
 }

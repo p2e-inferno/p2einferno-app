@@ -93,27 +93,38 @@ const AdminPaymentsPage: React.FC = () => {
       setReconcilingIds((prev) => new Set(prev).add(applicationId));
 
       const accessToken = await getAccessToken();
-      const response = await fetch("/api/admin/payments/reconcile", {
+      if (!accessToken) {
+        throw new Error("Failed to get access token");
+      }
+
+      // Use the comprehensive reconcile endpoint that handles all scenarios
+      const response = await fetch("/api/admin/applications/reconcile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ applicationId }),
+        body: JSON.stringify({ 
+          applicationId,
+          // Let the service determine what actions are needed
+          actions: []
+        }),
       });
 
       const result = await response.json();
+      console.log("Reconcile response:", { status: response.status, result });
 
       if (!response.ok) {
+        console.error("Reconcile failed:", result);
         throw new Error(result.error || "Reconciliation failed");
       }
 
-      if (result.reconciled) {
-        toast.success("Payment reconciled successfully!");
+      if (result.success) {
+        toast.success(result.message || "Payment reconciled successfully!");
         // Refresh the list
         await fetchTransactions();
       } else {
-        toast.error(result.message || "No valid key found for this user");
+        toast.error(result.message || "Reconciliation failed");
       }
     } catch (err) {
       console.error("Reconciliation error:", err);
