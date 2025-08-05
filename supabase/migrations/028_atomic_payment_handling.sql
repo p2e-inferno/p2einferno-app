@@ -35,13 +35,22 @@ DECLARE
     v_cohort_id TEXT;
     v_new_enrollment_id UUID;
 BEGIN
-    -- 1. Find the user and cohort associated with the application
-    SELECT up.id, a.cohort_id
+    -- 1. Find the user and cohort associated with the application using direct relationship
+    SELECT a.user_profile_id, a.cohort_id
     INTO v_user_profile_id, v_cohort_id
     FROM public.applications a
-    JOIN public.user_profiles up ON a.user_email = up.email
     WHERE a.id = p_application_id
     LIMIT 1;
+
+    -- Fallback to email lookup if user_profile_id is not set (for old applications)
+    IF v_user_profile_id IS NULL THEN
+        SELECT up.id
+        INTO v_user_profile_id
+        FROM public.applications a
+        JOIN public.user_profiles up ON a.user_email = up.email
+        WHERE a.id = p_application_id
+        LIMIT 1;
+    END IF;
 
     IF v_user_profile_id IS NULL THEN
         RAISE EXCEPTION 'User profile not found for application_id %', p_application_id;
