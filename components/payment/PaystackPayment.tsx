@@ -111,14 +111,14 @@ export function PaystackPayment({
           </div>
           <h3 className="text-blue-800 font-bold text-lg mb-2">Verifying Your Payment</h3>
           <p className="text-blue-700 mb-3">
-            Your payment is being processed by our secure payment system. This usually takes 30-60 seconds.
+            Your payment is being processed. This usually takes 30-45 seconds.
           </p>
           <div className="bg-blue-100 rounded-lg p-3 mb-3">
             <p className="text-blue-800 text-sm font-medium mb-2">What&apos;s happening:</p>
             <p className="text-blue-700 text-xs mb-3">
               • Payment submitted to Paystack ✓<br/>
-              • Waiting for webhook confirmation...<br/>
-              • Processing enrollment automatically
+              • Waiting for confirmation...<br/>
+              • Processing enrollment...
             </p>
             {pollingProgress.total > 0 && (
               <div className="mt-2">

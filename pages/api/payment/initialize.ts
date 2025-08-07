@@ -134,7 +134,8 @@ export default async function handler(
     );
 
     const paystackData = await paystackResponse.json();
-
+    console.log("paystackData from initialize:: ", paystackData);
+    
     if (!paystackData.status) {
       console.error("Paystack initialization failed:", paystackData);
       return res.status(400).json({
@@ -144,6 +145,7 @@ export default async function handler(
     }
 
     const officialReference = paystackData.data.reference || reference;
+    console.log("officialReference being saved to database:: ", officialReference);
 
     // Save payment transaction to database (use Paystack's confirmed reference)
     const { error: transactionError } = await supabase

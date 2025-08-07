@@ -16,6 +16,7 @@ export const useNotifications = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const pollInterval = 60000 * 60; // 1 hour
 
   const fetchNotifications = useCallback(async () => {
     if (!authenticated) return;
@@ -59,7 +60,7 @@ export const useNotifications = () => {
 
   useEffect(() => {
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 60000); // Poll every minute
+    const interval = setInterval(fetchNotifications, pollInterval); // Poll every hour
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 

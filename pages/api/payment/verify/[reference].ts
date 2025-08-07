@@ -2,6 +2,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "../../../../lib/supabase/server";
 import axios from "axios";
+import { extractAndValidateApplicationId } from "../../../../lib/payment-helpers";
 
 const supabase = createAdminClient();
 
@@ -20,7 +21,7 @@ async function verifyPaystackTransaction(reference: string) {
           Authorization: `Bearer ${secretKey}`,
           'Content-Type': 'application/json',
         },
-        timeout: 10000, // 10 second timeout
+        timeout: 20000, // 20 second timeout
       }
     );
 
@@ -31,13 +32,21 @@ async function verifyPaystackTransaction(reference: string) {
   }
 }
 
-// Manual payment processing when webhook failed but Paystack shows success
-async function processPaymentManually(paystackData: any) {
-  const applicationId = paystackData.data?.metadata?.applicationId;
+// Manual payment processing if webhook failed
+async function processPaymentManually(paystackData: any, req: NextApiRequest) {
+  // Extract applicationId using robust extraction logic
+  const extractionResult = extractAndValidateApplicationId(paystackData.data);
   
-  if (!applicationId) {
-    throw new Error("No applicationId found in Paystack metadata");
+  if (!extractionResult.success || !extractionResult.applicationId) {
+    console.error("Manual processing: Failed to extract applicationId", {
+      method: extractionResult.method,
+      availableMetadata: paystackData.data?.metadata ? Object.keys(paystackData.data.metadata) : 'none'
+    });
+    throw new Error("No applicationId found in referrer URL or Paystack metadata");
   }
+  
+  const applicationId = extractionResult.applicationId;
+  console.log(`Manual processing: Extracted applicationId via ${extractionResult.method}:`, applicationId);
 
   console.log("Manual payment processing for application:", applicationId);
 
@@ -55,6 +64,23 @@ async function processPaymentManually(paystackData: any) {
   }
 
   console.log("Manual payment processing successful:", data[0]);
+
+  // Update payment transaction with Paystack reference
+  try {
+    await supabase
+      .from('payment_transactions')
+      .update({ 
+        paystack_reference: paystackData.data.reference,
+        status: 'success'
+      })
+      .eq('application_id', applicationId);
+      
+    console.log("Manual processing: Updated transaction with Paystack reference:", paystackData.data.reference);
+  } catch (updateError) {
+    console.error("Manual processing: Failed to update Paystack reference:", updateError);
+    // Don't fail the entire process if this update fails
+  }
+
   return data[0];
 }
 
@@ -72,16 +98,69 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     console.log(`Payment verification for reference: ${reference}`);
 
-    // Step 1: Check webhook-updated status in our database
-    const { data: transaction, error: dbError } = await supabase
-      .from('payment_transactions')
-      .select('status, application_id, created_at')
-      .eq('payment_reference', reference)
-      .single();
+    // Step 1: Try to get applicationId from referrer header to query database
+    let applicationId: string | null = null;
+    const referrer = req.headers.referer || req.headers.referrer;
+    
+    if (referrer) {
+      const referrerMatch = referrer.match(/\/payment\/([a-fA-F0-9-]+)/);
+      if (referrerMatch && referrerMatch[1]) {
+        applicationId = referrerMatch[1];
+        console.log("Found applicationId from referrer header:", applicationId);
+      }
+    }
+
+    // Step 2: Check webhook-updated status in our database using applicationId if available
+    let transaction: any = null;
+    let dbError: any = null;
+    
+    if (applicationId) {
+      // Query by applicationId 
+      const result = await supabase
+        .from('payment_transactions')
+        .select('status, application_id, created_at, paystack_reference')
+        .eq('application_id', applicationId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      transaction = result.data;
+      dbError = result.error;
+      
+      console.log("Transaction lookup by applicationId:", {
+        found: !dbError && !!transaction,
+        status: transaction?.status,
+        applicationId: transaction?.application_id,
+        paystackReference: transaction?.paystack_reference,
+        createdAt: transaction?.created_at,
+        dbError: dbError?.message
+      });
+    } else {
+      // Fallback: Query by payment_reference
+      console.log("No applicationId found in referrer, falling back to reference lookup");
+      const result = await supabase
+        .from('payment_transactions')
+        .select('status, application_id, created_at, paystack_reference')
+        .eq('payment_reference', reference)
+        .single();
+      
+      transaction = result.data;
+      dbError = result.error;
+      
+      console.log("Transaction lookup by reference (fallback):", {
+        found: !dbError && !!transaction,
+        status: transaction?.status,
+        applicationId: transaction?.application_id,
+        paystackReference: transaction?.paystack_reference,
+        createdAt: transaction?.created_at,
+        dbError: dbError?.message,
+        reference: reference
+      });
+    }
 
     // If webhook processed successfully, return immediately
     if (!dbError && transaction && transaction.status === 'success') {
-      console.log("Webhook-processed payment found:", transaction.status);
+      console.log("✓ Webhook-processed payment found with success status");
       return res.status(200).json({
         success: true,
         message: 'Payment verified successfully',
@@ -95,7 +174,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     // If webhook shows failed, return immediately
     if (!dbError && transaction && transaction.status === 'failed') {
-      console.log("Webhook-processed payment failed:", transaction.status);
+      console.log("✗ Webhook-processed payment found with failed status");
       return res.status(200).json({
         success: false,
         message: 'Payment failed',
@@ -107,9 +186,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
-    // Step 2: Webhook hasn't processed or transaction not found
-    // Fall back to direct Paystack verification
-    console.log("Webhook not processed, falling back to Paystack API verification");
+    // Step 2: Check if we should wait for webhook
+    if (!dbError && transaction && transaction.status === 'pending') {
+      const now = Date.now();
+      const createdTime = new Date(transaction.created_at).getTime();
+      const pendingTime = now - createdTime;
+      const maxWebhookWaitTime = 30000; // 30 seconds for webhook
+      
+      console.log("Webhook wait analysis:", {
+        now: new Date(now).toISOString(),
+        createdAt: new Date(createdTime).toISOString(),
+        pendingTimeMs: pendingTime,
+        pendingTimeSeconds: Math.floor(pendingTime / 1000),
+        maxWaitTimeMs: maxWebhookWaitTime,
+        shouldWait: pendingTime < maxWebhookWaitTime
+      });
+      
+      if (pendingTime < maxWebhookWaitTime) {
+        const remainingWaitTime = Math.ceil((maxWebhookWaitTime - pendingTime) / 1000);
+        console.log(`⏳ Webhook wait: ${remainingWaitTime}s remaining`);
+        
+        return res.status(200).json({
+          success: false,
+          status: 'pending',
+          message: 'Payment is being processed. Please wait...',
+          source: 'webhook_pending',
+          retryAfter: remainingWaitTime
+        });
+      } else {
+        console.log("⏰ Webhook wait timeout exceeded, proceeding to fallback");
+      }
+    } else if (dbError) {
+      console.log("⚠️ Transaction not found in database, proceeding to fallback:", dbError.message);
+    } else if (!transaction) {
+      console.log("⚠️ No transaction record found, proceeding to fallback");
+    } else {
+      console.log(`⚠️ Transaction status is '${transaction.status}', proceeding to fallback`);
+    }
+
+    // Step 3: Webhook hasn't processed or timeout - fall back to direct Paystack verification
+    console.log("Webhook not processed or timeout, falling back to Paystack API verification");
     
     let paystackData;
     try {
@@ -117,14 +233,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } catch (error) {
       console.error("Paystack verification failed:", error);
       
-      // If we have a pending transaction in DB, return pending status
+      // If we have a pending transaction in DB, check how long it's been pending
       if (!dbError && transaction && transaction.status === 'pending') {
-        return res.status(200).json({
-          success: false,
-          status: 'pending',
-          message: 'Payment is being processed. Please wait...',
-          source: 'database'
-        });
+        const pendingTime = Date.now() - new Date(transaction.created_at).getTime();
+        const maxPendingTime = 15000; // 15 seconds max for pending
+        
+        if (pendingTime < maxPendingTime) {
+          return res.status(200).json({
+            success: false,
+            status: 'pending',
+            message: 'Payment is being processed. Please wait...',
+            source: 'database',
+            retryAfter: Math.ceil((maxPendingTime - pendingTime) / 1000) // seconds until timeout
+          });
+        } else {
+          // Pending too long, treat as not found and try Paystack fallback
+          console.log("Transaction pending too long, falling back to Paystack API");
+        }
       }
       
       // Otherwise, assume invalid reference
@@ -146,6 +271,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       });
     }
 
+    // Debug: Log what Paystack returned to understand the metadata issue
+    console.log("Paystack response data:", JSON.stringify({
+      status: paystackData.data.status,
+      amount: paystackData.data.amount,
+      metadata: paystackData.data.metadata,
+      customer: paystackData.data.customer
+    }, null, 2));
+
     const paystackStatus = paystackData.data.status;
     const paystackAmount = paystackData.data.amount;
 
@@ -154,7 +287,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'success':
         console.log("Paystack shows success, but webhook missed - processing manually");
         try {
-          const processResult = await processPaymentManually(paystackData);
+          const processResult = await processPaymentManually(paystackData, req);
           return res.status(200).json({
             success: true,
             message: 'Payment verified and processed successfully',

@@ -76,9 +76,9 @@ export const usePayment = (paymentData: PaymentConfig) => {
           }`
         : "";
 
-      // Enterprise polling approach - wait for webhook to update database
-      const maxPollingTime = 180000; // 3 minutes total
-      const pollInterval = 3000; // Poll every 3 seconds
+      // Production-ready polling: 30s for webhook + 15s fallback = 45s total
+      const maxPollingTime = 45000; // 45 seconds total (30s webhook + 15s fallback)
+      const pollInterval = 1000; // Poll every 1 second
       const maxAttempts = Math.floor(maxPollingTime / pollInterval);
       
       console.log(`Starting webhook polling for payment ${reference}`);

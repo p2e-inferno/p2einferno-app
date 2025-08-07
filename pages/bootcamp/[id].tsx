@@ -139,8 +139,8 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
         <section
           className="relative min-h-[60vh] flex items-center justify-center overflow-hidden"
           style={{
-            background:
-              'linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("/api/placeholder/1920/1080")',
+            backgroundImage:
+              "url('https://via.placeholder.com/1920x1080/1a1a1a/444444?text=Bootcamp+Hero')",
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundAttachment: "fixed",

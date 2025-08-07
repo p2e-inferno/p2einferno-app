@@ -199,8 +199,8 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
         <section
           className="relative min-h-screen flex items-center justify-center overflow-hidden"
           style={{
-            background:
-              'linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url("/api/placeholder/1920/1080")',
+            backgroundImage:
+              "url('https://via.placeholder.com/1920x1080/1a1a1a/444444?text=Cohort+Details')",
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundAttachment: "fixed",
