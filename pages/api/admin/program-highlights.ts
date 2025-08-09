@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
-import { verifyPrivyToken } from "@/lib/auth/privy-server";
+import { getPrivyUser } from "@/lib/auth/privy";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,15 +29,9 @@ export default async function handler(
 async function createHighlights(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Verify authentication
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    const token = authHeader.substring(7);
-    const user = await verifyPrivyToken(token);
+    const user = await getPrivyUser(req);
     if (!user) {
-      return res.status(401).json({ error: "Invalid token" });
+      return res.status(401).json({ error: "Authentication required" });
     }
 
     const { highlights, cohortId } = req.body;
@@ -112,15 +106,9 @@ async function getHighlights(req: NextApiRequest, res: NextApiResponse) {
 async function updateHighlight(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Verify authentication
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    const token = authHeader.substring(7);
-    const user = await verifyPrivyToken(token);
+    const user = await getPrivyUser(req);
     if (!user) {
-      return res.status(401).json({ error: "Invalid token" });
+      return res.status(401).json({ error: "Authentication required" });
     }
 
     const { id, ...updateData } = req.body;
@@ -157,15 +145,9 @@ async function updateHighlight(req: NextApiRequest, res: NextApiResponse) {
 async function deleteHighlight(req: NextApiRequest, res: NextApiResponse) {
   try {
     // Verify authentication
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
-
-    const token = authHeader.substring(7);
-    const user = await verifyPrivyToken(token);
+    const user = await getPrivyUser(req);
     if (!user) {
-      return res.status(401).json({ error: "Invalid token" });
+      return res.status(401).json({ error: "Authentication required" });
     }
 
     const { id } = req.query;

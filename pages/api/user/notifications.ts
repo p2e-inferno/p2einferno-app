@@ -8,12 +8,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(401).json({ error: "Unauthorized" });
   }
 
+  console.log(`[NOTIFICATIONS] Looking up profile for user.id: ${user.id}`);
+
   const supabase = createAdminClient();
-  const { data: profile } = await supabase.from('user_profiles').select('id').eq('privy_user_id', user.id).single();
+  const { data: profile, error: profileError } = await supabase
+    .from('user_profiles')
+    .select('id, privy_user_id')
+    .eq('privy_user_id', user.id)
+    .single();
+
+  if (profileError) {
+    console.error(`[NOTIFICATIONS] Profile lookup error:`, profileError);
+  }
 
   if (!profile) {
+    console.log(`[NOTIFICATIONS] No profile found for privy_user_id: ${user.id}`);
+    
+    // Debug: Check if any profiles exist at all
+    const { data: allProfiles } = await supabase
+      .from('user_profiles')
+      .select('privy_user_id')
+      .limit(5);
+    
+    console.log(`[NOTIFICATIONS] Sample existing privy_user_ids:`, allProfiles?.map(p => p.privy_user_id));
+    
     return res.status(404).json({ error: "User profile not found" });
   }
+
+  console.log(`[NOTIFICATIONS] Found profile with id: ${profile.id}`);
 
   if (req.method === 'GET') {
     const { data, error } = await supabase

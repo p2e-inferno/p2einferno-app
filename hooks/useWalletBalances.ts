@@ -107,8 +107,8 @@ export const useWalletBalances = () => {
         try {
           if (provider) {
             const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
-            usdcBalance = await (usdcContract as any).balanceOf(walletAddress);
-            usdcSymbol = await (usdcContract as any).symbol();
+            usdcBalance = await usdcContract.balanceOf?.(walletAddress) || 0n;
+            usdcSymbol = await usdcContract.symbol?.() || 'USDC';
           }
         } catch (usdcError) {
           console.warn('Error fetching USDC balance:', usdcError);
