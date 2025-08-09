@@ -221,6 +221,68 @@ export default function AdminDashboard() {
               </Button>
             </Link>
           </div>
+
+          {/* Blockchain & Keys Card */}
+          <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                  <circle cx="12" cy="16" r="1"></circle>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Blockchain & Keys</h2>
+            </div>
+            <p className="text-gray-400 mb-4">
+              Manage lock deployments and key granting reconciliation
+            </p>
+            <Link href="/admin/blockchain">
+              <Button className="w-full bg-steel-red hover:bg-steel-red/90 text-white">
+                Blockchain Tools
+              </Button>
+            </Link>
+          </div>
+
+          {/* Unlock Protocol Demo Card */}
+          <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="18" cy="5" r="3"></circle>
+                  <circle cx="6" cy="12" r="3"></circle>
+                  <circle cx="18" cy="19" r="3"></circle>
+                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Unlock Demo</h2>
+            </div>
+            <p className="text-gray-400 mb-4">
+              Test Unlock Protocol integration and utilities
+            </p>
+            <Link href="/admin/unlock-demo">
+              <Button className="w-full bg-steel-red hover:bg-steel-red/90 text-white">
+                Unlock Utils Demo
+              </Button>
+            </Link>
+          </div>
         </div>
       </div>
     </AdminLayout>

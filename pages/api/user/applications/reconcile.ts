@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { createPrivyClient } from "../../../../lib/privyUtils";
 
 import { StatusSyncService } from "../../../../lib/services/status-sync-service";

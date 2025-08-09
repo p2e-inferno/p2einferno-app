@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 // Note: This endpoint is now a simple proxy to invoke the Edge Function.
 // It can be secured with admin or user authentication as needed.

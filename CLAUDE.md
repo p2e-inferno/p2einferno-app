@@ -72,3 +72,10 @@ Main tables include:
 - `cohorts`: Bootcamp cohorts
 
 All tables use Row-Level Security (RLS) policies for authorization.
+
+## feature implementation and integrations
+- Always begin new feature implementations and integrations by searching the codebase for existing hooks, helper functions, utilities, and components that can be reused to avoid duplication.
+- Start by creating the relevant helper functions, hooks, utilities, and components before creating the feature, page, component or integration and use the components created to keep code modular.
+- Prioritize modularity and composability to ensure code is manageable and easy to maintain.
+- Use abstraction as much as possible to keep scripts, apis, components lean and clean.
+- Follow best practices and industry standards when creating helpers, hooks, utilities and place then in the appropriate folders do not create random folders.

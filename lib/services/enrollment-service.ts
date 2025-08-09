@@ -52,7 +52,15 @@ export const enrollmentService = {
         };
       }
 
-      if (!app.user_profiles) {
+      if (!app.user_profiles || app.user_profiles.length === 0) {
+        return { 
+          success: false, 
+          error: 'User profile not found for application' 
+        };
+      }
+
+      const userProfile = app.user_profiles[0];
+      if (!userProfile) {
         return { 
           success: false, 
           error: 'User profile not found for application' 
@@ -63,7 +71,7 @@ export const enrollmentService = {
       const { data: existingEnrollment, error: enrollmentCheckError } = await supabase
         .from('bootcamp_enrollments')
         .select('id, enrollment_status')
-        .eq('user_profile_id', app.user_profiles.id)
+        .eq('user_profile_id', userProfile.id)
         .eq('cohort_id', app.cohort_id)
         .single();
 
@@ -87,7 +95,7 @@ export const enrollmentService = {
       const { data: newEnrollment, error: createError } = await supabase
         .from('bootcamp_enrollments')
         .insert({
-          user_profile_id: app.user_profiles.id,
+          user_profile_id: userProfile.id,
           cohort_id: app.cohort_id,
           enrollment_status: 'enrolled',
           created_at: new Date().toISOString(),
@@ -189,12 +197,15 @@ export const enrollmentService = {
       const appsNeedingEnrollments = [];
       
       for (const app of applications || []) {
-        if (!app.user_profiles?.id) continue;
+        if (!app.user_profiles || app.user_profiles.length === 0) continue;
+        
+        const userProfile = app.user_profiles[0];
+        if (!userProfile) continue;
 
         const { data: enrollment } = await supabase
           .from('bootcamp_enrollments')
           .select('id')
-          .eq('user_profile_id', app.user_profiles.id)
+          .eq('user_profile_id', userProfile.id)
           .eq('cohort_id', app.cohort_id)
           .single();
 

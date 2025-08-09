@@ -1,7 +1,12 @@
 import { type Address, parseEther } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { ethers, formatUnits } from "ethers";
-import { CHAIN_CONFIG } from "../blockchain/config";
+import { UNIFIED_BLOCKCHAIN_CONFIG } from "../blockchain/config/unified-config";
+import { 
+  ensureCorrectNetwork as ensureCorrectNetworkShared,
+  getBlockExplorerUrl as getBlockExplorerUrlShared,
+  type NetworkConfig 
+} from "../blockchain/shared/network-utils";
 import { PUBLIC_LOCK_CONTRACT } from "../../constants";
 
 // ============================================================================
@@ -52,7 +57,7 @@ const UNLOCK_FACTORY_ADDRESSES = {
 } as const;
 
 // Unlock factory ABI (simplified for lock creation)
-const UnlockFactoryABI = [
+const UNLOCK_FACTORY_ABI = [
   {
     inputs: [
       { internalType: "bytes", name: "calldata", type: "bytes" },
@@ -66,7 +71,7 @@ const UnlockFactoryABI = [
 ] as const;
 
 // Additional ABI functions for lock management (extend existing PUBLIC_LOCK_CONTRACT.abi)
-const AdditionalLockABI = [
+const ADDITIONAL_LOCK_ABI = [
   // Initialize function for lock creation
   {
     inputs: [
@@ -135,7 +140,7 @@ const ERC20_ABI = [
 ] as const;
 
 // Combine existing ABI with additional functions
-const CompleteLockABI = [...PUBLIC_LOCK_CONTRACT.abi, ...AdditionalLockABI];
+const COMPLETE_LOCK_ABI = [...PUBLIC_LOCK_CONTRACT.abi, ...ADDITIONAL_LOCK_ABI];
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -145,7 +150,7 @@ const CompleteLockABI = [...PUBLIC_LOCK_CONTRACT.abi, ...AdditionalLockABI];
  * Create read-only provider for blockchain operations
  */
 export const getReadOnlyProvider = () => {
-  return new ethers.JsonRpcProvider(CHAIN_CONFIG.rpcUrl);
+  return new ethers.JsonRpcProvider(UNIFIED_BLOCKCHAIN_CONFIG.rpcUrl);
 };
 
 /**
@@ -154,11 +159,11 @@ export const getReadOnlyProvider = () => {
 const getFactoryAddress = (): Address => {
   const factoryAddress =
     UNLOCK_FACTORY_ADDRESSES[
-      CHAIN_CONFIG.chain.id as keyof typeof UNLOCK_FACTORY_ADDRESSES
+      UNIFIED_BLOCKCHAIN_CONFIG.chain.id as keyof typeof UNLOCK_FACTORY_ADDRESSES
     ];
   if (!factoryAddress) {
     throw new Error(
-      `Unlock factory not supported on chain ${CHAIN_CONFIG.chain.id}`
+      `Unlock factory not supported on chain ${UNIFIED_BLOCKCHAIN_CONFIG.chain.id}`
     );
   }
   return factoryAddress;
@@ -192,97 +197,101 @@ const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
 
 /**
  * Create ethers provider and signer from Privy wallet
- * Handles both user.wallet and wallets[0] wallet types
+ * Handles both user.wallet and wallets[0] wallet types, as well as external wallets
  */
 const createEthersFromPrivyWallet = async (wallet: any) => {
   if (!wallet || !wallet.address) {
     throw new Error("No wallet provided or not connected.");
   }
 
-  // Handle both wallet types:
-  // - wallets[0] from useWallets() has getEthereumProvider()
-  // - user.wallet from usePrivy() might have a different structure
+  console.log("🔧 [LOCK_UTILS] Creating ethers from wallet:", {
+    address: wallet.address,
+    walletClientType: wallet.walletClientType,
+    connectorType: wallet.connectorType,
+    type: wallet.type
+  });
+
+  // Handle different wallet types:
   let provider;
 
   if (typeof wallet.getEthereumProvider === "function") {
     // This is from useWallets() - has getEthereumProvider method
-    provider = await wallet.getEthereumProvider();
+    console.log("🔧 [LOCK_UTILS] Using getEthereumProvider method");
+    try {
+      provider = await wallet.getEthereumProvider();
+    } catch (error) {
+      console.error("🔧 [LOCK_UTILS] Error getting Ethereum provider:", error);
+      throw new Error("Failed to get Ethereum provider from wallet");
+    }
   } else if (wallet.provider) {
     // This might be user.wallet with direct provider access
+    console.log("🔧 [LOCK_UTILS] Using wallet.provider");
     provider = wallet.provider;
+  } else if (wallet.walletClientType === 'injected' || wallet.connectorType === 'injected') {
+    // This is an external wallet (MetaMask, etc.) - use window.ethereum
+    console.log("🔧 [LOCK_UTILS] Using window.ethereum for injected wallet");
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      provider = (window as any).ethereum;
+    } else {
+      throw new Error("Window.ethereum not available. Please ensure MetaMask or another injected wallet is connected.");
+    }
   } else {
-    throw new Error(
-      "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected."
-    );
+    // Try to use window.ethereum as a fallback for external wallets
+    console.log("🔧 [LOCK_UTILS] Trying window.ethereum as fallback");
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      provider = (window as any).ethereum;
+    } else {
+      throw new Error(
+        "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected."
+      );
+    }
   }
 
-  const ethersProvider = new ethers.BrowserProvider(provider);
-  const signer = await ethersProvider.getSigner();
+  if (!provider) {
+    throw new Error("No provider available for wallet");
+  }
 
-  return { provider: ethersProvider, signer, rawProvider: provider };
+  console.log("🔧 [LOCK_UTILS] Provider obtained:", provider);
+
+  try {
+    const ethersProvider = new ethers.BrowserProvider(provider);
+    const signer = await ethersProvider.getSigner();
+
+    console.log("🔧 [LOCK_UTILS] Ethers provider and signer created successfully");
+
+    return { provider: ethersProvider, signer, rawProvider: provider };
+  } catch (error) {
+    console.error("🔧 [LOCK_UTILS] Error creating ethers provider:", error);
+    throw new Error("Failed to create ethers provider from wallet");
+  }
 };
 
 /**
  * Switch to the correct network for Unlock operations
+ * Uses shared network utilities
  */
 const ensureCorrectNetwork = async (rawProvider: any) => {
-  const targetChainId = CHAIN_CONFIG.chain.id;
-  const targetChainIdHex = `0x${targetChainId.toString(16)}`;
-
-  console.log(`Ensuring wallet is on chain ${targetChainId}`);
-
-  try {
-    await rawProvider.request({
-      method: "wallet_switchEthereumChain",
-      params: [{ chainId: targetChainIdHex }],
-    });
-  } catch (switchError: any) {
-    // If the chain hasn't been added to wallet, add it
-    if (switchError.code === 4902) {
-      console.log(`Adding ${CHAIN_CONFIG.chain.name} network to wallet`);
-
-      const chainConfig = {
-        chainId: targetChainIdHex,
-        chainName: CHAIN_CONFIG.chain.name,
-        nativeCurrency: CHAIN_CONFIG.chain.nativeCurrency,
-        rpcUrls: [CHAIN_CONFIG.rpcUrl],
-        blockExplorerUrls: CHAIN_CONFIG.chain.blockExplorers?.default
-          ? [CHAIN_CONFIG.chain.blockExplorers.default.url]
-          : undefined,
-      };
-
-      await rawProvider.request({
-        method: "wallet_addEthereumChain",
-        params: [chainConfig],
-      });
-    } else {
-      throw switchError;
-    }
-  }
-
-  // Wait for network switch to complete
-  await new Promise((resolve) => setTimeout(resolve, 1000));
-
-  // Verify we're on the correct network
-  const currentChainId = await rawProvider.request({ method: "eth_chainId" });
-  const currentChainIdDecimal = parseInt(currentChainId, 16);
-
-  if (currentChainIdDecimal !== targetChainId) {
-    throw new Error(
-      `Failed to switch to ${CHAIN_CONFIG.chain.name}. Current network: ${currentChainIdDecimal}, Expected: ${targetChainId}`
-    );
-  }
+  const networkConfig: NetworkConfig = {
+    chain: UNIFIED_BLOCKCHAIN_CONFIG.chain,
+    rpcUrl: UNIFIED_BLOCKCHAIN_CONFIG.rpcUrl,
+    networkName: UNIFIED_BLOCKCHAIN_CONFIG.networkName,
+  };
+  
+  return ensureCorrectNetworkShared(rawProvider, networkConfig);
 };
 
 /**
  * Get block explorer URL for transaction
+ * Uses shared network utilities
  */
 export const getBlockExplorerUrl = (txHash: string): string => {
-  const explorer = CHAIN_CONFIG.chain.blockExplorers?.default?.url;
-  if (!explorer) {
-    return `https://etherscan.io/tx/${txHash}`;
-  }
-  return `${explorer}/tx/${txHash}`;
+  const networkConfig: NetworkConfig = {
+    chain: UNIFIED_BLOCKCHAIN_CONFIG.chain,
+    rpcUrl: UNIFIED_BLOCKCHAIN_CONFIG.rpcUrl,
+    networkName: UNIFIED_BLOCKCHAIN_CONFIG.networkName,
+  };
+  
+  return getBlockExplorerUrlShared(txHash, networkConfig);
 };
 
 // ============================================================================
@@ -306,7 +315,7 @@ export const getTotalKeys = async (lockAddress: string): Promise<number> => {
     const provider = getReadOnlyProvider();
     const lockContract = new ethers.Contract(
       lockAddress,
-      CompleteLockABI,
+      COMPLETE_LOCK_ABI,
       provider
     ) as any;
     const totalSupply = await lockContract.totalSupply();
@@ -336,7 +345,7 @@ export const checkKeyOwnership = async (
     const provider = getReadOnlyProvider();
     const lockContract = new ethers.Contract(
       lockAddress,
-      CompleteLockABI,
+      COMPLETE_LOCK_ABI,
       provider
     ) as any;
     return await lockContract.getHasValidKey(userAddress);
@@ -365,7 +374,7 @@ export const getUserKeyBalance = async (
     const provider = getReadOnlyProvider();
     const lockContract = new ethers.Contract(
       lockAddress,
-      CompleteLockABI,
+      COMPLETE_LOCK_ABI,
       provider
     ) as any;
     const balance = await lockContract.balanceOf(userAddress);
@@ -400,7 +409,7 @@ export const getKeyPrice = async (
     const provider = getReadOnlyProvider();
     const lockContract = new ethers.Contract(
       lockAddress,
-      CompleteLockABI,
+      COMPLETE_LOCK_ABI,
       provider
     ) as any;
 
@@ -465,7 +474,7 @@ export const purchaseKey = async (
 
     const lockContract = new ethers.Contract(
       lockAddress,
-      CompleteLockABI,
+      COMPLETE_LOCK_ABI,
       signer
     ) as any;
 
@@ -602,7 +611,7 @@ export const deployLock = async (
     // Create an instance of the Unlock factory contract
     const unlock = new ethers.Contract(
       factoryAddress,
-      UnlockFactoryABI,
+      UNLOCK_FACTORY_ABI,
       signer
     ) as any;
 
@@ -614,7 +623,7 @@ export const deployLock = async (
     const tokenAddress =
       config.currency === "FREE"
         ? "0x0000000000000000000000000000000000000000" // Free locks use ETH address
-        : CHAIN_CONFIG.usdcTokenAddress ||
+        : UNIFIED_BLOCKCHAIN_CONFIG.usdcTokenAddress ||
           "0x0000000000000000000000000000000000000000";
 
     console.log(
@@ -626,7 +635,22 @@ export const deployLock = async (
     );
 
     // Create calldata using PublicLock's ABI to encode the initialize function
-    const lockInterface = new ethers.Interface(AdditionalLockABI);
+    const lockInterface = new ethers.Interface([
+      {
+        inputs: [
+          { internalType: "address", name: "_lockCreator", type: "address" },
+          { internalType: "uint256", name: "_expirationDuration", type: "uint256" },
+          { internalType: "address", name: "_tokenAddress", type: "address" },
+          { internalType: "uint256", name: "_keyPrice", type: "uint256" },
+          { internalType: "uint256", name: "_maxNumberOfKeys", type: "uint256" },
+          { internalType: "string", name: "_lockName", type: "string" },
+        ],
+        name: "initialize",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function",
+      }
+    ]);
     const calldata = lockInterface.encodeFunctionData("initialize", [
       wallet.address, // address of the first lock manager
       config.expirationDuration, // expirationDuration (in seconds)
@@ -787,7 +811,7 @@ export const grantKeys = async (
 
     const lockContract = new ethers.Contract(
       lockAddress,
-      CompleteLockABI,
+      COMPLETE_LOCK_ABI,
       signer
     ) as any;
 
@@ -892,7 +916,7 @@ export const addLockManager = async (
 
     const lockContract = new ethers.Contract(
       lockAddress,
-      CompleteLockABI,
+      COMPLETE_LOCK_ABI,
       signer
     ) as any;
 

@@ -40,6 +40,8 @@
     "embla-carousel-react": "^8.6.0",
     "ethers": "^6.15.0",
     "framer-motion": "^12.16.0",
+    "ignore-loader": "^0.1.2",
+    "jose": "^6.0.12",
     "lucide-react": "^0.513.0",
     "micro": "^10.0.1",
     "motion": "^12.16.0",

@@ -1,8 +1,11 @@
 // Path: p2einferno-app/pages/api/payment/verify/[reference].ts
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import axios from "axios";
 import { extractAndValidateApplicationId } from "../../../../lib/payment-helpers";
+import { grantKeyService } from "../../../../lib/blockchain/grant-key-service";
+import { isServerBlockchainConfigured } from "../../../../lib/blockchain/server-config";
+import { isValidEthereumAddress } from "../../../../lib/blockchain/transaction-helpers";
 
 const supabase = createAdminClient();
 
@@ -33,7 +36,7 @@ async function verifyPaystackTransaction(reference: string) {
 }
 
 // Manual payment processing if webhook failed
-async function processPaymentManually(paystackData: any, req: NextApiRequest) {
+async function processPaymentManually(paystackData: any) {
   // Extract applicationId using robust extraction logic
   const extractionResult = extractAndValidateApplicationId(paystackData.data);
   
@@ -84,6 +87,163 @@ async function processPaymentManually(paystackData: any, req: NextApiRequest) {
   return data[0];
 }
 
+// Grant key to user after successful payment
+async function grantKeyToUser(applicationId: string, maxRetries: number = 2) {
+  if (!isServerBlockchainConfigured()) {
+    console.warn("Key granting skipped - server blockchain not configured");
+    return { success: false, error: "Blockchain not configured" };
+  }
+
+  try {
+    // Get user profile and cohort info
+    const { data: application, error: appError } = await supabase
+      .from('applications')
+      .select(`
+        user_profile_id,
+        cohort_id,
+        cohorts!inner(
+          name,
+          lock_address
+        )
+      `)
+      .eq('id', applicationId)
+      .single();
+
+    if (appError || !application) {
+      console.error("Error fetching application for key granting:", appError);
+      return { success: false, error: "Application not found" };
+    }
+
+    // Get user wallet address
+    const { data: userProfile, error: profileError } = await supabase
+      .from('user_profiles')
+      .select('wallet_address, privy_user_id')
+      .eq('id', application.user_profile_id)
+      .single();
+
+    if (profileError || !userProfile) {
+      console.error("Error fetching user profile for key granting:", profileError);
+      return { success: false, error: "User profile not found" };
+    }
+
+    const cohort = Array.isArray(application.cohorts) ? application.cohorts[0] : application.cohorts;
+    if (!cohort?.lock_address) {
+      console.warn(`Cohort ${cohort?.name} has no lock address - skipping key granting`);
+      return { success: false, error: "Cohort has no lock address" };
+    }
+
+    if (!userProfile.wallet_address) {
+      console.warn(`User ${userProfile.privy_user_id} has no wallet address - skipping key granting`);
+      return { success: false, error: "User has no wallet address" };
+    }
+
+    if (!isValidEthereumAddress(userProfile.wallet_address)) {
+      console.error(`Invalid wallet address for user ${userProfile.privy_user_id}: ${userProfile.wallet_address}`);
+      return { success: false, error: "Invalid user wallet address" };
+    }
+
+    console.log(`Granting key to user ${userProfile.wallet_address} for cohort ${cohort.name} (${cohort.lock_address})`);
+
+    // Check if user already has a valid key
+    const hasValidKey = await grantKeyService.userHasValidKey(
+      userProfile.wallet_address,
+      cohort.lock_address as `0x${string}`
+    );
+
+    if (hasValidKey) {
+      console.log(`User ${userProfile.wallet_address} already has a valid key for cohort ${cohort.name}`);
+      return { success: true, message: "User already has valid key" };
+    }
+
+    // Grant key with retry logic
+    let lastError: string = "";
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`Key granting attempt ${attempt}/${maxRetries}`);
+        
+        const grantResult = await grantKeyService.grantKeyToUser({
+          walletAddress: userProfile.wallet_address,
+          lockAddress: cohort.lock_address as `0x${string}`,
+          keyManagers: [],
+        });
+
+        if (grantResult.success) {
+          console.log(`Key granted successfully on attempt ${attempt}:`, grantResult);
+          
+          // Log successful key granting
+          await supabase
+            .from('user_activities')
+            .insert({
+              user_profile_id: application.user_profile_id,
+              activity_type: 'key_granted',
+              activity_data: {
+                cohortId: application.cohort_id,
+                lockAddress: cohort.lock_address,
+                transactionHash: grantResult.transactionHash,
+                attempt: attempt,
+              },
+              points_earned: 0,
+            });
+
+          return {
+            success: true,
+            message: "Key granted successfully",
+            transactionHash: grantResult.transactionHash,
+          };
+        } else {
+          lastError = grantResult.error || "Unknown error";
+          console.error(`Key granting attempt ${attempt} failed:`, lastError);
+          
+          if (attempt < maxRetries) {
+            const delay = attempt * 2000; // Exponential backoff: 2s, 4s
+            console.log(`Retrying in ${delay}ms...`);
+            await new Promise(resolve => setTimeout(resolve, delay));
+          }
+        }
+      } catch (error: any) {
+        lastError = error.message || "Unexpected error";
+        console.error(`Key granting attempt ${attempt} threw error:`, error);
+        
+        if (attempt < maxRetries) {
+          const delay = attempt * 2000;
+          console.log(`Retrying in ${delay}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+    }
+
+    // All retries failed - log for reconciliation
+    console.error(`Key granting failed after ${maxRetries} attempts. Logging for reconciliation.`);
+    
+    await supabase
+      .from('user_activities')
+      .insert({
+        user_profile_id: application.user_profile_id,
+        activity_type: 'key_grant_failed',
+        activity_data: {
+          cohortId: application.cohort_id,
+          lockAddress: cohort.lock_address,
+          error: lastError,
+          attempts: maxRetries,
+          requiresReconciliation: true,
+        },
+        points_earned: 0,
+      });
+
+    return {
+      success: false,
+      error: `Key granting failed after ${maxRetries} attempts: ${lastError}`,
+    };
+
+  } catch (error: any) {
+    console.error("Key granting setup error:", error);
+    return {
+      success: false,
+      error: error.message || "Setup error for key granting",
+    };
+  }
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -103,10 +263,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const referrer = req.headers.referer || req.headers.referrer;
     
     if (referrer) {
-      const referrerMatch = referrer.match(/\/payment\/([a-fA-F0-9-]+)/);
-      if (referrerMatch && referrerMatch[1]) {
-        applicationId = referrerMatch[1];
-        console.log("Found applicationId from referrer header:", applicationId);
+      const referrerString = Array.isArray(referrer) ? referrer[0] : referrer;
+      if (referrerString) {
+        const referrerMatch = referrerString.match(/\/payment\/([a-fA-F0-9-]+)/);
+        if (referrerMatch && referrerMatch[1]) {
+          applicationId = referrerMatch[1];
+          console.log("Found applicationId from referrer header:", applicationId);
+        }
       }
     }
 
@@ -161,6 +324,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // If webhook processed successfully, return immediately
     if (!dbError && transaction && transaction.status === 'success') {
       console.log("✓ Webhook-processed payment found with success status");
+      
+      // Grant key to user for webhook-processed payments
+      console.log("Webhook-processed payment successful, attempting to grant key to user...");
+      const keyGrantResult = await grantKeyToUser(transaction.application_id);
+      
+      if (keyGrantResult.success) {
+        console.log("Key granting successful for webhook payment:", keyGrantResult.message);
+      } else {
+        console.warn("Key granting failed for webhook payment:", keyGrantResult.error);
+        // Note: We don't fail the payment response if key granting fails
+      }
+      
       return res.status(200).json({
         success: true,
         message: 'Payment verified successfully',
@@ -168,6 +343,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         data: {
           status: transaction.status,
           applicationId: transaction.application_id,
+          keyGranted: keyGrantResult.success,
+          keyGrantMessage: keyGrantResult.message,
         }
       });
     }
@@ -287,7 +464,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       case 'success':
         console.log("Paystack shows success, but webhook missed - processing manually");
         try {
-          const processResult = await processPaymentManually(paystackData, req);
+          const processResult = await processPaymentManually(paystackData);
+          
+          // Grant key to user after successful payment processing
+          console.log("Payment processing successful, attempting to grant key to user...");
+          const keyGrantResult = await grantKeyToUser(processResult.returned_application_id);
+          
+          if (keyGrantResult.success) {
+            console.log("Key granting successful:", keyGrantResult.message);
+          } else {
+            console.warn("Key granting failed but payment processed:", keyGrantResult.error);
+            // Note: We don't fail the payment response if key granting fails
+            // The reconciliation system will handle retry later
+          }
+          
           return res.status(200).json({
             success: true,
             message: 'Payment verified and processed successfully',
@@ -297,6 +487,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               applicationId: processResult.returned_application_id,
               enrollmentId: processResult.enrollment_id,
               amount: paystackAmount / 100, // Convert from kobo
+              keyGranted: keyGrantResult.success,
+              keyGrantMessage: keyGrantResult.message,
             }
           });
         } catch (error) {

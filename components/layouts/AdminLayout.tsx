@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { useAdminAuth } from "@/hooks/useAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
+import { PrivyConnectButton } from "@/components/PrivyConnectButton";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -29,16 +30,22 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen bg-black">
+      {/* Header with wallet connection */}
+      <div className="bg-gray-900 border-b border-gray-800">
+        <div className="flex items-center justify-between px-6 py-4">
+          <div className="flex items-center space-x-4">
+            <h1 className="text-xl font-bold text-flame-yellow">Admin Panel</h1>
+            <span className="text-gray-400 text-sm">P2E Inferno Management</span>
+          </div>
+          <div className="flex items-center">
+            <PrivyConnectButton />
+          </div>
+        </div>
+      </div>
+
       <div className="flex">
         {/* Sidebar */}
         <div className="w-64 bg-gray-900 min-h-screen p-6">
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold text-flame-yellow">
-              Admin Panel
-            </h1>
-            <p className="text-gray-400 text-sm">P2E Inferno Management</p>
-          </div>
-
           <nav className="space-y-2">
             <Link
               href="/admin"

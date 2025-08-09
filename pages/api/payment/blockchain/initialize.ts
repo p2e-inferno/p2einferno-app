@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import {
   generatePaymentReference,
   validatePaymentAmount,
@@ -93,7 +93,7 @@ export default async function handler(
         .json({ error: "Payment already completed for this application" });
     }
 
-    const cohort = application.cohorts;
+    const cohort = Array.isArray(application.cohorts) ? application.cohorts[0] : application.cohorts;
     if (!cohort || cohort.usdt_amount !== amount) {
       return res.status(400).json({ error: "Invalid amount for this cohort." });
     }

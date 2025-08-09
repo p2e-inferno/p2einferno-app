@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 const supabase = createAdminClient();
 

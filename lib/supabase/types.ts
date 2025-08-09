@@ -77,6 +77,7 @@ export interface Quest {
   image_url?: string;
   total_reward: number;
   is_active: boolean;
+  lock_address?: string;
   created_at: string;
   updated_at: string;
   quest_tasks: QuestTask[];

@@ -1,4 +1,5 @@
 import axios from "axios";
+import * as jose from "jose";
 
 // Create axios instance with default config
 const api = axios.create({
@@ -94,12 +95,60 @@ export function hasValidPrivyToken(): boolean {
     const parsedState = JSON.parse(privyAuthState);
     if (!parsedState?.token) return false;
 
-    // Check if token is expired by checking the exp claim
-    // This is a simple check - in production you might want to decode the JWT
-    // and check the expiration time more precisely
+    // Decode JWT without verification to check expiration
+    const token = parsedState.token;
+    const payload = jose.decodeJwt(token);
+    
+    if (!payload.exp) return false;
+    
+    // Check if token is expired (exp is in seconds, Date.now() is in milliseconds)
+    const currentTime = Math.floor(Date.now() / 1000);
+    const isExpired = payload.exp < currentTime;
+    
+    if (isExpired) {
+      console.warn("Privy token has expired");
+      return false;
+    }
+
     return true;
   } catch (error) {
     console.error("Error checking Privy token:", error);
+    return false;
+  }
+}
+
+/**
+ * Server-side verification of Privy JWT tokens using public verification key
+ * @param token The JWT token to verify
+ * @returns Promise<boolean> True if token is valid and not expired
+ */
+export async function verifyPrivyTokenServer(token: string): Promise<boolean> {
+  try {
+    const verificationKey = process.env.NEXT_PRIVY_VERIFICATION_KEY;
+    const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+    
+    if (!verificationKey || !appId) {
+      console.error("Missing Privy verification key or app ID");
+      return false;
+    }
+
+    // Import the ES256 public key
+    const publicKey = await jose.importSPKI(verificationKey, "ES256");
+    
+    // Verify the JWT with proper issuer and audience checks
+    const { payload } = await jose.jwtVerify(token, publicKey, {
+      issuer: "privy.io",
+      audience: appId,
+    });
+
+    // Additional expiration check (jose.jwtVerify should handle this, but being explicit)
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Error verifying Privy token:", error);
     return false;
   }
 }

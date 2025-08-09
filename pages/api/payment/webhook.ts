@@ -1,6 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createHmac } from "crypto";
-import { createAdminClient } from "../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { buffer } from 'micro';
 import { extractAndValidateApplicationId } from "../../../lib/payment-helpers";
 

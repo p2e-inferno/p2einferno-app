@@ -6,8 +6,18 @@ import { Label } from "@/components/ui/label";
 import { CopyBadge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase/client";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
-import { nanoid } from "nanoid";
+import { toast } from "react-hot-toast";
+import { unlockUtils } from "@/lib/unlock/lockUtils";
+import { generateCohortLockConfig, createLockConfigWithManagers } from "@/lib/blockchain/admin-lock-config";
+import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
+import { 
+  saveDraft, 
+  removeDraft, 
+  getDraft, 
+  savePendingDeployment
+} from "@/lib/utils/lock-deployment-state";
 
 interface CohortFormProps {
   cohort?: Cohort;
@@ -26,13 +36,18 @@ export default function CohortForm({
   );
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
   const { getAccessToken } = usePrivy();
+  const wallet = useSmartWalletSelection();
   const [keyManagersInput, setKeyManagersInput] = useState<string>(
     cohort?.key_managers?.join(", ") || ""
   );
+  
+  // Lock deployment state
+  const [isDeployingLock, setIsDeployingLock] = useState(false);
+  const [deploymentStep, setDeploymentStep] = useState<string>("");
+  const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
 
   const [formData, setFormData] = useState<Partial<Cohort>>(
     cohort || {
-      id: nanoid(10),
       name: "",
       bootcamp_program_id: "",
       start_date: "",
@@ -47,6 +62,17 @@ export default function CohortForm({
       naira_amount: 0,
     }
   );
+
+  // Load draft data on mount
+  useEffect(() => {
+    if (!isEditing) {
+      const draft = getDraft('cohort');
+      if (draft) {
+        setFormData(prev => ({ ...prev, ...draft.formData }));
+        toast.success("Restored draft data");
+      }
+    }
+  }, [isEditing]);
 
   // Fetch bootcamp programs
   useEffect(() => {
@@ -95,6 +121,94 @@ export default function CohortForm({
     }));
   };
 
+  // Deploy lock for the cohort
+  const deployLockForCohort = async (): Promise<string | undefined> => {
+    if (!wallet) {
+      toast.error("Please connect your wallet to deploy the lock");
+      return undefined;
+    }
+
+    if (!formData.name) {
+      toast.error("Please enter cohort name before deploying lock");
+      return undefined;
+    }
+
+    setIsDeployingLock(true);
+    setDeploymentStep("Checking network...");
+
+    try {
+      setDeploymentStep("Preparing lock configuration...");
+
+      // Generate lock config from cohort data
+      const lockConfig = generateCohortLockConfig(formData as Cohort);
+      const deployConfig = createLockConfigWithManagers(lockConfig);
+      
+      setDeploymentStep("Deploying lock on blockchain...");
+      toast.loading("Deploying cohort access lock...", { id: "lock-deploy" });
+
+      // Deploy the lock
+      const result = await unlockUtils.deployLock(deployConfig, wallet);
+
+      if (!result.success) {
+        throw new Error(result.error || "Lock deployment failed");
+      }
+
+      // Get lock address from deployment result
+      if (!result.lockAddress) {
+        throw new Error("Lock deployment succeeded but no lock address returned");
+      }
+
+      const lockAddress = result.lockAddress;
+      setDeploymentStep("Lock deployed successfully!");
+
+      // Save deployment state before database operation
+      const deploymentId = savePendingDeployment({
+        lockAddress,
+        entityType: 'cohort',
+        entityData: formData,
+        transactionHash: result.transactionHash,
+        blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
+      });
+
+      toast.success(
+        <>
+          Lock deployed successfully!
+          <br />
+          {result.transactionHash && (
+            <a 
+              href={getBlockExplorerUrl(result.transactionHash)} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              View transaction
+            </a>
+          )}
+        </>,
+        { 
+          id: "lock-deploy",
+          duration: 5000 
+        }
+      );
+
+      console.log("Lock deployed:", {
+        lockAddress,
+        transactionHash: result.transactionHash,
+        deploymentId,
+      });
+
+      return lockAddress;
+
+    } catch (error: any) {
+      console.error("Lock deployment failed:", error);
+      toast.error(error.message || "Failed to deploy lock", { id: "lock-deploy" });
+      setDeploymentStep("");
+      throw error;
+    } finally {
+      setIsDeployingLock(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -103,7 +217,6 @@ export default function CohortForm({
     try {
       // Validate required fields
       if (
-        !formData.id ||
         !formData.name ||
         !formData.bootcamp_program_id ||
         !formData.start_date ||
@@ -126,9 +239,32 @@ export default function CohortForm({
         .map((addr) => addr.trim())
         .filter((addr) => addr.length > 0);
 
+      // Save draft before starting deployment (for new cohorts)
+      if (!isEditing) {
+        saveDraft('cohort', formData);
+      }
+
+      let lockAddress: string | undefined = formData.lock_address || undefined;
+
+      // Deploy lock if not editing and auto-creation is enabled and no lock address provided
+      if (!isEditing && showAutoLockCreation && !lockAddress && (formData.usdt_amount || formData.naira_amount)) {
+        try {
+          console.log("Auto-deploying lock for cohort...");
+          lockAddress = await deployLockForCohort();
+          
+          if (!lockAddress) {
+            throw new Error("Lock deployment failed");
+          }
+        } catch (deployError: any) {
+          // If lock deployment fails, don't create the cohort
+          throw new Error(`Lock deployment failed: ${deployError.message}`);
+        }
+      }
+
       const dataToSave = {
         ...formData,
         key_managers: keyManagers,
+        lock_address: lockAddress,
       };
 
       const apiUrl = "/api/admin/cohorts";
@@ -164,6 +300,14 @@ export default function CohortForm({
           throw new Error(err.error || "Failed to save cohort");
         }
       } else {
+        // Clean up drafts and pending deployments on success
+        if (!isEditing) {
+          removeDraft('cohort');
+          // Note: removePendingDeployment will be called by the recovery endpoint if used
+        }
+        
+        toast.success(isEditing ? "Cohort updated successfully!" : "Cohort created successfully!");
+        
         // Redirect back to cohort list
         router.push("/admin/cohorts");
       }
@@ -211,11 +355,11 @@ export default function CohortForm({
       )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="id" className="text-white">
-            Cohort ID (unique identifier)
-          </Label>
-          {isEditing ? (
+        {isEditing && (
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="id" className="text-white">
+              Cohort ID
+            </Label>
             <div className="mt-1">
               <CopyBadge
                 value={formData.id || ""}
@@ -223,20 +367,10 @@ export default function CohortForm({
                 className="text-gray-100 border-gray-600 bg-gray-900/50 hover:bg-gray-800 py-1.5 px-3"
               />
             </div>
-          ) : (
-            <Input
-              id="id"
-              name="id"
-              value={formData.id}
-              onChange={handleChange}
-              placeholder="e.g., cohort-2024-q1"
-              required
-              className={inputClass}
-            />
-          )}
-        </div>
+          </div>
+        )}
 
-        <div className="space-y-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="name" className="text-white">
             Cohort Name
           </Label>
@@ -383,20 +517,56 @@ export default function CohortForm({
         )}
 
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="lock_address" className="text-white">
-            Lock Address
-          </Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="lock_address" className="text-white">
+              Lock Address
+            </Label>
+            {!isEditing && !formData.lock_address && (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="auto_lock_creation"
+                  checked={showAutoLockCreation}
+                  onChange={(e) => setShowAutoLockCreation(e.target.checked)}
+                  className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+                />
+                <Label htmlFor="auto_lock_creation" className="text-sm text-gray-300 cursor-pointer">
+                  Auto-create lock
+                </Label>
+              </div>
+            )}
+          </div>
+          
           <Input
             id="lock_address"
             name="lock_address"
             value={formData.lock_address}
             onChange={handleChange}
-            placeholder="e.g., 0x1234..."
+            placeholder={showAutoLockCreation && !isEditing ? "Will be auto-generated..." : "e.g., 0x1234..."}
             className={inputClass}
+            disabled={showAutoLockCreation && !isEditing}
           />
-          <p className="text-sm text-gray-400 mt-1">
-            Optional: Unlock Protocol lock address for cohort access NFTs
-          </p>
+          
+          {showAutoLockCreation && !isEditing && !formData.lock_address && (
+            <p className="text-sm text-blue-400 mt-1">
+              ✨ A new lock will be automatically deployed for this cohort using your connected wallet
+            </p>
+          )}
+          
+          {!showAutoLockCreation && (
+            <p className="text-sm text-gray-400 mt-1">
+              Optional: Unlock Protocol lock address for cohort access NFTs
+            </p>
+          )}
+          
+          {isDeployingLock && (
+            <div className="bg-blue-900/20 border border-blue-700 text-blue-300 px-3 py-2 rounded mt-2">
+              <div className="flex items-center space-x-2">
+                <div className="w-4 h-4 border-2 border-blue-300/20 border-t-blue-300 rounded-full animate-spin" />
+                <span className="text-sm">{deploymentStep}</span>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="space-y-2 md:col-span-2">

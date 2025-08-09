@@ -1,9 +1,11 @@
 import { type Address, type Hash, formatEther } from "viem";
 import {
-  createBlockchainPublicClient,
-  createBlockchainWalletClient,
-} from "./config";
-import { PUBLIC_LOCK_CONTRACT } from "../../constants";
+  createServerPublicClient,
+  createServerWalletClient,
+} from "./server-config";
+import { COMPLETE_LOCK_ABI } from "./shared/abi-definitions";
+import { blockchainLogger } from "./shared/logging-utils";
+import { extractTokenIdsFromReceipt } from "./shared/transaction-utils";
 export interface GrantKeysParams {
   recipientAddress: Address;
   lockAddress: Address;
@@ -34,9 +36,15 @@ export class LockManagerService {
   private contractAbi;
 
   constructor() {
-    this.publicClient = createBlockchainPublicClient();
-    this.walletClient = createBlockchainWalletClient(); // May be null if no private key
-    this.contractAbi = PUBLIC_LOCK_CONTRACT.abi;
+    this.publicClient = createServerPublicClient();
+    this.walletClient = createServerWalletClient();
+    this.contractAbi = COMPLETE_LOCK_ABI;
+    
+    blockchainLogger.debug("LockManagerService initialized", {
+      operation: "constructor",
+      hasWalletClient: !!this.walletClient,
+      chainId: this.publicClient.chain?.id
+    });
   }
 
   /**
@@ -52,8 +60,9 @@ export class LockManagerService {
   }: GrantKeysParams): Promise<GrantKeysResult> {
     // Check if wallet client is available
     if (!this.walletClient) {
-      console.error(
-        "Grant keys operation not available - No private key configured"
+      blockchainLogger.logConfigurationWarning(
+        "Grant keys operation not available - No private key configured",
+        { operation: "grantKeys", recipientAddress }
       );
       return {
         success: false,
@@ -63,7 +72,12 @@ export class LockManagerService {
     }
 
     try {
-      console.log(`Granting key to address: ${recipientAddress}`);
+      blockchainLogger.logTransactionStart("grantKeys", {
+        operation: "grantKeys",
+        recipientAddress,
+        lockAddress,
+        expirationDuration: expirationDuration?.toString()
+      });
 
       // Get the default expiration duration if not provided
       const duration =
@@ -89,7 +103,12 @@ export class LockManagerService {
 
       // Execute the transaction
       const hash = await this.walletClient.writeContract(request);
-      console.log(`Transaction submitted: ${hash}`);
+      blockchainLogger.info("Grant keys transaction submitted", {
+        operation: "grantKeys",
+        transactionHash: hash,
+        recipientAddress,
+        lockAddress
+      });
 
       // Wait for transaction confirmation
       const receipt = await this.publicClient.waitForTransactionReceipt({
@@ -99,7 +118,13 @@ export class LockManagerService {
 
       if (receipt.status === "success") {
         // Extract token IDs from events if available
-        const tokenIds = this.extractTokenIdsFromReceipt(receipt);
+        const tokenIds = extractTokenIdsFromReceipt(receipt);
+
+        blockchainLogger.logTransactionSuccess("grantKeys", hash, {
+          tokenIds: tokenIds.map(id => id.toString()),
+          recipientAddress,
+          lockAddress
+        });
 
         return {
           success: true,
@@ -110,7 +135,11 @@ export class LockManagerService {
         throw new Error("Transaction failed");
       }
     } catch (error: any) {
-      console.error("Error granting key:", error);
+      blockchainLogger.logTransactionError("grantKeys", error, {
+        recipientAddress,
+        lockAddress,
+        expirationDuration: expirationDuration?.toString()
+      });
       return {
         success: false,
         error: error.message || "Failed to grant key",
@@ -146,9 +175,7 @@ export class LockManagerService {
       })) as boolean;
 
       if (!hasValidKey) {
-        console.log(
-          `User ${userAddress} does not have a valid key for lock ${lockAddress}`
-        );
+        blockchainLogger.logKeyCheck(lockAddress, userAddress, false);
         return null;
       }
 
@@ -162,7 +189,12 @@ export class LockManagerService {
       })) as bigint;
 
       if (balance === 0n) {
-        console.log(`User ${userAddress} has 0 keys for lock ${lockAddress}`);
+        blockchainLogger.debug("User has zero key balance", {
+          operation: "checkUserHasValidKey",
+          userAddress,
+          lockAddress,
+          balance: "0"
+        });
         return null;
       }
 
@@ -189,6 +221,8 @@ export class LockManagerService {
         const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
         const isExpired = expirationTimestamp <= currentTimestamp;
 
+        blockchainLogger.logKeyCheck(lockAddress, userAddress, !isExpired);
+        
         return {
           tokenId,
           owner: userAddress,
@@ -196,7 +230,12 @@ export class LockManagerService {
           isValid: !isExpired,
         };
       } catch (error) {
-        console.error("Error getting token details:", error);
+        blockchainLogger.warn("Error getting token details, using fallback", {
+          operation: "checkUserHasValidKey",
+          userAddress,
+          lockAddress,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
         // Even though getHasValidKey returned true, we couldn't get the token details
         // This might happen if the contract doesn't implement ERC721Enumerable
         return {
@@ -207,7 +246,12 @@ export class LockManagerService {
         };
       }
     } catch (error) {
-      console.error("Error checking user key:", error);
+      blockchainLogger.error("Failed to check user key", {
+        operation: "checkUserHasValidKey",
+        userAddress,
+        lockAddress,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return null;
     }
   }
@@ -220,30 +264,6 @@ export class LockManagerService {
     return BigInt(30 * 24 * 60 * 60);
   }
 
-  /**
-   * Extract token IDs from transaction receipt
-   */
-  private extractTokenIdsFromReceipt(receipt: any): bigint[] {
-    const tokenIds: bigint[] = [];
-
-    try {
-      // Look for Transfer events in the logs
-      for (const log of receipt.logs) {
-        if (
-          log.topics[0] ===
-          "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
-        ) {
-          // Transfer event topic
-          const tokenId = BigInt(log.topics[3]);
-          tokenIds.push(tokenId);
-        }
-      }
-    } catch (error) {
-      console.warn("Could not extract token IDs from receipt");
-    }
-
-    return tokenIds;
-  }
 
   /**
    * Get the balance of the lock manager account
@@ -253,8 +273,9 @@ export class LockManagerService {
   async getManagerBalance(): Promise<string> {
     // Check if wallet client is available
     if (!this.walletClient || !this.walletClient.account) {
-      console.warn(
-        "Get manager balance operation not available - No private key configured"
+      blockchainLogger.logConfigurationWarning(
+        "Get manager balance operation not available - No private key configured",
+        { operation: "getManagerBalance" }
       );
       return "0";
     }
@@ -267,7 +288,10 @@ export class LockManagerService {
 
       return formatEther(balance);
     } catch (error) {
-      console.error("Error getting manager balance:", error);
+      blockchainLogger.error("Failed to get manager balance", {
+        operation: "getManagerBalance",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return "0";
     }
   }

@@ -1,6 +1,16 @@
 /** @type {import('next').NextConfig} */
 module.exports = {
   reactStrictMode: true,
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Exclude problematic worker files from build
+      config.module.rules.push({
+        test: /HeartbeatWorker\.js$/,
+        use: 'ignore-loader'
+      });
+    }
+    return config;
+  },
   async redirects() {
     return [
       // Redirect old routes to new nested structure

@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "../../../../../lib/auth/privy";
 import { computeUserApplicationStatus } from "../../../../../lib/types/application-status";
 
@@ -87,7 +87,10 @@ export default async function handler(
 
     // Get enrollment data for users in this cohort
     const userProfileIds = rawApplications
-      ?.map((app: any) => app.user_profiles?.id)
+      ?.map((app: any) => {
+        const userProfile = Array.isArray(app.user_profiles) ? app.user_profiles[0] : app.user_profiles;
+        return userProfile?.id;
+      })
       .filter(Boolean) || [];
 
     const { data: enrollments } = await supabase
@@ -102,7 +105,8 @@ export default async function handler(
         ? app.user_application_status[0] 
         : app.user_application_status;
       
-      const enrollment = enrollments?.find((e: any) => e.user_profile_id === app.user_profiles?.id);
+      const userProfile = Array.isArray(app.user_profiles) ? app.user_profiles[0] : app.user_profiles;
+      const enrollment = enrollments?.find((e: any) => e.user_profile_id === userProfile?.id);
       const enrollmentStatus = enrollment?.enrollment_status;
       
       // Compute what the status should be

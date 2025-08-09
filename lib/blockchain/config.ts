@@ -9,41 +9,30 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
 
-// Validate environment variables - now with optional private key
+// Validate environment variables - secure validation without exposing details
 const validateEnvironment = () => {
-  // Private key is now optional since we're only using read operations
-  if (!process.env.LOCK_MANAGER_PRIVATE_KEY) {
-    console.warn(
-      "LOCK_MANAGER_PRIVATE_KEY not set - write operations will be disabled"
-    );
-  }
-
-  // Only validate the private key if it's provided
   const privateKey = process.env.LOCK_MANAGER_PRIVATE_KEY;
-  if (privateKey && !privateKey.startsWith("0x")) {
-    throw new Error("LOCK_MANAGER_PRIVATE_KEY must start with 0x");
+  
+  if (!privateKey) {
+    console.warn("Blockchain write operations disabled - missing configuration");
+    return null;
   }
 
-  if (privateKey && privateKey.length !== 66) {
-    throw new Error(
-      "LOCK_MANAGER_PRIVATE_KEY must be 64 characters long (excluding 0x prefix)"
-    );
+  // Validate format without logging details
+  if (!privateKey.startsWith("0x") || privateKey.length !== 66) {
+    console.error("Invalid private key format - write operations disabled");
+    return null;
   }
 
-  // Validate USDC token addresses
-  if (!process.env.USDC_ADDRESS_BASE_MAINNET) {
-    console.warn(
-      "USDC_ADDRESS_BASE_MAINNET not set - USDC payments on mainnet will be disabled"
-    );
+  // Silent validation for USDC addresses - only warn if both missing
+  const hasMainnetUsdc = !!process.env.USDC_ADDRESS_BASE_MAINNET;
+  const hasSepoliaUsdc = !!process.env.USDC_ADDRESS_BASE_SEPOLIA;
+  
+  if (!hasMainnetUsdc && !hasSepoliaUsdc) {
+    console.warn("USDC token addresses not configured - payments may be limited");
   }
 
-  if (!process.env.USDC_ADDRESS_BASE_SEPOLIA) {
-    console.warn(
-      "USDC_ADDRESS_BASE_SEPOLIA not set - USDC payments on testnet will be disabled"
-    );
-  }
-
-  return privateKey as `0x${string}` | null;
+  return privateKey as `0x${string}`;
 };
 
 // ---------------------------------------------------------------------------

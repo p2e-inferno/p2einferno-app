@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,18 @@ import { Textarea } from "@/components/ui/textarea";
 import ImageUpload from "@/components/ui/image-upload";
 import QuestTaskForm from "@/components/admin/QuestTaskForm";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import { PlusCircle, Coins, Save, X } from "lucide-react";
+import { toast } from "react-hot-toast";
+import { unlockUtils } from "@/lib/unlock/lockUtils";
+import { generateQuestLockConfig, createLockConfigWithManagers } from "@/lib/blockchain/admin-lock-config";
+import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
+import { 
+  saveDraft, 
+  removeDraft, 
+  getDraft, 
+  savePendingDeployment
+} from "@/lib/utils/lock-deployment-state";
 import type { Quest, QuestTask } from "@/lib/supabase/types";
 import { nanoid } from "nanoid";
 
@@ -21,15 +32,33 @@ type TaskWithTempId = Partial<QuestTask> & { tempId?: string };
 export default function QuestForm({ quest, isEditing = false }: QuestFormProps) {
   const router = useRouter();
   const { getAccessToken } = usePrivy();
+  const wallet = useSmartWalletSelection();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Lock deployment state
+  const [isDeployingLock, setIsDeployingLock] = useState(false);
+  const [deploymentStep, setDeploymentStep] = useState<string>("");
+  const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
     description: quest?.description || "",
     image_url: quest?.image_url || "",
     is_active: quest?.is_active ?? true,
+    lock_address: quest?.lock_address || "",
   });
+
+  // Load draft data on mount
+  useEffect(() => {
+    if (!isEditing) {
+      const draft = getDraft('quest');
+      if (draft) {
+        setFormData(prev => ({ ...prev, ...draft.formData }));
+        toast.success("Restored draft data");
+      }
+    }
+  }, [isEditing]);
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
@@ -106,6 +135,95 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
     setTasks(reorderedTasks);
   };
 
+  // Deploy lock for the quest
+  const deployLockForQuest = async (): Promise<string | undefined> => {
+    if (!wallet) {
+      toast.error("Please connect your wallet to deploy the lock");
+      return undefined;
+    }
+
+    if (!formData.title) {
+      toast.error("Please enter quest title before deploying lock");
+      return undefined;
+    }
+
+    setIsDeployingLock(true);
+    setDeploymentStep("Checking network...");
+
+    try {
+      setDeploymentStep("Preparing lock configuration...");
+
+      // Generate lock config from quest data
+      const questData = { ...formData, total_reward: totalReward } as Quest;
+      const lockConfig = generateQuestLockConfig(questData);
+      const deployConfig = createLockConfigWithManagers(lockConfig);
+      
+      setDeploymentStep("Deploying lock on blockchain...");
+      toast.loading("Deploying quest completion lock...", { id: "lock-deploy" });
+
+      // Deploy the lock
+      const result = await unlockUtils.deployLock(deployConfig, wallet);
+
+      if (!result.success) {
+        throw new Error(result.error || "Lock deployment failed");
+      }
+
+      // Get lock address from deployment result
+      if (!result.lockAddress) {
+        throw new Error("Lock deployment succeeded but no lock address returned");
+      }
+
+      const lockAddress = result.lockAddress;
+      setDeploymentStep("Lock deployed successfully!");
+
+      // Save deployment state before database operation
+      const deploymentId = savePendingDeployment({
+        lockAddress,
+        entityType: 'quest',
+        entityData: { ...formData, total_reward: totalReward },
+        transactionHash: result.transactionHash,
+        blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
+      });
+
+      toast.success(
+        <>
+          Lock deployed successfully!
+          <br />
+          {result.transactionHash && (
+            <a 
+              href={getBlockExplorerUrl(result.transactionHash)} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              View transaction
+            </a>
+          )}
+        </>,
+        { 
+          id: "lock-deploy",
+          duration: 5000 
+        }
+      );
+
+      console.log("Lock deployed:", {
+        lockAddress,
+        transactionHash: result.transactionHash,
+        deploymentId,
+      });
+
+      return lockAddress;
+
+    } catch (error: any) {
+      console.error("Lock deployment failed:", error);
+      toast.error(error.message || "Failed to deploy lock", { id: "lock-deploy" });
+      setDeploymentStep("");
+      throw error;
+    } finally {
+      setIsDeployingLock(false);
+    }
+  };
+
   const validateForm = () => {
     if (!formData.title.trim()) {
       setError("Quest title is required");
@@ -153,6 +271,28 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
     setIsSubmitting(true);
 
     try {
+      // Save draft before starting deployment (for new quests)
+      if (!isEditing) {
+        saveDraft('quest', { ...formData, total_reward: totalReward });
+      }
+
+      let lockAddress: string | undefined = formData.lock_address || undefined;
+
+      // Deploy lock if not editing and auto-creation is enabled and no lock address provided
+      if (!isEditing && showAutoLockCreation && !lockAddress && totalReward > 0) {
+        try {
+          console.log("Auto-deploying lock for quest...");
+          lockAddress = await deployLockForQuest();
+          
+          if (!lockAddress) {
+            throw new Error("Lock deployment failed");
+          }
+        } catch (deployError: any) {
+          // If lock deployment fails, don't create the quest
+          throw new Error(`Lock deployment failed: ${deployError.message}`);
+        }
+      }
+
       const token = await getAccessToken();
       if (!token) {
         throw new Error("Authentication required");
@@ -167,6 +307,7 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
       // Prepare quest data
       const questData = {
         ...formData,
+        lock_address: lockAddress,
         total_reward: totalReward,
       };
 
@@ -197,6 +338,14 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
       }
 
       const result = await response.json();
+      
+      // Clean up drafts and pending deployments on success
+      if (!isEditing) {
+        removeDraft('quest');
+        // Note: removePendingDeployment will be called by the recovery endpoint if used
+      }
+      
+      toast.success(isEditing ? "Quest updated successfully!" : "Quest created successfully!");
 
       // Redirect to quest details page
       router.push(`/admin/quests/${result.quest.id}`);
@@ -257,6 +406,59 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
               disabled={isSubmitting}
               bucketName="quest-images"
             />
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="lock_address" className="text-white">
+                Completion Lock Address
+              </Label>
+              {!isEditing && !formData.lock_address && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="auto_lock_creation"
+                    checked={showAutoLockCreation}
+                    onChange={(e) => setShowAutoLockCreation(e.target.checked)}
+                    className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+                  />
+                  <Label htmlFor="auto_lock_creation" className="text-sm text-gray-300 cursor-pointer">
+                    Auto-create lock
+                  </Label>
+                </div>
+              )}
+            </div>
+            
+            <Input
+              id="lock_address"
+              name="lock_address"
+              value={formData.lock_address}
+              onChange={(e) => setFormData({ ...formData, lock_address: e.target.value })}
+              placeholder={showAutoLockCreation && !isEditing ? "Will be auto-generated..." : "e.g., 0x1234..."}
+              className="bg-transparent border-gray-700 text-gray-100"
+              disabled={showAutoLockCreation && !isEditing || isSubmitting}
+            />
+            
+            {showAutoLockCreation && !isEditing && !formData.lock_address && totalReward > 0 && (
+              <p className="text-sm text-blue-400 mt-1">
+                ✨ A new completion lock will be automatically deployed for this quest using your connected wallet
+              </p>
+            )}
+            
+            {!showAutoLockCreation && (
+              <p className="text-sm text-gray-400 mt-1">
+                Optional: Unlock Protocol lock address for quest completion certificates
+              </p>
+            )}
+            
+            {isDeployingLock && (
+              <div className="bg-blue-900/20 border border-blue-700 text-blue-300 px-3 py-2 rounded mt-2">
+                <div className="flex items-center space-x-2">
+                  <div className="w-4 h-4 border-2 border-blue-300/20 border-t-blue-300 rounded-full animate-spin" />
+                  <span className="text-sm">{deploymentStep}</span>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-3">

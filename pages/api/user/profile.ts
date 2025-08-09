@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { createPrivyClient } from "../../../lib/privyUtils";
 
 // Use admin client (service role) to bypass RLS for profile CRUD
@@ -207,7 +207,10 @@ async function getUserDashboardData(
         .length || 0,
     totalPoints: profile.experience_points || 0,
     pendingPayments:
-      applications?.filter((_a: any) => _a.applications?.payment_status === "pending").length || 0,
+      applications?.filter((_a: any) => {
+        const application = Array.isArray(_a.applications) ? _a.applications[0] : _a.applications;
+        return application?.payment_status === "pending";
+      }).length || 0,
     questsCompleted: questProgress?.length || 0,
   };
 

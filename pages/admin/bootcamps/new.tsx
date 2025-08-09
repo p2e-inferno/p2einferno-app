@@ -1,26 +1,9 @@
-import { useEffect } from "react";
-import { useRouter } from "next/router";
-import { usePrivy } from "@privy-io/react-auth";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
-import { withAdminFormErrorHandling } from "@/components/admin/withAdminFormErrorHandling";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
-// Wrap the BootcampForm with our error handling HOC
-const AdminBootcampForm = withAdminFormErrorHandling(BootcampForm);
-
 export default function NewBootcampPage() {
-  const { authenticated } = usePrivy();
-  const router = useRouter();
-
-  // Protect admin route
-  useEffect(() => {
-    if (!authenticated) {
-      router.push("/");
-    }
-    // TODO: Add admin role check when role-based auth is implemented
-  }, [authenticated, router]);
 
   return (
     <AdminLayout>
@@ -39,7 +22,7 @@ export default function NewBootcampPage() {
         </div>
 
         <div className="bg-card border border-gray-800 rounded-lg p-6">
-          <AdminBootcampForm />
+          <BootcampForm />
         </div>
       </div>
     </AdminLayout>

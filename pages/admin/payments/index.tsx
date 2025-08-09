@@ -267,23 +267,25 @@ const AdminPaymentsPage: React.FC = () => {
                         <div className="text-sm text-gray-300">
                           {transaction.applications.user_email}
                         </div>
-                        {transaction.applications.user_profiles
-                          ?.wallet_address && (
-                          <div className="text-xs font-mono text-gray-500">
-                            {transaction.applications.user_profiles.wallet_address.slice(
-                              0,
-                              6
-                            )}
-                            ...
-                            {transaction.applications.user_profiles.wallet_address.slice(
-                              -4
-                            )}
-                          </div>
-                        )}
+                        {(() => {
+                          const userProfile = Array.isArray(transaction.applications.user_profiles) 
+                            ? transaction.applications.user_profiles[0] 
+                            : transaction.applications.user_profiles;
+                          return userProfile?.wallet_address && (
+                            <div className="text-xs font-mono text-gray-500">
+                              {userProfile.wallet_address.slice(0, 6)}
+                              ...
+                              {userProfile.wallet_address.slice(-4)}
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-300">
-                          {transaction.applications.cohorts?.name || "Unknown"}
+                          {Array.isArray(transaction.applications.cohorts) 
+                            ? transaction.applications.cohorts[0]?.name || "Unknown"
+                            : transaction.applications.cohorts?.name || "Unknown"
+                          }
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

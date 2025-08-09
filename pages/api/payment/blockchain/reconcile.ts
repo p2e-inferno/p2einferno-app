@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { unlockUtils } from "../../../../lib/unlock/lockUtils";
 
 const supabase = createAdminClient();
@@ -52,14 +52,16 @@ export default async function handler(
         .eq("id", applicationId)
         .single();
 
-      if (profileError || !userProfileData?.user_profiles?.wallet_address) {
+      const userProfile = Array.isArray(userProfileData?.user_profiles) ? userProfileData.user_profiles[0] : userProfileData?.user_profiles;
+      
+      if (profileError || !userProfile?.wallet_address) {
         return res.status(400).json({
           error:
             "Could not fetch wallet address for user. User may need to connect a wallet first.",
         });
       }
 
-      userWalletAddress = userProfileData.user_profiles.wallet_address;
+      userWalletAddress = userProfile.wallet_address;
     }
 
     if (!userWalletAddress) {
@@ -97,7 +99,8 @@ export default async function handler(
       return res.status(404).json({ error: "Application not found" });
     }
 
-    const lockAddress = appData.cohorts?.lock_address;
+    const cohort = Array.isArray(appData.cohorts) ? appData.cohorts[0] : appData.cohorts;
+    const lockAddress = cohort?.lock_address;
     if (!lockAddress) {
       return res
         .status(400)

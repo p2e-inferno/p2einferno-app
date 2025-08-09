@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -61,11 +61,13 @@ export default async function handler(
       });
     }
     
-    const rewardAmount = completion.quest_tasks?.reward_amount || 0;
+    const questTask = Array.isArray(completion.quest_tasks) ? completion.quest_tasks[0] : completion.quest_tasks;
+    const rewardAmount = questTask?.reward_amount || 0;
 
     // Award XP to the user by calling the RPC function
+    const userProfile = Array.isArray(completion.user_profiles) ? completion.user_profiles[0] : completion.user_profiles;
     const { error: rpcError } = await supabase.rpc('award_xp_to_user', {
-      p_user_id: completion.user_profiles.id,
+      p_user_id: userProfile?.id,
       p_xp_amount: rewardAmount,
       p_activity_type: 'task_reward_claimed',
       p_activity_data: {

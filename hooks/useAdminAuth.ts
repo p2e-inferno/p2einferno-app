@@ -8,7 +8,7 @@ import { type Address } from "viem";
  * @returns Object with isAdmin status, loading state, and user information
  */
 export const useAdminAuth = () => {
-  const { user, authenticated, ready, login } = usePrivy();
+  const { user, authenticated, ready } = usePrivy();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
@@ -125,12 +125,10 @@ export const useAdminAuth = () => {
   useEffect(() => {
     if (typeof window !== "undefined" && window.ethereum) {
       const handleAccountsChanged = async () => {
-        // When accounts change, we need to re-authenticate
+        // When accounts change, just re-check admin access without re-login
         try {
           console.log("Wallet accounts changed, refreshing admin status");
-          // Re-login to refresh the wallet connection
-          await login();
-          // After login, check admin access again with force refresh
+          // Check admin access again with force refresh (no login needed)
           await checkAdminAccess(true);
         } catch (error) {
           console.error("Error handling account change:", error);
@@ -147,7 +145,7 @@ export const useAdminAuth = () => {
         );
       };
     }
-  }, [login, checkAdminAccess]);
+  }, [checkAdminAccess]);
 
   return {
     isAdmin,

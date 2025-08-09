@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { useWallets } from "@privy-io/react-auth";
+import { useUser } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import { unlockUtils } from "../../lib/unlock/lockUtils";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -11,9 +12,10 @@ import { Label } from "../ui/label";
  * This demonstrates the unlock-magic-portal approach working with Privy
  */
 export function UnlockUtilsDemo() {
-
-  const { wallets } = useWallets();
-  const wallet = wallets[0]; // Use wallets from useWallets() hook
+  const { user } = useUser();
+  // Use the new smart wallet selection hook
+  const selectedWallet = useSmartWalletSelection();
+  const connectedAddress = selectedWallet?.address || null;
 
   const [lockAddress, setLockAddress] = useState("");
   const [results, setResults] = useState<any>(null);
@@ -37,8 +39,6 @@ export function UnlockUtilsDemo() {
 
   // Add manager form
   const [managerAddress, setManagerAddress] = useState("");
-
-
 
   // Helper function to convert BigInt values to strings for display
   const serializeResults = (data: any): any => {
@@ -78,10 +78,10 @@ export function UnlockUtilsDemo() {
       let ownership = false;
       let balance = 0;
 
-      if (wallet?.address) {
+      if (selectedWallet?.address) {
         [ownership, balance] = await Promise.all([
-          unlockUtils.checkKeyOwnership(lockAddress, wallet.address),
-          unlockUtils.getUserKeyBalance(lockAddress, wallet.address),
+          unlockUtils.checkKeyOwnership(lockAddress, selectedWallet.address),
+          unlockUtils.getUserKeyBalance(lockAddress, selectedWallet.address),
         ]);
       }
 
@@ -93,7 +93,7 @@ export function UnlockUtilsDemo() {
         },
         userOwnership: ownership,
         userBalance: balance,
-        userAddress: wallet?.address || "Not connected",
+        userAddress: selectedWallet?.address || "Not connected",
       };
 
       setResults(resultData);
@@ -107,7 +107,7 @@ export function UnlockUtilsDemo() {
   };
 
   const handleTestPurchase = async () => {
-    if (!lockAddress || !wallet) {
+    if (!lockAddress || !selectedWallet) {
       alert("Need lock address and connected wallet");
       return;
     }
@@ -117,7 +117,7 @@ export function UnlockUtilsDemo() {
     try {
       const result = await unlockUtils.purchaseKey(
         lockAddress,
-        wallet
+        selectedWallet
       );
 
       setResults({
@@ -136,7 +136,7 @@ export function UnlockUtilsDemo() {
   };
 
   const handleDeployLock = async () => {
-    if (!wallet) {
+    if (!selectedWallet) {
       alert("Need connected wallet");
       return;
     }
@@ -149,7 +149,7 @@ export function UnlockUtilsDemo() {
           ...lockConfig,
           price: parseFloat(lockConfig.keyPrice),
         },
-        wallet
+        selectedWallet
       );
 
       setResults({
@@ -173,7 +173,7 @@ export function UnlockUtilsDemo() {
   };
 
   const handleGrantKeys = async () => {
-    if (!lockAddress || !wallet || !grantConfig.recipients) {
+    if (!lockAddress || !selectedWallet || !grantConfig.recipients) {
       alert("Need lock address, connected wallet, and recipients");
       return;
     }
@@ -193,7 +193,7 @@ export function UnlockUtilsDemo() {
         lockAddress,
         recipients,
         expirationTimestamps,
-        wallet
+        selectedWallet
       );
 
       setResults({
@@ -212,7 +212,7 @@ export function UnlockUtilsDemo() {
   };
 
   const handleAddManager = async () => {
-    if (!lockAddress || !wallet || !managerAddress) {
+    if (!lockAddress || !selectedWallet || !managerAddress) {
       alert("Need lock address, connected wallet, and manager address");
       return;
     }
@@ -223,7 +223,7 @@ export function UnlockUtilsDemo() {
       const result = await unlockUtils.addLockManager(
         lockAddress,
         managerAddress,
-        wallet
+        selectedWallet
       );
 
       setResults({
@@ -244,6 +244,30 @@ export function UnlockUtilsDemo() {
   return (
     <Card className="p-6 max-w-4xl mx-auto mt-8">
       <h2 className="text-2xl font-bold mb-4">🔓 Unlock Protocol Utils Demo</h2>
+
+      {/* Wallet Status */}
+      <Card className="p-4 mb-6 bg-blue-50 border-blue-200">
+        <h3 className="font-semibold mb-2">Wallet Status</h3>
+        <div className="text-sm space-y-1">
+          <p><strong>Selected Wallet:</strong> {selectedWallet ? `${selectedWallet.walletClientType || 'unknown'} - ${selectedWallet.address}` : 'None'}</p>
+          <p><strong>Connected Address:</strong> {connectedAddress || 'None'}</p>
+          <p><strong>Linked Accounts:</strong> {user?.linkedAccounts?.filter(acc => acc.type === 'wallet').length || 0} wallets</p>
+          {user?.linkedAccounts && (
+            <div className="mt-2">
+              <p className="font-medium">Linked Wallets:</p>
+              <ul className="list-disc list-inside ml-2">
+                {user.linkedAccounts
+                  .filter(acc => acc.type === 'wallet')
+                  .map((acc, idx) => (
+                    <li key={idx}>
+                      {'address' in acc ? acc.address : 'No address'} ({acc.connectorType || 'unknown'})
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Left Column - Read Operations & Purchase */}
@@ -281,7 +305,7 @@ export function UnlockUtilsDemo() {
 
                 <Button
                   onClick={handleTestPurchase}
-                  disabled={!lockAddress || !wallet || loading}
+                  disabled={!lockAddress || !selectedWallet || loading}
                   variant="default"
                   size="sm"
                 >
@@ -350,7 +374,7 @@ export function UnlockUtilsDemo() {
 
               <Button
                 onClick={handleDeployLock}
-                disabled={!wallet || loading}
+                disabled={!selectedWallet || loading}
                 variant="secondary"
                 size="sm"
                 className="w-full"
@@ -396,7 +420,7 @@ export function UnlockUtilsDemo() {
 
               <Button
                 onClick={handleGrantKeys}
-                disabled={!lockAddress || !wallet || loading}
+                disabled={!lockAddress || !selectedWallet || loading}
                 variant="secondary"
                 size="sm"
                 className="w-full"
@@ -423,7 +447,7 @@ export function UnlockUtilsDemo() {
 
               <Button
                 onClick={handleAddManager}
-                disabled={!lockAddress || !wallet || loading}
+                disabled={!lockAddress || !selectedWallet || loading}
                 variant="secondary"
                 size="sm"
                 className="w-full"
@@ -434,7 +458,7 @@ export function UnlockUtilsDemo() {
           </Card>
 
           {/* Status */}
-          {!wallet && (
+          {!selectedWallet && (
             <Card className="p-3 bg-amber-50 border-amber-200">
               <p className="text-sm text-amber-700">
                 💡 Connect your wallet to test wallet operations

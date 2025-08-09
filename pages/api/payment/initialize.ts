@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 // Use the admin Supabase client – this API route runs on the server and
 // needs elevated privileges to bypass RLS when inserting payment records.
-import { createAdminClient } from "../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 // Create a fresh instance for this request
 const supabase = createAdminClient();

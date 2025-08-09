@@ -5,7 +5,7 @@ import { AlertCircle, Wallet, X, CheckCircle } from "lucide-react";
 import { useWallets } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "../../lib/unlock/lockUtils";
-import { CHAIN_CONFIG } from "../../lib/blockchain/config";
+import { getClientConfig } from "../../lib/blockchain/config/unified-config";
 import { LoadingButton } from "../ui/loading-button";
 
 interface BlockchainPaymentProps {
@@ -66,7 +66,7 @@ export function BlockchainPayment({
           walletAddress: wallet.address,
           chainId: wallet.chainId?.split(":")[1]
             ? parseInt(wallet.chainId.split(":")[1]!, 10)
-            : CHAIN_CONFIG.chain.id,
+            : getClientConfig().chain.id,
         }),
       });
       const result = await response.json();
@@ -199,7 +199,7 @@ export function BlockchainPayment({
           <p className="text-sm text-gray-600 mb-4">
             You are about to purchase access to &quot;{paymentData.cohortTitle}
             &quot; for {formatCurrency(amount, currency)} on the{" "}
-            {CHAIN_CONFIG.networkName} network.
+            {getClientConfig().networkName} network.
           </p>
           <LoadingButton
             onClick={executePurchase}

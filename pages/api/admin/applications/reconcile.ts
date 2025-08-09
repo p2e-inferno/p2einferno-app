@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "../../../../lib/auth/admin-auth";
 
 import { StatusSyncService } from "../../../../lib/services/status-sync-service";
@@ -293,7 +293,9 @@ async function syncApplicationStatus(supabase: any, application: any): Promise<R
         .from('user_application_status')
         .insert({
           application_id: application.id,
-          user_profile_id: application.user_profiles?.id,
+          user_profile_id: Array.isArray(application.user_profiles) 
+            ? application.user_profiles[0]?.id 
+            : application.user_profiles?.id,
           status: application.payment_status,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
