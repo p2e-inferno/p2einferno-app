@@ -1,6 +1,7 @@
 import { NextApiRequest } from "next";
 import { PrivyClient } from "@privy-io/server-auth";
 import * as jose from "jose";
+import { handleAuthError, handleJwtError, isNetworkError } from "./error-handler";
 
 // Initialize Privy client with app ID and secret
 const getPrivyClient = () => {
@@ -75,24 +76,20 @@ export async function getPrivyUser(
       const privy = getPrivyClient();
       claims = await privy.verifyAuthToken(token);
     } catch (error: any) {
-      console.error("Error verifying Privy token:", error);
+      const authError = handleAuthError(error, 'privy_token_verification', { hasToken: !!token });
       
       // Check if this is a network/API error vs actual auth failure
-      const isNetworkError = error.message?.includes('method') || 
-                            error.message?.includes('fetch failed') ||
-                            error.code === 'ECONNREFUSED' ||
-                            error.code === 'UND_ERR_CONNECT_TIMEOUT';
-      
-      if (isNetworkError) {
-        console.warn("Privy API unavailable, falling back to local JWT verification");
+      if (isNetworkError(error)) {
+        console.warn(`[PRIVY_AUTH] API unavailable, attempting JWT fallback verification`);
         
         try {
           // Fallback: Local JWT verification using jose
           const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-          const verificationKey = process.env.NEXT_PRIVY_VERIFICATION_KEY;
+          const verificationKey = process.env.PRIVY_VERIFICATION_KEY; // Server-accessible (no NEXT_ prefix)
           
           if (!verificationKey || !appId) {
-            console.error("Missing verification key or app ID for fallback");
+            const configError = new Error('Missing JWT verification configuration');
+            handleAuthError(configError, 'jwt_fallback_config', { hasVerificationKey: !!verificationKey, hasAppId: !!appId });
             return null;
           }
 
@@ -112,13 +109,14 @@ export async function getPrivyUser(
             ...payload
           };
           
-          console.log("Local JWT verification successful");
+          console.log(`[PRIVY_AUTH] JWT fallback verification successful for user ${claims.userId}`);
         } catch (localVerifyError) {
-          console.error("Local JWT verification also failed:", localVerifyError);
+          handleJwtError(localVerifyError, { fallbackAttempt: true, originalError: authError.code });
           return null;
         }
       } else {
         // Actual auth failure, not network issue
+        console.log(`[PRIVY_AUTH] Token verification failed: ${authError.code}`);
         return null;
       }
     }

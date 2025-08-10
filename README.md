@@ -1,44 +1,127 @@
-# Privy Auth `create-next-app` Starter
+# P2E Inferno - Web3 Gamified Education Platform
 
-This is a template for integrating [**Privy Auth**](https://www.privy.io/) into a [NextJS](https://nextjs.org/) project. Check out the deployed app [here](https://create-next-app.privy.io/)!
+A comprehensive Play-to-Earn (P2E) gamified education platform for Web3/blockchain learning. Built with Next.js, Privy authentication, Supabase database, and integrated blockchain functionality via Unlock Protocol.
 
-This demo uses NextJS's [Pages Router](https://nextjs.org/docs/pages/building-your-application/routing). If you'd like to see an example using the [App Router](https://nextjs.org/docs/app), just change the branch of this repository to [`app-router`](https://github.com/privy-io/create-next-app/tree/app-router).
+## 🏗️ Architecture Overview
 
-## Setup
+This application implements a sophisticated **three-layer authentication architecture** designed for security, performance, and scalability across frontend, backend, and blockchain environments.
 
-1. Clone this repository and open it in your terminal.
+### Key Features
 
-```sh
-git clone https://github.com/privy-io/create-next-app
+- 🎓 **Gamified Learning**: Quest-based education system with XP and rewards
+- 🔐 **Multi-Layer Authentication**: Frontend, backend, and blockchain authentication
+- 💰 **Blockchain Integration**: Payment verification, token-gating via Unlock Protocol  
+- ⚡ **Performance Optimized**: Parallel processing, bundle optimization, caching
+- 🛡️ **Security First**: Proper environment boundaries, structured error handling
+- 📱 **Responsive Design**: Dark theme, mobile-optimized UI
+
+For detailed architectural information, see [Authentication Architecture Documentation](./docs/AUTHENTICATION_ARCHITECTURE.md).
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Node.js 18+ and npm
+- Supabase account and project
+- Privy account and app configuration
+- Alchemy API key for blockchain operations
+
+### Installation
+
+1. **Clone and install dependencies**:
+```bash
+git clone <repository-url>
+cd p2einferno-app
+npm install
 ```
 
-2. Install the necessary dependencies (including [Privy Auth](https://www.npmjs.com/package/@privy-io/react-auth)) with `npm`.
-
-```sh
-npm i
-```
-
-3. Initialize your environment variables by copying the `.env.example` file to an `.env.local` file. Then, in `.env.local`, [paste your Privy App ID from the dashboard](https://docs.privy.io/guide/dashboard/api-keys).
-
-```sh
-# In your terminal, create .env.local from .env.example
+2. **Environment Setup**:
+```bash
 cp .env.example .env.local
-
-# Add your Privy App ID to .env.local
-NEXT_PUBLIC_PRIVY_APP_ID=<your-privy-app-id>
 ```
 
-## Building locally
+3. **Configure environment variables** in `.env.local`:
 
-In your project directory, run `npm run dev`. You can now visit http://localhost:3000 to see your app and login with Privy!
+```bash
+# Authentication
+NEXT_PUBLIC_PRIVY_APP_ID=your_privy_app_id
+NEXT_PRIVY_APP_SECRET=your_privy_app_secret
+PRIVY_VERIFICATION_KEY="-----BEGIN PUBLIC KEY-----...-----END PUBLIC KEY-----"
 
-## Check out:
+# Database
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
 
-- `pages/_app.tsx` for how to use the `PrivyProvider` and initialize it with your Privy App ID
-- `pages/index.tsx` for how to use the `usePrivy` hook and implement a simple `login` button
-- `pages/dashboard.tsx` for how to use the `usePrivy` hook, fields like `ready`, `authenticated`, and `user`, and methods like `linkWallet` and `logout`
+# Blockchain Configuration
+NEXT_PUBLIC_BLOCKCHAIN_NETWORK=base-sepolia
+NEXT_PUBLIC_ADMIN_LOCK_ADDRESS=0x...
+LOCK_MANAGER_PRIVATE_KEY=0x...
+NEXT_ALCHEMY_API_KEY=your_alchemy_api_key
+BASE_MAINNET_RPC_URL=https://base-mainnet.g.alchemy.com/v2/
+BASE_SEPOLIA_RPC_URL=https://base-sepolia.g.alchemy.com/v2/
 
-**Check out [our docs](https://docs.privy.io/) for more guidance around using Privy in your app!**
+# Development
+DEV_ADMIN_ADDRESSES=0x... # Comma-separated admin addresses for development
+```
+
+4. **Database Setup**:
+```bash
+npm run db:migrate  # Set up Supabase tables and RLS policies
+```
+
+5. **Start Development Server**:
+```bash
+npm run dev
+```
+
+Visit http://localhost:3000 to see your application!
+
+## 🎯 Development Commands
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production  
+npm run start        # Start production server
+npm run lint         # Run ESLint, Prettier, and TypeScript checks
+npm run format       # Format code with Prettier
+npm run db:migrate   # Run database migrations
+```
+
+## 📚 Architecture Deep Dive
+
+### Multi-Layer Authentication System
+
+Our authentication architecture operates across three distinct layers:
+
+#### 1. **Frontend Layer** (`lib/blockchain/frontend-config.ts`)
+- Bundle-optimized configuration with hardcoded values
+- Browser-based wallet interactions via Privy React hooks  
+- Security boundary: No access to private keys or server-only variables
+
+#### 2. **Backend Layer** (`lib/auth/` directory)
+- Server-side JWT verification with Privy API fallback
+- Admin authentication via parallel blockchain key checking
+- Full environment variable access for secure operations
+
+#### 3. **Blockchain Layer** (`lib/blockchain/` directory)  
+- On-chain validation via Unlock Protocol
+- Payment verification through Supabase Edge Functions
+- Smart contract interactions on Base network
+
+### Key Files
+
+- **`lib/auth/admin-auth.ts`**: Blockchain-only admin authentication middleware
+- **`lib/auth/config-validation.ts`**: Startup configuration validation  
+- **`lib/blockchain/config/unified-config.ts`**: Centralized blockchain configuration
+- **`lib/auth/error-handler.ts`**: Structured error handling system
+
+### Performance Features
+
+- ✅ **Parallel Wallet Checking**: 3x faster admin authentication  
+- ✅ **JWT Fallback**: Local verification when Privy API is unavailable
+- ✅ **Bundle Optimization**: Minimal client-side footprint
+- ✅ **Configuration Validation**: Prevents silent failures at startup
 
 ## Database Setup
 

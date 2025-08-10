@@ -58,6 +58,19 @@ const validateEnvironment = (): {
 // CHAIN RESOLUTION
 // ============================================================================
 
+/**
+ * Create properly configured RPC URL with Alchemy API key
+ */
+const createAlchemyRpcUrl = (baseUrl: string): string => {
+  const apiKey = process.env.NEXT_ALCHEMY_API_KEY;
+  if (!apiKey) {
+    console.warn("NEXT_ALCHEMY_API_KEY not configured, using fallback RPC");
+    // Fallback to free RPC endpoints
+    return baseUrl.includes('mainnet') ? "https://mainnet.base.org" : "https://sepolia.base.org";
+  }
+  return `${baseUrl}${apiKey}`;
+};
+
 const resolveChain = () => {
   const network = (
     process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia"
@@ -68,7 +81,7 @@ const resolveChain = () => {
     case "mainnet":
       return {
         chain: base,
-        defaultRpc: "https://mainnet.base.org",
+        rpcUrl: createAlchemyRpcUrl(process.env.BASE_MAINNET_RPC_URL || "https://base-mainnet.g.alchemy.com/v2/"),
         usdcTokenAddress: process.env.USDC_ADDRESS_BASE_MAINNET,
         networkName: "Base Mainnet",
       } as const;
@@ -76,7 +89,7 @@ const resolveChain = () => {
     default:
       return {
         chain: baseSepolia,
-        defaultRpc: "https://sepolia.base.org",
+        rpcUrl: createAlchemyRpcUrl(process.env.BASE_SEPOLIA_RPC_URL || "https://base-sepolia.g.alchemy.com/v2/"),
         usdcTokenAddress: process.env.USDC_ADDRESS_BASE_SEPOLIA,
         networkName: "Base Sepolia",
       } as const;
@@ -91,8 +104,7 @@ const resolveChain = () => {
  * Create public client for read operations
  */
 export const createPublicClientUnified = (): PublicClient => {
-  const { chain, defaultRpc } = resolveChain();
-  const rpcUrl = process.env.BASE_RPC_URL || defaultRpc;
+  const { chain, rpcUrl } = resolveChain();
   
   return createPublicClient({
     chain,
@@ -113,8 +125,7 @@ export const createWalletClientUnified = (): WalletClient | null => {
   }
 
   try {
-    const { chain, defaultRpc } = resolveChain();
-    const rpcUrl = process.env.BASE_RPC_URL || defaultRpc;
+    const { chain, rpcUrl } = resolveChain();
     
     const account = privateKeyToAccount(privateKey);
     return createWalletClient({
@@ -132,12 +143,12 @@ export const createWalletClientUnified = (): WalletClient | null => {
 // UNIFIED CONFIGURATION
 // ============================================================================
 
-const { chain, defaultRpc, usdcTokenAddress, networkName } = resolveChain();
+const { chain, rpcUrl, usdcTokenAddress, networkName } = resolveChain();
 const { hasValidKey } = validateEnvironment();
 
 export const UNIFIED_BLOCKCHAIN_CONFIG: BlockchainConfig = {
   chain,
-  rpcUrl: process.env.BASE_RPC_URL || defaultRpc,
+  rpcUrl,
   networkName,
   usdcTokenAddress,
   hasPrivateKey: hasValidKey,
