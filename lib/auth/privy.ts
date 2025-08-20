@@ -57,14 +57,11 @@ export async function getPrivyUser(
   includeWallets = false
 ) {
   try {
-    // Get authorization header from request
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return null;
-    }
-
-    // Extract token from header
-    const token = authHeader.split(" ")[1];
+    // Get token from either Authorization header or privy-token cookie (like working verify endpoint)
+    const headerAuthToken = req.headers.authorization?.replace(/^Bearer /, "");
+    const cookieAuthToken = req.cookies["privy-token"];
+    
+    const token = cookieAuthToken || headerAuthToken;
     if (!token) {
       return null;
     }
@@ -74,9 +71,18 @@ export async function getPrivyUser(
     try {
       // First attempt: Privy API verification (recommended)
       const privy = getPrivyClient();
+      if (!privy || typeof privy.verifyAuthToken !== 'function') {
+        throw new Error('Privy client not properly initialized');
+      }
+      
       claims = await privy.verifyAuthToken(token);
     } catch (error: any) {
-      const authError = handleAuthError(error, 'privy_token_verification', { hasToken: !!token });
+      console.error('[PRIVY_AUTH] Raw error from verifyAuthToken:', error);
+      const authError = handleAuthError(error, 'privy_token_verification', { 
+        hasToken: !!token,
+        errorType: error?.constructor?.name,
+        errorMessage: error?.message 
+      });
       
       // Check if this is a network/API error vs actual auth failure
       if (isNetworkError(error)) {

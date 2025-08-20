@@ -1,18 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  // Check if user is authenticated
   try {
-    const user = await getPrivyUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     // Get the cohort ID from the request
     const cohortId = req.body.cohort_id;
     if (!cohortId) {
@@ -21,97 +15,6 @@ export default async function handler(
 
     // Get supabase admin client
     const supabase = createAdminClient();
-
-    // 1. First check if the user has a profile
-    const { data: userProfile } = await supabase
-      .from("user_profiles")
-      .select("id, wallet_address, metadata, linked_wallets")
-      .eq("privy_user_id", user.id)
-      .single();
-
-    if (!userProfile) {
-      return res
-        .status(403)
-        .json({ error: "Forbidden: User profile not found" });
-    }
-
-    // Get current wallet addresses from Privy API
-    const userWalletAddresses = await getUserWalletAddresses(user.id);
-    const currentWalletAddress = userWalletAddresses.length > 0 ? userWalletAddresses[0] : null;
-    
-    // Update profile with current wallet addresses if different
-    const needsWalletUpdate = currentWalletAddress && currentWalletAddress !== userProfile.wallet_address;
-    const needsLinkedWalletsUpdate = JSON.stringify(userWalletAddresses.sort()) !== JSON.stringify((userProfile.linked_wallets || []).sort());
-    
-    if (needsWalletUpdate || needsLinkedWalletsUpdate) {
-      console.log("Updating user profile wallet information:", {
-        oldWalletAddress: userProfile.wallet_address,
-        newWalletAddress: currentWalletAddress,
-        oldLinkedWallets: userProfile.linked_wallets,
-        newLinkedWallets: userWalletAddresses
-      });
-      
-      const { error: updateError } = await supabase
-        .from("user_profiles")
-        .update({ 
-          wallet_address: currentWalletAddress,
-          linked_wallets: userWalletAddresses
-        })
-        .eq("id", userProfile.id);
-      
-      if (updateError) {
-        console.error("Error updating wallet information:", updateError);
-      } else {
-        userProfile.wallet_address = currentWalletAddress;
-        userProfile.linked_wallets = userWalletAddresses;
-      }
-    }
-
-    // 2. Check if the user has admin privileges through the metadata
-    const { data: adminCheck } = await supabase.rpc("is_admin", {
-      user_id: userProfile.id,
-    });
-
-    let isAdmin = adminCheck;
-
-    // 3. If not admin via DB, check DEV_ADMIN_ADDRESSES
-    if (!isAdmin && process.env.DEV_ADMIN_ADDRESSES) {
-      const devAdmins = process.env.DEV_ADMIN_ADDRESSES.split(",")
-        .map((a) => a.trim().toLowerCase())
-        .filter(Boolean);
-      
-      // Use all wallet addresses from Privy (most up-to-date source) + database fallback
-      const allUserWallets = [
-        ...userWalletAddresses.map((w) => w.toLowerCase()),
-        userProfile.wallet_address?.toLowerCase(),
-        ...(userProfile.linked_wallets || []).map((w: any) => w.toLowerCase()),
-      ].filter(Boolean);
-
-      // Remove duplicates
-      const uniqueUserWallets = [...new Set(allUserWallets)];
-      
-      if (uniqueUserWallets.some(wallet => devAdmins.includes(wallet))) {
-        isAdmin = true;
-      }
-    }
-
-    if (!isAdmin) {
-      // 4. If not admin, check if the user is a cohort manager
-      const { data: isCohortManager } = await supabase
-        .from("cohort_managers")
-        .select("id")
-        .match({
-          user_profile_id: userProfile.id,
-          cohort_id: cohortId,
-        })
-        .single();
-
-      if (!isCohortManager) {
-        return res
-          .status(403)
-          .json({ error: "Forbidden: Not authorized to manage this cohort" });
-      }
-    }
 
     // Handle different HTTP methods
     switch (req.method) {
@@ -230,3 +133,5 @@ async function deleteMilestone(
     return res.status(400).json({ error: error.message });
   }
 }
+
+export default withAdminAuth(handler);

@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import type { Cohort } from "@/lib/supabase/types";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 
 interface CohortWithProgram extends Cohort {
   bootcamp_program?: {
@@ -16,7 +16,7 @@ interface CohortWithProgram extends Cohort {
 }
 
 export default function CohortMilestonesPage() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
 

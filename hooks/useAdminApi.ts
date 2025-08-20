@@ -1,5 +1,4 @@
 import { useState, useCallback } from "react";
-import { useAdminAuth } from "./useAdminAuth";
 import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
@@ -17,14 +16,13 @@ export interface ApiResponse<T = any> {
 
 /**
  * Custom hook for making admin API calls with authentication
- * and proper error handling
+ * and proper error handling using unified authentication system
  */
 export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isAdmin, authenticated } = useAdminAuth();
   const router = useRouter();
-  const { getAccessToken } = usePrivy();
+  const { getAccessToken, authenticated } = usePrivy();
 
   const adminFetch = useCallback(
     async <U = T>(
@@ -97,7 +95,6 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
     adminFetch,
     loading,
     error,
-    isAdmin,
     authenticated,
   };
 }

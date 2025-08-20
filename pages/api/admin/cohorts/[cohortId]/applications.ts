@@ -1,9 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "../../../../../lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 import { computeUserApplicationStatus } from "../../../../../lib/types/application-status";
-
-const supabase = createAdminClient();
 
 interface CohortApplication {
   id: string;
@@ -26,20 +24,13 @@ interface CohortApplication {
  * Get cohort applications with stats
  * GET /api/admin/cohorts/[cohortId]/applications
  */
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
-    // Verify admin authentication
-    const user = await getPrivyUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
+    const supabase = createAdminClient();
 
     const { cohortId } = req.query;
 
@@ -62,7 +53,7 @@ export default async function handler(
         currency,
         created_at,
         updated_at,
-        user_profiles!applications_user_email_fkey (
+        user_profiles (
           id,
           privy_user_id
         ),
@@ -190,3 +181,5 @@ export default async function handler(
     });
   }
 }
+
+export default withAdminAuth(handler);

@@ -6,7 +6,7 @@ import { Pencil, Calendar, Trash2, Star } from "lucide-react"; // PlusCircle is 
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
-// useAdminAuth is now used by AdminListPageLayout
+// useLockManagerAdminAuth is now used by AdminListPageLayout
 import { formatDate } from "@/lib/dateUtils"; // + Import shared function
 import { Badge } from "@/components/ui/badge"; // Keep Badge for status display
 
@@ -17,7 +17,7 @@ export default function CohortListPage() {
   >([]);
   const [isLoading, setIsLoading] = useState(true); // Page-specific loading for data
   const [error, setError] = useState<string | null>(null);
-
+  console.log("Cohorts::", cohorts)
   // Fetch cohorts - This logic remains in the page
   useEffect(() => {
     // AdminListPageLayout handles auth check

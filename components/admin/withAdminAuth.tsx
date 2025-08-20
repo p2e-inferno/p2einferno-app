@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "./AdminAccessRequired";
 import { listenForWalletChanges } from "@/lib/utils";
 
@@ -18,8 +18,7 @@ export function withAdminAuth<P extends object>(
   }
 ) {
   return function WithAdminAuth(props: P) {
-    const { isAdmin, loading, refreshAdminStatus } =
-      useAdminAuth();
+    const { isAdmin, loading, refreshAdminStatus } = useLockManagerAdminAuth();
     const router = useRouter();
     const [isRefreshing, setIsRefreshing] = useState(false);
 

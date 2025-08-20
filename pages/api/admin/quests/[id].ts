@@ -1,19 +1,14 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 import type { QuestTask } from "@/lib/supabase/types";
 import { randomUUID } from "crypto";
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    const user = await getPrivyUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     const { id } = req.query;
     if (!id || typeof id !== "string") {
       return res.status(400).json({ error: "Quest ID is required" });
@@ -234,3 +229,5 @@ async function deleteQuest(
     return res.status(500).json({ error: "Failed to delete quest" });
   }
 }
+
+export default withAdminAuth(handler);

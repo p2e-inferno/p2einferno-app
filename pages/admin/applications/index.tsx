@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
 import { 
@@ -50,7 +50,7 @@ interface ApplicationStats {
 }
 
 const AdminApplicationsPage: React.FC = () => {
-  const { isAdmin, loading: authLoading, authenticated } = useAdminAuth();
+  const { isAdmin, loading: authLoading, authenticated } = useLockManagerAdminAuth();
   const { getAccessToken } = usePrivy();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);

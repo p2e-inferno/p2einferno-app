@@ -1,6 +1,6 @@
 import React from "react";
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import KeyGrantReconciliation from "@/components/admin/KeyGrantReconciliation";
 import { Card } from "@/components/ui/card";
@@ -10,7 +10,7 @@ import { Shield, Key, Cog, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 
 export default function BlockchainAdminPage() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
 
   // Show loading state while checking authentication
   if (loading) {

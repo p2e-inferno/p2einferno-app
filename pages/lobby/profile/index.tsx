@@ -179,6 +179,7 @@ const ProfilePage = () => {
             onUnlinkAccount={handleUnlinkAccount}
           />
 
+  
           <CompletionCallToAction completionPercentage={completionPercentage} />
         </div>
       </div>

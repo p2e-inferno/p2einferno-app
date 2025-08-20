@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase/client";
 import type { MilestoneTask, CohortMilestone } from "@/lib/supabase/types";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 
 interface TaskWithMilestone extends MilestoneTask {
   milestone: CohortMilestone & {
@@ -18,7 +18,7 @@ interface TaskWithMilestone extends MilestoneTask {
 }
 
 export default function TaskSubmissionsPage() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
 

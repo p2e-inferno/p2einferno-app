@@ -1,14 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
-import { getPrivyUser } from "@/lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
@@ -59,11 +59,6 @@ async function getSubmissions(req: NextApiRequest, res: NextApiResponse) {
 
 async function updateSubmission(req: NextApiRequest, res: NextApiResponse) {
   try {
-    // Verify authentication
-    const user = await getPrivyUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
 
     const { id, status, feedback, reviewed_by, reviewed_at } = req.body;
 
@@ -118,11 +113,6 @@ async function updateSubmission(req: NextApiRequest, res: NextApiResponse) {
 
 async function createSubmission(req: NextApiRequest, res: NextApiResponse) {
   try {
-    // Verify authentication
-    const user = await getPrivyUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Authentication required" });
-    }
 
     const { task_id, submission_url } = req.body;
 
@@ -144,7 +134,7 @@ async function createSubmission(req: NextApiRequest, res: NextApiResponse) {
       .from("task_submissions")
       .select("id, status")
       .eq("task_id", task_id)
-      .eq("user_id", user.id)
+      .eq("user_id", 'admin')
       .single();
 
     if (existingSubmission && existingSubmission.status !== "failed") {
@@ -155,7 +145,7 @@ async function createSubmission(req: NextApiRequest, res: NextApiResponse) {
 
     const submissionData = {
       task_id,
-      user_id: user.id,
+      user_id: 'admin',
       submission_url,
       status: "pending" as const,
       submitted_at: new Date().toISOString(),
@@ -183,3 +173,5 @@ async function createSubmission(req: NextApiRequest, res: NextApiResponse) {
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
+export default withAdminAuth(handler);

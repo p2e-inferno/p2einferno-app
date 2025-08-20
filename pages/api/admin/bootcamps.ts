@@ -34,9 +34,47 @@ async function createBootcamp(
 ) {
   const bootcamp = req.body;
 
-  // Basic validation
-  if (!bootcamp || !bootcamp.id || !bootcamp.name || !bootcamp.description) {
-    return res.status(400).json({ error: "Missing required fields" });
+  // Debug: Log received data
+  console.log("[BOOTCAMP_CREATE] Received bootcamp data:", {
+    hasId: !!bootcamp?.id,
+    hasName: !!bootcamp?.name,
+    hasDescription: !!bootcamp?.description,
+    hasDurationWeeks: !!bootcamp?.duration_weeks,
+    hasMaxReward: bootcamp?.max_reward_dgt !== undefined,
+    hasLockAddress: !!bootcamp?.lock_address,
+    receivedFields: bootcamp ? Object.keys(bootcamp) : [],
+    bootcampData: bootcamp
+  });
+
+  // Enhanced validation with detailed error reporting
+  const missingFields = [];
+  if (!bootcamp) {
+    return res.status(400).json({ error: "No bootcamp data provided" });
+  }
+  if (!bootcamp.id) missingFields.push("id");
+  if (!bootcamp.name) missingFields.push("name");
+  if (!bootcamp.description) missingFields.push("description");
+  if (bootcamp.duration_weeks === undefined || bootcamp.duration_weeks === null) missingFields.push("duration_weeks");
+  if (bootcamp.max_reward_dgt === undefined || bootcamp.max_reward_dgt === null) missingFields.push("max_reward_dgt");
+
+  if (missingFields.length > 0) {
+    console.error("[BOOTCAMP_CREATE] Missing required fields:", missingFields);
+    return res.status(400).json({ 
+      error: `Missing required fields: ${missingFields.join(", ")}`,
+      missingFields,
+      receivedData: bootcamp
+    });
+  }
+
+  // Validate field types and values
+  if (typeof bootcamp.duration_weeks !== 'number' || bootcamp.duration_weeks < 1) {
+    console.error("[BOOTCAMP_CREATE] Invalid duration_weeks:", bootcamp.duration_weeks);
+    return res.status(400).json({ error: "duration_weeks must be a positive number" });
+  }
+
+  if (typeof bootcamp.max_reward_dgt !== 'number' || bootcamp.max_reward_dgt < 0) {
+    console.error("[BOOTCAMP_CREATE] Invalid max_reward_dgt:", bootcamp.max_reward_dgt);
+    return res.status(400).json({ error: "max_reward_dgt must be a non-negative number" });
   }
 
   try {
@@ -45,17 +83,40 @@ async function createBootcamp(
     if (!bootcamp.created_at) bootcamp.created_at = now;
     if (!bootcamp.updated_at) bootcamp.updated_at = now;
 
+    console.log("[BOOTCAMP_CREATE] Final bootcamp data before insert:", bootcamp);
+
     // Insert bootcamp (will bypass RLS due to service role)
     const { data, error } = await supabase
       .from("bootcamp_programs")
       .insert([bootcamp])
       .select();
 
-    if (error) throw error;
+    if (error) {
+      console.error("[BOOTCAMP_CREATE] Database error:", {
+        error: error,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint
+      });
+      throw error;
+    }
+
+    console.log("[BOOTCAMP_CREATE] Successfully created bootcamp:", {
+      id: data[0]?.id,
+      name: data[0]?.name,
+      lock_address: data[0]?.lock_address
+    });
 
     return res.status(201).json(data[0]);
   } catch (error: any) {
-    console.error("Error creating bootcamp:", error);
+    console.error("[BOOTCAMP_CREATE] Error creating bootcamp:", {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+      stack: error.stack
+    });
     return res
       .status(500)
       .json({ error: error.message || "Failed to create bootcamp" });

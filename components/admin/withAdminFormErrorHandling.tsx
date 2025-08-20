@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
-import { useAdminApi } from "@/hooks/useAdminApi";
+import { usePrivy } from "@privy-io/react-auth";
 import { AuthError } from "@/components/ui/auth-error";
-import { hasValidPrivyToken } from "@/lib/api";
 
 /**
  * Higher-order component that adds authentication error handling to admin forms
+ * Uses the unified authentication system
  *
  * @param Component The component to wrap
  * @returns A wrapped component with authentication error handling
@@ -15,33 +14,33 @@ export function withAdminFormErrorHandling<P extends object>(
 ) {
   return function WithAdminFormErrorHandling(props: P) {
     const [error, setError] = useState<string | null>(null);
-    const { authenticated } = useAdminAuth();
-    const adminApi = useAdminApi({
-      redirectOnAuthError: false,
-      showAuthErrorModal: true,
-    });
+    const { authenticated, getAccessToken } = usePrivy();
 
-    // Only check authentication status, not admin status (which is determined server-side)
+    // Check authentication status using unified auth system
     useEffect(() => {
       // Only check on client side
       if (typeof window === "undefined") return;
 
-      // If we're not authenticated or don't have a valid token, set an error
-      if (!authenticated) {
-        setError("Authentication required. Please log in to continue.");
-      } else if (!hasValidPrivyToken()) {
-        setError("Your session has expired. Please log in again.");
-      } else {
-        setError(null);
-      }
-    }, [authenticated]);
+      const checkAuth = async () => {
+        if (!authenticated) {
+          setError("Authentication required. Please log in to continue.");
+          return;
+        }
 
-    // Also listen for errors from the adminApi hook
-    useEffect(() => {
-      if (adminApi.error) {
-        setError(adminApi.error);
-      }
-    }, [adminApi.error]);
+        try {
+          const token = await getAccessToken();
+          if (!token) {
+            setError("Your session has expired. Please log in again.");
+          } else {
+            setError(null);
+          }
+        } catch (err) {
+          setError("Authentication error. Please log in again.");
+        }
+      };
+
+      checkAuth();
+    }, [authenticated, getAccessToken]);
 
     return (
       <>

@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { PrivyConnectButton } from "@/components/PrivyConnectButton";
 
@@ -9,7 +9,7 @@ interface AdminLayoutProps {
 }
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const { isAdmin, loading: authLoading, authenticated } = useAdminAuth();
+  const { isAdmin, loading: authLoading, authenticated } = useLockManagerAdminAuth();
 
   // Show loading state while checking authentication
   if (authLoading) {
@@ -76,6 +76,18 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
             >
               Payments
+            </Link>
+            <Link
+              href="/admin/backend-admin"
+              className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              Backend Admin
+            </Link>
+            <Link
+              href="/admin/draft-recovery"
+              className="block px-4 py-2 text-gray-300 hover:text-flame-yellow hover:bg-gray-800 rounded-lg transition-colors"
+            >
+              Draft Recovery
             </Link>
           </nav>
         </div>

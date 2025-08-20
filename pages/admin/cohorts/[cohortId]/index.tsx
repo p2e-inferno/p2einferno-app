@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
+import { usePrivy } from '@privy-io/react-auth';
 import { 
   Users, 
   CreditCard, 
   CheckCircle, 
   AlertCircle, 
   Clock, 
-
-
   RefreshCw,
   Settings
 } from 'lucide-react';
@@ -60,6 +59,7 @@ interface CohortStats {
 const CohortDetailPage: React.FC = () => {
   const router = useRouter();
   const { cohortId } = router.query;
+  const { getAccessToken } = usePrivy();
   
   const [cohort, setCohort] = useState<CohortDetails | null>(null);
   const [applications, setApplications] = useState<CohortApplication[]>([]);
@@ -67,6 +67,30 @@ const CohortDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
+
+  // Authenticated fetch function using unified auth system
+  const adminFetch = useCallback(async (url: string, options: RequestInit = {}) => {
+    const accessToken = await getAccessToken();
+    if (!accessToken) {
+      throw new Error("No access token available");
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        ...options.headers,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}`);
+    }
+
+    return response.json();
+  }, [getAccessToken]);
   
   const fetchCohortData = useCallback(async () => {
     if (!cohortId || typeof cohortId !== 'string') return;
@@ -74,57 +98,46 @@ const CohortDetailPage: React.FC = () => {
     try {
       setLoading(true);
       
-      // Fetch cohort details and applications in parallel
+      // Fetch cohort details and applications in parallel using unified auth
       const [cohortRes, applicationsRes] = await Promise.all([
-        fetch(`/api/admin/cohorts/${cohortId}`),
-        fetch(`/api/admin/cohorts/${cohortId}/applications`)
+        adminFetch(`/api/admin/cohorts/${cohortId}`),
+        adminFetch(`/api/admin/cohorts/${cohortId}/applications`)
       ]);
       
-      if (!cohortRes.ok || !applicationsRes.ok) {
-        throw new Error('Failed to fetch cohort data');
-      }
-      
-      const cohortData = await cohortRes.json();
-      const applicationsData = await applicationsRes.json();
-      
-      setCohort(cohortData.data);
-      setApplications(applicationsData.data.applications);
-      setStats(applicationsData.data.stats);
+      setCohort(cohortRes.data);
+      setApplications(applicationsRes.data?.applications || []);
+      setStats(applicationsRes.data?.stats);
     } catch (error) {
       console.error('Error fetching cohort data:', error);
       toast.error('Failed to load cohort data');
     } finally {
       setLoading(false);
     }
-  }, [cohortId]);
+  }, [cohortId, adminFetch]);
   
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchCohortData();
     setRefreshing(false);
     toast.success('Data refreshed');
-  };
+  }, [fetchCohortData]);
   
-  const handleReconcileApplication = async (applicationId: string) => {
+  const handleReconcileApplication = useCallback(async (applicationId: string) => {
     try {
-      const response = await fetch('/api/admin/applications/reconcile', {
+      await adminFetch('/api/admin/applications/reconcile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ applicationId })
       });
       
-      if (!response.ok) throw new Error('Reconciliation failed');
-      
-      await response.json();
       toast.success('Application reconciled successfully');
       await fetchCohortData(); // Refresh data
     } catch (error) {
       console.error('Reconciliation error:', error);
       toast.error('Failed to reconcile application');
     }
-  };
+  }, [adminFetch, fetchCohortData]);
   
-  const handleBulkReconcile = async () => {
+  const handleBulkReconcile = useCallback(async () => {
     const applicationsNeedingReconciliation = applications.filter(app => app.needs_reconciliation);
     
     if (applicationsNeedingReconciliation.length === 0) {
@@ -134,9 +147,8 @@ const CohortDetailPage: React.FC = () => {
     
     try {
       const promises = applicationsNeedingReconciliation.map(app =>
-        fetch('/api/admin/applications/reconcile', {
+        adminFetch('/api/admin/applications/reconcile', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ applicationId: app.id })
         })
       );
@@ -148,7 +160,7 @@ const CohortDetailPage: React.FC = () => {
       console.error('Bulk reconciliation error:', error);
       toast.error('Some reconciliations failed');
     }
-  };
+  }, [applications, adminFetch, fetchCohortData]);
   
   useEffect(() => {
     fetchCohortData();

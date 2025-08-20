@@ -1,24 +1,19 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
   try {
-    const user = await getPrivyUser(req);
-    if (!user) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     const supabase = createAdminClient();
 
     switch (req.method) {
       case "GET":
         return await getSubmissions(req, res, supabase);
       case "PUT":
-        return await updateSubmissionStatus(req, res, supabase, user);
+        return await updateSubmissionStatus(req, res, supabase);
       default:
         return res.status(405).json({ error: "Method not allowed" });
     }
@@ -83,8 +78,7 @@ async function getSubmissions(
 async function updateSubmissionStatus(
   req: NextApiRequest,
   res: NextApiResponse,
-  supabase: any,
-  reviewer: any
+  supabase: any
 ) {
   const { submissionId, status, feedback } = req.body;
 
@@ -132,7 +126,7 @@ async function updateSubmissionStatus(
     const updateData: any = {
       submission_status: status,
       admin_feedback: feedback?.trim() || null,
-      reviewed_by: reviewer.id,
+      reviewed_by: 'admin', // Admin user since we're using withAdminAuth
       reviewed_at: now,
     };
 
@@ -198,3 +192,5 @@ async function updateSubmissionStatus(
       .json({ error: "Failed to update submission status" });
   }
 }
+
+export default withAdminAuth(handler);

@@ -4,6 +4,8 @@ import { getPrivyUser } from "@/lib/auth/privy";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const user = await getPrivyUser(req);
+  console.log("GET_PRIVY_USER::NOTIFICATIONS::", user)
+
   if (!user) {
     return res.status(401).json({ error: "Unauthorized" });
   }

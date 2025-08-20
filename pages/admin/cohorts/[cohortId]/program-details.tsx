@@ -9,10 +9,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase/client";
 import type { Cohort, ProgramHighlight, ProgramRequirement } from "@/lib/supabase/types";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 
 export default function ProgramDetailsPage() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
 

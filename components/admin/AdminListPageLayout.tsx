@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React from "react";
 import Link from "next/link";
-import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useAdminAuth } from "@/hooks/useAdminAuth"; // For auth check
 
 interface AdminListPageLayoutProps {
   title: string;
@@ -29,44 +27,6 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
   emptyStateMessage,
   children,
 }) => {
-  const { isAdmin, loading: authLoading, authenticated } = useAdminAuth();
-  const router = useRouter();
-  const [isClient, setIsClient] = useState(false);
-
-  // Ensure client-side execution for router push
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Protect admin route
-  useEffect(() => {
-    if (!isClient || authLoading) return;
-
-    if (!authenticated || !isAdmin) {
-      router.push("/"); // Or your designated redirect path for non-admins
-    }
-  }, [authenticated, isAdmin, authLoading, router, isClient]);
-
-  // Main loading state: consider both auth check and data loading
-  const combinedLoading = authLoading || isLoading;
-
-  // Show a global loading spinner while auth is in progress or initial client check
-  if (authLoading || !isClient) {
-    return (
-      <AdminLayout>
-        <div className="w-full flex justify-center items-center min-h-[400px]">
-          <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  // If not authenticated or not an admin, and we are client-side, it will redirect.
-  // Return null to prevent flash of content.
-  if (!authenticated || !isAdmin) {
-    return null;
-  }
-
   return (
     <AdminLayout>
       <div className="w-full">
@@ -80,7 +40,7 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
           </Link>
         </div>
 
-        {combinedLoading && !authLoading ? ( // Show specific loading for data if auth is done
+        {isLoading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-flame-yellow"></div>
           </div>

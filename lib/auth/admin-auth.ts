@@ -21,11 +21,8 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
       // 1. Get authenticated user and their wallets via getPrivyUser
       user = await getPrivyUser(req, true); // includeWallets = true
       if (!user) {
-        console.log(`[BLOCKCHAIN_AUTH] Authentication failed - no valid JWT`);
         return res.status(401).json({ error: "Authentication required" });
       }
-
-      console.log(`[BLOCKCHAIN_AUTH] User authenticated: ${user.id}`);
 
       // 2. Get admin lock address from environment variables
       const adminLockAddress = process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS;
@@ -40,8 +37,6 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
         }
       }
 
-      console.log(`[BLOCKCHAIN_AUTH] Checking admin access for lock: ${adminLockAddress}`);
-
       // 4. Check user's wallet addresses for admin key (blockchain-only)
       const walletAddresses = 'walletAddresses' in user ? user.walletAddresses : [];
       if (!walletAddresses || walletAddresses.length === 0) {
@@ -51,18 +46,14 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
           if (devAdminAddresses) {
             const devAddress = devAdminAddresses.split(",")[0]?.trim();
             if (devAddress) {
-              console.log(`[BLOCKCHAIN_AUTH] Using DEV_ADMIN_ADDRESS: ${devAddress}`);
-              
               const result = await checkDevelopmentAdminAddress(devAddress, adminLockAddress);
               if (result.isValid) {
-                console.log(`[BLOCKCHAIN_AUTH] ✅ Access GRANTED for dev address`);
                 return handler(req, res);
               }
             }
           }
         }
 
-        console.log(`[BLOCKCHAIN_AUTH] ❌ No wallet addresses found for user ${user.id}`);
         return res.status(403).json({ error: "No wallet addresses found" });
       }
 
@@ -70,19 +61,9 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
       const keyCheckResult = await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress);
       
       if (keyCheckResult.hasValidKey) {
-        console.log(`[BLOCKCHAIN_AUTH] ✅ Access GRANTED for wallet ${keyCheckResult.validAddress}`);
         return handler(req, res);
       }
 
-      // Log any errors encountered during key checking
-      if (keyCheckResult.errors.length > 0) {
-        console.log(`[BLOCKCHAIN_AUTH] Encountered ${keyCheckResult.errors.length} errors during key validation`);
-        keyCheckResult.errors.forEach(({ address, error }) => {
-          console.error(`[BLOCKCHAIN_AUTH] Key check failed for ${address}: ${error}`);
-        });
-      }
-
-      console.log(`[BLOCKCHAIN_AUTH] ❌ Access DENIED - no valid admin keys found`);
       return res.status(403).json({ error: "Admin access required" });
 
     } catch (error: any) {

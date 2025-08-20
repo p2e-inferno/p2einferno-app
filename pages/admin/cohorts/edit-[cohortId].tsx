@@ -6,10 +6,10 @@ import CohortForm from "@/components/admin/CohortForm";
 // ArrowLeft and Link from next/link are handled by AdminEditPageLayout
 import { supabase } from "@/lib/supabase/client";
 import type { Cohort } from "@/lib/supabase/types";
-import { useAdminAuth } from "@/hooks/useAdminAuth"; // Keep for page-level auth if AdminEditPageLayout doesn't cover it fully
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth"; // Use working blockchain auth
 
 export default function EditCohortPage() {
-  const { isAdmin, loading: authLoading, authenticated } = useAdminAuth(); // Page-level auth check
+  const { isAdmin, loading: authLoading, authenticated } = useLockManagerAdminAuth(); // Use working blockchain auth
   const router = useRouter();
   const { cohortId } = router.query;
 
@@ -25,17 +25,17 @@ export default function EditCohortPage() {
   // Protect admin route (this is page-level, AdminEditPageLayout uses AdminLayout which might also have protection)
   useEffect(() => {
     if (!isClient || authLoading) return;
-    if (!authenticated || !isAdmin) {
+    if (!isAdmin) {
       router.push("/");
     }
-  }, [authenticated, isAdmin, authLoading, router, isClient]);
+  }, [isAdmin, authLoading, router, isClient]);
 
   // Fetch cohort data
   useEffect(() => {
     if (!authenticated || !isAdmin || !isClient || !cohortId) {
       // If auth is still loading or conditions not met, don't fetch yet
       // If no cohortId, set loading to false if not already caught by auth checks
-      if (!cohortId && isClient && authenticated && isAdmin) {
+      if (!cohortId && isClient && isAdmin) {
           setIsLoading(false);
           setError("Cohort ID is missing.");
       }
@@ -70,7 +70,7 @@ export default function EditCohortPage() {
     fetchCohort();
   }, [authenticated, isAdmin, isClient, cohortId, authLoading]); // Added authLoading to dependencies
 
-  // This initial loading state is for the auth check by useAdminAuth
+  // This initial loading state is for the auth check by useLockManagerAdminAuth
   if (authLoading || !isClient) {
     return (
       // Using AdminLayout directly for this top-level loading state before AdminEditPageLayout can render

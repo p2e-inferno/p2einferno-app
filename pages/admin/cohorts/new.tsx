@@ -4,10 +4,10 @@ import AdminLayout from "@/components/layouts/AdminLayout";
 import CohortForm from "@/components/admin/CohortForm";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 
 export default function NewCohortPage() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
 

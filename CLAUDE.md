@@ -61,12 +61,16 @@ This application implements a sophisticated **three-layer authentication system*
 
 ### Key Authentication Files
 
-**Core Authentication**:
-- `lib/auth/admin-auth.ts` - Blockchain-only admin authentication middleware
-- `lib/auth/privy.ts` - Server-side Privy utilities with JWT fallback
-- `lib/auth/config-validation.ts` - Startup configuration validation
-- `lib/auth/error-handler.ts` - Structured error handling system
-- `lib/auth/admin-key-checker.ts` - Parallel wallet checking utilities
+**Unified Authentication System**:
+- `lib/auth/core/AuthService.ts` - Centralized authentication service (consolidates all Privy implementations)
+- `lib/auth/middleware/withAuth.ts` - Unified authentication middleware for API endpoints
+- `lib/auth/strategies/` - Pluggable admin authentication strategies (blockchain/database)
+- `lib/auth/hooks/useAuth.ts` - Unified React authentication hook
+
+**Legacy Authentication (Deprecated)**:
+- `lib/auth/admin-auth.ts` - Original blockchain admin middleware (replaced by unified system)
+- `lib/auth/privy.ts` - Advanced Privy utilities (consolidated into AuthService)
+- `lib/privyUtils.ts` - Simple Privy utilities (replaced by AuthService)
 
 **Blockchain Configuration**:
 - `lib/blockchain/config/unified-config.ts` - Centralized blockchain configuration

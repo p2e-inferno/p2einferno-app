@@ -7,14 +7,14 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/lib/supabase/client";
 import type { CohortMilestone, Cohort } from "@/lib/supabase/types";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 
 interface MilestoneWithCohort extends CohortMilestone {
   cohort: Cohort;
 }
 
 export default function MilestoneDetailsPage() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id: cohortId, milestoneId } = router.query;
 

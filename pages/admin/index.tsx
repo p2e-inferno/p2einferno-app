@@ -3,11 +3,11 @@ import { useEffect, useState } from "react";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 
 export default function AdminDashboard() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
   const [isClient, setIsClient] = useState(false);
 
   // Make sure we're on the client side before rendering
@@ -248,6 +248,34 @@ export default function AdminDashboard() {
             <Link href="/admin/blockchain">
               <Button className="w-full bg-steel-red hover:bg-steel-red/90 text-white">
                 Blockchain Tools
+              </Button>
+            </Link>
+          </div>
+
+          {/* Backend Admin Management Card */}
+          <div className="rounded-lg border border-gray-800 bg-card p-6 hover:border-flame-yellow/50 transition-all duration-300">
+            <div className="flex items-center mb-4">
+              <div className="w-12 h-12 mr-4 text-flame-yellow flex-shrink-0">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                </svg>
+              </div>
+              <h2 className="text-lg font-semibold text-white">Backend Admin</h2>
+            </div>
+            <p className="text-gray-400 mb-4">
+              Manage backend admin roles using Supabase authentication
+            </p>
+            <Link href="/admin/backend-admin">
+              <Button className="w-full bg-steel-red hover:bg-steel-red/90 text-white">
+                Manage Backend Admins
               </Button>
             </Link>
           </div>

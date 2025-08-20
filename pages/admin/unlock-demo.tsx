@@ -1,10 +1,10 @@
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { UnlockUtilsDemo } from "@/components/unlock/UnlockUtilsDemo";
 
 export default function UnlockDemoPage() {
-  const { isAdmin, loading, authenticated } = useAdminAuth();
+  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
 
   // Show loading state while checking authentication
   if (loading) {

@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
+import Link from "next/link";
+import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,7 +16,9 @@ import {
   saveDraft, 
   removeDraft, 
   getDraft, 
-  savePendingDeployment
+  savePendingDeployment,
+  removePendingDeployment,
+  hasPendingDeployments
 } from "@/lib/utils/lock-deployment-state";
 
 import ImageUpload from "@/components/ui/image-upload";
@@ -45,6 +49,8 @@ export default function BootcampForm({
   const [isDeployingLock, setIsDeployingLock] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState<string>("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
+  const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(null);
+  const [hasPendingBootcampDeployments, setHasPendingBootcampDeployments] = useState(false);
 
   // Keep track of the original bootcamp ID for updates
   const [originalBootcampId, setOriginalBootcampId] = useState<string | null>(
@@ -71,7 +77,7 @@ export default function BootcampForm({
     }
   );
 
-  // Load draft data on mount
+  // Load draft data on mount and check for pending deployments
   useEffect(() => {
     if (!isEditing) {
       const draft = getDraft('bootcamp');
@@ -79,6 +85,10 @@ export default function BootcampForm({
         setFormData(prev => ({ ...prev, ...draft.formData }));
         toast.success("Restored draft data");
       }
+      
+      // Check for pending deployments
+      const hasPending = hasPendingDeployments('bootcamp');
+      setHasPendingBootcampDeployments(hasPending);
     }
   }, [isEditing]);
 
@@ -164,6 +174,9 @@ export default function BootcampForm({
         blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
       });
 
+      // Store deployment ID for cleanup on success
+      setCurrentDeploymentId(deploymentId);
+
       toast.success(
         <>
           Lock deployed successfully!
@@ -240,8 +253,18 @@ export default function BootcampForm({
         }
       }
 
+      // Generate ID for new bootcamps
+      let bootcampId: string;
+      if (isEditing && originalBootcampId) {
+        bootcampId = originalBootcampId;
+      } else {
+        // Generate UUID for new bootcamp
+        bootcampId = crypto.randomUUID();
+      }
+
       // Prepare submission data for API
       const apiData: any = {
+        id: bootcampId, // Always include ID
         name: formData.name,
         description: formData.description,
         duration_weeks: formData.duration_weeks,
@@ -250,11 +273,6 @@ export default function BootcampForm({
         image_url: formData.image_url || null,
         updated_at: new Date().toISOString(),
       };
-
-      // Only include ID for editing operations
-      if (isEditing && originalBootcampId) {
-        apiData.id = originalBootcampId;
-      }
 
       // Add created_at for new bootcamps
       if (!isEditing) {
@@ -277,7 +295,12 @@ export default function BootcampForm({
         // Clean up drafts and pending deployments on success
         if (!isEditing) {
           removeDraft('bootcamp');
-          // Note: removePendingDeployment will be called by the recovery endpoint if used
+          
+          // Clean up pending deployment if we deployed a lock
+          if (currentDeploymentId) {
+            removePendingDeployment(currentDeploymentId);
+            console.log(`Cleaned up pending deployment: ${currentDeploymentId}`);
+          }
         }
         
         toast.success(isEditing ? "Bootcamp updated successfully!" : "Bootcamp created successfully!");
@@ -304,6 +327,24 @@ export default function BootcampForm({
         onClear={() => setError(null)}
         className="mb-4"
       />
+
+      {/* Pending Deployments Warning */}
+      {hasPendingBootcampDeployments && !isEditing && (
+        <div className="bg-yellow-900/20 border border-yellow-700 text-yellow-300 px-4 py-3 rounded-lg">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+            <div>
+              <p className="font-medium">Pending bootcamp deployments detected</p>
+              <p className="text-sm mt-1">
+                There are unfinished bootcamp deployments with orphaned locks. 
+                <Link href="/admin/draft-recovery" className="underline ml-1 hover:text-yellow-200">
+                  Visit Draft Recovery →
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {isEditing && (

@@ -1,10 +1,11 @@
+// import { UnlockPurchaseButton } from "../unlock/UnlockPurchaseButton";
 import React, { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { UnlockPurchaseButton } from "../unlock/UnlockPurchaseButton";
 import { Button } from "../ui/button";
 import Link from "next/link";
 import { RefreshCcw, User, Copy, LogOut, Plus, Unlink } from "lucide-react";
-import { useAdminAuth } from "@/hooks/useAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
 
@@ -17,7 +18,8 @@ export default function AdminAccessRequired({
 }: AdminAccessRequiredProps) {
   const { user, authenticated, login, logout, linkWallet, unlinkWallet } =
     usePrivy();
-  const { refreshAdminStatus } = useAdminAuth();
+  const { refreshAdminStatus } = useLockManagerAdminAuth();
+  const selectedWallet = useSmartWalletSelection();
   const [providerAddress, setProviderAddress] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -121,9 +123,12 @@ export default function AdminAccessRequired({
     // No further actions here; avoid recursive calls.
   }, [adminLockAddress]);
 
-  // Run access check whenever providerAddress changes (and is non-null)
+  // Run access check whenever any wallet changes - prioritize smart wallet selection
   useEffect(() => {
-    if (!providerAddress || !adminLockAddress) return;
+    const addressToCheck = selectedWallet?.address || providerAddress;
+    if (!addressToCheck || !adminLockAddress) return;
+
+    console.log('[ADMIN_ACCESS_DEBUG] Checking access for wallet:', addressToCheck, 'Type:', selectedWallet?.walletClientType || 'provider');
 
     // Reset status while checking
     setAccessStatus({
@@ -132,8 +137,8 @@ export default function AdminAccessRequired({
       isChecking: true,
     });
 
-    checkAccessStatus(providerAddress, true);
-  }, [providerAddress, adminLockAddress, checkAccessStatus]);
+    checkAccessStatus(addressToCheck, true);
+  }, [selectedWallet?.address, providerAddress, adminLockAddress, checkAccessStatus]);
 
   // Handler for refreshing wallet status
   const handleRefreshStatus = async () => {
@@ -145,9 +150,10 @@ export default function AdminAccessRequired({
       // Then manually check admin access status
       await refreshAdminStatus();
 
-      // Also update the local access status display
-      if (providerAddress) {
-        await checkAccessStatus(providerAddress, true);
+      // Also update the local access status display - check any available wallet
+      const addressToCheck = selectedWallet?.address || providerAddress;
+      if (addressToCheck) {
+        await checkAccessStatus(addressToCheck, true);
       }
 
       // Add a small delay to ensure UI updates are visible
@@ -159,13 +165,13 @@ export default function AdminAccessRequired({
     }
   };
 
-  // Get wallet information if available
-  const walletAddress = providerAddress || null;
+  // Get wallet information if available - prioritize smart wallet selection over provider address
+  const walletAddress = selectedWallet?.address || providerAddress || null;
   const shortAddress = walletAddress
     ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(
         walletAddress.length - 4
       )}`
-    : "No wallet";
+    : selectedWallet ? "Embedded Wallet" : "No wallet";
 
   const numAccounts = user?.linkedAccounts?.length || 0;
   const canRemoveAccount = numAccounts > 1;
@@ -336,14 +342,14 @@ export default function AdminAccessRequired({
               adminLockAddress ? (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-400">
-                    You need a key for the admin lock to access this area
+                    You need a key for the admin lock to access this area, contact support if you need access.
                   </p>
-                  <UnlockPurchaseButton
+                  {/* <UnlockPurchaseButton
                     lockAddress={adminLockAddress}
                     className="w-full bg-steel-red hover:bg-steel-red/90"
                   >
                     Purchase Admin Access
-                  </UnlockPurchaseButton>
+                  </UnlockPurchaseButton> */}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -363,9 +369,7 @@ export default function AdminAccessRequired({
 
           <div className="text-xs text-gray-500 text-center mt-4">
             <p>
-              Already have an admin key? Make sure your wallet is connected with
-              the correct account. You can connect a different wallet or try
-              refreshing your connection.
+              Already have an admin key? Make sure your wallet is connected with the correct account. You can connect a different wallet or try refreshing your connection.
             </p>
           </div>
         </div>
