@@ -1,17 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { createPrivyClient } from "../../../lib/privyUtils";
+import { getPrivyUser } from "@/lib/auth/privy";
 
 // Use admin client (service role) to bypass RLS for profile CRUD
 const supabase = createAdminClient();
-
-// Initialize Privy client with error handling
-let client: any = null;
-try {
-  client = createPrivyClient();
-} catch (error) {
-  console.error("Failed to initialize Privy client:", error);
-}
 
 interface UserProfile {
   id: string;
@@ -228,31 +220,9 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    // Get authorization token from request
-    const authToken = req.headers.authorization?.replace("Bearer ", "");
-    if (!authToken) {
-      return res.status(401).json({ error: "Authorization token required" });
-    }
-
-    // Verify the token with Privy (best effort)
-    let verifiedClaims: any;
-    let privyUserId: string | null = null;
-
-    // Skip Privy verification and use body data directly for now
-    // This avoids the network and initialization issues
-    privyUserId = req.body?.privyUserId;
-    
-    if (!privyUserId && client) {
-      try {
-        verifiedClaims = await client.verifyAuthToken(authToken);
-        privyUserId = verifiedClaims?.userId;
-      } catch (verifyErr) {
-        console.error(
-          "Privy token verification failed – using body data",
-          verifyErr
-        );
-      }
-    }
+    // Get Privy user from request
+    const privyUser = await getPrivyUser(req);
+    const privyUserId = privyUser?.id;
 
     if (!privyUserId) {
       return res
@@ -262,7 +232,7 @@ export default async function handler(
 
     if (req.method === "GET" || req.method === "POST") {
       // Choose the richest source of user data we have
-      const userDataForProfile = verifiedClaims || req.body;
+      const userDataForProfile = privyUser || req.body;
 
       const profile = await createOrUpdateUserProfile(
         privyUserId,

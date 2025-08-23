@@ -124,7 +124,7 @@ export function DialogContent({
         onClick={() => setOpen(false)}
       >
         <div
-          className={`relative w-full max-w-md mx-auto my-8 rounded-lg bg-white shadow-xl ${className}`}
+          className={`relative w-full max-w-md mx-auto my-8 rounded-lg shadow-xl ${className}`}
           style={{ 
             maxHeight: 'calc(100vh - 4rem)',
             position: 'relative'

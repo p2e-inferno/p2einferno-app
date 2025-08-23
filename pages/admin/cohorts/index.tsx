@@ -109,7 +109,9 @@ export default function CohortListPage() {
                 className="border-b border-gray-800 hover:bg-gray-900"
               >
                 <td className="py-4 px-4 text-sm text-white">
-                  {cohort.name}
+                  <Link href={`/admin/cohorts/${cohort.id}/applications`} className="hover:text-flame-yellow">
+                      {cohort.name}
+                  </Link>
                 </td>
                 <td className="py-4 px-4 text-sm text-white">
                   {cohort.bootcamp_program?.name || "Unknown Bootcamp"}

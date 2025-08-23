@@ -2,13 +2,12 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
-import { useVerifyToken } from "./useVerifyToken";
 
 interface UseAdminApiOptions {
   redirectOnAuthError?: boolean;
   redirectPath?: string;
   showAuthErrorModal?: boolean;
-  verifyTokenBeforeRequest?: boolean;
+  verifyTokenBeforeRequest?: boolean; // NEW: Add token verification option
 }
 
 export interface ApiResponse<T = any> {
@@ -19,11 +18,36 @@ export interface ApiResponse<T = any> {
 export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [tokenVerified, setTokenVerified] = useState<boolean | null>(null);
   const router = useRouter();
   const { getAccessToken, authenticated } = usePrivy();
-  
-  // Use the existing useVerifyToken hook
-  const { verifyToken, loading: tokenVerifying } = useVerifyToken();
+
+  // NEW: Token verification function
+  const verifyToken = useCallback(async (): Promise<boolean> => {
+    try {
+      const accessToken = await getAccessToken();
+      if (!accessToken) {
+        return false;
+      }
+
+      const response = await fetch("/api/verify", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        return false;
+      }
+
+      const data = await response.json();
+      setTokenVerified(true);
+      return true;
+    } catch (error) {
+      setTokenVerified(false);
+      return false;
+    }
+  }, [getAccessToken]);
 
   const adminFetch = useCallback(
     async <U = T>(
@@ -34,12 +58,21 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
       setError(null);
 
       try {
-        // Use the existing verifyToken function if option is enabled
+        // NEW: Verify token before making request if option is enabled
         if (options.verifyTokenBeforeRequest) {
-          await verifyToken();
-          // Note: useVerifyToken handles its own error state
-          // We can check if verification was successful by checking the result
-          // For now, we'll assume it worked if no exception was thrown
+          const isTokenValid = await verifyToken();
+          if (!isTokenValid) {
+            const errorMessage = "Token verification failed";
+            setError(errorMessage);
+            
+            if (options.redirectOnAuthError) {
+              router.push(options.redirectPath || "/admin/login");
+            } else {
+              toast.error(errorMessage);
+            }
+            
+            return { error: errorMessage };
+          }
         }
 
         // Get fresh access token from Privy
@@ -102,9 +135,10 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
 
   return {
     adminFetch,
-    loading: loading || tokenVerifying,
+    loading,
     error,
     authenticated,
-    verifyToken, // Expose the verifyToken function from useVerifyToken
+    tokenVerified, // NEW: Expose token verification status
+    verifyToken,   // NEW: Expose manual verification function
   };
 }

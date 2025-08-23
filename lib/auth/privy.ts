@@ -60,7 +60,7 @@ export async function getPrivyUser(
     // Get token from either Authorization header or privy-token cookie (like working verify endpoint)
     const headerAuthToken = req.headers.authorization?.replace(/^Bearer /, "");
     const cookieAuthToken = req.cookies["privy-token"];
-    
+
     const token = cookieAuthToken || headerAuthToken;
     if (!token) {
       return null;

@@ -43,7 +43,7 @@ const QRCodeDisplay: React.FC<{ address: string; size?: number }> = ({
           className="rounded max-w-full h-auto"
         />
       </div>
-      <p className="text-xs text-faded-grey text-center max-w-xs px-2">
+      <p className="text-xs text-gray-400 text-center max-w-xs px-2">
         Scan this QR code to copy the wallet address
       </p>
     </div>
@@ -90,8 +90,8 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
         <div className="space-y-4 sm:space-y-6">
           {/* Network Info */}
           <div className="flex items-center justify-between text-sm">
-            <span className="text-faded-grey">Network:</span>
-            <span className="font-medium">{networkName}</span>
+            <span className="text-gray-400">Network:</span>
+            <span className="font-medium text-white">{networkName}</span>
           </div>
 
           {/* Address Section */}
@@ -129,7 +129,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
           {/* Balances Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Balances</span>
+              <span className="text-sm font-medium text-white">Balances</span>
               <Button
                 variant="ghost"
                 size="sm"
@@ -157,7 +157,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                         balances.eth.formatted
                       )}
                     </div>
-                    <div className="text-xs text-faded-grey">ETH</div>
+                    <div className="text-xs text-gray-400">ETH</div>
                   </div>
                 </Card>
 
@@ -171,7 +171,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                         balances.usdc.formatted
                       )}
                     </div>
-                    <div className="text-xs text-faded-grey">{balances.usdc.symbol}</div>
+                    <div className="text-xs text-gray-400">{balances.usdc.symbol}</div>
                   </div>
                 </Card>
               </div>
@@ -181,7 +181,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
           {/* QR Code Section */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">QR Code</span>
+              <span className="text-sm font-medium text-white">QR Code</span>
               <Button
                 variant="ghost"
                 size="sm"

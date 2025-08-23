@@ -1,467 +1,101 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/router';
-import { toast } from 'react-hot-toast';
-import { usePrivy } from '@privy-io/react-auth';
-import { 
-  Users, 
-  CreditCard, 
-  CheckCircle, 
-  AlertCircle, 
-  Clock, 
-  RefreshCw,
-  Settings
-} from 'lucide-react';
-import AdminLayout from '../../../../components/layouts/AdminLayout';
-import { withAdminAuth } from '../../../../components/admin/withAdminAuth';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/router";
+// AdminLayout is not directly used, it's part of AdminEditPageLayout
+import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout"; // Import the new layout
+import CohortForm from "@/components/admin/CohortForm";
+// ArrowLeft and Link from next/link are handled by AdminEditPageLayout
+import { supabase } from "@/lib/supabase/client";
+import type { Cohort } from "@/lib/supabase/types";
 
-
-interface CohortApplication {
-  id: string;
-  user_name: string;
-  user_email: string;
-  experience_level: string;
-  motivation: string;
-  payment_status: string;
-  application_status: string;
-  user_application_status: string;
-  enrollment_status?: string;
-  created_at: string;
-  updated_at: string;
-  amount_paid?: number;
-  currency?: string;
-  needs_reconciliation: boolean;
-}
-
-interface CohortDetails {
-  id: string;
-  name: string;
-  start_date: string;
-  end_date: string;
-  max_participants: number;
-  current_participants: number;
-  registration_deadline: string;
-  status: string;
-  bootcamp_program: {
-    name: string;
-    description: string;
-  };
-}
-
-interface CohortStats {
-  total_applications: number;
-  pending_payment: number;
-  payment_completed: number;
-  enrolled: number;
-  revenue: number;
-  needs_reconciliation: number;
-}
-
-const CohortDetailPage: React.FC = () => {
+export default function EditCohortPage() {
   const router = useRouter();
   const { cohortId } = router.query;
-  const { getAccessToken } = usePrivy();
-  
-  const [cohort, setCohort] = useState<CohortDetails | null>(null);
-  const [applications, setApplications] = useState<CohortApplication[]>([]);
-  const [stats, setStats] = useState<CohortStats | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [refreshing, setRefreshing] = useState(false);
 
-  // Authenticated fetch function using unified auth system
-  const adminFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      throw new Error("No access token available");
-    }
+  const [cohort, setCohort] = useState<Cohort | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Page-specific loading for data
+  const [error, setError] = useState<string | null>(null);
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        ...options.headers,
-      },
-    });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }, [getAccessToken]);
-  
-  const fetchCohortData = useCallback(async () => {
-    if (!cohortId || typeof cohortId !== 'string') return;
-    
-    try {
-      setLoading(true);
-      
-      // Fetch cohort details and applications in parallel using unified auth
-      const [cohortRes, applicationsRes] = await Promise.all([
-        adminFetch(`/api/admin/cohorts/${cohortId}`),
-        adminFetch(`/api/admin/cohorts/${cohortId}/applications`)
-      ]);
-      
-      setCohort(cohortRes.data);
-      setApplications(applicationsRes.data?.applications || []);
-      setStats(applicationsRes.data?.stats);
-    } catch (error) {
-      console.error('Error fetching cohort data:', error);
-      toast.error('Failed to load cohort data');
-    } finally {
-      setLoading(false);
-    }
-  }, [cohortId, adminFetch]);
-  
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await fetchCohortData();
-    setRefreshing(false);
-    toast.success('Data refreshed');
-  }, [fetchCohortData]);
-  
-  const handleReconcileApplication = useCallback(async (applicationId: string) => {
-    try {
-      await adminFetch('/api/admin/applications/reconcile', {
-        method: 'POST',
-        body: JSON.stringify({ applicationId })
-      });
-      
-      toast.success('Application reconciled successfully');
-      await fetchCohortData(); // Refresh data
-    } catch (error) {
-      console.error('Reconciliation error:', error);
-      toast.error('Failed to reconcile application');
-    }
-  }, [adminFetch, fetchCohortData]);
-  
-  const handleBulkReconcile = useCallback(async () => {
-    const applicationsNeedingReconciliation = applications.filter(app => app.needs_reconciliation);
-    
-    if (applicationsNeedingReconciliation.length === 0) {
-      toast('No applications need reconciliation');
+  // Fetch cohort data
+  useEffect(() => {
+    if ( !cohortId) {
+      // If auth is still loading or conditions not met, don't fetch yet
+      // If no id, set loading to false if not already caught by auth checks
+      if (!cohortId) {
+          setIsLoading(false);
+          setError("Cohort ID is missing.");
+      }
       return;
     }
-    
-    try {
-      const promises = applicationsNeedingReconciliation.map(app =>
-        adminFetch('/api/admin/applications/reconcile', {
-          method: 'POST',
-          body: JSON.stringify({ applicationId: app.id })
-        })
-      );
-      
-      await Promise.all(promises);
-      toast.success(`Reconciled ${applicationsNeedingReconciliation.length} applications`);
-      await fetchCohortData();
-    } catch (error) {
-      console.error('Bulk reconciliation error:', error);
-      toast.error('Some reconciliations failed');
-    }
-  }, [applications, adminFetch, fetchCohortData]);
-  
-  useEffect(() => {
-    fetchCohortData();
-  }, [fetchCohortData]);
-  
-  if (loading) {
-    return (
-      <AdminLayout>
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-        </div>
-      </AdminLayout>
-    );
-  }
-  
-  if (!cohort) {
-    return (
-      <AdminLayout>
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold text-gray-900">Cohort not found</h2>
-        </div>
-      </AdminLayout>
-    );
-  }
-  
-  const filteredApplications = applications.filter(app => {
-    if (statusFilter === 'all') return true;
-    if (statusFilter === 'needs_reconciliation') return app.needs_reconciliation;
-    return app.user_application_status === statusFilter;
-  });
-  
-  const getStatusBadge = (status: string, needsReconciliation: boolean = false) => {
-    if (needsReconciliation) {
-      return (
-        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-          <AlertCircle className="w-3 h-3 mr-1" />
-          Needs Reconciliation
-        </span>
-      );
-    }
-    
-    const statusColors: Record<string, string> = {
-      'draft': 'bg-gray-100 text-gray-800',
-      'payment_pending': 'bg-yellow-100 text-yellow-800',
-      'payment_processing': 'bg-blue-100 text-blue-800',
-      'payment_failed': 'bg-red-100 text-red-800',
-      'under_review': 'bg-purple-100 text-purple-800',
-      'approved': 'bg-green-100 text-green-800',
-      'enrolled': 'bg-emerald-100 text-emerald-800',
-      'rejected': 'bg-red-100 text-red-800',
-      'withdrawn': 'bg-gray-100 text-gray-800',
-    };
-    
-    const colorClass = statusColors[status] || 'bg-gray-100 text-gray-800';
-    
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-        {status.replace('_', ' ')}
-      </span>
-    );
-  };
-  
-  return (
-    <AdminLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">{cohort.name}</h1>
-              <p className="text-gray-600 mt-1">{cohort.bootcamp_program.name}</p>
-              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                <span>Start: {new Date(cohort.start_date).toLocaleDateString()}</span>
-                <span>End: {new Date(cohort.end_date).toLocaleDateString()}</span>
-                <span>Capacity: {cohort.current_participants}/{cohort.max_participants}</span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-              {stats && stats.needs_reconciliation > 0 && (
-                <button
-                  onClick={handleBulkReconcile}
-                  className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                >
-                  <Settings className="w-4 h-4 mr-2" />
-                  Reconcile All ({stats.needs_reconciliation})
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-        
-        {/* Stats */}
-        {stats && (
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-6">
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <Users className="h-6 w-6 text-gray-400" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Total Applications</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.total_applications}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <Clock className="h-6 w-6 text-yellow-400" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Pending Payment</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.pending_payment}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <CreditCard className="h-6 w-6 text-green-400" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Payment Completed</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.payment_completed}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <CheckCircle className="h-6 w-6 text-emerald-400" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Enrolled</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.enrolled}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="bg-white overflow-hidden shadow rounded-lg">
-              <div className="p-5">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <CreditCard className="h-6 w-6 text-blue-400" />
-                  </div>
-                  <div className="ml-5 w-0 flex-1">
-                    <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Revenue</dt>
-                      <dd className="text-lg font-medium text-gray-900">₦{stats.revenue.toLocaleString()}</dd>
-                    </dl>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            {stats.needs_reconciliation > 0 && (
-              <div className="bg-white overflow-hidden shadow rounded-lg">
-                <div className="p-5">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0">
-                      <AlertCircle className="h-6 w-6 text-red-400" />
-                    </div>
-                    <div className="ml-5 w-0 flex-1">
-                      <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Need Reconciliation</dt>
-                        <dd className="text-lg font-medium text-gray-900">{stats.needs_reconciliation}</dd>
-                      </dl>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-        
-        {/* Applications Table */}
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Applications</h3>
-              <div className="flex items-center space-x-3">
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Applications</option>
-                  <option value="needs_reconciliation">Needs Reconciliation</option>
-                  <option value="payment_pending">Payment Pending</option>
-                  <option value="payment_completed">Payment Completed</option>
-                  <option value="enrolled">Enrolled</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Applicant
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Experience
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Payment
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Applied
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredApplications.map((application) => (
-                  <tr key={application.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {application.user_name}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {application.user_email}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">
-                      {application.experience_level}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(application.user_application_status, application.needs_reconciliation)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {application.amount_paid ? (
-                        `${application.currency} ${application.amount_paid.toLocaleString()}`
-                      ) : (
-                        <span className="text-gray-500">Not paid</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(application.created_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      {application.needs_reconciliation && (
-                        <button
-                          onClick={() => handleReconcileApplication(application.id)}
-                          className="text-red-600 hover:text-red-900 mr-3"
-                        >
-                          Reconcile
-                        </button>
-                      )}
-                      <button
-                        onClick={() => router.push(`/admin/applications/${application.id}`)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </AdminLayout>
-  );
-};
 
-export default withAdminAuth(CohortDetailPage);
+    async function fetchCohort() {
+      try {
+        setIsLoading(true);
+        setError(null);
+        const { data, error: dbError } = await supabase
+          .from("cohorts")
+          .select("*")
+          .eq("id", cohortId)
+          .single();
+
+        if (dbError) throw dbError;
+
+        if (!data) {
+          throw new Error("Cohort not found");
+        }
+
+        setCohort(data);
+      } catch (err: any) {
+        console.error("Error fetching cohort:", err);
+        setError(err.message || "Failed to load cohort");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchCohort();
+  }, [cohortId]); // Added authLoading to dependencies
+
+  // This initial loading state is for the auth check by useAdminAuth
+  if (isLoading) {
+    return (
+      // Using AdminLayout directly for this top-level loading state before AdminEditPageLayout can render
+      // This is because AdminEditPageLayout itself might be subject to the auth check.
+      // Alternatively, AdminEditPageLayout could have its own comprehensive loading state for auth.
+      // For now, this matches the original structure more closely for initial auth load.
+      <AdminEditPageLayout
+        title="Edit Cohort"
+        backLinkHref="/admin/cohorts"
+        backLinkText="Back to cohorts"
+        isLoading={true} // Show layout's loader during auth
+      >
+        {/* Child is empty as main content is auth-blocked or loading */}
+      </AdminEditPageLayout>
+    );
+  }
+
+  // If redirecting, return null to avoid content flash
+  if (!cohortId) {
+    return null;
+  }
+
+  return (
+    <AdminEditPageLayout
+      title="Edit Cohort"
+      backLinkHref="/admin/cohorts"
+      backLinkText="Back to cohorts"
+      isLoading={isLoading} // This is for data loading, auth loading is handled above
+      error={error}
+    >
+      {cohort ? (
+        <CohortForm cohort={cohort} isEditing />
+      ) : (
+        !isLoading && !error && !cohort ?
+          <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
+            Cohort not found. It may have been deleted or the ID is incorrect.
+          </div>
+        : null // Loading/Error is handled by AdminEditPageLayout based on props
+      )}
+    </AdminEditPageLayout>
+  );
+}

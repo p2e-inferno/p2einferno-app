@@ -1,9 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { createPrivyClient } from "../../lib/privyUtils";
+import { getPrivyUser } from "@/lib/auth/privy";
 
 const supabase = createAdminClient();
-const client = createPrivyClient();
 
 export default async function handler(
   req: NextApiRequest,
@@ -17,14 +16,12 @@ export default async function handler(
     const applicationData = req.body;
 
     // Get authorization token
-    const authToken = req.headers.authorization?.replace("Bearer ", "");
+    const privyUser = await getPrivyUser(req);
+    const privyUserId = privyUser?.id;
     let userProfileId: string | null = null;
 
-    if (authToken) {
+    if (privyUserId) {
       try {
-        const verifiedClaims = await client.verifyAuthToken(authToken);
-        const privyUserId = verifiedClaims.userId;
-
         // Get user profile
         const { data: userProfile } = await supabase
           .from("user_profiles")

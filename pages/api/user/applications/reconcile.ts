@@ -1,20 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { createPrivyClient } from "../../../../lib/privyUtils";
-
+import { getPrivyUser } from "../../../../lib/auth/privy";
 import { StatusSyncService } from "../../../../lib/services/status-sync-service";
 
 interface UserReconcileRequest {
   applicationId: string;
   privyUserId?: string;
-}
-
-// Initialize Privy client with error handling
-let client: any = null;
-try {
-  client = createPrivyClient();
-} catch (error) {
-  console.error("Failed to initialize Privy client:", error);
 }
 
 /**
@@ -31,30 +22,8 @@ export default async function handler(
 
   try {
     // Get authorization token from request
-    const authToken = req.headers.authorization?.replace("Bearer ", "");
-    if (!authToken) {
-      return res.status(401).json({ error: "Authorization token required" });
-    }
-
-    // Use the same authentication pattern as profile API
-    let verifiedClaims: any;
-    let privyUserId: string | null = null;
-
-    // Get privyUserId from request body first (same as profile API)
-    privyUserId = req.body?.privyUserId;
-    
-    // Fallback to token verification if no body data
-    if (!privyUserId && client) {
-      try {
-        verifiedClaims = await client.verifyAuthToken(authToken);
-        privyUserId = verifiedClaims?.userId;
-      } catch (verifyErr) {
-        console.error(
-          "Privy token verification failed – using body data",
-          verifyErr
-        );
-      }
-    }
+    const privyUser = await getPrivyUser(req);
+    const privyUserId = privyUser?.id;
 
     if (!privyUserId) {
       return res.status(401).json({ error: "Invalid user token and no privyUserId provided" });
