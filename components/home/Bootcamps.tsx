@@ -167,7 +167,7 @@ export function Bootcamps() {
                        activeCohort?.status === "upcoming" ? "Coming Soon" : 
                        activeCohort?.status === "closed" ? "Registration Closed" :
                        timeRemaining === "Registration Closed" ? "Registration Closed" :
-                       spotsRemaining <= 0 ? "Cohort Full" : "Registration Closed"}
+                       isRegistrationOpen && spotsRemaining <= 0 ? "Cohort Full" : !isRegistrationOpen ? "Coming Soon" : "Registration Closed"}
                     </span>
                   </div>
                 </div>

@@ -4,7 +4,6 @@ import { AuthError } from "@/components/ui/auth-error";
 
 /**
  * Higher-order component that adds authentication error handling to admin forms
- * Uses the unified authentication system
  *
  * @param Component The component to wrap
  * @returns A wrapped component with authentication error handling

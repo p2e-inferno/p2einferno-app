@@ -20,6 +20,7 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
     try {
       // 1. Get authenticated user and their wallets via getPrivyUser
       user = await getPrivyUser(req, true); // includeWallets = true
+
       if (!user) {
         return res.status(401).json({ error: "Authentication required" });
       }
