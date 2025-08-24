@@ -20,6 +20,7 @@ import {
   removePendingDeployment,
   hasPendingDeployments
 } from "@/lib/utils/lock-deployment-state";
+import { getRecordId } from "@/lib/utils/id-generation";
 
 import ImageUpload from "@/components/ui/image-upload";
 import type { BootcampProgram } from "@/lib/supabase/types";
@@ -254,13 +255,7 @@ export default function BootcampForm({
       }
 
       // Generate ID for new bootcamps
-      let bootcampId: string;
-      if (isEditing && originalBootcampId) {
-        bootcampId = originalBootcampId;
-      } else {
-        // Generate UUID for new bootcamp
-        bootcampId = crypto.randomUUID();
-      }
+      const bootcampId = getRecordId(isEditing, originalBootcampId);
 
       // Prepare submission data for API
       const apiData: any = {

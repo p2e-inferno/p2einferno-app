@@ -1,22 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
 import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
-import {
-  Clock,
-  Users,
-  Trophy,
-  Calendar,
-  Flame,
-  ChevronRight,
-  Sparkles,
-} from "lucide-react";
+import { Carousel } from "@/components/ui/carousel";
+import { BootcampCard } from "@/components/bootcamps/BootcampCard";
 
 interface BootcampWithCohorts extends BootcampProgram {
   cohorts: Cohort[];
@@ -121,144 +107,24 @@ export function Bootcamps() {
           </p>
         </div>
 
-        <div className="max-w-4xl mx-auto space-y-8">
-          {bootcamps.map((bootcamp) => {
-            // Find open cohort first, then upcoming, then most recent
-            const openCohort = bootcamp.cohorts.find(c => c.status === "open");
-            const upcomingCohort = bootcamp.cohorts.find(c => c.status === "upcoming");
-            const activeCohort = openCohort || upcomingCohort || bootcamp.cohorts[0];
-            
-            const spotsRemaining = activeCohort 
-              ? activeCohort.max_participants - activeCohort.current_participants 
-              : 0;
-            const timeRemaining = activeCohort 
-              ? calculateTimeRemaining(activeCohort.registration_deadline)
-              : "No Active Cohort";
-            const isRegistrationOpen = activeCohort?.status === "open" && 
-              spotsRemaining > 0 && 
-              timeRemaining !== "Registration Closed";
-
-            return (
-              <Card key={bootcamp.id} className="relative bg-gradient-to-br from-steel-red/10 via-background to-flame-yellow/10 border-steel-red/20 hover:border-flame-yellow/50 transition-all duration-500 transform hover:-translate-y-2 shadow-2xl">
-                {/* Status Badge */}
-                <div className="absolute top-4 right-4 z-10">
-                  <div className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-3 py-1 ${
-                    isRegistrationOpen 
-                      ? "bg-green-500/20 border-green-500/30" 
-                      : activeCohort?.status === "upcoming"
-                      ? "bg-blue-500/20 border-blue-500/30"
-                      : "bg-red-500/20 border-red-500/30"
-                  }`}>
-                    <div className={`w-2 h-2 rounded-full ${
-                      isRegistrationOpen 
-                        ? "bg-green-500 animate-pulse" 
-                        : activeCohort?.status === "upcoming"
-                        ? "bg-blue-500"
-                        : "bg-red-500"
-                    }`}></div>
-                    <span className={`font-medium text-sm ${
-                      isRegistrationOpen 
-                        ? "text-green-400" 
-                        : activeCohort?.status === "upcoming"
-                        ? "text-blue-400"
-                        : "text-red-400"
-                    }`}>
-                      {isRegistrationOpen ? "Registration Open" : 
-                       activeCohort?.status === "upcoming" ? "Coming Soon" : 
-                       activeCohort?.status === "closed" ? "Registration Closed" :
-                       timeRemaining === "Registration Closed" ? "Registration Closed" :
-                       isRegistrationOpen && spotsRemaining <= 0 ? "Cohort Full" : !isRegistrationOpen ? "Coming Soon" : "Registration Closed"}
-                    </span>
-                  </div>
-                </div>
-
-                <CardHeader className="pb-8">
-                  <div className="flex items-start gap-4 mb-6">
-                    <div className="p-3 bg-steel-red rounded-full text-white">
-                      <Flame className="w-8 h-8" />
-                    </div>
-                    <div className="flex-1">
-                      <CardTitle className="font-heading text-2xl md:text-3xl mb-2 text-flame-yellow">
-                        {bootcamp.name}
-                      </CardTitle>
-                      <div className="inline-flex items-center gap-2 bg-steel-red/20 border border-steel-red/30 rounded-full px-3 py-1 mb-4">
-                        <Sparkles className="w-4 h-4 text-steel-red" />
-                        <span className="text-steel-red font-medium text-sm">
-                          Beginner Friendly
-                        </span>
-                      </div>
-                      <CardDescription className="text-base leading-relaxed">
-                        {bootcamp.description}
-                      </CardDescription>
-                    </div>
-                  </div>
-
-                  {/* Key Metrics */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
-                    <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 text-center border border-faded-grey/20">
-                      <Clock className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
-                      <div className="text-xl font-bold">
-                        {bootcamp.duration_weeks}
-                      </div>
-                      <div className="text-sm text-faded-grey">Weeks</div>
-                    </div>
-                    <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 text-center border border-faded-grey/20">
-                      <Trophy className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
-                      <div className="text-xl font-bold">
-                        {bootcamp.max_reward_dgt.toLocaleString()}
-                      </div>
-                      <div className="text-sm text-faded-grey">Max DG</div>
-                    </div>
-                    {activeCohort && (
-                      <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 text-center border border-faded-grey/20">
-                        <Users className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
-                        <div className="text-xl font-bold">{spotsRemaining}</div>
-                        <div className="text-sm text-faded-grey">Spots Left</div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Registration Period */}
-                  {activeCohort && (
-                    <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 mb-6 border border-faded-grey/20">
-                      <div className="flex items-center justify-center gap-2 mb-2">
-                        <Calendar className="w-5 h-5 text-flame-yellow" />
-                        <h3 className="text-lg font-medium">Registration Period</h3>
-                      </div>
-                      <p className="text-center text-faded-grey">
-                        {isRegistrationOpen ? "Open Registration" : 
-                         activeCohort.status === "upcoming" ? "Coming Soon" : 
-                         activeCohort.status === "closed" ? "Registration Closed" :
-                         timeRemaining === "Registration Closed" ? "Registration Closed" :
-                         spotsRemaining <= 0 ? "Cohort Full" : "Registration Closed"}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* CTA */}
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-faded-grey/20">
-                    {activeCohort && (
-                      <div className="flex items-center gap-2 text-steel-red">
-                        <Calendar className="w-5 h-5" />
-                        <span className="font-medium">{timeRemaining}</span>
-                      </div>
-                    )}
-
-                    <div className="flex gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={() => (window.location.href = `/bootcamp/${bootcamp.id}`)}
-                        className="border-flame-yellow/30 text-flame-yellow hover:bg-flame-yellow/10"
-                      >
-                        Learn More
-                        <ChevronRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            );
-          })}
+        <div className="max-w-6xl mx-auto">
+          <Carousel
+            options={{
+              loop: true,
+              align: "start",
+              slidesToScroll: 1,
+            }}
+            showDots={true}
+            showArrows={true}
+          >
+            {bootcamps.map((bootcamp) => (
+              <BootcampCard
+                key={bootcamp.id}
+                bootcamp={bootcamp}
+                calculateTimeRemaining={calculateTimeRemaining}
+              />
+            ))}
+          </Carousel>
         </div>
       </div>
     </section>

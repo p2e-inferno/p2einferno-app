@@ -18,6 +18,7 @@ import {
   getDraft, 
   savePendingDeployment
 } from "@/lib/utils/lock-deployment-state";
+import { getRecordId } from "@/lib/utils/id-generation";
 
 interface CohortFormProps {
   cohort?: Cohort;
@@ -261,8 +262,12 @@ export default function CohortForm({
         }
       }
 
+      // Generate ID for new cohorts
+      const cohortId = getRecordId(isEditing, cohort?.id);
+
       const dataToSave = {
         ...formData,
+        id: cohortId,
         key_managers: keyManagers,
         lock_address: lockAddress,
       };
