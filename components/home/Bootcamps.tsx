@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
 import { Carousel } from "@/components/ui/carousel";
 import { BootcampCard } from "@/components/bootcamps/BootcampCard";
+import { NetworkError } from "@/components/ui/network-error";
 
 interface BootcampWithCohorts extends BootcampProgram {
   cohorts: Cohort[];
@@ -12,14 +13,20 @@ export function Bootcamps() {
   const [bootcamps, setBootcamps] = useState<BootcampWithCohorts[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     fetchBootcamps();
   }, []);
 
-  const fetchBootcamps = async () => {
+  const fetchBootcamps = async (isRetry = false) => {
     try {
-      setLoading(true);
+      if (isRetry) {
+        setIsRetrying(true);
+        setError(null);
+      } else {
+        setLoading(true);
+      }
       
       // Fetch bootcamps with their cohorts
       const { data: bootcampsData, error: bootcampsError } = await supabase
@@ -48,12 +55,22 @@ export function Bootcamps() {
       );
 
       setBootcamps(bootcampsWithCohorts);
+      setError(null);
     } catch (err: any) {
       console.error("Error fetching bootcamps:", err);
       setError(err.message || "Failed to load bootcamps");
     } finally {
       setLoading(false);
+      setIsRetrying(false);
     }
+  };
+
+  const handleRetry = () => {
+    fetchBootcamps(true);
+  };
+
+  const handleClearError = () => {
+    setError(null);
   };
 
   const calculateTimeRemaining = (deadline: string) => {
@@ -81,12 +98,28 @@ export function Bootcamps() {
     );
   }
 
-  if (error) {
+  if (error && !isRetrying) {
     return (
       <section id="bootcamps" className="py-20 md:py-32 bg-background">
         <div className="container mx-auto px-4">
-          <div className="text-center">
-            <p className="text-red-400">Error: {error}</p>
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold font-heading mb-4">
+              Bootcamp Programs
+            </h2>
+            <p className="text-lg text-faded-grey max-w-3xl mx-auto">
+              Accelerate your Web3 journey through our immersive bootcamp
+              experiences. Learn by doing, earn while learning, and join our
+              thriving community.
+            </p>
+          </div>
+          
+          <div className="max-w-4xl mx-auto">
+            <NetworkError
+              error={error}
+              onRetry={handleRetry}
+              onClear={handleClearError}
+              isRetrying={isRetrying}
+            />
           </div>
         </div>
       </section>

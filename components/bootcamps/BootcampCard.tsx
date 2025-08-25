@@ -26,7 +26,6 @@ export function BootcampCard({ bootcamp, calculateTimeRemaining }: BootcampCardP
   const openCohort = bootcamp.cohorts.find(c => c.status === "open");
   const upcomingCohort = bootcamp.cohorts.find(c => c.status === "upcoming");
   const activeCohort = openCohort || upcomingCohort || bootcamp.cohorts[0];
-  
   const spotsRemaining = activeCohort 
     ? activeCohort.max_participants - activeCohort.current_participants 
     : 0;
@@ -64,7 +63,7 @@ export function BootcampCard({ bootcamp, calculateTimeRemaining }: BootcampCardP
           }`}>
             {isRegistrationOpen ? "Open" : 
              activeCohort?.status === "upcoming" ? "Coming Soon" : 
-             "Closed"}
+             !activeCohort ? "Cooking" : "Closed"}
           </span>
         </div>
       </div>
