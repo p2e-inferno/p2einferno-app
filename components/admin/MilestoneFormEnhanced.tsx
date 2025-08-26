@@ -3,10 +3,23 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, Zap } from "lucide-react";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import { nanoid } from "nanoid";
 import { usePrivy } from "@privy-io/react-auth";
+import { useWallets } from "@privy-io/react-auth";
+import { toast } from "react-hot-toast";
+import { unlockUtils } from "@/lib/unlock/lockUtils";
+import { generateMilestoneLockConfig, createLockConfigWithManagers } from "@/lib/blockchain/admin-lock-config";
+import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
+import {
+  savePendingDeployment,
+  removePendingDeployment,
+  saveDraft,
+  removeDraft,
+} from "@/lib/utils/lock-deployment-state";
+
+type TaskType = 'file_upload' | 'url_submission' | 'contract_interaction';
 
 interface TaskForm {
   id: string;
@@ -14,7 +27,22 @@ interface TaskForm {
   description: string;
   reward_amount: number;
   order_index: number;
+  task_type: TaskType;
+  contract_network?: string;
+  contract_address?: string;
+  contract_method?: string;
 }
+
+const AVAILABLE_NETWORKS = [
+  { value: 'base', label: 'Base Mainnet', chainId: 8453 },
+  { value: 'base-sepolia', label: 'Base Sepolia', chainId: 84532 },
+];
+
+const TASK_TYPES = [
+  { value: 'file_upload' as TaskType, label: 'File Upload', description: 'User uploads a file for review' },
+  { value: 'url_submission' as TaskType, label: 'URL Submission', description: 'User submits a URL link' },
+  { value: 'contract_interaction' as TaskType, label: 'Contract Interaction', description: 'User interacts with a smart contract' },
+];
 
 interface MilestoneFormEnhancedProps {
   cohortId: string;
@@ -33,8 +61,13 @@ export default function MilestoneFormEnhanced({
 }: MilestoneFormEnhancedProps) {
   const isEditing = !!milestone;
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeployingLock, setIsDeployingLock] = useState(false);
+  const [deploymentStep, setDeploymentStep] = useState('');
+  const [showAutoLockCreation, setShowAutoLockCreation] = useState(!isEditing);
   const [error, setError] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
+  const { wallets } = useWallets();
+  const wallet = wallets[0];
 
   const [formData, setFormData] = useState<Partial<CohortMilestone>>(
     milestone || {
@@ -62,6 +95,10 @@ export default function MilestoneFormEnhanced({
       description: "",
       reward_amount: 0,
       order_index: 0,
+      task_type: 'file_upload',
+      contract_network: '',
+      contract_address: '',
+      contract_method: '',
     },
   ]);
 
@@ -84,6 +121,10 @@ export default function MilestoneFormEnhanced({
             description: task.description || "",
             reward_amount: task.reward_amount,
             order_index: task.order_index,
+            task_type: task.task_type || 'file_upload',
+            contract_network: task.contract_network || '',
+            contract_address: task.contract_address || '',
+            contract_method: task.contract_method || '',
           }));
           setTasks(existingTasks);
         }
@@ -114,6 +155,10 @@ export default function MilestoneFormEnhanced({
         description: "",
         reward_amount: 0,
         order_index: prev.length,
+        task_type: 'file_upload',
+        contract_network: '',
+        contract_address: '',
+        contract_method: '',
       },
     ]);
   };
@@ -134,6 +179,94 @@ export default function MilestoneFormEnhanced({
           : task
       )
     );
+  };
+
+  // Deploy lock for the milestone
+  const deployLockForMilestone = async (): Promise<string | undefined> => {
+    if (!wallet) {
+      toast.error("Please connect your wallet to deploy the lock");
+      return undefined;
+    }
+
+    if (!formData.name) {
+      toast.error("Please enter milestone name before deploying lock");
+      return undefined;
+    }
+
+    setIsDeployingLock(true);
+    setDeploymentStep("Checking network...");
+
+    try {
+      setDeploymentStep("Preparing lock configuration...");
+
+      // Generate lock config from milestone data
+      const lockConfig = generateMilestoneLockConfig(formData as CohortMilestone, totalTaskReward);
+      const deployConfig = createLockConfigWithManagers(lockConfig);
+      
+      setDeploymentStep("Deploying lock on blockchain...");
+      toast.loading("Deploying milestone access lock...", { id: "milestone-lock-deploy" });
+
+      // Deploy the lock
+      const result = await unlockUtils.deployLock(deployConfig, wallet);
+
+      if (!result.success) {
+        throw new Error(result.error || "Lock deployment failed");
+      }
+
+      // Get lock address from deployment result
+      if (!result.lockAddress) {
+        throw new Error("Lock deployment succeeded but no lock address returned");
+      }
+
+      const lockAddress = result.lockAddress;
+      setDeploymentStep("Lock deployed successfully!");
+
+      // Save deployment state before database operation
+      const deploymentId = savePendingDeployment({
+        lockAddress,
+        entityType: 'milestone',
+        entityData: formData,
+        transactionHash: result.transactionHash,
+        blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
+      });
+
+      toast.success(
+        <>
+          Milestone lock deployed successfully!
+          <br />
+          {result.transactionHash && (
+            <a 
+              href={getBlockExplorerUrl(result.transactionHash)} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="underline"
+            >
+              View transaction
+            </a>
+          )}
+        </>,
+        { 
+          id: "milestone-lock-deploy",
+          duration: 5000 
+        }
+      );
+
+      console.log("Milestone lock deployed:", {
+        lockAddress,
+        transactionHash: result.transactionHash,
+        deploymentId,
+      });
+
+      return lockAddress;
+
+    } catch (error: any) {
+      console.error("Milestone lock deployment failed:", error);
+      toast.error(error.message || "Failed to deploy lock", { id: "milestone-lock-deploy" });
+      setDeploymentStep("");
+      throw error;
+    } finally {
+      setIsDeployingLock(false);
+    }
   };
 
   // Calculate total reward from tasks
@@ -168,6 +301,24 @@ export default function MilestoneFormEnhanced({
         throw new Error("All tasks must have a valid reward amount (0 or greater)");
       }
 
+      // Validate contract interaction tasks
+      const contractTasks = validTasks.filter(task => task.task_type === 'contract_interaction');
+      for (const task of contractTasks) {
+        if (!task.contract_network) {
+          throw new Error(`Contract interaction task "${task.title}" requires a network selection`);
+        }
+        if (!task.contract_address) {
+          throw new Error(`Contract interaction task "${task.title}" requires a contract address`);
+        }
+        if (!task.contract_method) {
+          throw new Error(`Contract interaction task "${task.title}" requires a contract method`);
+        }
+        // Validate Ethereum address format
+        if (!/^0x[a-fA-F0-9]{40}$/.test(task.contract_address)) {
+          throw new Error(`Contract interaction task "${task.title}" has an invalid contract address format`);
+        }
+      }
+
       // If both dates are provided, validate them
       if (formData.start_date && formData.end_date) {
         const startDate = new Date(formData.start_date);
@@ -179,6 +330,22 @@ export default function MilestoneFormEnhanced({
       }
 
       const now = new Date().toISOString();
+      let lockAddress = formData.lock_address || "";
+
+      // Deploy lock if not editing and auto-creation is enabled and no lock address provided
+      if (!isEditing && showAutoLockCreation && !lockAddress && totalTaskReward > 0) {
+        try {
+          console.log("Auto-deploying lock for milestone...");
+          lockAddress = await deployLockForMilestone();
+          
+          if (!lockAddress) {
+            throw new Error("Lock deployment failed");
+          }
+        } catch (deployError: any) {
+          // If lock deployment fails, don't create the milestone
+          throw new Error(`Lock deployment failed: ${deployError.message}`);
+        }
+      }
 
       // Prepare milestone data
       const milestoneData = {
@@ -187,7 +354,7 @@ export default function MilestoneFormEnhanced({
         description: formData.description || "",
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
-        lock_address: formData.lock_address || "",
+        lock_address: lockAddress,
         prerequisite_milestone_id: formData.prerequisite_milestone_id || null,
         duration_hours: formData.duration_hours || 0,
         total_reward: totalTaskReward,
@@ -227,6 +394,10 @@ export default function MilestoneFormEnhanced({
         title: task.title,
         description: task.description || "",
         reward_amount: task.reward_amount,
+        task_type: task.task_type,
+        contract_network: task.task_type === 'contract_interaction' ? task.contract_network : null,
+        contract_address: task.task_type === 'contract_interaction' ? task.contract_address : null,
+        contract_method: task.task_type === 'contract_interaction' ? task.contract_method : null,
         milestone_id: milestoneId,
         order_index: index,
         created_at: now,
@@ -434,34 +605,121 @@ export default function MilestoneFormEnhanced({
                 )}
               </div>
 
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="md:col-span-2">
-                  <Label className="text-white text-sm">Task Title *</Label>
-                  <Input
-                    value={task.title}
-                    onChange={(e) =>
-                      updateTask(task.id, "title", e.target.value)
-                    }
-                    placeholder="e.g., Create a Web3 wallet"
-                    className={`${inputClass} mt-1`}
-                  />
-                </div>
-
+              <div className="grid grid-cols-1 gap-4">
+                {/* Task Type Selection */}
                 <div>
-                  <Label className="text-white text-sm">Reward (DG) *</Label>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={task.reward_amount || ""}
+                  <Label className="text-white text-sm">Task Type *</Label>
+                  <select
+                    value={task.task_type}
                     onChange={(e) =>
-                      updateTask(task.id, "reward_amount", e.target.value)
+                      updateTask(task.id, "task_type", e.target.value as TaskType)
                     }
-                    placeholder="100"
-                    className={`${inputClass} mt-1`}
-                  />
+                    className={`${inputClass} w-full h-10 rounded-md px-3 mt-1`}
+                  >
+                    {TASK_TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {TASK_TYPES.find(t => t.value === task.task_type)?.description}
+                  </p>
                 </div>
 
-                <div className="md:col-span-3">
+                {/* Basic Task Fields */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="md:col-span-2">
+                    <Label className="text-white text-sm">Task Title *</Label>
+                    <Input
+                      value={task.title}
+                      onChange={(e) =>
+                        updateTask(task.id, "title", e.target.value)
+                      }
+                      placeholder="e.g., Create a Web3 wallet"
+                      className={`${inputClass} mt-1`}
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-white text-sm">Reward (DG) *</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={task.reward_amount || ""}
+                      onChange={(e) =>
+                        updateTask(task.id, "reward_amount", e.target.value)
+                      }
+                      placeholder="100"
+                      className={`${inputClass} mt-1`}
+                    />
+                  </div>
+                </div>
+
+                {/* Contract Interaction Fields - Only show for contract_interaction tasks */}
+                {task.task_type === 'contract_interaction' && (
+                  <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
+                    <h5 className="text-blue-300 font-medium mb-3 flex items-center">
+                      <Zap className="h-4 w-4 mr-2" />
+                      Contract Interaction Configuration
+                    </h5>
+                    
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <div>
+                        <Label className="text-white text-sm">Network *</Label>
+                        <select
+                          value={task.contract_network || ''}
+                          onChange={(e) =>
+                            updateTask(task.id, "contract_network", e.target.value)
+                          }
+                          className={`${inputClass} w-full h-10 rounded-md px-3 mt-1`}
+                          required
+                        >
+                          <option value="">Select network</option>
+                          {AVAILABLE_NETWORKS.map((network) => (
+                            <option key={network.value} value={network.value}>
+                              {network.label} (Chain ID: {network.chainId})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <Label className="text-white text-sm">Contract Address *</Label>
+                        <Input
+                          value={task.contract_address || ''}
+                          onChange={(e) =>
+                            updateTask(task.id, "contract_address", e.target.value)
+                          }
+                          placeholder="0x1234..."
+                          className={`${inputClass} mt-1`}
+                          pattern="^0x[a-fA-F0-9]{40}$"
+                          title="Please enter a valid Ethereum address"
+                          required
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <Label className="text-white text-sm">Contract Method *</Label>
+                        <Input
+                          value={task.contract_method || ''}
+                          onChange={(e) =>
+                            updateTask(task.id, "contract_method", e.target.value)
+                          }
+                          placeholder="e.g., mint, approve, transfer"
+                          className={`${inputClass} mt-1`}
+                          required
+                        />
+                        <p className="text-xs text-gray-400 mt-1">
+                          The function name from the contract's ABI that users should interact with
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Task Description */}
+                <div>
                   <Label className="text-white text-sm">Description</Label>
                   <Textarea
                     value={task.description}
@@ -469,7 +727,7 @@ export default function MilestoneFormEnhanced({
                       updateTask(task.id, "description", e.target.value)
                     }
                     placeholder="Provide instructions for completing this task..."
-                    rows={2}
+                    rows={task.task_type === 'contract_interaction' ? 3 : 2}
                     className={`${inputClass} mt-1`}
                   />
                 </div>
@@ -479,22 +737,88 @@ export default function MilestoneFormEnhanced({
         </div>
       </div>
 
-      {/* Lock Address */}
-      <div className="space-y-2">
-        <Label htmlFor="lock_address" className="text-white">
-          Lock Address
-        </Label>
-        <Input
-          id="lock_address"
-          name="lock_address"
-          value={formData.lock_address || ""}
-          onChange={handleChange}
-          placeholder="e.g., 0x1234..."
-          className={inputClass}
-        />
-        <p className="text-sm text-gray-400">
-          Optional: Unlock Protocol lock address for milestone NFT badges
-        </p>
+      {/* Lock Configuration */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold text-white">Lock Configuration</h3>
+        
+        {!isEditing && (
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h4 className="text-white font-medium">Automatic Lock Deployment</h4>
+                <p className="text-sm text-gray-400">
+                  Deploy an Unlock Protocol lock for this milestone's NFT badges
+                </p>
+              </div>
+              <div className="flex items-center space-x-3">
+                <label className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={showAutoLockCreation}
+                    onChange={(e) => setShowAutoLockCreation(e.target.checked)}
+                    className="w-4 h-4 text-flame-yellow bg-transparent border-gray-600 rounded focus:ring-flame-yellow focus:ring-2"
+                  />
+                  <span className="text-white text-sm">Auto-deploy</span>
+                </label>
+                {showAutoLockCreation && !formData.lock_address && totalTaskReward > 0 && (
+                  <Button
+                    type="button"
+                    onClick={deployLockForMilestone}
+                    disabled={isDeployingLock || !wallet}
+                    variant="outline"
+                    size="sm"
+                    className="border-flame-yellow text-flame-yellow hover:bg-flame-yellow/10"
+                  >
+                    {isDeployingLock ? (
+                      <>
+                        <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-t-transparent"></div>
+                        Deploying...
+                      </>
+                    ) : (
+                      <>Deploy Now</>
+                    )}
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {isDeployingLock && deploymentStep && (
+              <div className="bg-blue-900/20 border border-blue-700 rounded p-3 mb-3">
+                <p className="text-blue-300 text-sm font-medium">{deploymentStep}</p>
+              </div>
+            )}
+
+            {showAutoLockCreation && totalTaskReward > 0 && (
+              <div className="text-xs text-gray-400 bg-gray-900/50 rounded p-3">
+                <p className="mb-1">✨ A new lock will be automatically deployed for this milestone using your connected wallet</p>
+                <p>• Lock will be configured for milestone NFT badges</p>
+                <p>• Total reward amount: {totalTaskReward.toLocaleString()} DG</p>
+                <p>• Price: Free (0 ETH) - rewards distributed manually</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="lock_address" className="text-white">
+            Lock Address {!isEditing && showAutoLockCreation ? '(Auto-generated)' : ''}
+          </Label>
+          <Input
+            id="lock_address"
+            name="lock_address"
+            value={formData.lock_address || ""}
+            onChange={handleChange}
+            placeholder={!isEditing && showAutoLockCreation ? "Will be auto-generated on creation" : "e.g., 0x1234..."}
+            className={inputClass}
+            disabled={!isEditing && showAutoLockCreation}
+          />
+          <p className="text-sm text-gray-400">
+            {!isEditing && showAutoLockCreation 
+              ? "Lock address will be automatically generated during milestone creation" 
+              : "Optional: Unlock Protocol lock address for milestone NFT badges"
+            }
+          </p>
+        </div>
       </div>
 
       <div className="flex justify-end space-x-4 pt-4">

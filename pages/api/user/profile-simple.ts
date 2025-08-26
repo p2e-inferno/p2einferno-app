@@ -29,6 +29,7 @@ interface UserDashboardData {
   stats: {
     totalApplications: number;
     completedBootcamps: number;
+    enrolledBootcamps: number;
     totalPoints: number;
     pendingPayments: number;
     questsCompleted: number;
@@ -232,6 +233,10 @@ async function getUserDashboardData(
     completedBootcamps:
       enrollments?.filter((_e: any) => _e.enrollment_status === "completed")
         .length || 0,
+    enrolledBootcamps:
+      enrollments?.filter((_e: any) => 
+        _e.enrollment_status === "enrolled" || _e.enrollment_status === "active"
+      ).length || 0,
     totalPoints: profile.experience_points || 0,
     pendingPayments:
       applications?.filter((_a: any) => {

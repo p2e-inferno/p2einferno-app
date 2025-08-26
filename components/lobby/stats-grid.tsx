@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import { CrystalIcon, TrophyIcon, ScrollIcon } from "../icons/dashboard-icons";
 import { AlertTriangle } from "lucide-react";
 
@@ -6,6 +7,7 @@ interface StatsGridProps {
   stats: {
     totalApplications: number;
     completedBootcamps: number;
+    enrolledBootcamps: number;
     totalPoints: number;
     pendingPayments: number;
   };
@@ -29,18 +31,20 @@ export const StatsGrid: React.FC<StatsGridProps> = ({ stats }) => {
         </div>
       </div>
 
-      {/* Completed Bootcamps */}
-      <div className="bg-gradient-to-br from-yellow-800/30 to-yellow-900/30 rounded-xl p-4 border border-yellow-500/20 backdrop-blur-sm">
-        <div className="flex items-center space-x-3">
-          <TrophyIcon size={32} className="text-yellow-400" />
-          <div>
-            <p className="text-2xl font-bold text-yellow-300">
-              {stats.completedBootcamps}
-            </p>
-            <p className="text-xs text-faded-grey">Completed bootcamps</p>
+      {/* Enrolled Bootcamps */}
+      <Link href="/lobby/bootcamps/enrolled" className="block">
+        <div className="bg-gradient-to-br from-yellow-800/30 to-yellow-900/30 rounded-xl p-4 border border-yellow-500/20 backdrop-blur-sm hover:from-yellow-700/30 hover:to-yellow-800/30 hover:border-yellow-400/30 transition-all duration-200 cursor-pointer">
+          <div className="flex items-center space-x-3">
+            <TrophyIcon size={32} className="text-yellow-400" />
+            <div>
+              <p className="text-2xl font-bold text-yellow-300">
+                {stats.enrolledBootcamps}
+              </p>
+              <p className="text-xs text-faded-grey">Enrolled bootcamps</p>
+            </div>
           </div>
         </div>
-      </div>
+      </Link>
 
       {/* Pending Applications */}
       <div className="bg-gradient-to-br from-magenta-800/30 to-magenta-900/30 rounded-xl p-4 border border-magenta-500/20 backdrop-blur-sm">

@@ -1,7 +1,7 @@
 import { type Address } from "viem";
 import { CLIENT_CHAIN_CONFIG } from "./client-config";
 import { getAdminLockManagerAddresses } from "./transaction-helpers";
-import type { Cohort, BootcampProgram, Quest } from "../supabase/types";
+import type { Cohort, BootcampProgram, Quest, CohortMilestone } from "../supabase/types";
 
 // ============================================================================
 // LOCK CONFIGURATION TYPES
@@ -93,6 +93,26 @@ export const generateQuestLockConfig = (quest: Quest): LockConfig => {
     maxKeysPerAddress: 1, // One badge per address
     transferable: true, // Badges can be transferred
     requiresApproval: false,
+  };
+};
+
+/**
+ * Generate lock configuration for milestone completion NFT badge
+ * - 1 year expiration
+ * - Free completion badge based on total reward amount
+ */
+export const generateMilestoneLockConfig = (milestone: CohortMilestone, totalReward: number = 0): LockConfig => {
+  return {
+    name: `${milestone.name} NFT Badge`,
+    symbol: "MILESTONE",
+    keyPrice: "0", // Free badge - rewards distributed manually
+    maxNumberOfKeys: 10000, // High limit for milestone badges
+    expirationDuration: EXPIRATION_DURATIONS.ONE_YEAR,
+    currency: "FREE",
+    price: 0,
+    maxKeysPerAddress: 1, // One badge per address per milestone
+    transferable: true, // Milestone badges can be transferred
+    requiresApproval: false, // Automatic approval for completed milestones
   };
 };
 

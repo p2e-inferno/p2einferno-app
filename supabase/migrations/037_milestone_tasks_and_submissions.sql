@@ -1,4 +1,4 @@
--- Create milestone_tasks table
+-- Create milestone_tasks table  
 CREATE TABLE IF NOT EXISTS public.milestone_tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   milestone_id UUID NOT NULL REFERENCES public.cohort_milestones(id) ON DELETE CASCADE,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.milestone_tasks (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Create task_submissions table
+-- Create task_submissions table  
 CREATE TABLE IF NOT EXISTS public.task_submissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   task_id UUID NOT NULL REFERENCES public.milestone_tasks(id) ON DELETE CASCADE,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS public.task_submissions (
 -- Create program_highlights table
 CREATE TABLE IF NOT EXISTS public.program_highlights (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cohort_id UUID NOT NULL REFERENCES public.cohorts(id) ON DELETE CASCADE,
+  cohort_id TEXT NOT NULL REFERENCES public.cohorts(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   order_index INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS public.program_highlights (
 -- Create program_requirements table
 CREATE TABLE IF NOT EXISTS public.program_requirements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  cohort_id UUID NOT NULL REFERENCES public.cohorts(id) ON DELETE CASCADE,
+  cohort_id TEXT NOT NULL REFERENCES public.cohorts(id) ON DELETE CASCADE,
   content TEXT NOT NULL,
   order_index INTEGER NOT NULL DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

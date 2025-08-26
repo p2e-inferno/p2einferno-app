@@ -52,6 +52,7 @@ export interface UserDashboardData {
   stats: {
     totalApplications: number;
     completedBootcamps: number;
+    enrolledBootcamps: number; // Added for enrolled bootcamps
     totalPoints: number;
     pendingPayments: number;
     questsCompleted: number; // Added for live stats

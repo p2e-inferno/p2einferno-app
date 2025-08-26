@@ -189,3 +189,83 @@ export interface ProgramRequirement {
   created_at: string;
   updated_at: string;
 }
+
+export interface UserMilestoneProgress {
+  id: string;
+  user_profile_id: string;
+  milestone_id: string;
+  status: "not_started" | "in_progress" | "completed" | "expired";
+  tasks_completed: number;
+  total_tasks: number;
+  progress_percentage: number;
+  started_at?: string;
+  completed_at?: string;
+  reward_claimed: boolean;
+  reward_amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserTaskProgress {
+  id: string;
+  user_profile_id: string;
+  milestone_id: string;
+  task_id: string;
+  status: "not_started" | "in_progress" | "completed" | "failed" | "expired";
+  submission_id?: string;
+  completed_at?: string;
+  reward_claimed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnhancedMilestoneTask extends MilestoneTask {
+  task_type: "file_upload" | "url_submission" | "contract_interaction" | "text_submission" | "external_verification";
+  submission_requirements?: any;
+  validation_criteria?: any;
+  requires_admin_review: boolean;
+}
+
+export interface EnhancedTaskSubmission extends TaskSubmission {
+  submission_data?: any;
+  submission_type: string;
+  file_urls?: string[];
+  submission_metadata?: any;
+}
+
+export interface BootcampWithCohorts {
+  id: string;
+  name: string;
+  description: string;
+  duration_weeks: number;
+  max_reward_dgt: number;
+  image_url?: string;
+  created_at: string;
+  updated_at: string;
+  cohorts: Array<Cohort & {
+    is_enrolled?: boolean;
+    user_enrollment_id?: string;
+  }>;
+}
+
+export interface Enrollment {
+  id: string;
+  user_profile_id: string;
+  cohort_id: string;
+  enrollment_status: "enrolled" | "completed" | "dropped" | "suspended";
+  progress: {
+    modules_completed: number;
+    total_modules: number;
+  };
+  completion_date?: string;
+  certificate_issued: boolean;
+  created_at: string;
+  updated_at: string;
+  cohort?: {
+    id: string;
+    name: string;
+    bootcamp_program_id: string;
+    start_date: string;
+    end_date: string;
+  };
+}

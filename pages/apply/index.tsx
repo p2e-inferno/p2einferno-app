@@ -5,11 +5,6 @@ import Head from "next/head";
 import Link from "next/link";
 import { MainLayout } from "../../components/layouts/MainLayout";
 import {
-  infernalSparksProgram,
-  currentCohort,
-  calculateTimeRemaining,
-} from "../../lib/bootcamp-data";
-import {
   FlameIcon,
   TrophyIcon,
   CrystalIcon,
@@ -21,8 +16,29 @@ import {
   ArrowRight,
   BookOpen,
   Zap,
+  CheckCircle,
 } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { useBootcamps } from "@/hooks/useBootcamps";
+import type { BootcampWithCohorts } from "@/lib/supabase/types";
+
+// Helper function to calculate time remaining
+function calculateTimeRemaining(deadline: string): string {
+  const now = new Date();
+  const deadlineDate = new Date(deadline);
+  const diff = deadlineDate.getTime() - now.getTime();
+
+  if (diff <= 0) return "Registration closed";
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+  if (days > 0) {
+    return `${days} day${days > 1 ? "s" : ""} remaining`;
+  }
+
+  return `${hours} hour${hours > 1 ? "s" : ""} remaining`;
+}
 
 /**
  * Bootcamp Listing Page - Shows available bootcamps for authenticated users
@@ -32,6 +48,7 @@ export default function BootcampListingPage() {
   const router = useRouter();
   const { ready, authenticated } = usePrivy();
   const { data: dashboardData } = useDashboardData();
+  const { bootcamps, loading: bootcampsLoading, error: bootcampsError } = useBootcamps();
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -43,21 +60,56 @@ export default function BootcampListingPage() {
     return null;
   }
 
-  const timeRemaining = calculateTimeRemaining(
-    currentCohort.registration_deadline
-  );
-  const spotsRemaining =
-    currentCohort.max_participants - currentCohort.current_participants;
-  const isRegistrationOpen = currentCohort.status === "open";
-
-  // Check for pending application for this cohort
-  let pendingApplication = null;
-  if (dashboardData && dashboardData.applications) {
-    pendingApplication = dashboardData.applications.find(
-      (app) =>
-        app?.cohort_id === currentCohort.id && app.payment_status === "pending"
+  if (bootcampsLoading) {
+    return (
+      <MainLayout>
+        <div className="min-h-screen bg-background py-12">
+          <div className="container mx-auto px-4">
+            <div className="text-center">
+              <div className="flex justify-center mb-6">
+                <FlameIcon
+                  size={80}
+                  className="text-flame-yellow animate-pulse"
+                />
+              </div>
+              <h1 className="text-4xl lg:text-5xl font-bold font-heading mb-4">
+                Loading Bootcamps...
+              </h1>
+              <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin mx-auto"></div>
+            </div>
+          </div>
+        </div>
+      </MainLayout>
     );
   }
+
+  if (bootcampsError) {
+    return (
+      <MainLayout>
+        <div className="min-h-screen bg-background py-12">
+          <div className="container mx-auto px-4">
+            <div className="text-center">
+              <h1 className="text-4xl lg:text-5xl font-bold font-heading mb-4 text-red-400">
+                Error Loading Bootcamps
+              </h1>
+              <p className="text-lg text-faded-grey">{bootcampsError}</p>
+            </div>
+          </div>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Helper function to check for pending application
+  const getPendingApplication = (cohortId: string) => {
+    if (dashboardData && dashboardData.applications) {
+      return dashboardData.applications.find(
+        (app) =>
+          app?.cohort_id === cohortId && app.payment_status === "pending"
+      );
+    }
+    return null;
+  };
 
   return (
     <>
@@ -90,200 +142,174 @@ export default function BootcampListingPage() {
             </div>
 
             {/* Available Bootcamps */}
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-6xl mx-auto">
               <h2 className="text-3xl font-bold mb-8 text-center">
                 Available Bootcamps
               </h2>
 
-              {/* Infernal Sparks Bootcamp Card */}
-              <div className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 rounded-2xl border border-purple-500/20 overflow-hidden">
-                {/* Header */}
-                <div className="bg-gradient-to-r from-flame-yellow/10 to-flame-orange/10 p-6 border-b border-purple-500/20">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-3 bg-flame-yellow/20 rounded-xl">
-                        <FlameIcon size={32} className="text-flame-yellow" />
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-bold">
-                          {infernalSparksProgram.name}
-                        </h3>
-                        <p className="text-faded-grey">Entry Level Bootcamp</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Status Banner */}
-                  {isRegistrationOpen ? (
-                    <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-                      <p className="text-green-400 text-sm font-medium">
-                        🟢 Registration Open - {timeRemaining}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
-                      <p className="text-red-400 text-sm font-medium">
-                        🔴 Registration Closed
-                      </p>
-                    </div>
-                  )}
+              {bootcamps.length === 0 ? (
+                <div className="text-center py-12">
+                  <FlameIcon size={60} className="text-faded-grey mx-auto mb-4" />
+                  <h3 className="text-xl font-bold mb-2">No Bootcamps Available</h3>
+                  <p className="text-faded-grey">Check back soon for new bootcamp programs!</p>
                 </div>
-
-                {/* Content */}
-                <div className="p-6">
-                  <p className="text-faded-grey mb-6 text-lg">
-                    {infernalSparksProgram.description}
-                  </p>
-
-                  {/* Stats Grid */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                    <div className="bg-background/30 rounded-xl p-4 text-center">
-                      <Calendar
-                        size={24}
-                        className="text-cyan-400 mx-auto mb-2"
-                      />
-                      <div className="font-bold">
-                        {infernalSparksProgram.duration_weeks} Weeks
-                      </div>
-                      <div className="text-xs text-faded-grey">Duration</div>
-                    </div>
-                    <div className="bg-background/30 rounded-xl p-4 text-center">
-                      <CrystalIcon
-                        size={24}
-                        className="text-cyan-400 mx-auto mb-2"
-                      />
-                      <div className="font-bold">
-                        {infernalSparksProgram.max_reward_dgt.toLocaleString()}{" "}
-                        DGT
-                      </div>
-                      <div className="text-xs text-faded-grey">Max Rewards</div>
-                    </div>
-                    <div className="bg-background/30 rounded-xl p-4 text-center">
-                      <Users size={24} className="text-cyan-400 mx-auto mb-2" />
-                      <div className="font-bold">{spotsRemaining}</div>
-                      <div className="text-xs text-faded-grey">Spots Left</div>
-                    </div>
-                    <div className="bg-background/30 rounded-xl p-4 text-center">
-                      <Clock size={24} className="text-cyan-400 mx-auto mb-2" />
-                      <div className="font-bold">8hrs/week</div>
-                      <div className="text-xs text-faded-grey">Time Commit</div>
-                    </div>
-                  </div>
-
-                  {/* Key Features */}
-                  <div className="mb-8">
-                    <h4 className="text-xl font-bold mb-4">
-                      What You&apos;ll Learn
-                    </h4>
-                    <div className="grid md:grid-cols-2 gap-4">
-                      <div className="flex items-start space-x-3">
-                        <Zap
-                          size={20}
-                          className="text-flame-yellow mt-1 flex-shrink-0"
-                        />
-                        <div>
-                          <div className="font-medium">Web3 Foundations</div>
-                          <div className="text-sm text-faded-grey">
-                            Wallets, accounts, and basic blockchain concepts
+              ) : (
+                <div className="space-y-8">
+                  {bootcamps.map((bootcamp) => (
+                    <div key={bootcamp.id} className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 rounded-2xl border border-purple-500/20 overflow-hidden">
+                      {/* Bootcamp Header */}
+                      <div className="bg-gradient-to-r from-flame-yellow/10 to-flame-orange/10 p-6 border-b border-purple-500/20">
+                        <div className="flex items-center space-x-4">
+                          <div className="p-3 bg-flame-yellow/20 rounded-xl">
+                            <FlameIcon size={40} className="text-flame-yellow" />
+                          </div>
+                          <div>
+                            <h3 className="text-2xl font-bold">{bootcamp.name}</h3>
+                            <p className="text-faded-grey">{bootcamp.description}</p>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-start space-x-3">
-                        <BookOpen
-                          size={20}
-                          className="text-flame-yellow mt-1 flex-shrink-0"
-                        />
-                        <div>
-                          <div className="font-medium">DeFi Interactions</div>
-                          <div className="text-sm text-faded-grey">
-                            Token swaps and decentralized protocols
+
+                      {/* Bootcamp Stats */}
+                      <div className="p-6 border-b border-purple-500/20">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                          <div className="bg-background/30 rounded-xl p-4 text-center">
+                            <Calendar size={24} className="text-cyan-400 mx-auto mb-2" />
+                            <div className="font-bold">{bootcamp.duration_weeks} Weeks</div>
+                            <div className="text-xs text-faded-grey">Duration</div>
+                          </div>
+                          <div className="bg-background/30 rounded-xl p-4 text-center">
+                            <CrystalIcon size={24} className="text-cyan-400 mx-auto mb-2" />
+                            <div className="font-bold">{bootcamp.max_reward_dgt.toLocaleString()} DGT</div>
+                            <div className="text-xs text-faded-grey">Max Rewards</div>
+                          </div>
+                          <div className="bg-background/30 rounded-xl p-4 text-center">
+                            <Users size={24} className="text-cyan-400 mx-auto mb-2" />
+                            <div className="font-bold">{bootcamp.cohorts.length}</div>
+                            <div className="text-xs text-faded-grey">Available Cohorts</div>
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-start space-x-3">
-                        <TrophyIcon
-                          size={20}
-                          className="text-flame-yellow mt-1 flex-shrink-0"
-                        />
-                        <div>
-                          <div className="font-medium">NFTs & Community</div>
-                          <div className="text-sm text-faded-grey">
-                            Token-gating and Web3 social platforms
+
+                      {/* Cohorts Section */}
+                      <div className="p-6">
+                        <h4 className="text-xl font-bold mb-4">Available Cohorts</h4>
+                        {bootcamp.cohorts.length === 0 ? (
+                          <div className="text-center py-8 border-2 border-dashed border-faded-grey/30 rounded-lg">
+                            <p className="text-faded-grey">No cohorts available for this bootcamp yet.</p>
                           </div>
-                        </div>
-                      </div>
-                      <div className="flex items-start space-x-3">
-                        <CrystalIcon
-                          size={20}
-                          className="text-flame-yellow mt-1 flex-shrink-0"
-                        />
-                        <div>
-                          <div className="font-medium">Earn While Learning</div>
-                          <div className="text-sm text-faded-grey">
-                            Up to 24,000 DGT tokens in rewards
+                        ) : (
+                          <div className="grid gap-4">
+                            {bootcamp.cohorts.map((cohort) => {
+                              const timeRemaining = calculateTimeRemaining(cohort.registration_deadline);
+                              const spotsRemaining = cohort.max_participants - cohort.current_participants;
+                              const isRegistrationOpen = cohort.status === "open";
+                              const pendingApplication = getPendingApplication(cohort.id);
+                              
+                              return (
+                                <div key={cohort.id} className="border border-faded-grey/20 rounded-xl p-4">
+                                  <div className="flex justify-between items-start mb-4">
+                                    <div>
+                                      <h5 className="font-bold text-lg">{cohort.name}</h5>
+                                      <p className="text-sm text-faded-grey">
+                                        {new Date(cohort.start_date).toLocaleDateString()} - {new Date(cohort.end_date).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                    {cohort.is_enrolled && (
+                                      <div className="flex items-center space-x-2 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-1">
+                                        <CheckCircle size={16} className="text-green-400" />
+                                        <span className="text-green-400 text-sm font-medium">Enrolled</span>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Status Banner */}
+                                  <div className="mb-4">
+                                    {cohort.is_enrolled ? (
+                                      <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                                        <p className="text-green-400 text-sm font-medium">
+                                          ✅ You are enrolled in this cohort
+                                        </p>
+                                      </div>
+                                    ) : isRegistrationOpen ? (
+                                      <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
+                                        <p className="text-green-400 text-sm font-medium">
+                                          🟢 Registration Open - {timeRemaining}
+                                        </p>
+                                      </div>
+                                    ) : cohort.status === "upcoming" ? (
+                                      <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+                                        <p className="text-blue-400 text-sm font-medium">
+                                          🔵 Coming Soon
+                                        </p>
+                                      </div>
+                                    ) : (
+                                      <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                                        <p className="text-red-400 text-sm font-medium">
+                                          🔴 Registration Closed
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Cohort Stats */}
+                                  <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div className="text-center">
+                                      <div className="font-bold">{spotsRemaining}</div>
+                                      <div className="text-xs text-faded-grey">Spots Left</div>
+                                    </div>
+                                    <div className="text-center">
+                                      <div className="font-bold">₦{cohort.naira_amount?.toLocaleString() || 'TBD'}</div>
+                                      <div className="text-xs text-faded-grey">Cost (NGN)</div>
+                                    </div>
+                                  </div>
+
+                                  {/* CTA */}
+                                  <div className="text-center">
+                                    {cohort.is_enrolled ? (
+                                      <Link
+                                        href={`/lobby/bootcamps/${cohort.id}`}
+                                        className="inline-flex items-center space-x-3 bg-green-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-green-700 transition-all duration-300"
+                                      >
+                                        <span>Enter Bootcamp</span>
+                                        <ArrowRight size={18} />
+                                      </Link>
+                                    ) : isRegistrationOpen ? (
+                                      pendingApplication ? (
+                                        <Link
+                                          href={`/payment/${pendingApplication.id}`}
+                                          className="inline-flex items-center space-x-3 bg-orange-600 text-white px-6 py-3 rounded-xl font-medium hover:bg-orange-700 transition-all duration-300"
+                                        >
+                                          <span>Complete Payment</span>
+                                          <ArrowRight size={18} />
+                                        </Link>
+                                      ) : (
+                                        <Link
+                                          href={`/apply/${cohort.id}`}
+                                          className="inline-flex items-center space-x-3 bg-flame-yellow text-black px-6 py-3 rounded-xl font-medium hover:bg-flame-orange transition-all duration-300"
+                                        >
+                                          <span>Apply Now</span>
+                                          <ArrowRight size={18} />
+                                        </Link>
+                                      )
+                                    ) : (
+                                      <div className="inline-flex items-center space-x-3 bg-gray-600 text-gray-300 px-6 py-3 rounded-xl font-medium cursor-not-allowed">
+                                        <span>
+                                          {cohort.status === "upcoming" ? "Coming Soon" : "Registration Closed"}
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                        </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-
-                  {/* CTA */}
-                  <div className="text-center">
-                    {isRegistrationOpen ? (
-                      pendingApplication ? (
-                        <Link
-                          href={`/payment/${pendingApplication.id}`}
-                          className="inline-flex items-center space-x-3 bg-flame-yellow text-black px-8 py-4 rounded-xl font-bold text-lg hover:bg-flame-orange transition-all duration-300 hover:scale-105"
-                        >
-                          <span>Complete Application</span>
-                          <ArrowRight size={20} />
-                        </Link>
-                      ) : (
-                        <Link
-                          href={`/apply/${currentCohort.id}`}
-                          className="inline-flex items-center space-x-3 bg-flame-yellow text-black px-8 py-4 rounded-xl font-bold text-lg hover:bg-flame-orange transition-all duration-300 hover:scale-105"
-                        >
-                          <span>Apply Now</span>
-                          <ArrowRight size={20} />
-                        </Link>
-                      )
-                    ) : (
-                      <div className="inline-flex items-center space-x-3 bg-gray-600 text-gray-300 px-8 py-4 rounded-xl font-bold text-lg cursor-not-allowed">
-                        <span>Registration Closed</span>
-                      </div>
-                    )}
-                    <p className="text-sm text-faded-grey mt-4">
-                      Next cohort starts {currentCohort.start_date}
-                    </p>
-                  </div>
+                  ))}
                 </div>
-              </div>
-
-              {/* Coming Soon Section */}
-              <div className="mt-12 text-center">
-                <h3 className="text-2xl font-bold mb-4">
-                  More Bootcamps Coming Soon
-                </h3>
-                <p className="text-faded-grey mb-6">
-                  We&apos;re developing advanced bootcamps for intermediate and
-                  expert Web3 practitioners
-                </p>
-                <div className="grid md:grid-cols-2 gap-4 max-w-2xl mx-auto">
-                  <div className="bg-background/20 border border-faded-grey/20 rounded-xl p-6">
-                    <h4 className="font-bold mb-2">Advanced DeFi</h4>
-                    <p className="text-sm text-faded-grey">
-                      Deep dive into yield farming, liquidity provision, and
-                      protocol governance
-                    </p>
-                  </div>
-                  <div className="bg-background/20 border border-faded-grey/20 rounded-xl p-6">
-                    <h4 className="font-bold mb-2">NFT Creator Program</h4>
-                    <p className="text-sm text-faded-grey">
-                      Learn to create, mint, and market your own NFT collections
-                    </p>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           </div>
         </div>

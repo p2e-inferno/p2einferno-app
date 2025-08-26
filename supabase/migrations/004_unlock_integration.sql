@@ -12,7 +12,7 @@ ALTER TABLE public.quests ADD COLUMN IF NOT EXISTS lock_address TEXT;
 
 -- 2) Table to model milestones for each cohort, each backed by its own lock onchain
 CREATE TABLE IF NOT EXISTS public.cohort_milestones (
-    id TEXT PRIMARY KEY,
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     cohort_id TEXT NOT NULL REFERENCES public.cohorts(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS public.cohort_milestones (
     start_date DATE,
     end_date DATE,
     lock_address TEXT NOT NULL, -- PublicLock address for this milestone NFT
-    prerequisite_milestone_id TEXT REFERENCES public.cohort_milestones(id) ON DELETE SET NULL,
+    prerequisite_milestone_id UUID REFERENCES public.cohort_milestones(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS public.user_cohorts (
 CREATE TABLE IF NOT EXISTS public.user_milestones (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     user_id TEXT NOT NULL,
-    milestone_id TEXT NOT NULL REFERENCES public.cohort_milestones(id) ON DELETE CASCADE,
+    milestone_id UUID NOT NULL REFERENCES public.cohort_milestones(id) ON DELETE CASCADE,
     key_id TEXT, -- tokenId for the milestone key (optional cache)
     completed_at TIMESTAMPTZ,
     verified_at TIMESTAMPTZ,
