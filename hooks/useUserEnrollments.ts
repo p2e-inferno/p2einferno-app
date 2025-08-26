@@ -75,7 +75,13 @@ export const useUserEnrollments = (): UseUserEnrollmentsResult => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
+        // 404: profile not found or created yet. Treat as empty state, not fatal.
+        if (response.status === 404) {
+          setEnrollments([]);
+          setError(null);
+          return;
+        }
+        const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || "Failed to fetch enrollments");
       }
 

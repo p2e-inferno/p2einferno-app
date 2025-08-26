@@ -46,7 +46,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .eq('user_profile_id', profile.id)
       .order('created_at', { ascending: false })
       .limit(20);
-
+console.log("NOTIFICATIONS_DATA::", data)
+console.log("NOTIFICATIONS_ERROR::", error)
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ notifications: data });
   }
