@@ -46,9 +46,12 @@ function TaskSubmissionsPage() {
       }
 
       const task = taskData[0];
+      if (!task || !task.id) {
+        throw new Error("Invalid task data");
+      }
 
       // Get the milestone
-      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestones?milestone_id=${task.milestone_id}`);
+      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestones?milestone_id=${task?.milestone_id}`);
       
       if (milestoneResult.error) {
         throw new Error(milestoneResult.error);

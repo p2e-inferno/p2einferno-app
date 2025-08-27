@@ -58,7 +58,7 @@ function QuestDetailsPage() {
 
       setQuest(result.data.quest);
 
-      if (result.data.quest.stats?.pending_submissions > 0) {
+      if (result.data.quest.stats?.pending_submissions && result.data.quest.stats.pending_submissions > 0) {
         setActiveTab("submissions");
       }
     } catch (err: any) {

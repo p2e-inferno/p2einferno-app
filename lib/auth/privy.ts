@@ -69,13 +69,21 @@ export async function getPrivyUser(
     // Verify token with fallback strategy
     let claims: any;
     try {
-      // First attempt: Privy API verification (recommended)
+      // First attempt: Privy API verification (recommended) with timeout
       const privy = getPrivyClient();
       if (!privy || typeof privy.verifyAuthToken !== 'function') {
         throw new Error('Privy client not properly initialized');
       }
       
-      claims = await privy.verifyAuthToken(token);
+      // Add timeout wrapper to fail faster and use JWT fallback sooner
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Privy API timeout after 3 seconds')), 3000);
+      });
+      
+      claims = await Promise.race([
+        privy.verifyAuthToken(token),
+        timeoutPromise
+      ]);
     } catch (error: any) {
       console.error('[PRIVY_AUTH] Raw error from verifyAuthToken:', error);
       const authError = handleAuthError(error, 'privy_token_verification', { 
@@ -171,7 +179,16 @@ export async function getPrivyUserFromCookies(cookies: any) {
     }
 
     const privy = getPrivyClient();
-    const claims = await privy.verifyAuthToken(token);
+    
+    // Add timeout wrapper to fail faster
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Privy API timeout after 3 seconds')), 3000);
+    });
+    
+    const claims = await Promise.race([
+      privy.verifyAuthToken(token),
+      timeoutPromise
+    ]);
 
     return {
       id: claims.userId,

@@ -41,7 +41,7 @@ function ProgramDetailsPage() {
       setCohort(cohortData);
 
       // Fetch highlights
-      const highlightsResult = await adminFetch<{success: boolean, data: ProgramHighlight[]}>(`/api/admin/program-highlights?cohort_id=${cohortId}`);
+      const highlightsResult = await adminFetch<{success: boolean, data: ProgramHighlight[]}>(`/api/admin/program-highlights?cohortId=${cohortId}`);
       
       if (highlightsResult.error) {
         console.warn("Failed to fetch highlights:", highlightsResult.error);
@@ -50,7 +50,7 @@ function ProgramDetailsPage() {
       }
 
       // Fetch requirements  
-      const requirementsResult = await adminFetch<{success: boolean, data: ProgramRequirement[]}>(`/api/admin/program-requirements?cohort_id=${cohortId}`);
+      const requirementsResult = await adminFetch<{success: boolean, data: ProgramRequirement[]}>(`/api/admin/program-requirements?cohortId=${cohortId}`);
       
       if (requirementsResult.error) {
         console.warn("Failed to fetch requirements:", requirementsResult.error);
@@ -68,7 +68,7 @@ function ProgramDetailsPage() {
   useEffect(() => {
     if (!cohortId) return;
     fetchData();
-  }, [cohortId, fetchData]);
+  }, [cohortId]);
 
   const handleHighlightsSuccess = () => {
     fetchData();

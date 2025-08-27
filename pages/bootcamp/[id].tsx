@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { Clock, Users, Trophy, Calendar, ChevronRight } from "lucide-react";
+import { calculateTimeRemaining } from "@/lib/utils/registration-validation";
 
 interface BootcampData {
   id: string;
@@ -84,18 +85,6 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
     } finally {
       setLoading(false);
     }
-  };
-
-  const calculateTimeRemaining = (deadline: string) => {
-    const now = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    if (diffDays < 0) return "Registration Closed";
-    if (diffDays === 0) return "Last Day!";
-    if (diffDays === 1) return "1 day left";
-    return `${diffDays} days left`;
   };
 
   const handleJoinCohort = (cohortId: string) => {

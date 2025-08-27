@@ -129,20 +129,3 @@ export function formatCurrency(
     currency: "USD",
   }).format(amount);
 }
-
-export function calculateTimeRemaining(deadline: string): string {
-  const now = new Date();
-  const deadlineDate = new Date(deadline);
-  const diff = deadlineDate.getTime() - now.getTime();
-
-  if (diff <= 0) return "Registration closed";
-
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-  if (days > 0) {
-    return `${days} day${days > 1 ? "s" : ""} remaining`;
-  }
-
-  return `${hours} hour${hours > 1 ? "s" : ""} remaining`;
-}

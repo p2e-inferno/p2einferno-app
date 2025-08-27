@@ -101,7 +101,7 @@ export const generateQuestLockConfig = (quest: Quest): LockConfig => {
  * - 1 year expiration
  * - Free completion badge based on total reward amount
  */
-export const generateMilestoneLockConfig = (milestone: CohortMilestone, totalReward: number = 0): LockConfig => {
+export const generateMilestoneLockConfig = (milestone: CohortMilestone, _totalReward: number = 0): LockConfig => {
   return {
     name: `${milestone.name} NFT Badge`,
     symbol: "MILESTONE",

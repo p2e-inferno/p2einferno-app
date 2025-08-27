@@ -6,7 +6,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
-import { usePrivy } from "@privy-io/react-auth";
+
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
 import { useAdminApi } from "@/hooks/useAdminApi";
 
@@ -14,7 +14,7 @@ function BootcampsPage() {
 
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { getAccessToken } = usePrivy();
+
   const { adminFetch, loading } = useAdminApi();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bootcampToDelete, setBootcampToDelete] =

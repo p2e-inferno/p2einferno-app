@@ -1,19 +1,10 @@
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
-import { supabase } from "@/lib/supabase/client";
-import type { 
-  BootcampProgram, 
-  Cohort, 
-  CohortMilestone, 
-  MilestoneTask,
-  ProgramHighlight,
-  ProgramRequirement 
-} from "@/lib/supabase/types";
+
 import {
   Clock,
   Users,
@@ -24,15 +15,15 @@ import {
   Flame,
   ChevronRight,
 } from "lucide-react";
+import { calculateTimeRemaining } from "@/lib/utils/registration-validation";
+import { useCohortDetails } from "@/hooks/useCohortDetails";
 
 interface CohortPageProps {
   bootcampId: string;
   cohortId: string;
 }
 
-interface MilestoneWithTasks extends CohortMilestone {
-  milestone_tasks: MilestoneTask[];
-}
+
 
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   const bootcampId = params?.id as string;
@@ -54,100 +45,20 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
 
 export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
   const router = useRouter();
-  const [bootcamp, setBootcamp] = useState<BootcampProgram | null>(null);
-  const [cohort, setCohort] = useState<Cohort | null>(null);
-  const [milestones, setMilestones] = useState<MilestoneWithTasks[]>([]);
-  const [highlights, setHighlights] = useState<ProgramHighlight[]>([]);
-  const [requirements, setRequirements] = useState<ProgramRequirement[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, loading, error } = useCohortDetails(cohortId);
 
-  useEffect(() => {
-    fetchCohortData();
-  }, [bootcampId, cohortId]);
-
-  const fetchCohortData = async () => {
-    try {
-      setLoading(true);
-      
-      // Fetch bootcamp details
-      const { data: bootcampData, error: bootcampError } = await supabase
-        .from("bootcamp_programs")
-        .select("*")
-        .eq("id", bootcampId)
-        .single();
-
-      if (bootcampError) throw bootcampError;
-
-      // Fetch cohort details
-      const { data: cohortData, error: cohortError } = await supabase
-        .from("cohorts")
-        .select("*")
-        .eq("id", cohortId)
-        .single();
-
-      if (cohortError) throw cohortError;
-
-      // Fetch milestones with tasks
-      const { data: milestonesData, error: milestonesError } = await supabase
-        .from("cohort_milestones")
-        .select(`
-          *,
-          milestone_tasks (*)
-        `)
-        .eq("cohort_id", cohortId)
-        .order("order_index", { ascending: true });
-
-      if (milestonesError) throw milestonesError;
-
-      // Fetch program highlights
-      const { data: highlightsData, error: highlightsError } = await supabase
-        .from("program_highlights")
-        .select("*")
-        .eq("cohort_id", cohortId)
-        .order("order_index", { ascending: true });
-
-      if (highlightsError) throw highlightsError;
-
-      // Fetch program requirements
-      const { data: requirementsData, error: requirementsError } = await supabase
-        .from("program_requirements")
-        .select("*")
-        .eq("cohort_id", cohortId)
-        .order("order_index", { ascending: true });
-
-      if (requirementsError) throw requirementsError;
-
-      setBootcamp(bootcampData);
-      setCohort(cohortData);
-      setMilestones(milestonesData || []);
-      setHighlights(highlightsData || []);
-      setRequirements(requirementsData || []);
-    } catch (err: any) {
-      console.error("Error fetching cohort data:", err);
-      setError(err.message || "Failed to load cohort details");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Extract data from the hook response
+  const bootcamp = data?.bootcamp || null;
+  const cohort = data?.cohort || null;
+  const milestones = data?.milestones || [];
+  const highlights = data?.highlights || [];
+  const requirements = data?.requirements || [];
 
   const handleBeginApplication = () => {
     // Only allow navigation if registration is open and spots are available
-    if (cohort?.status === "open" && spotsRemaining > 0) {
+    if (cohort?.status === "open" && (cohort.max_participants - cohort.current_participants) > 0) {
       router.push(`/apply/${cohortId}`);
     }
-  };
-
-  const calculateTimeRemaining = (deadline: string) => {
-    const now = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 0) return "Registration Closed";
-    if (diffDays === 0) return "Last Day!";
-    if (diffDays === 1) return "1 day left";
-    return `${diffDays} days left`;
   };
 
   if (loading) {

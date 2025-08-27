@@ -44,8 +44,8 @@ export default async function handler(
         adminAuthUser: {
           id: adminAuthUser.id,
           did: adminAuthUser.did,
-          walletAddresses: adminAuthUser.walletAddresses,
-          wallet: adminAuthUser.wallet,
+          walletAddresses: (adminAuthUser as any)?.walletAddresses || [],
+          wallet: (adminAuthUser as any)?.wallet,
           sessionId: adminAuthUser.sessionId,
         },
         adminWalletAddresses,

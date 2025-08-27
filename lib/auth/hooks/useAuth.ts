@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { AuthLevel, AdminStrategy } from '../core/AuthTypes';
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
+
+// Define types inline since the import file doesn't exist
+type AuthLevel = 'user' | 'admin';
+type AdminStrategy = 'auto' | 'blockchain' | 'database';
 
 interface UseAuthOptions {
   adminStrategy?: AdminStrategy;

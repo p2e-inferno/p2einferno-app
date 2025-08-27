@@ -48,7 +48,7 @@ export const useLockManagerAdminAuth = () => {
             const accounts: string[] = await (window as any).ethereum.request({
               method: "eth_accounts",
             });
-            if (accounts && accounts.length > 0) {
+            if (accounts && accounts.length > 0 && accounts[0]) {
               walletAddresses.push(accounts[0]);
             }
           } catch (err) {
@@ -107,7 +107,6 @@ export const useLockManagerAdminAuth = () => {
 
         // Check ALL wallets for admin access (like backend does)
         let hasValidKey = false;
-        let validWallet: string | undefined;
 
         for (const walletAddress of uniqueWalletAddresses) {
           try {
@@ -119,7 +118,6 @@ export const useLockManagerAdminAuth = () => {
 
             if (keyInfo && keyInfo.isValid) {
               hasValidKey = true;
-              validWallet = walletAddress;
               
               console.log(
                 `[FRONTEND_ADMIN_AUTH] ✅ Admin access GRANTED for ${walletAddress}, expires: ${

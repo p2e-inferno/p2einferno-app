@@ -255,7 +255,7 @@ export default function BootcampForm({
       }
 
       // Generate ID for new bootcamps
-      const bootcampId = getRecordId(isEditing, originalBootcampId);
+      const bootcampId = getRecordId(isEditing, originalBootcampId || undefined);
 
       // Prepare submission data for API
       const apiData: any = {

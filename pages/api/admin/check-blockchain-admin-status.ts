@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { withAuth } from "@/lib/auth/middleware/withAuth";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -27,4 +27,4 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 }
 
-export default withAuth('admin', { adminStrategy: 'blockchain' })(handler);
+export default withAdminAuth(handler);

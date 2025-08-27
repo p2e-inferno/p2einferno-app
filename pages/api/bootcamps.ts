@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
 import { getPrivyUser } from "@/lib/auth/privy";
-import type { ApiResponse } from "@/lib/supabase/types";
+import type { ApiResponse } from "@/lib/api";
 
 interface BootcampWithCohorts {
   id: string;

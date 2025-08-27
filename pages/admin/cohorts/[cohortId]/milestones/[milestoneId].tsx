@@ -62,12 +62,12 @@ function MilestoneDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [milestoneId, adminFetch]);
+  }, [milestoneId]);
 
   useEffect(() => {
     if (!milestoneId) return;
     fetchMilestone();
-  }, [milestoneId, fetchMilestone]);
+  }, [milestoneId]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {

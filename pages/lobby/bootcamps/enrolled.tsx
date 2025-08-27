@@ -12,7 +12,6 @@ import {
 import {
   Calendar,
   ArrowRight,
-  Users,
   Trophy,
   Clock,
   CheckCircle,

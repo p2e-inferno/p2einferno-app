@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
 
-import type { QuestTask } from "@/lib/supabase/types";
+import type { QuestTask, Quest } from "@/lib/supabase/types";
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -48,8 +48,8 @@ async function getQuests(
     if (statsError) throw statsError;
 
     // Combine quests with their statistics
-    const questsWithStats = (questsData || []).map(quest => {
-      const stats = statsData?.find(s => s.quest_id === quest.id);
+    const questsWithStats = (questsData || []).map((quest: Quest) => {
+      const stats = statsData?.find((s: any) => s.quest_id === quest.id);
       return {
         ...quest,
         stats: stats ? {

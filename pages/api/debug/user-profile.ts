@@ -94,8 +94,8 @@ export default async function handler(
         privyUser: {
           id: privyUser.id,
           did: privyUser.did,
-          walletAddresses: privyUser.walletAddresses,
-          wallet: privyUser.wallet,
+          walletAddresses: (privyUser as any)?.walletAddresses || [],
+          wallet: (privyUser as any)?.wallet,
           sessionId: privyUser.sessionId,
         },
         privyWalletAddresses,

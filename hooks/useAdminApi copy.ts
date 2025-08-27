@@ -40,7 +40,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
         return false;
       }
 
-      const data = await response.json();
+      await response.json();
       setTokenVerified(true);
       return true;
     } catch (error) {

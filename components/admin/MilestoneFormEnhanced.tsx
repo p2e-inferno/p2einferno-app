@@ -14,9 +14,6 @@ import { generateMilestoneLockConfig, createLockConfigWithManagers } from "@/lib
 import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
 import {
   savePendingDeployment,
-  removePendingDeployment,
-  saveDraft,
-  removeDraft,
 } from "@/lib/utils/lock-deployment-state";
 
 type TaskType = 'file_upload' | 'url_submission' | 'contract_interaction';
@@ -336,11 +333,13 @@ export default function MilestoneFormEnhanced({
       if (!isEditing && showAutoLockCreation && !lockAddress && totalTaskReward > 0) {
         try {
           console.log("Auto-deploying lock for milestone...");
-          lockAddress = await deployLockForMilestone();
+          const deployedLockAddress = await deployLockForMilestone();
           
-          if (!lockAddress) {
+          if (!deployedLockAddress) {
             throw new Error("Lock deployment failed");
           }
+          
+          lockAddress = deployedLockAddress;
         } catch (deployError: any) {
           // If lock deployment fails, don't create the milestone
           throw new Error(`Lock deployment failed: ${deployError.message}`);
@@ -711,7 +710,7 @@ export default function MilestoneFormEnhanced({
                           required
                         />
                         <p className="text-xs text-gray-400 mt-1">
-                          The function name from the contract's ABI that users should interact with
+                          The function name from the contract&apos;s ABI that users should interact with
                         </p>
                       </div>
                     </div>
@@ -747,7 +746,7 @@ export default function MilestoneFormEnhanced({
               <div>
                 <h4 className="text-white font-medium">Automatic Lock Deployment</h4>
                 <p className="text-sm text-gray-400">
-                  Deploy an Unlock Protocol lock for this milestone's NFT badges
+                  Deploy an Unlock Protocol lock for this milestone&apos;s NFT badges
                 </p>
               </div>
               <div className="flex items-center space-x-3">

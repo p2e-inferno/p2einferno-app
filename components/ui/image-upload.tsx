@@ -50,8 +50,13 @@ export default function ImageUpload({
       reader.onload = () => {
         if (typeof reader.result === 'string') {
           // Remove the data URL prefix to get just the base64 data
-          const base64 = reader.result.split(',')[1];
-          resolve(base64);
+          const parts = reader.result.split(',');
+          const base64 = parts[1];
+          if (base64) {
+            resolve(base64);
+          } else {
+            reject(new Error('Failed to read file'));
+          }
         } else {
           reject(new Error('Failed to read file'));
         }

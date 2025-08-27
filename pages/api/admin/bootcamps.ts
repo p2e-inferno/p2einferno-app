@@ -30,7 +30,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 export default withAdminAuth(handler);
 
 async function getBootcamps(
-  req: NextApiRequest,
+  _req: NextApiRequest,
   res: NextApiResponse,
   supabase: any
 ) {

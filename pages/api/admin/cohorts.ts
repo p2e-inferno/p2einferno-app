@@ -28,7 +28,7 @@ async function handler(
 }
 
 async function getCohorts(
-  req: NextApiRequest,
+  _req: NextApiRequest,
   res: NextApiResponse,
   supabase: any
 ) {
