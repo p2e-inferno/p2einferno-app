@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Upload, X, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
-import { supabase } from "@/lib/supabase/client";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface ImageUploadProps {
   value?: string;
@@ -24,6 +24,7 @@ export default function ImageUpload({
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { getAccessToken } = usePrivy();
 
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
@@ -42,6 +43,23 @@ export default function ImageUpload({
     return null;
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          // Remove the data URL prefix to get just the base64 data
+          const base64 = reader.result.split(',')[1];
+          resolve(base64);
+        } else {
+          reject(new Error('Failed to read file'));
+        }
+      };
+      reader.onerror = error => reject(error);
+    });
+  };
+
   const uploadFile = async (file: File) => {
     const validationError = validateFile(file);
     if (validationError) {
@@ -50,32 +68,40 @@ export default function ImageUpload({
     }
 
     setIsUploading(true);
+    setErrorMsg(null);
 
     try {
-      // Generate unique filename
-      const fileExt = file.name.split(".").pop();
-      const fileName = `${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2)}.${fileExt}`;
-
-      // Upload file to Supabase Storage
-      const { data, error } = await supabase.storage
-        .from(bucketName)
-        .upload(fileName, file, {
-          cacheControl: "3600",
-          upsert: false,
-        });
-
-      if (error) {
-        throw error;
+      // Get access token for authentication
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error("Authentication required");
       }
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from(bucketName)
-        .getPublicUrl(data.path);
+      // Convert file to base64
+      const base64Data = await fileToBase64(file);
 
-      onChange(urlData.publicUrl);
+      // Upload via API
+      const response = await fetch('/api/admin/images', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          file: base64Data,
+          fileName: file.name,
+          contentType: file.type,
+          bucketName: bucketName,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to upload image');
+      }
+
+      const result = await response.json();
+      onChange(result.url);
     } catch (error: any) {
       console.error("Upload error:", error);
       setErrorMsg(error.message || "Failed to upload image");
@@ -117,20 +143,30 @@ export default function ImageUpload({
     if (!value) return;
 
     try {
-      // Extract filename from URL
-      const url = new URL(value);
-      const pathParts = url.pathname.split("/");
-      const fileName = pathParts[pathParts.length - 1];
-
-      // Delete from Supabase Storage only if fileName exists
-      if (fileName) {
-        await supabase.storage.from(bucketName).remove([fileName]);
+      // Get access token for authentication
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error("Authentication required");
       }
 
+      // Delete via API
+      await fetch('/api/admin/images', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          url: value,
+          bucketName: bucketName,
+        }),
+      });
+
+      // Update form state regardless of API success
       onChange("");
     } catch (error) {
       console.error("Error removing image:", error);
-      // Still remove from form even if storage deletion fails
+      // Still remove from form even if API deletion fails
       onChange("");
     }
   };

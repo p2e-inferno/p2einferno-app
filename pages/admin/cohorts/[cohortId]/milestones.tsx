@@ -4,9 +4,9 @@ import AdminLayout from "@/components/layouts/AdminLayout";
 import MilestoneList from "@/components/admin/MilestoneList";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/client";
 import type { Cohort } from "@/lib/supabase/types";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import { withAdminAuth } from "@/components/admin/withAdminAuth";
 
 interface CohortWithProgram extends Cohort {
   bootcamp_program?: {
@@ -15,60 +15,35 @@ interface CohortWithProgram extends Cohort {
   };
 }
 
-export default function CohortMilestonesPage() {
-  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
+function CohortMilestonesPage() {
   const router = useRouter();
   const { cohortId } = router.query;
+  const { adminFetch } = useAdminApi();
 
   const [cohort, setCohort] = useState<CohortWithProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isClient, setIsClient] = useState(false);
-
-  // Make sure we're on the client side before redirecting
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  // Protect admin route
-  useEffect(() => {
-    // Only run this effect on client-side and after auth check is complete
-    if (!isClient || loading) return;
-
-    // Redirect if not authenticated or not an admin
-    if (!authenticated || !isAdmin) {
-      router.push("/");
-    }
-  }, [authenticated, isAdmin, loading, router, isClient]);
 
   // Fetch cohort data
   useEffect(() => {
-    if (!authenticated || !isAdmin || !isClient || !cohortId) return;
-
     async function fetchCohort() {
+      if (!cohortId) return;
+
       try {
         setIsLoading(true);
-        const { data, error } = await supabase
-          .from("cohorts")
-          .select(
-            `
-            *,
-            bootcamp_program:bootcamp_program_id (
-              id,
-              name
-            )
-          `
-          )
-          .eq("id", cohortId)
-          .single();
+        setError(null);
+        
+        const result = await adminFetch<{success: boolean, data: CohortWithProgram}>(`/api/admin/cohorts/${cohortId}`);
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
 
-        if (error) throw error;
-
-        if (!data) {
+        if (!result.data?.data) {
           throw new Error("Cohort not found");
         }
 
-        setCohort(data as CohortWithProgram);
+        setCohort(result.data.data);
       } catch (err: any) {
         console.error("Error fetching cohort:", err);
         setError(err.message || "Failed to load cohort");
@@ -77,24 +52,10 @@ export default function CohortMilestonesPage() {
       }
     }
 
-    fetchCohort();
-  }, [authenticated, isAdmin, isClient, cohortId]);
-
-  // Show loading state while checking authentication
-  if (loading || !isClient) {
-    return (
-      <AdminLayout>
-        <div className="w-full flex justify-center items-center min-h-[400px]">
-          <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  // Only render admin content if authenticated and is admin
-  if (!authenticated || !isAdmin) {
-    return null; // This avoids momentary flash of content before redirect
-  }
+    if (cohortId) {
+      fetchCohort();
+    }
+  }, [cohortId]); // Remove adminFetch from dependency array
 
   return (
     <AdminLayout>
@@ -139,7 +100,19 @@ export default function CohortMilestonesPage() {
             <MilestoneList cohortId={cohort.id} />
           </div>
         )}
+
+        {isLoading && (
+          <div className="w-full flex justify-center items-center min-h-[400px]">
+            <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
+          </div>
+        )}
       </div>
     </AdminLayout>
   );
 }
+
+// Export the page wrapped in admin authentication
+export default withAdminAuth(
+  CohortMilestonesPage,
+  { message: "You need admin access to manage cohorts" }
+);

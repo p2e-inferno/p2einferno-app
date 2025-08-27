@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
 import { Carousel } from "@/components/ui/carousel";
 import { BootcampCard } from "@/components/bootcamps/BootcampCard";
@@ -28,33 +27,21 @@ export function Bootcamps() {
         setLoading(true);
       }
       
-      // Fetch bootcamps with their cohorts
-      const { data: bootcampsData, error: bootcampsError } = await supabase
-        .from("bootcamp_programs")
-        .select("*")
-        .order("created_at", { ascending: false });
+      // Use Next.js API route instead of direct Supabase calls
+      const response = await fetch("/api/bootcamps", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
-      if (bootcampsError) throw bootcampsError;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch bootcamps");
+      }
 
-      // Fetch cohorts for each bootcamp
-      const bootcampsWithCohorts = await Promise.all(
-        (bootcampsData || []).map(async (bootcamp) => {
-          const { data: cohortsData, error: cohortsError } = await supabase
-            .from("cohorts")
-            .select("*")
-            .eq("bootcamp_program_id", bootcamp.id)
-            .order("start_date", { ascending: false });
-
-          if (cohortsError) throw cohortsError;
-
-          return {
-            ...bootcamp,
-            cohorts: cohortsData || []
-          };
-        })
-      );
-
-      setBootcamps(bootcampsWithCohorts);
+      const result = await response.json();
+      setBootcamps(result.data || []);
       setError(null);
     } catch (err: any) {
       console.error("Error fetching bootcamps:", err);
@@ -73,17 +60,6 @@ export function Bootcamps() {
     setError(null);
   };
 
-  const calculateTimeRemaining = (deadline: string) => {
-    const now = new Date();
-    const deadlineDate = new Date(deadline);
-    const diffTime = deadlineDate.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays < 0) return "Registration Closed";
-    if (diffDays === 0) return "Last Day!";
-    if (diffDays === 1) return "1 day left";
-    return `${diffDays} days left`;
-  };
 
   if (loading) {
     return (
@@ -154,7 +130,6 @@ export function Bootcamps() {
               <BootcampCard
                 key={bootcamp.id}
                 bootcamp={bootcamp}
-                calculateTimeRemaining={calculateTimeRemaining}
               />
             ))}
           </Carousel>

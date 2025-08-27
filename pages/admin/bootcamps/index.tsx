@@ -4,18 +4,18 @@ import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
 import { Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { usePrivy } from "@privy-io/react-auth";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 function BootcampsPage() {
 
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
+  const { adminFetch, loading } = useAdminApi();
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bootcampToDelete, setBootcampToDelete] =
     useState<BootcampProgram | null>(null);
@@ -24,20 +24,20 @@ function BootcampsPage() {
   useEffect(() => {
     async function fetchBootcamps() {
       try {
-        setIsLoading(true);
         setError(null);
-        const { data, error: dbError } = await supabase
-          .from("bootcamp_programs")
-          .select("*")
-          .order("created_at", { ascending: false });
+        
+        const result = await adminFetch<{success: boolean, data: BootcampProgram[]}>("/api/admin/bootcamps");
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
 
-        if (dbError) throw dbError;
-        setBootcamps(data || []);
+        // Extract the data from the nested response structure
+        const bootcampData = result.data?.data || [];
+        setBootcamps(Array.isArray(bootcampData) ? bootcampData : []);
       } catch (err: any) {
         console.error("Error fetching bootcamps:", err);
         setError(err.message || "Failed to load bootcamps");
-      } finally {
-        setIsLoading(false);
       }
     }
 
@@ -49,21 +49,17 @@ function BootcampsPage() {
 
     try {
       setIsDeleting(true);
-      const accessToken = await getAccessToken();
 
-      // Call API to delete the bootcamp
-      const response = await fetch(
+      // Call API to delete the bootcamp using adminFetch
+      const result = await adminFetch(
         `/api/admin/bootcamps/${bootcampToDelete.id}`,
         {
           method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
         }
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to delete bootcamp");
+      if (result.error) {
+        throw new Error(result.error);
       }
 
       // Remove from UI
@@ -85,9 +81,9 @@ function BootcampsPage() {
         title="Bootcamp Programs"
         newButtonText="New Bootcamp"
         newButtonLink="/admin/bootcamps/new"
-        isLoading={isLoading}
+        isLoading={loading}
         error={error}
-        isEmpty={!isLoading && !error && bootcamps.length === 0}
+        isEmpty={!loading && !error && bootcamps.length === 0}
         emptyStateTitle="No bootcamps found"
         emptyStateMessage="Create your first bootcamp to get started"
       >

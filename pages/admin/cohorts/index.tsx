@@ -4,47 +4,39 @@ import AdminListPageLayout from "@/components/admin/AdminListPageLayout"; // Imp
 import { Button } from "@/components/ui/button";
 import { Pencil, Calendar, Trash2, Star } from "lucide-react"; // PlusCircle is in AdminListPageLayout, Eye not used
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/client";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 // useLockManagerAdminAuth is now used by AdminListPageLayout
 import { formatDate } from "@/lib/dateUtils"; // + Import shared function
 import { Badge } from "@/components/ui/badge"; // Keep Badge for status display
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 export default function CohortListPage() {
   // Auth and client checks are handled by AdminListPageLayout
   const [cohorts, setCohorts] = useState<
     (Cohort & { bootcamp_program: BootcampProgram })[]
   >([]);
-  const [isLoading, setIsLoading] = useState(true); // Page-specific loading for data
   const [error, setError] = useState<string | null>(null);
+  const { adminFetch, loading } = useAdminApi();
   console.log("Cohorts::", cohorts)
   // Fetch cohorts - This logic remains in the page
   useEffect(() => {
     // AdminListPageLayout handles auth check
     async function fetchCohorts() {
       try {
-        setIsLoading(true);
         setError(null);
-        const { data, error: dbError } = await supabase
-          .from("cohorts")
-          .select(
-            `
-            *,
-            bootcamp_program:bootcamp_program_id (
-              id,
-              name
-            )
-          `
-          )
-          .order("created_at", { ascending: false });
+        
+        const result = await adminFetch<{success: boolean, data: (Cohort & { bootcamp_program: BootcampProgram })[]}>("/api/admin/cohorts");
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
 
-        if (dbError) throw dbError;
-        setCohorts(data || []);
+        // Extract the data from the nested response structure
+        const cohortData = result.data?.data || [];
+        setCohorts(Array.isArray(cohortData) ? cohortData : []);
       } catch (err: any) {
         console.error("Error fetching cohorts:", err);
         setError(err.message || "Failed to load cohorts");
-      } finally {
-        setIsLoading(false);
       }
     }
 
@@ -72,9 +64,9 @@ export default function CohortListPage() {
       title="Cohorts"
       newButtonText="New Cohort"
       newButtonLink="/admin/cohorts/new"
-      isLoading={isLoading} // Pass the data loading state
+      isLoading={loading} // Pass the data loading state
       error={error}
-      isEmpty={!isLoading && !error && cohorts.length === 0}
+      isEmpty={!loading && !error && cohorts.length === 0}
       emptyStateTitle="No cohorts found"
       emptyStateMessage="Create your first cohort to get started"
     >

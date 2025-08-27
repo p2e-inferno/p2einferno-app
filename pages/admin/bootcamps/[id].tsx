@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
-import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram } from "@/lib/supabase/types";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import { withAdminAuth } from "@/components/admin/withAdminAuth";
 
-export default function EditBootcampPage() {
+function EditBootcampPage() {
   const router = useRouter();
   const { id } = router.query;
+  const { adminFetch } = useAdminApi();
 
   const [bootcamp, setBootcamp] = useState<BootcampProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,19 +23,18 @@ export default function EditBootcampPage() {
       try {
         setIsLoading(true);
         setError(null);
-        const { data, error: dbError } = await supabase
-          .from("bootcamp_programs")
-          .select("*")
-          .eq("id", id)
-          .single();
+        
+        const result = await adminFetch<{success: boolean, data: BootcampProgram}>(`/api/admin/bootcamps/${id}`);
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
 
-        if (dbError) throw dbError;
-
-        if (!data) {
+        if (!result.data?.data) {
           throw new Error("Bootcamp not found");
         }
 
-        setBootcamp(data);
+        setBootcamp(result.data.data);
       } catch (err: any) {
         console.error("Error fetching bootcamp:", err);
         setError(err.message || "Failed to load bootcamp");
@@ -73,3 +74,9 @@ export default function EditBootcampPage() {
     </AdminEditPageLayout>
   );
 }
+
+// Export the page wrapped in admin authentication
+export default withAdminAuth(
+  EditBootcampPage,
+  { message: "You need admin access to manage bootcamps" }
+);

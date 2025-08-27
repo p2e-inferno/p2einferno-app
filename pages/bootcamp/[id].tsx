@@ -5,9 +5,30 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
-import { supabase } from "@/lib/supabase/client";
-import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
 import { Clock, Users, Trophy, Calendar, ChevronRight } from "lucide-react";
+
+interface BootcampData {
+  id: string;
+  name: string;
+  description: string;
+  duration_weeks: number;
+  max_reward_dgt: number;
+  image_url?: string;
+  created_at: string;
+  updated_at: string;
+  cohorts: {
+    id: string;
+    name: string;
+    start_date: string;
+    end_date: string;
+    max_participants: number;
+    current_participants: number;
+    registration_deadline: string;
+    status: "open" | "closed" | "upcoming";
+    usdt_amount?: number;
+    naira_amount?: number;
+  }[];
+}
 
 interface BootcampPageProps {
   bootcampId: string;
@@ -31,8 +52,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
 
 export default function BootcampPage({ bootcampId }: BootcampPageProps) {
   const router = useRouter();
-  const [bootcamp, setBootcamp] = useState<BootcampProgram | null>(null);
-  const [cohorts, setCohorts] = useState<Cohort[]>([]);
+  const [bootcamp, setBootcamp] = useState<BootcampData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,30 +64,20 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
     try {
       setLoading(true);
 
-      // Fetch bootcamp details
-      const { data: bootcampData, error: bootcampError } = await supabase
-        .from("bootcamp_programs")
-        .select("*")
-        .eq("id", bootcampId)
-        .single();
-
-      if (bootcampError) throw bootcampError;
-
-      if (!bootcampData) {
-        throw new Error("Bootcamp not found");
+      const response = await fetch(`/api/bootcamps/${bootcampId}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to fetch bootcamp");
       }
 
-      // Fetch cohorts for this bootcamp
-      const { data: cohortsData, error: cohortsError } = await supabase
-        .from("cohorts")
-        .select("*")
-        .eq("bootcamp_program_id", bootcampId)
-        .order("start_date", { ascending: false });
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || "Failed to fetch bootcamp");
+      }
 
-      if (cohortsError) throw cohortsError;
-
-      setBootcamp(bootcampData);
-      setCohorts(cohortsData || []);
+      setBootcamp(result.data);
     } catch (err: any) {
       console.error("Error fetching bootcamp data:", err);
       setError(err.message || "Failed to load bootcamp details");
@@ -178,7 +188,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
                 <Users className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
-                <div className="text-2xl font-bold">{cohorts.length}</div>
+                <div className="text-2xl font-bold">{bootcamp.cohorts.length}</div>
                 <div className="text-sm text-faded-grey">Cohorts Available</div>
               </div>
             </div>
@@ -198,7 +208,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
               </p>
             </div>
 
-            {cohorts.length === 0 ? (
+            {bootcamp.cohorts.length === 0 ? (
               <div className="text-center py-12">
                 <div className="bg-card/50 border border-faded-grey/20 rounded-lg p-8 max-w-md mx-auto">
                   <Calendar className="w-12 h-12 text-faded-grey mx-auto mb-4" />
@@ -212,7 +222,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
               </div>
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
-                {cohorts.map((cohort) => {
+                {bootcamp.cohorts.map((cohort) => {
                   const spotsRemaining =
                     cohort.max_participants - cohort.current_participants;
                   const timeRemaining = calculateTimeRemaining(

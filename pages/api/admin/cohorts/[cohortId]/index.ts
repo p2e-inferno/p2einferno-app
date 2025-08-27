@@ -33,7 +33,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             current_participants,
             registration_deadline,
             status,
+            bootcamp_program_id,
+            key_managers,
+            lock_address,
+            created_at,
+            updated_at,
             bootcamp_programs!cohorts_bootcamp_program_id_fkey (
+              id,
               name,
               description,
               duration_weeks,
@@ -84,6 +90,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       current_participants: cohort.current_participants,
       registration_deadline: cohort.registration_deadline,
       status: cohort.status,
+      bootcamp_program_id: cohort.bootcamp_program_id,
+      key_managers: cohort.key_managers,
+      lock_address: cohort.lock_address,
+      created_at: cohort.created_at,
+      updated_at: cohort.updated_at,
       bootcamp_program: Array.isArray(cohort.bootcamp_programs) 
         ? cohort.bootcamp_programs[0] 
         : cohort.bootcamp_programs

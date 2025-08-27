@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ExternalLink, Calendar, User, MessageSquare, CheckCircle, XCircle, RotateCcw } from "lucide-react";
 import type { MilestoneTask } from "@/lib/supabase/types";
-import { supabase } from "@/lib/supabase/client";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePrivy } from "@privy-io/react-auth";
 
 interface TaskSubmissionsProps {
@@ -40,6 +40,7 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
     isSubmitting: boolean;
   }>>({});
   const { getAccessToken, user } = usePrivy();
+  const { adminFetch } = useAdminApi();
 
   useEffect(() => {
     fetchSubmissions();
@@ -50,19 +51,17 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
       setIsLoading(true);
       setError(null);
 
-      const { data, error: submissionsError } = await supabase
-        .from("task_submissions")
-        .select("*")
-        .eq("task_id", taskId)
-        .order("submitted_at", { ascending: false });
-
-      if (submissionsError) {
-        throw submissionsError;
+      const result = await adminFetch<{success: boolean, data: SubmissionWithUser[]}>(`/api/admin/task-submissions?taskId=${taskId}`);
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
+      
+      const data = result.data?.data || [];
 
       // Initialize grading states
       const initialStates: Record<string, any> = {};
-      data?.forEach(submission => {
+      data.forEach(submission => {
         initialStates[submission.id] = {
           status: submission.status,
           feedback: submission.feedback || "",
@@ -70,7 +69,7 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
         };
       });
       setGradingStates(initialStates);
-      setSubmissions(data || []);
+      setSubmissions(data);
     } catch (err: any) {
       console.error("Error fetching submissions:", err);
       setError(err.message || "Failed to fetch submissions");

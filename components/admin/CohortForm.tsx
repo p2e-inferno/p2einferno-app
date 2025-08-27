@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CopyBadge } from "@/components/ui/badge";
-import { supabase } from "@/lib/supabase/client";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
@@ -37,6 +37,7 @@ export default function CohortForm({
   );
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
   const { getAccessToken } = usePrivy();
+  const { adminFetch } = useAdminApi();
   const wallet = useSmartWalletSelection();
   const [keyManagersInput, setKeyManagersInput] = useState<string>(
     cohort?.key_managers?.join(", ") || ""
@@ -80,13 +81,13 @@ export default function CohortForm({
     async function fetchBootcampPrograms() {
       try {
         setIsLoadingPrograms(true);
-        const { data, error } = await supabase
-          .from("bootcamp_programs")
-          .select("*")
-          .order("name");
-
-        if (error) throw error;
-        setBootcampPrograms(data || []);
+        const result = await adminFetch<{success: boolean, data: BootcampProgram[]}>('/api/admin/bootcamps');
+        
+        if (result.error) {
+          throw new Error(result.error);
+        }
+        
+        setBootcampPrograms(result.data?.data || []);
       } catch (err: any) {
         console.error("Error fetching bootcamp programs:", err);
         setError(err.message || "Failed to load bootcamp programs");

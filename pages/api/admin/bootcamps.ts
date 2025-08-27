@@ -9,6 +9,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
     // Handle the request method
     switch (req.method) {
+      case "GET":
+        return await getBootcamps(req, res, supabase);
       case "POST":
         return await createBootcamp(req, res, supabase);
       case "PUT":
@@ -26,6 +28,32 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 
 // Wrap the handler with admin authentication middleware
 export default withAdminAuth(handler);
+
+async function getBootcamps(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any
+) {
+  try {
+    const { data, error } = await supabase
+      .from("bootcamp_programs")
+      .select("*")
+      .order("name");
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      data: data || [],
+    });
+  } catch (error: any) {
+    console.error("Error fetching bootcamps:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to fetch bootcamps",
+    });
+  }
+}
 
 async function createBootcamp(
   req: NextApiRequest,

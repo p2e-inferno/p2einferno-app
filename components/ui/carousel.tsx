@@ -28,16 +28,22 @@ export function Carousel({
   showDots = true,
   showArrows = true,
 }: CarouselProps) {
+  const childrenArray = React.Children.toArray(children);
+  const childCount = childrenArray.length;
+  
+  // Determine if we should loop based on content count
+  const shouldLoop = childCount > 3 && (options.loop !== false);
+  
   const [emblaRef, emblaApi] = useEmblaCarousel({
-    loop: options.loop ?? true,
-    align: options.align ?? "start",
+    loop: shouldLoop,
+    align: options.align ?? (childCount === 1 ? "center" : "start"),
     slidesToScroll: options.slidesToScroll ?? 1,
     breakpoints: {
       "(min-width: 768px)": {
-        slidesToScroll: 2,
+        slidesToScroll: Math.min(2, childCount),
       },
       "(min-width: 1024px)": {
-        slidesToScroll: 3,
+        slidesToScroll: Math.min(3, childCount),
       },
       ...options.breakpoints,
     },
@@ -86,18 +92,31 @@ export function Carousel({
     <div className={cn("relative", className)}>
       <div className="overflow-hidden" ref={emblaRef}>
         <div className="flex">
-          {React.Children.map(children, (child, index) => (
-            <div
-              key={index}
-              className="flex-[0_0_100%] min-w-0 pl-4 md:flex-[0_0_50%] lg:flex-[0_0_33.333%]"
-            >
-              {child}
-            </div>
-          ))}
+          {React.Children.map(children, (child, index) => {
+            // Dynamic classes based on child count
+            let flexClasses = "min-w-0 pl-4";
+            
+            if (childCount === 1) {
+              // Single item: take full width and center
+              flexClasses += " flex-[0_0_100%]";
+            } else if (childCount === 2) {
+              // Two items: 100% on mobile, 50% on md+
+              flexClasses += " flex-[0_0_100%] md:flex-[0_0_50%]";
+            } else {
+              // Three or more items: normal responsive behavior
+              flexClasses += " flex-[0_0_100%] md:flex-[0_0_50%] lg:flex-[0_0_33.333%]";
+            }
+            
+            return (
+              <div key={index} className={flexClasses}>
+                {child}
+              </div>
+            );
+          })}
         </div>
       </div>
 
-      {showArrows && (
+      {showArrows && childCount > 3 && (
         <div className="flex justify-between mt-8">
           <Button
             variant="outline"
@@ -121,7 +140,7 @@ export function Carousel({
         </div>
       )}
 
-      {showDots && scrollSnaps.length > 1 && (
+      {showDots && scrollSnaps.length > 1 && childCount > 3 && (
         <div className="flex justify-center gap-2 mt-6">
           {scrollSnaps.map((_, index) => (
             <button

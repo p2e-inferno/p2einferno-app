@@ -10,6 +10,8 @@ async function handler(
     const supabase = createAdminClient();
 
     switch (req.method) {
+      case "GET":
+        return await getCohorts(req, res, supabase);
       case "POST":
         return await createCohort(req, res, supabase);
       case "PUT":
@@ -22,6 +24,38 @@ async function handler(
     return res
       .status(500)
       .json({ error: error.message || "Internal server error" });
+  }
+}
+
+async function getCohorts(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any
+) {
+  try {
+    const { data, error } = await supabase
+      .from("cohorts")
+      .select(`
+        *,
+        bootcamp_program:bootcamp_program_id (
+          id,
+          name
+        )
+      `)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      data: data || [],
+    });
+  } catch (error: any) {
+    console.error("Error fetching cohorts:", error);
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to fetch cohorts",
+    });
   }
 }
 

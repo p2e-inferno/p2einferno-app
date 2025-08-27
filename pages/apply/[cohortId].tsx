@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { usePrivy } from "@privy-io/react-auth";
+import { isRegistrationOpen } from "@/lib/utils/registration-validation";
 
 // Import step components
 import PersonalInfoStep from "@/components/apply/steps/PersonalInfoStep";
@@ -32,6 +33,7 @@ interface ApplicationPageProps {
   cohortId: string;
   cohort: Cohort;
   bootcamp: BootcampProgram;
+  registrationStatus: { isOpen: boolean; reason?: string; timeRemaining?: string };
 }
 
 // FormData remains the single source of truth for the form
@@ -106,11 +108,15 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
       };
     }
 
+    // Validate registration status
+    const registrationStatus = isRegistrationOpen(cohort);
+
     return {
       props: {
         cohortId,
         cohort,
         bootcamp,
+        registrationStatus,
       },
     };
   } catch (error) {
@@ -125,6 +131,7 @@ export default function ApplicationPage({
   cohortId,
   cohort,
   bootcamp,
+  registrationStatus,
 }: ApplicationPageProps) {
   const router = useRouter();
   const { getAccessToken } = usePrivy();
@@ -341,6 +348,64 @@ export default function ApplicationPage({
     }
   };
 
+  // Check if registration is closed
+  if (!registrationStatus.isOpen) {
+    return (
+      <MainLayout>
+        <Head>
+          <title>Registration Closed - {bootcamp.name} | P2E INFERNO</title>
+        </Head>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background py-12">
+          <Card className="max-w-2xl w-full p-8 text-center bg-gradient-to-br from-red-900/30 to-orange-900/20 border border-red-500/20">
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl">🔴</span>
+              </div>
+              <h1 className="text-3xl font-bold mb-2 text-red-400">
+                Registration Closed
+              </h1>
+              <h2 className="text-xl text-faded-grey mb-4">
+                {bootcamp.name} - {cohort.name}
+              </h2>
+            </div>
+            
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
+              <p className="text-red-400 font-medium mb-2">
+                {registrationStatus.reason}
+              </p>
+              <div className="text-sm text-faded-grey space-y-1">
+                <p>Registration Deadline: {new Date(cohort.registration_deadline).toLocaleDateString()} at {new Date(cohort.registration_deadline).toLocaleTimeString()}</p>
+                <p>Available Spots: {cohort.max_participants - cohort.current_participants} of {cohort.max_participants}</p>
+                <p>Cohort Status: {cohort.status}</p>
+              </div>
+            </div>
+
+            <p className="text-faded-grey mb-8">
+              Unfortunately, registration for this cohort is no longer available. 
+              You can browse other available bootcamps or check back for future cohorts.
+            </p>
+
+            <div className="space-y-4">
+              <Button 
+                onClick={() => router.push('/apply')}
+                className="w-full bg-flame-yellow text-black hover:bg-flame-orange font-medium text-lg py-3 rounded-xl"
+              >
+                Browse Available Bootcamps
+              </Button>
+              <Button 
+                onClick={() => router.back()}
+                variant="outline"
+                className="w-full border-faded-grey/30 text-white hover:border-faded-grey/60 font-medium text-lg py-3 rounded-xl"
+              >
+                Go Back
+              </Button>
+            </div>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
+
   if (pendingApplication) {
     // This part remains unchanged
     return (
@@ -392,6 +457,17 @@ export default function ApplicationPage({
                   Apply for {bootcamp.name}
                 </h1>
                 <p className="text-faded-grey mb-2">{cohort.name}</p>
+                
+                {/* Registration Status Banner */}
+                {registrationStatus.isOpen && registrationStatus.timeRemaining && (
+                  <div className="inline-flex items-center space-x-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-2 mb-4">
+                    <span className="text-green-400 text-sm">🟢</span>
+                    <span className="text-green-400 text-sm font-medium">
+                      Registration Open - {registrationStatus.timeRemaining}
+                    </span>
+                  </div>
+                )}
+                
                 <p className="text-faded-grey">
                   Join the next generation of Web3 enthusiasts
                 </p>

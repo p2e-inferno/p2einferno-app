@@ -3,7 +3,7 @@ import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import Head from "next/head";
 import Link from "next/link";
-import { MainLayout } from "@/components/layouts/MainLayout";
+import { LobbyLayout } from "@/components/layouts/lobby-layout";
 import { useUserEnrollments } from "@/hooks/useUserEnrollments";
 import {
   FlameIcon,
@@ -42,17 +42,13 @@ export default function EnrolledBootcampsPage() {
         <Head>
           <title>My Enrolled Bootcamps - P2E Inferno</title>
         </Head>
-        <MainLayout>
-          <div className="min-h-screen bg-background py-12">
-            <div className="container mx-auto px-4">
-              <div className="text-center">
-                <FlameIcon size={60} className="text-flame-yellow animate-pulse mx-auto mb-4" />
-                <h1 className="text-3xl font-bold mb-4">Loading Your Bootcamps...</h1>
-                <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin mx-auto"></div>
-              </div>
-            </div>
+        <LobbyLayout>
+          <div className="text-center">
+            <FlameIcon size={60} className="text-flame-yellow animate-pulse mx-auto mb-4" />
+            <h1 className="text-3xl font-bold mb-4">Loading Your Bootcamps...</h1>
+            <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin mx-auto"></div>
           </div>
-        </MainLayout>
+        </LobbyLayout>
       </>
     );
   }
@@ -63,24 +59,20 @@ export default function EnrolledBootcampsPage() {
         <Head>
           <title>My Enrolled Bootcamps - P2E Inferno</title>
         </Head>
-        <MainLayout>
-          <div className="min-h-screen bg-background py-12">
-            <div className="container mx-auto px-4">
-              <div className="text-center">
-                <AlertCircle size={60} className="text-red-400 mx-auto mb-4" />
-                <h1 className="text-3xl font-bold mb-4 text-red-400">Error Loading Bootcamps</h1>
-                <p className="text-faded-grey mb-6">{error}</p>
-                <Link
-                  href="/lobby"
-                  className="inline-flex items-center space-x-2 bg-flame-yellow text-black px-6 py-3 rounded-xl font-medium hover:bg-flame-orange transition-all"
-                >
-                  <span>Back to Lobby</span>
-                  <ArrowRight size={18} />
-                </Link>
-              </div>
-            </div>
+        <LobbyLayout>
+          <div className="text-center">
+            <AlertCircle size={60} className="text-red-400 mx-auto mb-4" />
+            <h1 className="text-3xl font-bold mb-4 text-red-400">Error Loading Bootcamps</h1>
+            <p className="text-faded-grey mb-6">{error}</p>
+            <Link
+              href="/lobby"
+              className="inline-flex items-center space-x-2 bg-flame-yellow text-black px-6 py-3 rounded-xl font-medium hover:bg-flame-orange transition-all"
+            >
+              <span>Back to Lobby</span>
+              <ArrowRight size={18} />
+            </Link>
           </div>
-        </MainLayout>
+        </LobbyLayout>
       </>
     );
   }
@@ -130,50 +122,45 @@ export default function EnrolledBootcampsPage() {
         <meta name="description" content="Track your progress in enrolled bootcamp programs" />
       </Head>
 
-      <MainLayout>
-        <div className="min-h-screen bg-background py-12">
-          <div className="container mx-auto px-4">
-            {/* Header */}
-            <div className="text-center mb-12">
-              <div className="flex justify-center mb-6">
-                <FlameIcon size={80} className="text-flame-yellow" />
-              </div>
-              <h1 className="text-4xl lg:text-5xl font-bold font-heading mb-4">
-                My Enrolled Bootcamps
-              </h1>
-              <p className="text-xl text-faded-grey max-w-2xl mx-auto">
-                Continue your infernal journey and complete your bootcamp milestones
-              </p>
-            </div>
+      <LobbyLayout>
+        {/* Header */}
+        <div className="text-center mb-12">
+          <h1 className="text-4xl lg:text-5xl font-bold font-heading mb-4">
+            My Enrolled Bootcamps
+          </h1>
+          <p className="text-xl text-faded-grey max-w-2xl mx-auto">
+            Continue your infernal journey and complete your bootcamp milestones
+          </p>
+        </div>
 
-            {/* Content */}
-            <div className="max-w-6xl mx-auto">
-              {enrollments.length === 0 ? (
-                <div className="text-center py-16">
-                  <BookOpen size={80} className="text-faded-grey mx-auto mb-6" />
-                  <h2 className="text-2xl font-bold mb-4">No Enrolled Bootcamps</h2>
-                  <p className="text-faded-grey mb-8 max-w-md mx-auto">
-                    You haven&apos;t enrolled in any bootcamps yet. Browse available programs to start your learning journey.
-                  </p>
-                  <div className="space-x-4">
-                    <Link
-                      href="/apply"
-                      className="inline-flex items-center space-x-2 bg-flame-yellow text-black px-6 py-3 rounded-xl font-medium hover:bg-flame-orange transition-all"
-                    >
-                      <span>Browse Bootcamps</span>
-                      <ArrowRight size={18} />
-                    </Link>
-                    <Link
-                      href="/lobby"
-                      className="inline-flex items-center space-x-2 border border-faded-grey/30 text-white px-6 py-3 rounded-xl font-medium hover:border-faded-grey/60 transition-all"
-                    >
-                      <span>Back to Lobby</span>
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {enrollments.map((enrollment) => {
+        {/* Content */}
+        <div className="max-w-6xl mx-auto">
+          {enrollments.length === 0 ? (
+            <div className="text-center py-16">
+              <BookOpen size={80} className="text-faded-grey mx-auto mb-6" />
+              <h2 className="text-2xl font-bold mb-4">No Enrolled Bootcamps</h2>
+              <p className="text-faded-grey mb-8 max-w-md mx-auto">
+                You haven&apos;t enrolled in any bootcamps yet. Browse available programs to start your learning journey.
+              </p>
+              <div className="space-x-4">
+                <Link
+                  href="/apply"
+                  className="inline-flex items-center space-x-2 bg-flame-yellow text-black px-6 py-3 rounded-xl font-medium hover:bg-flame-orange transition-all"
+                >
+                  <span>Browse Bootcamps</span>
+                  <ArrowRight size={18} />
+                </Link>
+                <Link
+                  href="/lobby"
+                  className="inline-flex items-center space-x-2 border border-faded-grey/30 text-white px-6 py-3 rounded-xl font-medium hover:border-faded-grey/60 transition-all"
+                >
+                  <span>Back to Lobby</span>
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {enrollments.map((enrollment) => {
                     const overallProgress = calculateOverallProgress(enrollment);
                     const isCompleted = enrollment.enrollment_status === 'completed';
                     const isActive = enrollment.enrollment_status === 'enrolled' || enrollment.enrollment_status === 'active';
@@ -311,20 +298,18 @@ export default function EnrolledBootcampsPage() {
                 </div>
               )}
 
-              {/* Back to Lobby */}
-              <div className="text-center mt-12">
-                <Link
-                  href="/lobby"
-                  className="inline-flex items-center space-x-2 text-faded-grey hover:text-white transition-colors"
-                >
-                  <span>Back to Lobby</span>
-                  <ArrowRight size={18} />
-                </Link>
-              </div>
-            </div>
+          {/* Back to Lobby */}
+          <div className="text-center mt-12">
+            <Link
+              href="/lobby"
+              className="inline-flex items-center space-x-2 text-faded-grey hover:text-white transition-colors"
+            >
+              <span>Back to Lobby</span>
+              <ArrowRight size={18} />
+            </Link>
           </div>
         </div>
-      </MainLayout>
+      </LobbyLayout>
     </>
   );
 }

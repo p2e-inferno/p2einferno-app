@@ -7,6 +7,7 @@ import { Pencil, Eye, Trash2, Coins, CheckCircle2, Users } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 interface QuestWithStats extends Quest {
   stats?: {
@@ -19,8 +20,8 @@ interface QuestWithStats extends Quest {
 
 export default function AdminQuestsPage() {
   const [quests, setQuests] = useState<QuestWithStats[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { adminFetch, loading } = useAdminApi();
 
   useEffect(() => {
     fetchQuests();
@@ -28,53 +29,22 @@ export default function AdminQuestsPage() {
 
   const fetchQuests = async () => {
     try {
-      setIsLoading(true);
       setError(null);
 
-      // Fetch quests with their tasks
-      const { data: questsData, error: questsError } = await supabase
-        .from("quests")
-        .select(`
-          *,
-          quest_tasks!quest_tasks_quest_id_fkey (
-            id,
-            title,
-            reward_amount,
-            task_type,
-            requires_admin_review
-          )
-        `)
-        .order("created_at", { ascending: false });
+      // Fetch quests via adminFetch
+      const result = await adminFetch<{success: boolean, data: Quest[]}>("/api/admin/quests");
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
 
-      if (questsError) throw questsError;
+      // Extract the data from the nested response structure - now includes stats
+      const questsWithStats = result.data?.data || [];
 
-      // Fetch quest statistics
-      const { data: statsData, error: statsError } = await supabase
-        .from("quest_statistics")
-        .select("*");
-
-      if (statsError) throw statsError;
-
-      // Combine quests with their statistics
-      const questsWithStats = (questsData || []).map(quest => {
-        const stats = statsData?.find(s => s.quest_id === quest.id);
-        return {
-          ...quest,
-          stats: stats ? {
-            total_users: stats.total_users || 0,
-            completed_users: stats.completed_users || 0,
-            pending_submissions: stats.pending_submissions || 0,
-            completion_rate: stats.completion_rate || 0
-          } : undefined
-        };
-      });
-
-      setQuests(questsWithStats);
+      setQuests(Array.isArray(questsWithStats) ? questsWithStats : []);
     } catch (err: any) {
       console.error("Error fetching quests:", err);
       setError(err.message || "Failed to load quests");
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -140,9 +110,9 @@ export default function AdminQuestsPage() {
       title="Quest Management"
       newButtonText="Create Quest"
       newButtonLink="/admin/quests/new"
-      isLoading={isLoading}
+      isLoading={loading}
       error={error}
-      isEmpty={!isLoading && !error && quests.length === 0}
+      isEmpty={!loading && !error && quests.length === 0}
       emptyStateTitle="No quests found"
       emptyStateMessage="Create your first quest to engage users"
     >

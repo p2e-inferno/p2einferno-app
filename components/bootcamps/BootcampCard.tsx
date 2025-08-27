@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { getCohortRegistrationStatus } from "@/lib/utils/registration-validation";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
 import {
   Clock,
@@ -18,23 +19,22 @@ interface BootcampWithCohorts extends BootcampProgram {
 
 interface BootcampCardProps {
   bootcamp: BootcampWithCohorts;
-  calculateTimeRemaining: (deadline: string) => string;
 }
 
-export function BootcampCard({ bootcamp, calculateTimeRemaining }: BootcampCardProps) {
+export function BootcampCard({ bootcamp }: BootcampCardProps) {
   // Find open cohort first, then upcoming, then most recent
   const openCohort = bootcamp.cohorts.find(c => c.status === "open");
   const upcomingCohort = bootcamp.cohorts.find(c => c.status === "upcoming");
   const activeCohort = openCohort || upcomingCohort || bootcamp.cohorts[0];
-  const spotsRemaining = activeCohort 
-    ? activeCohort.max_participants - activeCohort.current_participants 
-    : 0;
-  const timeRemaining = activeCohort 
-    ? calculateTimeRemaining(activeCohort.registration_deadline)
-    : "No Active Cohort";
-  const isRegistrationOpen = activeCohort?.status === "open" && 
-    spotsRemaining > 0 && 
-    timeRemaining !== "Registration Closed";
+  
+  // Use the registration validation utility
+  const registrationStatus = activeCohort 
+    ? getCohortRegistrationStatus(activeCohort, false) // We don't have enrollment info in this context
+    : null;
+  
+  const spotsRemaining = registrationStatus?.spotsRemaining ?? 0;
+  const timeRemaining = registrationStatus?.timeRemaining ?? "No Active Cohort";
+  const isRegistrationOpen = registrationStatus?.isOpen ?? false;
 
   return (
     <Card className="relative bg-gradient-to-br from-steel-red/10 via-background to-flame-yellow/10 border-steel-red/20 hover:border-flame-yellow/50 transition-all duration-500 transform hover:-translate-y-2 shadow-2xl h-full">

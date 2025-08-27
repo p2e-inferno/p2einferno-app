@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Pencil, Trash2, ArrowUp, ArrowDown, Eye } from "lucide-react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase/client";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import MilestoneFormEnhanced from "./MilestoneFormEnhanced";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
@@ -22,19 +22,19 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   const [deletingMilestone, setDeletingMilestone] = useState<CohortMilestone | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { getAccessToken } = usePrivy();
+  const { adminFetch } = useAdminApi();
 
   // Fetch milestones
   const fetchMilestones = async () => {
     try {
       setIsLoading(true);
-      const { data, error } = await supabase
-        .from("cohort_milestones")
-        .select("*")
-        .eq("cohort_id", cohortId)
-        .order("order_index");
-
-      if (error) throw error;
-      setMilestones(data || []);
+      const result = await adminFetch<{success: boolean, data: CohortMilestone[]}>(`/api/admin/milestones?cohort_id=${cohortId}`);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      setMilestones(result.data?.data || []);
     } catch (err: any) {
       console.error("Error fetching milestones:", err);
       setError(err.message || "Failed to load milestones");
@@ -71,17 +71,39 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
     const currentOrderIndex = milestone.order_index;
 
     try {
+      // Get access token for authorization
+      const token = await getAccessToken();
+      if (!token) {
+        throw new Error("Authentication required");
+      }
+
       // Update the target milestone order
-      await supabase
-        .from("cohort_milestones")
-        .update({ order_index: currentOrderIndex })
-        .eq("id", targetMilestone.id);
+      await fetch('/api/admin/milestones', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: targetMilestone.id,
+          order_index: currentOrderIndex,
+          cohort_id: cohortId
+        })
+      });
 
       // Update the current milestone order
-      await supabase
-        .from("cohort_milestones")
-        .update({ order_index: targetMilestone.order_index })
-        .eq("id", milestone.id);
+      await fetch('/api/admin/milestones', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          id: milestone.id,
+          order_index: targetMilestone.order_index,
+          cohort_id: cohortId
+        })
+      });
 
       // Refresh the milestone list
       fetchMilestones();

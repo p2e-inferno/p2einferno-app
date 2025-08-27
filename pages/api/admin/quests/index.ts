@@ -32,19 +32,45 @@ async function getQuests(
   supabase: any
 ) {
   try {
-    const { data, error } = await supabase
+    // Fetch quests
+    const { data: questsData, error: questsError } = await supabase
       .from("quests")
       .select("*, quest_tasks(*)")
       .order("created_at", { ascending: false });
 
-    if (error) throw error;
+    if (questsError) throw questsError;
 
-    return res.status(200).json(data);
+    // Fetch quest statistics
+    const { data: statsData, error: statsError } = await supabase
+      .from("quest_statistics")
+      .select("*");
+
+    if (statsError) throw statsError;
+
+    // Combine quests with their statistics
+    const questsWithStats = (questsData || []).map(quest => {
+      const stats = statsData?.find(s => s.quest_id === quest.id);
+      return {
+        ...quest,
+        stats: stats ? {
+          total_users: stats.total_users || 0,
+          completed_users: stats.completed_users || 0,
+          pending_submissions: stats.pending_submissions || 0,
+          completion_rate: stats.completion_rate || 0
+        } : undefined
+      };
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: questsWithStats,
+    });
   } catch (error: any) {
     console.error("Error fetching quests:", error);
-    return res
-      .status(500)
-      .json({ error: error.message || "Failed to fetch quests" });
+    return res.status(500).json({
+      success: false,
+      error: error.message || "Failed to fetch quests",
+    });
   }
 }
 

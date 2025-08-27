@@ -7,17 +7,13 @@ async function handler(
   res: NextApiResponse
 ) {
   try {
-    // Get the cohort ID from the request
-    const cohortId = req.body.cohort_id;
-    if (!cohortId) {
-      return res.status(400).json({ error: "Missing cohort ID" });
-    }
-
     // Get supabase admin client
     const supabase = createAdminClient();
 
     // Handle different HTTP methods
     switch (req.method) {
+      case "GET":
+        return await getMilestones(req, res, supabase);
       case "POST":
         return await createMilestone(req, res, supabase);
       case "PUT":
@@ -30,6 +26,58 @@ async function handler(
   } catch (error: any) {
     console.error("Milestone API error:", error);
     return res.status(500).json({ error: error.message || "Server error" });
+  }
+}
+
+async function getMilestones(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any
+) {
+  const { cohort_id, milestone_id } = req.query;
+
+  // If milestone_id is provided, get a single milestone
+  if (milestone_id) {
+    try {
+      const { data, error } = await supabase
+        .from("cohort_milestones")
+        .select("*")
+        .eq("id", milestone_id)
+        .single();
+
+      if (error) throw error;
+
+      return res.status(200).json({
+        success: true,
+        data: data
+      });
+    } catch (error: any) {
+      console.error("Error fetching milestone:", error);
+      return res.status(400).json({ error: error.message });
+    }
+  }
+
+  // Otherwise get milestones by cohort_id
+  if (!cohort_id) {
+    return res.status(400).json({ error: "Missing cohort ID or milestone ID" });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from("cohort_milestones")
+      .select("*")
+      .eq("cohort_id", cohort_id)
+      .order("order_index");
+
+    if (error) throw error;
+
+    return res.status(200).json({
+      success: true,
+      data: data || []
+    });
+  } catch (error: any) {
+    console.error("Error fetching milestones:", error);
+    return res.status(400).json({ error: error.message });
   }
 }
 

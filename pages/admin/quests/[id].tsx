@@ -15,8 +15,8 @@ import {
 import Link from "next/link";
 import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
-import { usePrivy } from "@privy-io/react-auth";
-import { supabase } from "@/lib/supabase/client";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import { withAdminAuth } from "@/components/admin/withAdminAuth";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 
 interface QuestDetails extends Quest {
@@ -31,21 +31,14 @@ interface QuestDetails extends Quest {
   pending_submissions?: any[];
 }
 
-export default function QuestDetailsPage() {
+function QuestDetailsPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { authenticated } = usePrivy();
+  const { adminFetch } = useAdminApi();
   const [quest, setQuest] = useState<QuestDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
-
-  // Initial auth check
-  useEffect(() => {
-    if (!authenticated) {
-      router.push("/");
-    }
-  }, [authenticated, router]);
 
   // Reusable function to fetch quest details by id
   const fetchQuestDetails = useCallback(async (questId: string) => {
@@ -53,36 +46,19 @@ export default function QuestDetailsPage() {
       setIsLoading(true);
       setError(null);
 
-      // Fetch quest with tasks
-      const { data: questData, error: questError } = await supabase
-        .from("quests")
-        .select(
-          `
-            *,
-            quest_tasks (*)
-          `
-        )
-        .eq("id", questId)
-        .single();
+      const result = await adminFetch<{quest: QuestDetails}>(`/api/admin/quests/${questId}`);
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
 
-      if (questError) throw questError;
-      if (!questData) throw new Error("Quest not found");
+      if (!result.data?.quest) {
+        throw new Error("Quest not found");
+      }
 
-      // Fetch stats
-      const { data: stats } = await supabase
-        .from("quest_statistics")
-        .select("*")
-        .eq("quest_id", questId)
-        .single();
+      setQuest(result.data.quest);
 
-      const questWithStats: QuestDetails = {
-        ...questData,
-        stats: stats || undefined,
-      };
-
-      setQuest(questWithStats);
-
-      if (stats?.pending_submissions > 0) {
+      if (result.data.quest.stats?.pending_submissions > 0) {
         setActiveTab("submissions");
       }
     } catch (err: any) {
@@ -98,7 +74,7 @@ export default function QuestDetailsPage() {
     if (id && typeof id === "string") {
       fetchQuestDetails(id);
     }
-  }, [id, fetchQuestDetails]);
+  }, [id]);
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {
@@ -380,3 +356,9 @@ export default function QuestDetailsPage() {
     </AdminLayout>
   );
 }
+
+// Export the page wrapped in admin authentication
+export default withAdminAuth(
+  QuestDetailsPage,
+  { message: "You need admin access to manage quests" }
+);

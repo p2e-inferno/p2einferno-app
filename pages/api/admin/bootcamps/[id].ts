@@ -15,6 +15,8 @@ async function handler(
     }
 
     switch (req.method) {
+      case "GET":
+        return await getBootcamp(res, supabase, id);
       case "DELETE":
         return await deleteBootcamp(res, supabase, id);
       default:
@@ -23,6 +25,31 @@ async function handler(
   } catch (error: any) {
     console.error("Bootcamp API error:", error);
     return res.status(500).json({ error: error.message || "Server error" });
+  }
+}
+
+async function getBootcamp(
+  res: NextApiResponse,
+  supabase: any,
+  bootcampId: string
+) {
+  try {
+    const { data, error } = await supabase
+      .from("bootcamp_programs")
+      .select("*")
+      .eq("id", bootcampId)
+      .single();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(404).json({ error: "Bootcamp not found" });
+    }
+
+    return res.status(200).json({ success: true, data });
+  } catch (error: any) {
+    console.error("Get bootcamp error:", error);
+    return res.status(400).json({ error: error.message || "Failed to fetch bootcamp" });
   }
 }
 
