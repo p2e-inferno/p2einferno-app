@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { X, Upload, Link as LinkIcon, FileText, Code, ExternalLink } from "lucide-react";
+import { X, Upload, Link as LinkIcon, FileText, Code, ExternalLink, AlertTriangle } from "lucide-react";
 import { CrystalIcon } from "@/components/icons/dashboard-icons";
+import { canEarnRewards } from "@/lib/utils/milestone-utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +17,10 @@ interface MilestoneTask {
   submission_requirements: any;
   validation_criteria: any;
   requires_admin_review: boolean;
+  milestone?: {
+    start_date?: string;
+    end_date?: string;
+  };
 }
 
 interface TaskSubmissionModalProps {
@@ -296,6 +301,19 @@ export default function TaskSubmissionModal({
               </div>
             </div>
           </div>
+
+          {/* Reward Expiration Warning */}
+          {task.milestone && !canEarnRewards(task.milestone.start_date, task.milestone.end_date) && (
+            <div className="bg-red-900/20 border border-red-500/20 rounded-lg p-4 mb-6">
+              <div className="flex items-center space-x-2 mb-2">
+                <AlertTriangle size={16} className="text-red-400" />
+                <h4 className="font-medium text-red-400">Rewards Expired</h4>
+              </div>
+              <div className="text-sm text-faded-grey">
+                The reward period for this milestone has ended. You can still complete the task for progress, but no DGT rewards will be granted.
+              </div>
+            </div>
+          )}
 
           {/* Submission Requirements */}
           {task.submission_requirements && Object.keys(task.submission_requirements).length > 0 && (

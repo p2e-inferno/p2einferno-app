@@ -6,6 +6,7 @@ import Link from "next/link";
 import { toast } from "react-hot-toast";
 import { LobbyLayout } from "@/components/layouts/lobby-layout";
 import TaskSubmissionModal from "@/components/lobby/TaskSubmissionModal";
+import MilestoneTimer from "@/components/lobby/MilestoneTimer";
 import { 
   FlameIcon, 
   CrystalIcon 
@@ -243,8 +244,16 @@ export default function BootcampLearningPage() {
     }
   };
 
-  const handleTaskSubmit = (task: MilestoneTask) => {
-    setSelectedTask(task);
+  const handleTaskSubmit = (task: MilestoneTask, milestone: MilestoneWithProgress) => {
+    // Add milestone timing data to task for reward checking
+    const taskWithMilestone = {
+      ...task,
+      milestone: {
+        start_date: milestone.start_date,
+        end_date: milestone.end_date
+      }
+    };
+    setSelectedTask(taskWithMilestone);
     setShowSubmissionModal(true);
   };
 
@@ -414,6 +423,14 @@ export default function BootcampLearningPage() {
                     </div>
                   </div>
 
+                  {/* Milestone Timer */}
+                  <div className="mt-4">
+                    <MilestoneTimer 
+                      startDate={milestone.start_date}
+                      endDate={milestone.end_date}
+                    />
+                  </div>
+
                   {/* Progress Bar */}
                   {milestone.user_progress && (
                     <div className="mt-4">
@@ -480,7 +497,7 @@ export default function BootcampLearningPage() {
                               </div>
                             </div>
                             <button 
-                              onClick={() => handleTaskSubmit(task)}
+                              onClick={() => handleTaskSubmit(task, milestone)}
                               className="bg-flame-yellow text-black px-4 py-2 rounded-lg font-medium hover:bg-flame-orange transition-all"
                             >
                               Submit

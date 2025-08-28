@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
+import { usePrivy } from "@privy-io/react-auth";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import {
   WelcomeSection,
@@ -11,6 +12,7 @@ import {
   LobbyLoadingState,
   LobbyErrorState,
 } from "../../components/lobby";
+import LobbyConfirmationModal from "../../components/lobby/LobbyConfirmationModal";
 import { LobbyLayout } from "../../components/layouts/lobby-layout";
 import { Application } from "@/lib/supabase";
 
@@ -31,7 +33,11 @@ interface PendingApplication {
  */
 export default function LobbyPage() {
   const router = useRouter();
+  const { getAccessToken } = usePrivy();
   const { data: dashboardData, loading, error, refetch } = useDashboardData();
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [enrollmentToRemove, setEnrollmentToRemove] = useState<string | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
   const handleCompletePayment = async (applicationId: string) => {
     try {
@@ -45,6 +51,54 @@ export default function LobbyPage() {
       console.error("Failed to redirect to payment:", error);
       toast.error("Failed to redirect to payment page");
     }
+  };
+
+  const handleRemoveJourney = (enrollmentId: string) => {
+    setEnrollmentToRemove(enrollmentId);
+    setShowRemoveModal(true);
+  };
+
+  const confirmRemoveJourney = async () => {
+    if (!enrollmentToRemove) return;
+
+    try {
+      setIsRemoving(true);
+
+      const token = await getAccessToken();
+      const response = await fetch(`/api/user/enrollment/${enrollmentToRemove}/remove`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to remove journey");
+      }
+
+      toast.success("Journey removed from lobby");
+      
+      // Refresh the dashboard data to update the UI
+      await refetch();
+      
+      // Close modal and reset state
+      setShowRemoveModal(false);
+      setEnrollmentToRemove(null);
+      
+    } catch (error: any) {
+      console.error("Failed to remove journey:", error);
+      toast.error(error.message || "Failed to remove journey");
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  const handleCloseRemoveModal = () => {
+    setShowRemoveModal(false);
+    setEnrollmentToRemove(null);
   };
 
   if (loading) {
@@ -102,7 +156,19 @@ export default function LobbyPage() {
 
       <QuickActionsGrid />
 
-      <CurrentEnrollments enrollments={enrollments} />
+      <CurrentEnrollments enrollments={enrollments} onRemoveJourney={handleRemoveJourney} />
+      
+      <LobbyConfirmationModal
+        isOpen={showRemoveModal}
+        onClose={handleCloseRemoveModal}
+        onConfirm={confirmRemoveJourney}
+        title="Remove Journey"
+        description="Are you sure you want to remove this journey from your lobby? This action will hide it from your dashboard but won't affect your actual enrollment status."
+        confirmText="Remove Journey"
+        cancelText="Keep Journey"
+        variant="danger"
+        isLoading={isRemoving}
+      />
     </LobbyLayout>
   );
 }

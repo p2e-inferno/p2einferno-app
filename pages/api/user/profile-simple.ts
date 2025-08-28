@@ -214,12 +214,36 @@ async function getUserDashboardData(
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
 
-  // Get bootcamp enrollments (graceful fallback)
+  // Get bootcamp enrollments with cohort details (graceful fallback)
   const { data: enrollments } = await supabase
     .from("bootcamp_enrollments")
-    .select("*")
+    .select(`
+      *,
+      cohorts (
+        id,
+        name,
+        bootcamp_program:bootcamp_program_id (
+          name
+        )
+      )
+    `)
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
+
+  // Get user journey preferences separately
+  const { data: preferences } = await supabase
+    .from("user_journey_preferences")
+    .select("enrollment_id, is_hidden")
+    .eq("user_profile_id", userProfileId);
+
+  // Merge preferences into enrollments
+  const enrollmentsWithPreferences = (enrollments || []).map((enrollment: any) => {
+    const preference = preferences?.find((p: any) => p.enrollment_id === enrollment.id);
+    return {
+      ...enrollment,
+      user_journey_preferences: preference ? [preference] : []
+    };
+  });
 
   // Get recent activities (graceful fallback)
   const { data: recentActivities } = await supabase
@@ -243,7 +267,7 @@ async function getUserDashboardData(
       enrollments?.filter((_e: any) => _e.enrollment_status === "completed")
         .length || 0,
     enrolledBootcamps:
-      enrollments?.filter((_e: any) => 
+      enrollmentsWithPreferences?.filter((_e: any) => 
         _e.enrollment_status === "enrolled" || _e.enrollment_status === "active"
       ).length || 0,
     totalPoints: profile.experience_points || 0,

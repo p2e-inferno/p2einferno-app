@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
+import { canEarnRewards } from "@/lib/utils/milestone-utils";
 import type { ApiResponse } from "@/lib/api";
 
 interface TaskSubmissionData {
@@ -15,6 +16,8 @@ interface TaskSubmissionResponse {
   id: string;
   status: string;
   submitted_at: string;
+  rewards_available: boolean;
+  effective_reward_amount: number;
   task: {
     id: string;
     title: string;
@@ -87,7 +90,9 @@ export default async function handler(
         submission_requirements,
         milestone:milestone_id (
           id,
-          cohort_id
+          cohort_id,
+          start_date,
+          end_date
         )
       `)
       .eq("id", taskId)
@@ -116,6 +121,11 @@ export default async function handler(
         error: "You are not enrolled in this cohort",
       });
     }
+
+    // Check if milestone reward period has expired
+    const milestone = Array.isArray(task.milestone) ? task.milestone[0] : task.milestone;
+    const rewardsAvailable = canEarnRewards(milestone?.start_date, milestone?.end_date);
+    const effectiveRewardAmount = rewardsAvailable ? task.reward_amount : 0;
 
     // Check if user already has a pending or completed submission
     const { data: existingSubmission } = await supabase
@@ -163,6 +173,8 @@ export default async function handler(
         id: submission.id,
         status: submission.status,
         submitted_at: submission.submitted_at,
+        rewards_available: rewardsAvailable,
+        effective_reward_amount: effectiveRewardAmount,
         task: {
           id: task.id,
           title: task.title,
