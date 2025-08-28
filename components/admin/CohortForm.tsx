@@ -16,7 +16,8 @@ import {
   saveDraft, 
   removeDraft, 
   getDraft, 
-  savePendingDeployment
+  savePendingDeployment,
+  removePendingDeployment
 } from "@/lib/utils/lock-deployment-state";
 import { getRecordId } from "@/lib/utils/id-generation";
 
@@ -47,6 +48,7 @@ export default function CohortForm({
   const [isDeployingLock, setIsDeployingLock] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState<string>("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
+  const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<Partial<Cohort>>(
     cohort || {
@@ -173,6 +175,9 @@ export default function CohortForm({
         blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
       });
 
+      // Store deployment ID for cleanup on success
+      setCurrentDeploymentId(deploymentId);
+
       toast.success(
         <>
           Lock deployed successfully!
@@ -250,7 +255,7 @@ export default function CohortForm({
       let lockAddress: string | undefined = formData.lock_address || undefined;
 
       // Deploy lock if not editing and auto-creation is enabled and no lock address provided
-      if (!isEditing && showAutoLockCreation && !lockAddress && (formData.usdt_amount || formData.naira_amount)) {
+      if (!isEditing && showAutoLockCreation && !lockAddress) {
         try {
           console.log("Auto-deploying lock for cohort...");
           lockAddress = await deployLockForCohort();
@@ -310,7 +315,12 @@ export default function CohortForm({
         // Clean up drafts and pending deployments on success
         if (!isEditing) {
           removeDraft('cohort');
-          // Note: removePendingDeployment will be called by the recovery endpoint if used
+          
+          // Clean up pending deployment if we deployed a lock
+          if (currentDeploymentId) {
+            removePendingDeployment(currentDeploymentId);
+            console.log(`Cleaned up pending deployment: ${currentDeploymentId}`);
+          }
         }
         
         toast.success(isEditing ? "Cohort updated successfully!" : "Cohort created successfully!");

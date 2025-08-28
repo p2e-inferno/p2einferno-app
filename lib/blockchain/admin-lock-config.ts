@@ -37,10 +37,14 @@ const EXPIRATION_DURATIONS = {
  * Generate lock configuration for cohort access
  * - Unlimited expiration (lifetime membership)
  * - USDC pricing from cohort naira_amount/usdt_amount
+ * - Free access if no price is set
  */
 export const generateCohortLockConfig = (cohort: Cohort): LockConfig => {
   // Use USDT amount if available, otherwise convert from Naira (rough estimate)
   const priceInUSD = cohort.usdt_amount || (cohort.naira_amount ? cohort.naira_amount / 1600 : 0);
+  
+  // If no price is set, create a free lock
+  const isFree = priceInUSD === 0;
   
   return {
     name: `${cohort.name} Access`,
@@ -48,7 +52,7 @@ export const generateCohortLockConfig = (cohort: Cohort): LockConfig => {
     keyPrice: priceInUSD.toString(),
     maxNumberOfKeys: cohort.max_participants,
     expirationDuration: EXPIRATION_DURATIONS.UNLIMITED,
-    currency: "USDC",
+    currency: isFree ? "FREE" : "USDC",
     price: priceInUSD,
     maxKeysPerAddress: 1, // One cohort access per address
     transferable: false, // Non-transferable membership
