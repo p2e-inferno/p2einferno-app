@@ -17,7 +17,7 @@ export default function CohortListPage() {
   >([]);
   const [error, setError] = useState<string | null>(null);
   const { adminFetch, loading } = useAdminApi();
-  console.log("Cohorts::", cohorts)
+  console.log("Cohorts loaded:", cohorts.length, "items")
   // Fetch cohorts - This logic remains in the page
   useEffect(() => {
     // AdminListPageLayout handles auth check
@@ -41,7 +41,7 @@ export default function CohortListPage() {
     }
 
     fetchCohorts();
-  }, []); // Runs once on component mount
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // formatDate is now imported
 

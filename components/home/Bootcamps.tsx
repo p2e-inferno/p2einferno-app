@@ -1,8 +1,14 @@
 import React, { useState, useEffect } from "react";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
-import { Carousel } from "@/components/ui/carousel";
-import { BootcampCard } from "@/components/bootcamps/BootcampCard";
+
+
+
 import { NetworkError } from "@/components/ui/network-error";
+import { BootcampsComingSoon, BootcampCard } from "@/components/bootcamps";
+import { Carousel } from "@/components/ui/carousel";
+import {
+  Flame,
+} from "lucide-react";
 
 interface BootcampWithCohorts extends BootcampProgram {
   cohorts: Cohort[];
@@ -102,6 +108,9 @@ export function Bootcamps() {
     );
   }
 
+    // Get bootcamps with cohorts (active bootcamps)
+  const activeBootcamps = bootcamps.filter(b => b.cohorts.length > 0);
+
   return (
     <section id="bootcamps" className="py-20 md:py-32 bg-background">
       <div className="container mx-auto px-4">
@@ -117,22 +126,38 @@ export function Bootcamps() {
         </div>
 
         <div className="max-w-6xl mx-auto">
-          <Carousel
-            options={{
-              loop: true,
-              align: "start",
-              slidesToScroll: 1,
-            }}
-            showDots={true}
-            showArrows={true}
-          >
-            {bootcamps.map((bootcamp) => (
-              <BootcampCard
-                key={bootcamp.id}
-                bootcamp={bootcamp}
-              />
-            ))}
-          </Carousel>
+          {/* Active Bootcamps Carousel */}
+          {activeBootcamps.length > 0 ? (
+            <div className="pt-8 pb-4">
+              <Carousel
+                options={{
+                  loop: true,
+                  align: "start",
+                  slidesToScroll: 1,
+                }}
+                showDots={true}
+                showArrows={true}
+              >
+                {activeBootcamps.map((bootcamp) => (
+                  <BootcampCard
+                    key={bootcamp.id}
+                    bootcamp={bootcamp}
+                  />
+                ))}
+              </Carousel>
+            </div>
+          ) : (
+            <div className="text-center py-12">
+              <div className="p-4 bg-faded-grey/10 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+                <Flame className="w-8 h-8 text-faded-grey" />
+              </div>
+              <h3 className="text-xl font-bold text-faded-grey mb-2">No Active Bootcamps</h3>
+              <p className="text-faded-grey">Check back soon for upcoming programs!</p>
+            </div>
+          )}
+
+          {/* Bootcamps Coming Soon */}
+          <BootcampsComingSoon bootcamps={bootcamps} />
         </div>
       </div>
     </section>

@@ -42,7 +42,7 @@ function BootcampsPage() {
     }
 
     fetchBootcamps();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleConfirmDelete() {
     if (!bootcampToDelete) return;

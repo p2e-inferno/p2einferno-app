@@ -112,7 +112,7 @@ export function Carousel({
             }
             
             return (
-              <div key={index} className={flexClasses}>
+              <div key={index} className={`${flexClasses} py-2`}>
                 {child}
               </div>
             );

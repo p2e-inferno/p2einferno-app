@@ -52,6 +52,7 @@ export default function CohortForm({
     cohort || {
       name: "",
       id: "",
+      bootcamp_program_id: "",
       start_date: "",
       end_date: "",
       max_participants: 100,
@@ -97,7 +98,7 @@ export default function CohortForm({
     }
 
     fetchBootcampPrograms();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -273,8 +274,6 @@ export default function CohortForm({
         lock_address: lockAddress,
       };
 
-      const { bootcamp_program_id, ...dataToSend } = dataToSave;
-
       const apiUrl = "/api/admin/cohorts";
       const method = isEditing ? "PUT" : "POST";
 
@@ -289,8 +288,8 @@ export default function CohortForm({
         },
         body: JSON.stringify(
           isEditing
-            ? { ...dataToSend, id: cohort!.id }
-            : { ...dataToSend, created_at: now, updated_at: now }
+            ? { ...dataToSave, id: cohort!.id }
+            : { ...dataToSave, created_at: now, updated_at: now }
         ),
       });
 
