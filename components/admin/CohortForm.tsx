@@ -33,6 +33,18 @@ export default function CohortForm({
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState<{
+    name?: string;
+    bootcamp_program_id?: string;
+    start_date?: string;
+    end_date?: string;
+    registration_deadline?: string;
+    naira_amount?: string;
+    usdt_amount?: string;
+  }>({});
+  const [isFormValid, setIsFormValid] = useState(false);
   const [bootcampPrograms, setBootcampPrograms] = useState<BootcampProgram[]>(
     []
   );
@@ -67,6 +79,59 @@ export default function CohortForm({
       naira_amount: 0,
     }
   );
+
+  // Validation function
+  const validateForm = (data: Partial<Cohort>) => {
+    const errors: typeof validationErrors = {};
+    
+    // Required field validations
+    if (!data.name?.trim()) {
+      errors.name = "Cohort name is required";
+    }
+    
+    if (!data.bootcamp_program_id) {
+      errors.bootcamp_program_id = "Please select a bootcamp program";
+    }
+    
+    if (!data.start_date) {
+      errors.start_date = "Start date is required";
+    }
+    
+    if (!data.end_date) {
+      errors.end_date = "End date is required";
+    }
+    
+    if (!data.registration_deadline) {
+      errors.registration_deadline = "Registration deadline is required";
+    }
+    
+    // Date validations
+    if (data.start_date && data.end_date && new Date(data.end_date) <= new Date(data.start_date)) {
+      errors.end_date = "End date must be after start date";
+    }
+    
+    // Pricing validations
+    const nairaAmount = data.naira_amount || 0;
+    const usdtAmount = data.usdt_amount || 0;
+    
+    if (nairaAmount < 10) {
+      errors.naira_amount = "Naira amount must be at least ₦10 for Paystack payments";
+    }
+    
+    if (usdtAmount < 1) {
+      errors.usdt_amount = "USDT amount must be at least $1 for blockchain payments";
+    }
+    
+    setValidationErrors(errors);
+    setIsFormValid(Object.keys(errors).length === 0);
+    
+    return errors;
+  };
+
+  // Validate form whenever formData changes
+  useEffect(() => {
+    validateForm(formData);
+  }, [formData]);
 
   // Load draft data on mount
   useEffect(() => {
@@ -219,26 +284,17 @@ export default function CohortForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
+    
+    // Check if form is valid before proceeding
+    if (!isFormValid) {
+      setError("Please fix the validation errors before submitting");
+      return;
+    }
+    
+        setIsSubmitting(true);
     setError("");
 
     try {
-      // Validate required fields
-      if (
-        !formData.name ||
-        !formData.bootcamp_program_id ||
-        !formData.start_date ||
-        !formData.end_date ||
-        !formData.registration_deadline
-      ) {
-        throw new Error("Please fill in all required fields");
-      }
-
-      // Validate dates
-      if (new Date(formData.end_date) <= new Date(formData.start_date)) {
-        throw new Error("End date must be after start date");
-      }
-
       const now = new Date().toISOString();
 
       // Process key managers from comma-separated string to array
@@ -398,8 +454,13 @@ export default function CohortForm({
             onChange={handleChange}
             placeholder="e.g., Winter 2024 Cohort"
             required
-            className={inputClass}
+            className={`${inputClass} ${validationErrors.name ? 'border-red-500' : ''}`}
           />
+          {validationErrors.name && (
+            <p className="text-sm text-red-400 mt-1">
+              {validationErrors.name}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -413,7 +474,7 @@ export default function CohortForm({
             onChange={handleChange}
             required
             disabled={isEditing}
-            className={`${inputClass} w-full h-10 rounded-md px-3`}
+            className={`${inputClass} w-full h-10 rounded-md px-3 ${validationErrors.bootcamp_program_id ? 'border-red-500' : ''}`}
           >
             <option value="" disabled>
               {isLoadingPrograms
@@ -426,6 +487,11 @@ export default function CohortForm({
               </option>
             ))}
           </select>
+          {validationErrors.bootcamp_program_id && (
+            <p className="text-sm text-red-400 mt-1">
+              {validationErrors.bootcamp_program_id}
+            </p>
+          )}
           {isEditing && (
             <p className="text-sm text-gray-400 mt-1">
               Bootcamp program cannot be changed after creation.
@@ -462,9 +528,14 @@ export default function CohortForm({
             value={formData.start_date}
             onChange={handleChange}
             required
-            className={dateInputClass}
+            className={`${dateInputClass} ${validationErrors.start_date ? 'border-red-500' : ''}`}
             onClick={(e) => e.currentTarget.showPicker()}
           />
+          {validationErrors.start_date && (
+            <p className="text-sm text-red-400 mt-1">
+              {validationErrors.start_date}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -478,9 +549,14 @@ export default function CohortForm({
             value={formData.end_date}
             onChange={handleChange}
             required
-            className={dateInputClass}
+            className={`${dateInputClass} ${validationErrors.end_date ? 'border-red-500' : ''}`}
             onClick={(e) => e.currentTarget.showPicker()}
           />
+          {validationErrors.end_date && (
+            <p className="text-sm text-red-400 mt-1">
+              {validationErrors.end_date}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -494,9 +570,14 @@ export default function CohortForm({
             value={formData.registration_deadline}
             onChange={handleChange}
             required
-            className={dateInputClass}
+            className={`${dateInputClass} ${validationErrors.registration_deadline ? 'border-red-500' : ''}`}
             onClick={(e) => e.currentTarget.showPicker()}
           />
+          {validationErrors.registration_deadline && (
+            <p className="text-sm text-red-400 mt-1">
+              {validationErrors.registration_deadline}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -616,11 +697,16 @@ export default function CohortForm({
             onChange={handleChange}
             min={0}
             placeholder="0.00"
-            className={inputClass}
+            className={`${inputClass} ${validationErrors.usdt_amount ? 'border-red-500' : ''}`}
           />
           <p className="text-sm text-gray-400 mt-1">
             Optional: Cohort price in USDT
           </p>
+          {validationErrors.usdt_amount && (
+            <p className="text-sm text-red-400 mt-1">
+              {validationErrors.usdt_amount}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
@@ -636,11 +722,16 @@ export default function CohortForm({
             onChange={handleChange}
             min={0}
             placeholder="0.00"
-            className={inputClass}
+            className={`${inputClass} ${validationErrors.naira_amount ? 'border-red-500' : ''}`}
           />
           <p className="text-sm text-gray-400 mt-1">
             Optional: Cohort price in Naira
           </p>
+          {validationErrors.naira_amount && (
+            <p className="text-sm text-red-400 mt-1">
+              {validationErrors.naira_amount}
+            </p>
+          )}
         </div>
       </div>
 
@@ -655,8 +746,8 @@ export default function CohortForm({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting}
-          className="bg-steel-red hover:bg-steel-red/90 text-white"
+          disabled={isSubmitting || !isFormValid}
+          className="bg-steel-red hover:bg-steel-red/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSubmitting ? (
             <>

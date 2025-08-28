@@ -90,7 +90,7 @@ async function updateCohort(
   res: NextApiResponse,
   supabase: any
 ) {
-  const { id, ...cohort } = req.body;
+  const { id, bootcamp_program, ...cohort } = req.body;
   if (!id) return res.status(400).json({ error: "Missing cohort ID" });
   try {
     cohort.updated_at = new Date().toISOString();

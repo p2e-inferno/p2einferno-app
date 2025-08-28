@@ -5,7 +5,7 @@ import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
-import { supabase } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/server";
 import type {
   Application,
   Cohort,
@@ -48,6 +48,9 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   }
 
   try {
+    // Create admin client for server-side operations
+    const supabase = createAdminClient();
+    
     // Fetch application data from database
     const { data: application, error } = await supabase
       .from("applications")

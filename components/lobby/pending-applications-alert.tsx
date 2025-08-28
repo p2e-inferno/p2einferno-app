@@ -11,6 +11,15 @@ interface PendingApplication {
   applications: {
     cohort_id: string;
     experience_level: string;
+    cohorts?: {
+      id: string;
+      name: string;
+      bootcamp_program_id: string;
+      bootcamp_programs?: {
+        id: string;
+        name: string;
+      };
+    };
   };
 }
 
@@ -163,7 +172,7 @@ export const PendingApplicationsAlert: React.FC<
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-red-200">
-                        Cohort: {app.applications.cohort_id}
+                        Cohort: {app.applications.cohorts?.name || app.applications.cohort_id}
                       </p>
                       <p className="text-sm text-red-300">
                         Level: {app.applications.experience_level}

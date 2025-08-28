@@ -185,7 +185,7 @@ async function getUserDashboardData(
     throw new Error(`Failed to fetch profile: ${profileError.message}`);
   }
 
-  // Get user applications with status (graceful fallback)
+  // Get user applications with status and cohort details (graceful fallback)
   const { data: applications } = await supabase
     .from("user_application_status")
     .select(
@@ -198,7 +198,16 @@ async function getUserDashboardData(
         experience_level,
         payment_status,
         application_status,
-        created_at
+        created_at,
+        cohorts (
+          id,
+          name,
+          bootcamp_program_id,
+          bootcamp_programs (
+            id,
+            name
+          )
+        )
       )
     `
     )

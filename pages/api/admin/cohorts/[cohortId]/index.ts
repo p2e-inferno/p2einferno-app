@@ -36,6 +36,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             bootcamp_program_id,
             key_managers,
             lock_address,
+            usdt_amount,
+            naira_amount,
             created_at,
             updated_at,
             bootcamp_programs!cohorts_bootcamp_program_id_fkey (
@@ -93,6 +95,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       bootcamp_program_id: cohort.bootcamp_program_id,
       key_managers: cohort.key_managers,
       lock_address: cohort.lock_address,
+      usdt_amount: cohort.usdt_amount,
+      naira_amount: cohort.naira_amount,
       created_at: cohort.created_at,
       updated_at: cohort.updated_at,
       bootcamp_program: Array.isArray(cohort.bootcamp_programs) 

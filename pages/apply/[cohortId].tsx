@@ -33,7 +33,7 @@ interface ApplicationPageProps {
   cohortId: string;
   cohort: Cohort;
   bootcamp: BootcampProgram;
-  registrationStatus: { isOpen: boolean; reason?: string; timeRemaining?: string };
+  registrationStatus: { isOpen: boolean; reason?: string | null; timeRemaining?: string };
 }
 
 // FormData remains the single source of truth for the form

@@ -105,11 +105,11 @@ export function getCohortRegistrationStatus(cohort: Cohort, isUserEnrolled = fal
 /**
  * Simple check if registration is open for a cohort
  */
-export function isRegistrationOpen(cohort: Cohort): { isOpen: boolean; reason?: string; timeRemaining?: string } {
+export function isRegistrationOpen(cohort: Cohort): { isOpen: boolean; reason?: string | null; timeRemaining?: string } {
   const status = getCohortRegistrationStatus(cohort);
   return {
     isOpen: status.isOpen,
-    reason: status.reason,
+    reason: status.reason || null,
     timeRemaining: status.timeRemaining,
   };
 }
