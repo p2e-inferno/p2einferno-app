@@ -52,6 +52,8 @@ export default function TaskSubmissionModal({
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string>("");
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
   const [submissionId, setSubmissionId] = useState<string>("");
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [fileType, setFileType] = useState<string>("");
 
   React.useEffect(() => {
     if (isOpen && task) {
@@ -70,12 +72,16 @@ export default function TaskSubmissionModal({
         setSubmissionId("");
         setUploadedFileUrl("");
         setUploadedFileName("");
+        setImagePreview("");
+        setFileType("");
       }
     } else if (!isOpen) {
       // Reset all state when modal closes
       setSubmissionId("");
       setUploadedFileUrl("");
       setUploadedFileName("");
+      setImagePreview("");
+      setFileType("");
     }
   }, [isOpen, task]);
 
@@ -165,6 +171,8 @@ export default function TaskSubmissionModal({
       setSubmissionData({});
       setUploadedFileUrl("");
       setUploadedFileName("");
+      setImagePreview("");
+      setFileType("");
 
     } catch (error: any) {
       console.error("Submission error:", error);
@@ -233,6 +241,17 @@ export default function TaskSubmissionModal({
                         if (!file) return;
                         try {
                           setUploading(true);
+                          setFileType(file.type);
+                          
+                          // Create image preview for image files
+                          if (file.type.startsWith('image/')) {
+                            const reader = new FileReader();
+                            reader.onload = (event) => {
+                              setImagePreview(event.target?.result as string);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                          
                           // Convert to base64
                           const toBase64 = (f: File) => new Promise<string>((resolve, reject) => {
                             const reader = new FileReader();
@@ -295,6 +314,10 @@ export default function TaskSubmissionModal({
                           </div>
                           <button
                             type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              document.getElementById('file-input')?.click();
+                            }}
                             className="inline-flex items-center space-x-2 bg-gradient-to-r from-flame-yellow to-flame-orange text-black px-6 py-2 rounded-lg font-medium hover:from-flame-yellow/90 hover:to-flame-orange/90 transition-all duration-200"
                           >
                             <Upload size={16} />
@@ -313,6 +336,21 @@ export default function TaskSubmissionModal({
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-white">{uploadedFileName}</h4>
                         <p className="text-sm text-green-400">File uploaded successfully</p>
+                        
+                        {/* Image Preview */}
+                        {imagePreview && fileType.startsWith('image/') && (
+                          <div className="mt-4">
+                            <div className="relative max-w-md mx-auto">
+                              <img 
+                                src={imagePreview} 
+                                alt="Preview" 
+                                className="w-full h-auto max-h-64 object-contain rounded-lg border border-purple-500/20"
+                                style={{ maxHeight: '16rem' }}
+                              />
+                            </div>
+                          </div>
+                        )}
+                        
                         <div className="mt-2 group relative">
                           <p className="text-xs text-faded-grey truncate cursor-pointer hover:text-purple-300 transition-colors"
                              title={uploadedFileUrl}>
@@ -332,6 +370,8 @@ export default function TaskSubmissionModal({
                           setUploadedFileUrl("");
                           setUploadedFileName("");
                           setSubmissionUrl("");
+                          setImagePreview("");
+                          setFileType("");
                         }}
                         className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
                       >
@@ -456,8 +496,8 @@ export default function TaskSubmissionModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-background border border-purple-500/20 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-auto">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 pb-24">
+      <div className="bg-background border border-purple-500/20 rounded-2xl w-full max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-flame-yellow/10 to-flame-orange/10 p-6 border-b border-purple-500/20">
           <div className="flex items-center justify-between">
@@ -475,7 +515,7 @@ export default function TaskSubmissionModal({
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="flex-1 overflow-y-auto p-6">
           {/* Task Info */}
           <div className="bg-purple-900/20 rounded-xl p-4 mb-6">
             <h3 className="font-bold mb-2">{task.title}</h3>
@@ -524,36 +564,38 @@ export default function TaskSubmissionModal({
           {/* Submission Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
             {renderSubmissionForm()}
-
-            {/* Submit Button */}
-            <div className="flex space-x-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={onClose}
-                disabled={isSubmitting}
-                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 bg-flame-yellow text-black hover:bg-flame-orange transition-all"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin mr-2" />
-                    Submitting...
-                  </>
-                ) : (
-                  <>
-                    Submit Task
-                  </>
-                )}
-              </Button>
-            </div>
           </form>
+        </div>
+
+        {/* Fixed Footer with Submit Buttons */}
+        <div className="border-t border-purple-500/20 p-6 bg-background">
+          <div className="flex space-x-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              className="flex-1 bg-flame-yellow text-black hover:bg-flame-orange transition-all"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin mr-2" />
+                  Submitting...
+                </>
+              ) : (
+                <>
+                  Submit Task
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

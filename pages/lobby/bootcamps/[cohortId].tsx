@@ -3,10 +3,11 @@ import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import Head from "next/head";
 import Link from "next/link";
-import { toast } from "react-hot-toast";
 import { LobbyLayout } from "@/components/layouts/lobby-layout";
 import TaskSubmissionModal from "@/components/lobby/TaskSubmissionModal";
 import MilestoneTimer from "@/components/lobby/MilestoneTimer";
+import { toast } from "react-hot-toast";
+import MilestoneTaskClaimButton from "@/components/lobby/MilestoneTaskClaimButton";
 import { 
   FlameIcon, 
   CrystalIcon 
@@ -36,6 +37,7 @@ interface MilestoneTask {
   validation_criteria: any;
   requires_admin_review: boolean;
   submission_status?: 'pending' | 'completed' | null;
+  reward_claimed?: boolean;
 }
 
 interface MilestoneWithProgress {
@@ -504,13 +506,25 @@ export default function BootcampLearningPage() {
                               {task.submission_status === 'completed' && (
                                 <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-300 border border-green-500/30">Completed</span>
                               )}
-                              <button 
-                                onClick={() => handleTaskSubmit(task, milestone)}
-                                className={`px-4 py-2 rounded-lg font-medium transition-all ${task.submission_status === 'completed' ? 'bg-gray-700 text-gray-300 cursor-not-allowed' : 'bg-flame-yellow text-black hover:bg-flame-orange'}`}
-                                disabled={task.submission_status === 'completed'}
-                              >
-                                {task.submission_status === 'pending' ? 'Edit Submission' : (task.submission_status === 'completed' ? 'Done' : 'Submit')}
-                              </button>
+
+                              {/* Submit / Edit */}
+                              {task.submission_status !== 'completed' ? (
+                                <button 
+                                  onClick={() => handleTaskSubmit(task, milestone)}
+                                  className="px-4 py-2 rounded-lg font-medium transition-all bg-flame-yellow text-black hover:bg-flame-orange"
+                                >
+                                  {task.submission_status === 'pending' ? 'Edit Submission' : 'Submit'}
+                                </button>
+                              ) : (
+                                // Claim button
+                                <MilestoneTaskClaimButton 
+                                  taskId={task.id} 
+                                  milestone={milestone} 
+                                  reward={task.reward_amount} 
+                                  rewardClaimed={task.reward_claimed}
+                                  onClaimed={fetchCohortData} 
+                                />
+                              )}
                             </div>
                           </div>
                         </div>
