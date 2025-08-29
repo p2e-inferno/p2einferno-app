@@ -8,6 +8,7 @@ import TaskSubmissionModal from "@/components/lobby/TaskSubmissionModal";
 import MilestoneTimer from "@/components/lobby/MilestoneTimer";
 import { toast } from "react-hot-toast";
 import MilestoneTaskClaimButton from "@/components/lobby/MilestoneTaskClaimButton";
+import { useMilestoneClaim } from "@/hooks/useMilestoneClaim";
 import { 
   FlameIcon, 
   CrystalIcon 
@@ -50,6 +51,8 @@ interface MilestoneWithProgress {
   start_date?: string;
   end_date?: string;
   tasks: MilestoneTask[];
+  lock_address?: string | null;
+  has_key?: boolean;
   user_progress?: {
     status: string;
     progress_percentage: number;
@@ -360,8 +363,9 @@ export default function BootcampLearningPage() {
         {/* Milestones List */}
         <div className="space-y-6">
           {data.milestones.map((milestone, index) => {
-            const isUnlocked = index === 0 || 
-              (index > 0 && data.milestones[index - 1]?.user_progress?.status === 'completed');
+            const previousMilestone = index > 0 ? data.milestones[index - 1] : null;
+            const isUnlocked = !previousMilestone || previousMilestone.has_key;
+
             const isExpanded = selectedMilestone === milestone.id;
             const status = milestone.user_progress?.status || 'not_started';
 
@@ -477,8 +481,11 @@ export default function BootcampLearningPage() {
                       </div>
                     </div>
 
+                    {/* Milestone Actions: Claim Button etc. */}
+                    <MilestoneActions milestone={milestone} onClaimSuccess={fetchCohortData} />
+
                     {/* Tasks */}
-                    <h4 className="text-lg font-bold mb-4">Milestone Tasks</h4>
+                    <h4 className="text-lg font-bold mb-4 mt-6">Milestone Tasks</h4>
                     <div className="space-y-4">
                       {milestone.tasks.map((task) => (
                         <div
@@ -564,3 +571,39 @@ export default function BootcampLearningPage() {
     </>
   );
 }
+
+// Helper component for Milestone Actions to use the hook correctly
+const MilestoneActions = ({ milestone, onClaimSuccess }: { milestone: MilestoneWithProgress, onClaimSuccess: () => void }) => {
+  const { isClaiming, claimMilestoneKey } = useMilestoneClaim({
+    milestoneId: milestone.id,
+    onSuccess: onClaimSuccess,
+  });
+
+  if (milestone.has_key) {
+    return (
+      <div className="bg-green-500/10 border border-green-500/20 text-green-300 rounded-lg p-4 text-center font-medium">
+        ✅ Blockchain Verified: You've earned the key for this milestone!
+      </div>
+    );
+  }
+
+  if (milestone.user_progress?.status === 'completed') {
+    return (
+      <div className="bg-flame-yellow/10 border border-flame-yellow/20 rounded-lg p-4 flex items-center justify-between">
+        <div>
+          <h4 className="font-bold text-flame-yellow">Ready to Claim</h4>
+          <p className="text-sm text-faded-grey">Your final step is to claim the on-chain key for this milestone.</p>
+        </div>
+        <button
+          onClick={claimMilestoneKey}
+          disabled={isClaiming}
+          className="bg-flame-yellow text-black px-6 py-3 rounded-xl font-medium hover:bg-flame-orange transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isClaiming ? 'Claiming...' : '🏆 Claim Milestone Key'}
+        </button>
+      </div>
+    );
+  }
+
+  return null; // No actions needed if not completed or already claimed
+};

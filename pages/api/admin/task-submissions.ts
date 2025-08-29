@@ -28,7 +28,7 @@ async function getSubmissions(req: NextApiRequest, res: NextApiResponse) {
   try {
     const { taskId, userId } = req.query;
 
-    let query = supabase.from("task_submissions").select("*");
+    let query = supabaseAdmin.from("task_submissions").select("*");
 
     if (taskId) {
       query = query.eq("task_id", taskId);

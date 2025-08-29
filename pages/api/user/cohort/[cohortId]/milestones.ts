@@ -564,6 +564,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import type { ApiResponse } from "@/lib/api";
+import { UserKeyService } from "@/lib/services/user-key-service";
 
 interface MilestoneTask {
   id: string;
@@ -587,6 +588,8 @@ interface MilestoneWithProgress {
   start_date?: string;
   end_date?: string;
   tasks: MilestoneTask[];
+  lock_address?: string | null; // Add lock_address
+  has_key?: boolean; // Add has_key for on-chain status
   user_progress?: {
     status: string;
     progress_percentage: number;
@@ -715,7 +718,8 @@ export default async function handler(
         duration_hours,
         total_reward,
         start_date,
-        end_date
+        end_date,
+        lock_address
       `)
       .eq("cohort_id", cohortId)
       .order("order_index", { ascending: true });
@@ -808,6 +812,18 @@ export default async function handler(
       };
     });
 
+    // --- NEW: Add on-chain key ownership status ---
+    const milestonesWithOnChainStatus = await Promise.all(
+      milestonesWithProgress.map(async (milestone) => {
+        if (!milestone.lock_address) {
+          return { ...milestone, has_key: false };
+        }
+        const keyCheck = await UserKeyService.checkUserKeyOwnership(user.id, milestone.lock_address);
+        return { ...milestone, has_key: keyCheck.hasValidKey };
+      })
+    );
+    // --- END NEW ---
+
     // Calculate overall progress
     const totalMilestones = milestonesWithProgress.length;
     const completedMilestones = milestonesWithProgress.filter(
@@ -836,7 +852,7 @@ export default async function handler(
             description: program?.description,
           }
         },
-        milestones: milestonesWithProgress,
+        milestones: milestonesWithOnChainStatus, // Use the enhanced milestones
         overall_progress: {
           completed_milestones: completedMilestones,
           total_milestones: totalMilestones,
