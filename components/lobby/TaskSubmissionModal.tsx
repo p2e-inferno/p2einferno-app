@@ -21,6 +21,13 @@ interface MilestoneTask {
     start_date?: string;
     end_date?: string;
   };
+  latest_submission?: {
+    id: string;
+    submission_url?: string;
+    submission_type?: string;
+    submitted_at?: string;
+    status?: string;
+  } | null;
 }
 
 interface TaskSubmissionModalProps {
@@ -41,6 +48,36 @@ export default function TaskSubmissionModal({
   const [submissionText, setSubmissionText] = useState("");
   const [submissionData, setSubmissionData] = useState<any>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadedFileUrl, setUploadedFileUrl] = useState<string>("");
+  const [uploadedFileName, setUploadedFileName] = useState<string>("");
+  const [submissionId, setSubmissionId] = useState<string>("");
+
+  React.useEffect(() => {
+    if (isOpen && task) {
+      const pending = task.latest_submission && task.latest_submission.status === 'pending' ? task.latest_submission : null;
+      if (pending) {
+        setSubmissionId(pending.id);
+        if (pending.submission_url) {
+          setSubmissionUrl(pending.submission_url);
+          // If it's a file upload task and has a URL, assume it was uploaded
+          if (task.task_type === 'file_upload') {
+            setUploadedFileUrl(pending.submission_url);
+            setUploadedFileName('Previously uploaded file');
+          }
+        }
+      } else {
+        setSubmissionId("");
+        setUploadedFileUrl("");
+        setUploadedFileName("");
+      }
+    } else if (!isOpen) {
+      // Reset all state when modal closes
+      setSubmissionId("");
+      setUploadedFileUrl("");
+      setUploadedFileName("");
+    }
+  }, [isOpen, task]);
 
   if (!isOpen) return null;
 
@@ -79,9 +116,13 @@ export default function TaskSubmissionModal({
           submissionPayload.submission_data = { text: submissionText };
           break;
         case 'file_upload':
-          // For now, treat as URL (can be enhanced later for actual file upload)
-          submissionPayload.submission_url = submissionUrl;
-          submissionPayload.submission_data = { file_url: submissionUrl };
+          if (!uploadedFileUrl && !submissionUrl) {
+            toast.error("Please upload a file or provide a file URL");
+            return;
+          }
+          submissionPayload.submission_url = uploadedFileUrl || submissionUrl;
+          submissionPayload.file_urls = [submissionPayload.submission_url];
+          submissionPayload.submission_data = { file_url: submissionPayload.submission_url };
           break;
         case 'contract_interaction':
           submissionPayload.submission_data = {
@@ -99,12 +140,13 @@ export default function TaskSubmissionModal({
           break;
       }
 
+      const method = submissionId ? 'PUT' : 'POST';
       const response = await fetch(`/api/user/task/${task.id}/submit`, {
-        method: 'POST',
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(submissionPayload),
+        body: JSON.stringify(submissionId ? { ...submissionPayload, submission_id: submissionId } : submissionPayload),
       });
 
       const result = await response.json();
@@ -121,6 +163,8 @@ export default function TaskSubmissionModal({
       setSubmissionUrl("");
       setSubmissionText("");
       setSubmissionData({});
+      setUploadedFileUrl("");
+      setUploadedFileName("");
 
     } catch (error: any) {
       console.error("Submission error:", error);
@@ -153,19 +197,171 @@ export default function TaskSubmissionModal({
       case 'file_upload':
         return (
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="submission-url">
-                {task.task_type === 'file_upload' ? 'File URL' : 'Submission URL'}
-              </Label>
-              <Input
-                id="submission-url"
-                type="url"
-                value={submissionUrl}
-                onChange={(e) => setSubmissionUrl(e.target.value)}
-                placeholder={`Enter ${task.task_type === 'file_upload' ? 'file URL' : 'URL'}`}
-                className="mt-1"
-              />
-            </div>
+            {task.task_type === 'file_upload' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label className="text-white font-medium">Upload File</Label>
+                  {uploadedFileUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUploadedFileUrl("");
+                        setUploadedFileName("");
+                        setSubmissionUrl("");
+                      }}
+                      className="text-sm text-faded-grey hover:text-white transition-colors"
+                    >
+                      Remove file
+                    </button>
+                  )}
+                </div>
+
+                {!uploadedFileUrl ? (
+                  <div
+                    className={`relative border-2 border-dashed rounded-xl p-8 text-center transition-all duration-200 cursor-pointer ${
+                      uploading
+                        ? 'border-flame-yellow/50 bg-flame-yellow/5'
+                        : 'border-purple-500/30 hover:border-flame-yellow/60 hover:bg-gradient-to-br hover:from-flame-yellow/5 hover:to-flame-orange/5'
+                    }`}
+                    onClick={() => !uploading && document.getElementById('file-input')?.click()}
+                  >
+                    <input
+                      id="file-input"
+                      type="file"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          setUploading(true);
+                          // Convert to base64
+                          const toBase64 = (f: File) => new Promise<string>((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = () => {
+                              const result = reader.result as string;
+                              const base64 = result.split(',')[1];
+                              resolve(base64);
+                            };
+                            reader.onerror = reject;
+                            reader.readAsDataURL(f);
+                          });
+                          const base64 = await toBase64(file);
+                          const resp = await fetch(`/api/user/task/${task.id}/upload`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ file: base64, fileName: file.name, contentType: file.type })
+                          });
+                          const data = await resp.json();
+                          if (!resp.ok || !data.success) {
+                            throw new Error(data.error || 'Upload failed');
+                          }
+                          setUploadedFileUrl(data.url);
+                          setUploadedFileName(file.name);
+                          setSubmissionUrl(data.url);
+                          toast.success('File uploaded successfully!');
+                        } catch (err: any) {
+                          console.error('Upload failed', err);
+                          toast.error(err?.message || 'Failed to upload file');
+                        } finally {
+                          setUploading(false);
+                        }
+                      }}
+                      disabled={uploading}
+                      className="hidden"
+                      accept="image/*,application/pdf,text/plain,.zip,.doc,.docx"
+                    />
+
+                    <div className="flex flex-col items-center space-y-4">
+                      {uploading ? (
+                        <>
+                          <div className="w-12 h-12 border-4 border-flame-yellow/30 border-t-flame-yellow rounded-full animate-spin" />
+                          <div className="space-y-2">
+                            <h4 className="font-medium text-white">Uploading file...</h4>
+                            <p className="text-sm text-faded-grey">Please wait while we process your file</p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-16 h-16 bg-gradient-to-br from-flame-yellow/20 to-flame-orange/20 rounded-xl flex items-center justify-center">
+                            <Upload size={32} className="text-flame-yellow" />
+                          </div>
+                          <div className="space-y-2">
+                            <h4 className="font-medium text-white">Drop your file here</h4>
+                            <p className="text-sm text-faded-grey">
+                              or click to browse files (max 20MB)
+                            </p>
+                            <p className="text-xs text-faded-grey/70">
+                              Supported: Images, PDFs, Documents, Archives
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className="inline-flex items-center space-x-2 bg-gradient-to-r from-flame-yellow to-flame-orange text-black px-6 py-2 rounded-lg font-medium hover:from-flame-yellow/90 hover:to-flame-orange/90 transition-all duration-200"
+                          >
+                            <Upload size={16} />
+                            <span>Choose File</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl p-6">
+                    <div className="flex items-start space-x-4">
+                      <div className="w-12 h-12 bg-gradient-to-br from-green-500/20 to-emerald-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                        <Upload size={24} className="text-green-400" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-medium text-white">{uploadedFileName}</h4>
+                        <p className="text-sm text-green-400">File uploaded successfully</p>
+                        <div className="mt-2 group relative">
+                          <p className="text-xs text-faded-grey truncate cursor-pointer hover:text-purple-300 transition-colors"
+                             title={uploadedFileUrl}>
+                            {uploadedFileUrl}
+                          </p>
+                          <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10">
+                            <div className="bg-background border border-purple-500/20 rounded-lg px-3 py-2 shadow-lg max-w-sm">
+                              <p className="text-xs text-white break-all">{uploadedFileUrl}</p>
+                              <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-purple-500/20"></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUploadedFileUrl("");
+                          setUploadedFileName("");
+                          setSubmissionUrl("");
+                        }}
+                        className="p-2 hover:bg-red-500/20 rounded-lg transition-colors"
+                      >
+                        <X size={16} className="text-red-400" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {(!uploadedFileUrl || task.task_type !== 'file_upload') && (
+              <div>
+                <Label htmlFor="submission-url">
+                  {task.task_type === 'file_upload' ? 'Or provide a file URL instead' : 'Submission URL'}
+                </Label>
+                <Input
+                  id="submission-url"
+                  type="url"
+                  value={submissionUrl}
+                  onChange={(e) => setSubmissionUrl(e.target.value)}
+                  placeholder={`Enter ${task.task_type === 'file_upload' ? 'file URL' : 'URL'}`}
+                  className="mt-1"
+                />
+                {task.task_type === 'file_upload' && uploadedFileUrl && (
+                  <p className="text-xs text-faded-grey mt-2">
+                    Note: Providing a URL will override the uploaded file
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         );
       

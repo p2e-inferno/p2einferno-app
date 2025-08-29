@@ -170,7 +170,7 @@ export default async function handler(
       .eq("user_profile_id", profile.id)
       .in("milestone_id", milestoneIds);
 
-    // Get tasks for each milestone
+    // Get tasks for each milestone with latest submission status for this user
     const { data: allTasks } = await supabase
       .from("milestone_tasks")
       .select(`
@@ -183,14 +183,34 @@ export default async function handler(
         order_index,
         submission_requirements,
         validation_criteria,
-        requires_admin_review
+        requires_admin_review,
+        submissions:task_submissions!task_submissions_task_id_fkey(
+          id, status, submission_url, submitted_at, submission_type
+        )
       `)
       .in("milestone_id", milestoneIds)
+      .eq('submissions.user_id', user.id)
       .order("order_index", { ascending: true });
 
     // Build response with milestones, tasks, and user progress
     const milestonesWithProgress: MilestoneWithProgress[] = (milestones || []).map(milestone => {
-      const tasks = (allTasks || []).filter(task => task.milestone_id === milestone.id);
+      const tasks = (allTasks || [])
+        .filter((task: any) => task.milestone_id === milestone.id)
+        .map((t: any) => {
+          const latest = Array.isArray(t.submissions) ? t.submissions[0] : undefined;
+          const submission_status = latest?.status || null;
+          const latest_submission = latest
+            ? {
+                id: latest.id,
+                submission_url: latest.submission_url,
+                submission_type: latest.submission_type,
+                submitted_at: latest.submitted_at,
+                status: latest.status,
+              }
+            : null;
+          const { submissions, ...rest } = t;
+          return { ...rest, submission_status, latest_submission };
+        });
       const progress = (milestoneProgress || []).find(p => p.milestone_id === milestone.id);
 
       return {
@@ -220,6 +240,11 @@ export default async function handler(
       (sum, m) => sum + (m.total_reward || 0), 0
     );
 
+    // Normalize bootcamp_program shape for TS
+    const program: any = Array.isArray(cohort.bootcamp_program)
+      ? cohort.bootcamp_program[0]
+      : cohort.bootcamp_program;
+
     res.status(200).json({
       success: true,
       data: {
@@ -227,12 +252,8 @@ export default async function handler(
           id: cohort.id,
           name: cohort.name,
           bootcamp_program: {
-            name: Array.isArray(cohort.bootcamp_program) 
-              ? cohort.bootcamp_program[0]?.name 
-              : cohort.bootcamp_program?.name,
-            description: Array.isArray(cohort.bootcamp_program)
-              ? cohort.bootcamp_program[0]?.description
-              : cohort.bootcamp_program?.description,
+            name: program?.name,
+            description: program?.description,
           }
         },
         milestones: milestonesWithProgress,

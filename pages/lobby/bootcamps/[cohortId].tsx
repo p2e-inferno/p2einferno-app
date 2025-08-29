@@ -35,6 +35,7 @@ interface MilestoneTask {
   submission_requirements: any;
   validation_criteria: any;
   requires_admin_review: boolean;
+  submission_status?: 'pending' | 'completed' | null;
 }
 
 interface MilestoneWithProgress {
@@ -496,12 +497,21 @@ export default function BootcampLearningPage() {
                                 </div>
                               </div>
                             </div>
-                            <button 
-                              onClick={() => handleTaskSubmit(task, milestone)}
-                              className="bg-flame-yellow text-black px-4 py-2 rounded-lg font-medium hover:bg-flame-orange transition-all"
-                            >
-                              Submit
-                            </button>
+                            <div className="flex items-center space-x-3">
+                              {task.submission_status === 'pending' && (
+                                <span className="text-xs px-2 py-1 rounded bg-orange-500/20 text-orange-300 border border-orange-500/30">Pending review</span>
+                              )}
+                              {task.submission_status === 'completed' && (
+                                <span className="text-xs px-2 py-1 rounded bg-green-500/20 text-green-300 border border-green-500/30">Completed</span>
+                              )}
+                              <button 
+                                onClick={() => handleTaskSubmit(task, milestone)}
+                                className={`px-4 py-2 rounded-lg font-medium transition-all ${task.submission_status === 'completed' ? 'bg-gray-700 text-gray-300 cursor-not-allowed' : 'bg-flame-yellow text-black hover:bg-flame-orange'}`}
+                                disabled={task.submission_status === 'completed'}
+                              >
+                                {task.submission_status === 'pending' ? 'Edit Submission' : (task.submission_status === 'completed' ? 'Done' : 'Submit')}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}

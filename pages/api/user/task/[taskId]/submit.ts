@@ -29,7 +29,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse<TaskSubmissionResponse>>
 ) {
-  if (req.method !== "POST") {
+  if (!["POST", "PUT"].includes(req.method || "")) {
     return res.status(405).json({ 
       success: false, 
       error: "Method not allowed" 
@@ -48,7 +48,7 @@ export default async function handler(
     }
 
     const { taskId } = req.query;
-    const submissionData: TaskSubmissionData = req.body;
+    const submissionData: TaskSubmissionData & { submission_id?: string } = req.body;
 
     if (!taskId || typeof taskId !== "string") {
       return res.status(400).json({
@@ -143,31 +143,70 @@ export default async function handler(
       });
     }
 
-    // Create task submission
-    const { data: submission, error: submissionError } = await supabase
-      .from("task_submissions")
-      .insert({
-        task_id: taskId,
-        user_id: user.id,
-        submission_type: submissionData.submission_type,
-        submission_url: submissionData.submission_url,
-        submission_data: submissionData.submission_data || {},
-        file_urls: submissionData.file_urls || [],
-        submission_metadata: submissionData.submission_metadata || {},
-        status: 'pending'
-      })
-      .select(`
-        id,
-        status,
-        submitted_at
-      `)
-      .single();
-
-    if (submissionError) {
-      throw new Error(`Failed to create submission: ${submissionError.message}`);
+    let submission;
+    if (req.method === 'PUT') {
+      // allow editing only if existing is pending and belongs to user
+      if (!submissionData.submission_id) {
+        return res.status(400).json({ success: false, error: "submission_id is required for updates" });
+      }
+      const { data: existing, error: fetchErr } = await supabase
+        .from('task_submissions')
+        .select('id, status, user_id')
+        .eq('id', submissionData.submission_id)
+        .single();
+      if (fetchErr || !existing) {
+        return res.status(404).json({ success: false, error: "Submission not found" });
+      }
+      if (existing.user_id !== user.id) {
+        return res.status(403).json({ success: false, error: "Not allowed to edit this submission" });
+      }
+      if (existing.status !== 'pending') {
+        return res.status(400).json({ success: false, error: "Only pending submissions can be edited" });
+      }
+      const { data: updated, error: updateErr } = await supabase
+        .from('task_submissions')
+        .update({
+          submission_type: submissionData.submission_type,
+          submission_url: submissionData.submission_url,
+          submission_data: submissionData.submission_data || {},
+          file_urls: submissionData.file_urls || [],
+          submission_metadata: submissionData.submission_metadata || {},
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', submissionData.submission_id)
+        .select(`id,status,submitted_at`)
+        .single();
+      if (updateErr) {
+        throw new Error(`Failed to update submission: ${updateErr.message}`);
+      }
+      submission = updated;
+    } else {
+      // Create task submission
+      const { data: created, error: submissionError } = await supabase
+        .from("task_submissions")
+        .insert({
+          task_id: taskId,
+          user_id: user.id,
+          submission_type: submissionData.submission_type,
+          submission_url: submissionData.submission_url,
+          submission_data: submissionData.submission_data || {},
+          file_urls: submissionData.file_urls || [],
+          submission_metadata: submissionData.submission_metadata || {},
+          status: 'pending'
+        })
+        .select(`
+          id,
+          status,
+          submitted_at
+        `)
+        .single();
+      if (submissionError) {
+        throw new Error(`Failed to create submission: ${submissionError.message}`);
+      }
+      submission = created;
     }
 
-    res.status(201).json({
+    res.status(req.method === 'PUT' ? 200 : 201).json({
       success: true,
       data: {
         id: submission.id,
