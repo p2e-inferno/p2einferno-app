@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
 import type { ProgramHighlight } from "@/lib/supabase/types";
-import { nanoid } from "nanoid";
+import { getRecordId } from "@/lib/utils/id-generation";
 import { usePrivy } from "@privy-io/react-auth";
 
 interface HighlightForm {
@@ -24,7 +24,7 @@ export default function ProgramHighlightsForm({
   onCancel,
 }: ProgramHighlightsFormProps) {
   const [highlights, setHighlights] = useState<HighlightForm[]>([
-    { id: nanoid(10), content: "", order_index: 0 },
+    { id: getRecordId(false), content: "", order_index: 0 },
   ]);
   const [, setExistingHighlights] = useState<ProgramHighlight[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,7 +65,7 @@ export default function ProgramHighlightsForm({
     setHighlights((prev) => [
       ...prev,
       {
-        id: nanoid(10),
+        id: getRecordId(false),
         content: "",
         order_index: prev.length,
       },
@@ -105,7 +105,7 @@ export default function ProgramHighlightsForm({
 
       // Prepare highlights data
       const highlightsData = validHighlights.map((highlight, index) => ({
-        id: highlight.id.startsWith("temp_") ? nanoid(10) : highlight.id,
+        id: highlight.id.startsWith("temp_") ? getRecordId(false) : highlight.id,
         cohort_id: cohortId,
         content: highlight.content.trim(),
         order_index: index,

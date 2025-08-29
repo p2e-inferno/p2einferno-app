@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Zap } from "lucide-react";
 import type { CohortMilestone } from "@/lib/supabase/types";
-import { nanoid } from "nanoid";
+import { getRecordId } from "@/lib/utils/id-generation";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallets } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
@@ -14,6 +14,9 @@ import { generateMilestoneLockConfig, createLockConfigWithManagers } from "@/lib
 import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
 import {
   savePendingDeployment,
+  getDraft,
+  saveDraft,
+  removeDraft,
 } from "@/lib/utils/lock-deployment-state";
 
 type TaskType = 'file_upload' | 'url_submission' | 'contract_interaction';
@@ -68,7 +71,7 @@ export default function MilestoneFormEnhanced({
 
   const [formData, setFormData] = useState<Partial<CohortMilestone>>(
     milestone || {
-      id: nanoid(10),
+      id: getRecordId(false),
       cohort_id: cohortId,
       name: "",
       description: "",
@@ -87,7 +90,7 @@ export default function MilestoneFormEnhanced({
 
   const [tasks, setTasks] = useState<TaskForm[]>([
     {
-      id: nanoid(10),
+      id: getRecordId(false),
       title: "",
       description: "",
       reward_amount: 0,
@@ -105,6 +108,20 @@ export default function MilestoneFormEnhanced({
       fetchExistingTasks();
     }
   }, [isEditing, milestone?.id]);
+
+  // Load draft data on mount for new milestones
+  useEffect(() => {
+    if (!isEditing) {
+      const draft = getDraft('milestone');
+      if (draft) {
+        setFormData(prev => ({ ...prev, ...draft.formData }));
+        if (draft.formData.tasks) {
+          setTasks(draft.formData.tasks);
+        }
+        toast.success("Restored draft data");
+      }
+    }
+  }, [isEditing]);
 
   const fetchExistingTasks = async () => {
     try {
@@ -147,7 +164,7 @@ export default function MilestoneFormEnhanced({
     setTasks((prev) => [
       ...prev,
       {
-        id: nanoid(10),
+        id: getRecordId(false),
         title: "",
         description: "",
         reward_amount: 0,
@@ -329,6 +346,11 @@ export default function MilestoneFormEnhanced({
       const now = new Date().toISOString();
       let lockAddress = formData.lock_address || "";
 
+      // Save draft before starting deployment (for new milestones)
+      if (!isEditing) {
+        saveDraft('milestone', { ...formData, tasks });
+      }
+
       // Deploy lock if not editing and auto-creation is enabled and no lock address provided
       if (!isEditing && showAutoLockCreation && !lockAddress && totalTaskReward > 0) {
         try {
@@ -389,7 +411,7 @@ export default function MilestoneFormEnhanced({
 
       // Submit tasks
       const tasksData = validTasks.map((task, index) => ({
-        id: task.id.startsWith("temp_") || task.id.length <= 10 ? nanoid(10) : task.id,
+        id: task.id.startsWith("temp_") || task.id.length <= 10 ? getRecordId(false) : task.id,
         title: task.title,
         description: task.description || "",
         reward_amount: task.reward_amount,
@@ -423,6 +445,11 @@ export default function MilestoneFormEnhanced({
 
       // Wait a moment for database to commit
       await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Clean up drafts on success (for new milestones)
+      if (!isEditing) {
+        removeDraft('milestone');
+      }
 
       // Call success handler
       if (onSubmitSuccess) {

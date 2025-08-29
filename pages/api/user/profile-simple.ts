@@ -267,7 +267,7 @@ async function getUserDashboardData(
       enrollments?.filter((_e: any) => _e.enrollment_status === "completed")
         .length || 0,
     enrolledBootcamps:
-      enrollmentsWithPreferences?.filter((_e: any) => 
+      enrollments?.filter((_e: any) => 
         _e.enrollment_status === "enrolled" || _e.enrollment_status === "active"
       ).length || 0,
     totalPoints: profile.experience_points || 0,
@@ -282,7 +282,7 @@ async function getUserDashboardData(
   return {
     profile,
     applications: applications || [],
-    enrollments: enrollments || [],
+    enrollments: enrollmentsWithPreferences || [],
     recentActivities: recentActivities || [],
     stats,
   };

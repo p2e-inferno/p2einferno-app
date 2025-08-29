@@ -29,7 +29,7 @@ function EditCohortPage() {
         setIsLoading(true);
         setError(null);
         
-        const result = await adminFetch<{success: boolean, data: Cohort}>(`/api/admin/cohorts/${actualCohortId}/index`);
+        const result = await adminFetch<{success: boolean, data: Cohort}>(`/api/admin/cohorts/${actualCohortId}`);
         
         if (result.error) {
           throw new Error(result.error);

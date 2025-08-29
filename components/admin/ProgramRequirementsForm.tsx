@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
 import type { ProgramRequirement } from "@/lib/supabase/types";
-import { nanoid } from "nanoid";
+import { getRecordId } from "@/lib/utils/id-generation";
 import { usePrivy } from "@privy-io/react-auth";
 
 interface RequirementForm {
@@ -24,7 +24,7 @@ export default function ProgramRequirementsForm({
   onCancel,
 }: ProgramRequirementsFormProps) {
   const [requirements, setRequirements] = useState<RequirementForm[]>([
-    { id: nanoid(10), content: "", order_index: 0 },
+    { id: getRecordId(false), content: "", order_index: 0 },
   ]);
   const [, setExistingRequirements] = useState<ProgramRequirement[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -65,7 +65,7 @@ export default function ProgramRequirementsForm({
     setRequirements((prev) => [
       ...prev,
       {
-        id: nanoid(10),
+        id: getRecordId(false),
         content: "",
         order_index: prev.length,
       },
@@ -105,7 +105,7 @@ export default function ProgramRequirementsForm({
 
       // Prepare requirements data
       const requirementsData = validRequirements.map((requirement, index) => ({
-        id: requirement.id.startsWith("temp_") ? nanoid(10) : requirement.id,
+        id: requirement.id.startsWith("temp_") ? getRecordId(false) : requirement.id,
         cohort_id: cohortId,
         content: requirement.content.trim(),
         order_index: index,
