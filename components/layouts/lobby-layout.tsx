@@ -1,9 +1,9 @@
-import React, { useEffect } from "react";
-import { useRouter } from "next/router";
+import React from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { BottomDock } from "../dashboard/bottom-dock";
 import { LobbyNavigation } from "../lobby/lobby-navigation";
 import { LobbyBackground } from "../lobby/lobby-background";
+import { LobbyConnectWalletState } from "../lobby/connect-wallet-state";
 import Head from "next/head";
 
 interface LobbyLayoutProps {
@@ -19,16 +19,15 @@ export const LobbyLayout: React.FC<LobbyLayoutProps> = ({
   children,
   title = "Infernal Lobby - P2E Inferno",
 }) => {
-  const router = useRouter();
   const { ready, authenticated } = usePrivy();
 
-  useEffect(() => {
-    if (ready && !authenticated) {
-      router.push("/");
-    }
-  }, [ready, authenticated, router]);
+  // Show wallet connection screen if not authenticated
+  if (ready && !authenticated) {
+    return <LobbyConnectWalletState />;
+  }
 
-  if (!ready || !authenticated) {
+  // Show loading state while checking auth
+  if (!ready) {
     return null;
   }
 

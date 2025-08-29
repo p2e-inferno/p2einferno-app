@@ -33,7 +33,7 @@ interface PendingApplication {
  */
 export default function LobbyPage() {
   const router = useRouter();
-  const { getAccessToken } = usePrivy();
+  const { getAccessToken, authenticated, ready } = usePrivy();
   const { data: dashboardData, loading, error, refetch } = useDashboardData();
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [enrollmentToRemove, setEnrollmentToRemove] = useState<string | null>(null);
@@ -101,12 +101,21 @@ export default function LobbyPage() {
     setEnrollmentToRemove(null);
   };
 
-  if (loading) {
-    return <LobbyLoadingState />;
+  // Only show loading/error states if user is authenticated
+  // If not authenticated, let LobbyLayout handle the wallet connection screen
+  if (ready && authenticated) {
+    if (loading) {
+      return <LobbyLoadingState />;
+    }
+
+    if (error || !dashboardData) {
+      return <LobbyErrorState onRetry={refetch} />;
+    }
   }
 
-  if (error || !dashboardData) {
-    return <LobbyErrorState onRetry={refetch} />;
+  // If user is not authenticated or data not loaded, render LobbyLayout which will show wallet connection
+  if (!ready || !authenticated || !dashboardData) {
+    return <LobbyLayout></LobbyLayout>;
   }
 
   const { profile, applications, enrollments, stats } = dashboardData;
