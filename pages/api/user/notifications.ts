@@ -56,6 +56,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ success: true });
   }
 
-  res.setHeader("Allow", ["GET", "POST"]);
+  if (req.method === 'DELETE') {
+    const { notificationId } = req.body;
+    if (!notificationId || typeof notificationId !== 'string') {
+      return res.status(400).json({ error: 'Invalid notification ID' });
+    }
+
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('id', notificationId)
+      .eq('user_profile_id', profile.id);
+
+    if (error) return res.status(500).json({ error: error.message });
+    return res.status(200).json({ success: true });
+  }
+
+  res.setHeader("Allow", ["GET", "POST", "DELETE"]);
   res.status(405).end(`Method ${req.method} Not Allowed`);
 } 

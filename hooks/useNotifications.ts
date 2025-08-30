@@ -58,11 +58,38 @@ export const useNotifications = () => {
     }
   };
 
+  const deleteNotification = async (notificationId: string) => {
+    if (!authenticated) return;
+    try {
+      const token = await getAccessToken();
+      const response = await fetch('/api/user/notifications', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ notificationId }),
+      });
+      
+      if (response.ok) {
+        // Optimistically update UI
+        const deletedNotification = notifications.find(n => n.id === notificationId);
+        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        if (deletedNotification && !deletedNotification.read) {
+          setUnreadCount(prev => Math.max(0, prev - 1));
+        }
+        toast.success("Notification deleted");
+      } else {
+        throw new Error('Failed to delete notification');
+      }
+    } catch (error) {
+      toast.error("Failed to delete notification.");
+      console.error("Failed to delete notification:", error);
+    }
+  };
+
   useEffect(() => {
     fetchNotifications();
     const interval = setInterval(fetchNotifications, pollInterval); // Poll every hour
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
-  return { notifications, unreadCount, loading, markAsRead };
+  return { notifications, unreadCount, loading, markAsRead, deleteNotification };
 }; 
