@@ -38,7 +38,9 @@ export const useMilestoneClaim = ({ milestoneId, onSuccess }: UseMilestoneClaimP
       const data = await response.json();
       
       if (!response.ok) {
-        throw new Error(data.error || "An unknown error occurred while claiming the key.");
+        const errorMessage = data.error || "An unknown error occurred while claiming the key.";
+        toast.error(errorMessage, { id: toastId });
+        return;
       }
       
       toast.success("Milestone key granted successfully! Your achievement is now on-chain.", { id: toastId });
@@ -48,7 +50,9 @@ export const useMilestoneClaim = ({ milestoneId, onSuccess }: UseMilestoneClaimP
 
     } catch (error: any) {
       console.error("Failed to claim milestone key:", error);
-      toast.error(error.message, { id: toastId });
+      const errorMessage = error.message || "An unknown error occurred while claiming the key.";
+      toast.error(errorMessage, { id: toastId });
+      // Don't re-throw the error to prevent runtime error overlay
     } finally {
       setIsClaiming(false);
     }

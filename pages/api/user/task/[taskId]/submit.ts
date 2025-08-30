@@ -127,28 +127,33 @@ export default async function handler(
     const rewardsAvailable = canEarnRewards(milestone?.start_date, milestone?.end_date);
     const effectiveRewardAmount = rewardsAvailable ? task.reward_amount : 0;
 
-    // Check if user already has a pending or completed submission
+    // Check if user already has any submission for this task
     const { data: existingSubmission } = await supabase
       .from("task_submissions")
       .select("id, status")
       .eq("task_id", taskId)
       .eq("user_id", user.id)
-      .in("status", ["pending", "completed"])
       .maybeSingle();
 
-    if (existingSubmission) {
+    // If user has a pending or completed submission, prevent new submission
+    if (existingSubmission && existingSubmission.status === "pending") {
       return res.status(409).json({
         success: false,
-        error: `You already have a ${existingSubmission.status} submission for this task`,
+        error: "You already have a pending submission for this task. Please wait for review.",
+      });
+    }
+
+    if (existingSubmission && existingSubmission.status === "completed") {
+      return res.status(409).json({
+        success: false,
+        error: "You have already completed this task.",
       });
     }
 
     let submission;
-    if (req.method === 'PUT') {
-      // allow editing only if existing is pending and belongs to user
-      if (!submissionData.submission_id) {
-        return res.status(400).json({ success: false, error: "submission_id is required for updates" });
-      }
+    
+    // Handle explicit PUT request with submission_id
+    if (req.method === 'PUT' && submissionData.submission_id) {
       const { data: existing, error: fetchErr } = await supabase
         .from('task_submissions')
         .select('id, status, user_id')
@@ -160,8 +165,8 @@ export default async function handler(
       if (existing.user_id !== user.id) {
         return res.status(403).json({ success: false, error: "Not allowed to edit this submission" });
       }
-      if (existing.status !== 'pending') {
-        return res.status(400).json({ success: false, error: "Only pending submissions can be edited" });
+      if (!['pending', 'failed', 'retry'].includes(existing.status)) {
+        return res.status(400).json({ success: false, error: "Only pending, failed, or retry submissions can be edited" });
       }
       const { data: updated, error: updateErr } = await supabase
         .from('task_submissions')
@@ -171,7 +176,12 @@ export default async function handler(
           submission_data: submissionData.submission_data || {},
           file_urls: submissionData.file_urls || [],
           submission_metadata: submissionData.submission_metadata || {},
+          status: 'pending', // Reset status to pending for resubmission
+          submitted_at: new Date().toISOString(), // Update submission time
           updated_at: new Date().toISOString(),
+          reviewed_at: null, // Clear previous review
+          reviewed_by: null,
+          feedback: null
         })
         .eq('id', submissionData.submission_id)
         .select(`id,status,submitted_at`)
@@ -180,8 +190,34 @@ export default async function handler(
         throw new Error(`Failed to update submission: ${updateErr.message}`);
       }
       submission = updated;
-    } else {
-      // Create task submission
+    } 
+    // If user has a failed or retry submission, update it instead of creating new
+    else if (existingSubmission && ['failed', 'retry'].includes(existingSubmission.status)) {
+      const { data: updated, error: updateErr } = await supabase
+        .from('task_submissions')
+        .update({
+          submission_type: submissionData.submission_type,
+          submission_url: submissionData.submission_url,
+          submission_data: submissionData.submission_data || {},
+          file_urls: submissionData.file_urls || [],
+          submission_metadata: submissionData.submission_metadata || {},
+          status: 'pending', // Reset status to pending for resubmission
+          submitted_at: new Date().toISOString(), // Update submission time
+          updated_at: new Date().toISOString(),
+          reviewed_at: null, // Clear previous review
+          reviewed_by: null,
+          feedback: null
+        })
+        .eq('id', existingSubmission.id)
+        .select(`id,status,submitted_at`)
+        .single();
+      if (updateErr) {
+        throw new Error(`Failed to update submission: ${updateErr.message}`);
+      }
+      submission = updated;
+    }
+    // Create new submission if no existing submission
+    else {
       const { data: created, error: submissionError } = await supabase
         .from("task_submissions")
         .insert({
@@ -206,7 +242,9 @@ export default async function handler(
       submission = created;
     }
 
-    res.status(req.method === 'PUT' ? 200 : 201).json({
+    // Determine response status: 200 for updates, 201 for new creations
+    const statusCode = existingSubmission ? 200 : 201;
+    res.status(statusCode).json({
       success: true,
       data: {
         id: submission.id,

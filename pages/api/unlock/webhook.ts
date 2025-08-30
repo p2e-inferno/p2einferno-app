@@ -1,9 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const supabaseService = process.env.SUPABASE_SERVICE_ROLE_KEY as string;
-const supabase = createClient(supabaseUrl, supabaseService);
+import { createAdminClient } from "@/lib/supabase/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,6 +16,7 @@ export default async function handler(
   }
 
   try {
+    const supabase = createAdminClient();
     switch (event.type) {
       case "key.purchase": {
         const { owner, lock, tokenId } = event.data;

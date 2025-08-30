@@ -1,10 +1,12 @@
 import { type Address } from "viem";
 import { lockManagerService } from "./lock-manager";
+import { getLockManagerAddress } from "./server-config";
 
 export interface GrantKeyOptions {
   walletAddress: string;
   lockAddress: Address;
   keyManagers: Address[];
+  expirationDuration?: bigint;
   maxRetries?: number;
   retryDelay?: number;
 }
@@ -33,6 +35,7 @@ export class GrantKeyService {
     walletAddress,
     lockAddress,
     keyManagers,
+    expirationDuration,
     maxRetries = this.DEFAULT_MAX_RETRIES,
     retryDelay = this.DEFAULT_RETRY_DELAY,
   }: GrantKeyOptions): Promise<GrantKeyResponse> {
@@ -41,6 +44,16 @@ export class GrantKeyService {
       return {
         success: false,
         error: "Invalid wallet address format",
+      };
+    }
+
+    // Check if user is a lock manager
+    const adminAddress = getLockManagerAddress();
+    const isLockManager = await lockManagerService.checkUserIsLockManager(adminAddress as Address, lockAddress);
+    if (!isLockManager) {
+      return {
+        success: false,
+        error: "Admin address is not a manager of this lock",
       };
     }
 
@@ -55,6 +68,7 @@ export class GrantKeyService {
           recipientAddress: walletAddress as Address,
           lockAddress,
           keyManagers,
+          expirationDuration,
         });
 
         // If operation failed because write operations are disabled

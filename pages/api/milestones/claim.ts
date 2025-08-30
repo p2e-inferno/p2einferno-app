@@ -68,7 +68,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     if (!grantResult.success) {
       console.error(`Key grant failed for user ${user.id} on lock ${lockAddress}:`, grantResult.error);
-      return res.status(500).json({ error: "Failed to grant key on-chain.", details: grantResult.error });
+      const raw = grantResult.error || "";
+      const errorMessage = raw.includes('LOCK_MANAGER_PRIVATE_KEY')
+        ? "Server is not configured for on-chain grants yet. Please try again later."
+        : raw.toLowerCase().includes('no wallet')
+        ? "No wallet found. Please connect a wallet to claim your milestone key."
+        : raw.toLowerCase().includes('already has a valid key')
+        ? "You already have a key for this milestone."
+        : "Failed to grant key on-chain. Please try again or contact support.";
+      return res.status(500).json({ error: errorMessage, details: grantResult.error });
     }
     
     console.log(`Successfully granted key for lock ${lockAddress} to user ${user.id}. Tx: ${grantResult.transactionHash}`);

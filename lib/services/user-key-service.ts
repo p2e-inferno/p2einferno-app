@@ -1,8 +1,8 @@
 import { Address } from "viem";
-import { lockManagerService } from "@/lib/blockchain/lock-manager";
+import { lockManagerService, KeyInfo } from "@/lib/blockchain/lock-manager";
 import { getUserWalletAddresses } from "@/lib/auth/privy";
 import { GrantKeyService, GrantKeyResponse } from "@/lib/blockchain/grant-key-service";
-import { KeyInfo } from "@/lib/blockchain/lock-manager";
+import { getLockManagerAddress } from "@/lib/blockchain/server-config";
 
 export interface UserKeyCheckResult {
   hasValidKey: boolean;
@@ -71,19 +71,28 @@ export class UserKeyService {
     }
     
     // Grant the key to the user's primary (first linked) wallet.
-    const targetWallet = walletAddresses[0]; 
+    const targetWallet = walletAddresses[0]!; 
 
     // Before granting, quickly check if they already have a key to prevent wasted transactions.
     const keyCheck = await this.checkUserKeyOwnership(userId, lockAddress);
     if (keyCheck.hasValidKey) {
       console.log(`User ${userId} already has a key for lock ${lockAddress}. Skipping grant.`);
-      return { success: true, message: "User already has a valid key." };
+      return { success: true };
     }
+
+    // Get the admin wallet address to use as key manager
+    const adminAddress = getLockManagerAddress();
+    if (!adminAddress) {
+      return { success: false, error: "Admin wallet not configured" };
+    }
+    console.log(`Using admin address ${adminAddress} as key manager for lock ${lockAddress}`);
 
     const grantKeyService = new GrantKeyService();
     return grantKeyService.grantKeyToUser({
       walletAddress: targetWallet,
-      lockAddress: lockAddress as Address
+      lockAddress: lockAddress as Address,
+      keyManagers: [adminAddress as Address], // Use admin address as key manager
+      expirationDuration: BigInt(365 * 24 * 60 * 60), // 1 year expiration for milestone keys
     });
   }
 }

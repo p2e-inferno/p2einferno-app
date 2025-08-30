@@ -299,6 +299,35 @@ export const getBlockExplorerUrl = (txHash: string): string => {
 // ============================================================================
 
 /**
+ * Checks if a user is a lock manager for a lock
+ */
+export const getIsLockManager = async (lockAddress: string, wallet: any): Promise<boolean> => {
+  try {
+    if (
+      !lockAddress ||
+      lockAddress === "Unknown" ||
+      !ethers.isAddress(lockAddress)
+    ) {
+      console.warn(`Invalid lock address: ${lockAddress}`);
+      return false;
+    }
+
+    const provider = getReadOnlyProvider();
+    const lockContract = new ethers.Contract(
+      lockAddress,
+      COMPLETE_LOCK_ABI,
+      provider
+    ) as any;
+    const isManager = await lockContract.isLockManager(wallet.address);
+    return isManager;
+  } catch (error) {
+    console.error(`Error checking if user is lock manager for ${lockAddress}:`, error);
+    return false;
+  }
+};
+
+
+/**
  * Gets the total number of keys that have been sold for a lock
  */
 export const getTotalKeys = async (lockAddress: string): Promise<number> => {
@@ -971,6 +1000,7 @@ export const unlockUtils = {
   checkKeyOwnership,
   getUserKeyBalance,
   getKeyPrice,
+  getIsLockManager,
 
   // Wallet operations
   purchaseKey,

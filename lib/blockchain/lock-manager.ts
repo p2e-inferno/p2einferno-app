@@ -179,25 +179,6 @@ export class LockManagerService {
         return null;
       }
 
-      // Check if the user has any keys at all
-      const balance = (await this.publicClient.readContract({
-        address: lockAddress,
-        abi: this.contractAbi,
-        functionName: "balanceOf",
-        args: [userAddress],
-        ...cacheOptions,
-      })) as bigint;
-
-      if (balance === 0n) {
-        blockchainLogger.debug("User has zero key balance", {
-          operation: "checkUserHasValidKey",
-          userAddress,
-          lockAddress,
-          balance: "0"
-        });
-        return null;
-      }
-
       try {
         // Get the token ID for the user
         const tokenId = (await this.publicClient.readContract({
@@ -217,17 +198,13 @@ export class LockManagerService {
           ...cacheOptions,
         })) as bigint;
 
-        // Check if the key has expired
-        const currentTimestamp = BigInt(Math.floor(Date.now() / 1000));
-        const isExpired = expirationTimestamp <= currentTimestamp;
-
-        blockchainLogger.logKeyCheck(lockAddress, userAddress, !isExpired);
+        blockchainLogger.logKeyCheck(lockAddress, userAddress, !hasValidKey);
         
         return {
           tokenId,
           owner: userAddress,
           expirationTimestamp,
-          isValid: !isExpired,
+          isValid: hasValidKey,
         };
       } catch (error) {
         blockchainLogger.warn("Error getting token details, using fallback", {
@@ -248,6 +225,63 @@ export class LockManagerService {
     } catch (error) {
       blockchainLogger.error("Failed to check user key", {
         operation: "checkUserHasValidKey",
+        userAddress,
+        lockAddress,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return null;
+    }
+  }
+
+  /**
+   * Check if a user is a lock manager
+   * This is a read-only operation that works without a private key
+   * @param userAddress The user's wallet address
+   * @param lockAddress The lock contract address
+   * @param forceRefresh Whether to bypass cache and force a fresh check
+   */
+  async checkUserIsLockManager(
+    userAddress: Address,
+    lockAddress: Address,
+    forceRefresh = false
+    ): Promise<boolean | null> {
+    try {
+      // Add cache-busting parameter if forceRefresh is true
+      const cacheOptions = forceRefresh
+        ? { multicallAddress: undefined } // This forces viem to not use its internal cache
+        : {};
+
+      // First check if the user has a valid key
+      const isLockManager = (await this.publicClient.readContract({
+        address: lockAddress,
+        abi: this.contractAbi,
+        functionName: "isLockManager",
+        args: [userAddress],
+        ...cacheOptions,
+      })) as boolean;
+
+      if (!isLockManager) {
+        blockchainLogger.logKeyCheck(lockAddress, userAddress, false);
+        return null;
+      }
+
+      try {
+
+        blockchainLogger.logKeyCheck(lockAddress, userAddress, isLockManager);
+        
+        return isLockManager;
+      } catch (error) {
+        blockchainLogger.warn("Error checking if user is lock manager", {
+          operation: "checkUserIsLockManager",
+          userAddress,
+          lockAddress,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        return false;
+      }
+    } catch (error) {
+      blockchainLogger.error("Failed to check if user is lock manager", {
+        operation: "checkUserIsLockManager",
         userAddress,
         lockAddress,
         error: error instanceof Error ? error.message : 'Unknown error'
