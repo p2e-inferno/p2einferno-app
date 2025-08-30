@@ -34,7 +34,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (profileErr || !profile) return res.status(404).json({ error: 'User profile not found' });
 
     // Verify user is enrolled in the cohort
-    const cohortId = Array.isArray(task.milestone) ? task.milestone[0]?.cohort_id : task.milestone?.cohort_id;
+    const taskMilestone = task.milestone as any;
+    const cohortId = taskMilestone?.cohort_id;
     const { data: enrollment } = await supabase
       .from('bootcamp_enrollments')
       .select('id')

@@ -11,7 +11,7 @@ interface MilestoneTimerProps {
 export default function MilestoneTimer({ 
   startDate, 
   endDate, 
-  isExpired = false,
+  isExpired: _isExpired = false,
   className = "" 
 }: MilestoneTimerProps) {
   const [timeLeft, setTimeLeft] = useState<{

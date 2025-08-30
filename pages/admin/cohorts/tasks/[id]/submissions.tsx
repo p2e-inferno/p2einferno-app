@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskSubmissions from "@/components/admin/TaskSubmissions";
@@ -24,12 +24,7 @@ function TaskSubmissionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!id) return;
-    fetchTask();
-  }, [id]);
-
-  const fetchTask = async () => {
+  const fetchTask = useCallback(async () => {
     try {
       setIsLoading(true);
       
@@ -51,7 +46,7 @@ function TaskSubmissionsPage() {
       }
 
       // Get the milestone
-      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestones?milestone_id=${task?.milestone_id}`);
+      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestone-tasks?milestone_id=${task?.milestone_id}`);
       
       if (milestoneResult.error) {
         throw new Error(milestoneResult.error);
@@ -90,7 +85,12 @@ function TaskSubmissionsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!id) return;
+    fetchTask();
+  }, [id, fetchTask]);
 
   return (
     <AdminEditPageLayout

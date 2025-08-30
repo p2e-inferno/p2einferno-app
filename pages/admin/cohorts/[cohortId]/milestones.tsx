@@ -55,7 +55,7 @@ function CohortMilestonesPage() {
     if (cohortId) {
       fetchCohort();
     }
-  }, [cohortId]); // Remove adminFetch from dependency array
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AdminLayout>

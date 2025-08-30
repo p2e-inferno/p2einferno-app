@@ -74,7 +74,7 @@ function QuestDetailsPage() {
     if (id && typeof id === "string") {
       fetchQuestDetails(id);
     }
-  }, [id]);
+  }, [id, fetchQuestDetails]);
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {

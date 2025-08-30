@@ -46,7 +46,7 @@ function EditCohortPage() {
     if (cohortId) {
       fetchCohort();
     }
-  }, [cohortId]);
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AdminEditPageLayout

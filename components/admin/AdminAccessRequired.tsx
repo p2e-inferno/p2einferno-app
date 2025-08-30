@@ -138,7 +138,7 @@ export default function AdminAccessRequired({
     });
 
     checkAccessStatus(addressToCheck, true);
-  }, [selectedWallet?.address, providerAddress, adminLockAddress, checkAccessStatus]);
+  }, [selectedWallet, providerAddress, adminLockAddress, checkAccessStatus]);
 
   // Handler for refreshing wallet status
   const handleRefreshStatus = async () => {

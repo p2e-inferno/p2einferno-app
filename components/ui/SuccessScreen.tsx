@@ -44,7 +44,7 @@ export function SuccessScreen({
       // Countdown finished - auto redirect
       handleRedirect();
     }
-  }, [countdown, showCountdown]);
+  }, [countdown, showCountdown]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRedirect = () => {
     setIsRedirecting(true);

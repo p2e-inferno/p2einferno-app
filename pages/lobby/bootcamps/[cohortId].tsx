@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import Head from "next/head";
@@ -95,7 +95,7 @@ export default function BootcampLearningPage() {
   const [selectedTask, setSelectedTask] = useState<MilestoneTask | null>(null);
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
 
-  const fetchCohortData = async () => {
+  const fetchCohortData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -131,7 +131,7 @@ export default function BootcampLearningPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [authenticated, cohortId, getAccessToken]);
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -143,7 +143,7 @@ export default function BootcampLearningPage() {
     if (ready && authenticated && cohortId) {
       fetchCohortData();
     }
-  }, [ready, authenticated, cohortId]);
+  }, [ready, authenticated, cohortId, fetchCohortData]);
 
   if (!ready || !authenticated) {
     return null;
@@ -209,7 +209,7 @@ export default function BootcampLearningPage() {
             <BookOpen size={80} className="text-faded-grey mx-auto mb-6" />
             <h1 className="text-3xl font-bold mb-4">Bootcamp Not Found</h1>
             <p className="text-faded-grey mb-8 max-w-md mx-auto">
-              The bootcamp you're looking for doesn't exist or you don't have access to it.
+              The bootcamp you&apos;re looking for doesn&apos;t exist or you don&apos;t have access to it.
             </p>
             <Link
               href="/lobby/bootcamps/enrolled"
@@ -223,32 +223,6 @@ export default function BootcampLearningPage() {
       </>
     );
   }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return 'text-green-400';
-      case 'in_progress':
-        return 'text-flame-yellow';
-      case 'not_started':
-        return 'text-faded-grey';
-      default:
-        return 'text-faded-grey';
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'completed':
-        return <CheckCircle size={20} className="text-green-400" />;
-      case 'in_progress':
-        return <PlayCircle size={20} className="text-flame-yellow" />;
-      case 'not_started':
-        return <Clock size={20} className="text-faded-grey" />;
-      default:
-        return <Clock size={20} className="text-faded-grey" />;
-    }
-  };
 
   const handleTaskSubmit = (task: MilestoneTask, milestone: MilestoneWithProgress) => {
     // Add milestone timing data to task for reward checking
@@ -550,7 +524,7 @@ export default function BootcampLearningPage() {
             <Target size={80} className="text-faded-grey mx-auto mb-6" />
             <h2 className="text-2xl font-bold mb-4">No Milestones Available</h2>
             <p className="text-faded-grey mb-8 max-w-md mx-auto">
-              This bootcamp doesn't have any milestones set up yet. Check back later!
+              This bootcamp doesn&apos;t have any milestones set up yet. Check back later!
             </p>
           </div>
         )}
@@ -582,7 +556,7 @@ const MilestoneActions = ({ milestone, onClaimSuccess }: { milestone: MilestoneW
   if (milestone.has_key) {
     return (
       <div className="bg-green-500/10 border border-green-500/20 text-green-300 rounded-lg p-4 text-center font-medium">
-        ✅ Blockchain Verified: You've earned the key for this milestone!
+        ✅ Blockchain Verified: You&apos;ve earned the key for this milestone!
       </div>
     );
   }

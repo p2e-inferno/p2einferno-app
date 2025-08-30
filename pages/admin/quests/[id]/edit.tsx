@@ -38,14 +38,14 @@ function EditQuestPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []); // Remove adminFetch from dependency array
+  }, [adminFetch]);
 
   // Initial fetch on mount / id change
   useEffect(() => {
     if (id && typeof id === "string") {
       fetchQuestDetails(id);
     }
-  }, [id]); // Remove fetchQuestDetails from dependency array
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AdminEditPageLayout

@@ -34,7 +34,7 @@ export default function ProgramRequirementsForm({
 
   useEffect(() => {
     fetchExistingRequirements();
-  }, [cohortId]);
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchExistingRequirements = async () => {
     try {

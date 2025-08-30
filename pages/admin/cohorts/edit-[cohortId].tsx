@@ -51,7 +51,7 @@ function EditCohortPage() {
     if (actualCohortId) {
       fetchCohort();
     }
-  }, [actualCohortId]); // Remove adminFetch from dependency array
+  }, [actualCohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AdminEditPageLayout

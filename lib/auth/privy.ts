@@ -188,7 +188,11 @@ export async function getPrivyUserFromCookies(cookies: any) {
     const claims = await Promise.race([
       privy.verifyAuthToken(token),
       timeoutPromise
-    ]);
+    ]) as any;
+
+    if (!claims || !claims.userId) {
+      return null;
+    }
 
     return {
       id: claims.userId,

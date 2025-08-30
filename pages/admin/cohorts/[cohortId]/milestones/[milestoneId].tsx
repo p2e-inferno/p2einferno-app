@@ -62,12 +62,12 @@ function MilestoneDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [milestoneId]);
+  }, [milestoneId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!milestoneId) return;
     fetchMilestone();
-  }, [milestoneId]);
+  }, [milestoneId, fetchMilestone]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {

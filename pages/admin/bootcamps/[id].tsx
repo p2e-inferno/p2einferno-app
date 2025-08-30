@@ -46,11 +46,7 @@ function EditBootcampPage() {
     if (id) {
       fetchBootcamp();
     }
-  }, [id]);
-
-  // If Privy auth is not yet determined, or not authenticated, can show a loader or message.
-  // However, AdminEditPageLayout also has its own loader.
-  // For this refactor, we assume Privy handles its loading/redirect before this page fully renders.
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <AdminEditPageLayout

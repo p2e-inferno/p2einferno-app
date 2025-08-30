@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,7 +81,7 @@ export default function CohortForm({
   );
 
   // Validation function
-  const validateForm = (data: Partial<Cohort>) => {
+  const validateForm = useCallback((data: Partial<Cohort>) => {
     const errors: typeof validationErrors = {};
     
     // Required field validations
@@ -126,12 +126,12 @@ export default function CohortForm({
     setIsFormValid(Object.keys(errors).length === 0);
     
     return errors;
-  };
+  }, []);
 
   // Validate form whenever formData changes
   useEffect(() => {
     validateForm(formData);
-  }, [formData]);
+  }, [formData, validateForm]);
 
   // Load draft data on mount
   useEffect(() => {

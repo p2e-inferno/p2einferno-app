@@ -7,7 +7,7 @@ INSERT INTO public.bootcamp_programs (id, name, description, duration_weeks, max
 
 -- Insert sample cohort
 INSERT INTO public.cohorts (id, bootcamp_program_id, name, start_date, end_date, max_participants, current_participants, registration_deadline, status) VALUES
-(uuid_generate_v4(), (SELECT id FROM public.bootcamp_programs WHERE name = 'Infernal Sparks'), 'Infernal Sparks Cohort 1', '2025-02-01', '2025-03-29', 100, 25, '2025-01-25', 'open');
+(uuid_generate_v4(), (SELECT id FROM public.bootcamp_programs WHERE name = 'Infernal Sparks'), 'Infernal Sparks Cohort 1', '2025-09-01', '2025-09-29', 100, 5, '2025-08-25', 'open');
 
 -- Insert sample quests
 INSERT INTO public.quests (id, title, description, total_reward, is_active) VALUES

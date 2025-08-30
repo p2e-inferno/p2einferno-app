@@ -45,7 +45,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
 
   useEffect(() => {
     fetchMilestones();
-  }, [cohortId]);
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update milestone order
   const updateMilestoneOrder = async (

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { LobbyLayout } from "@/components/layouts/lobby-layout";
 import { usePrivy } from "@privy-io/react-auth";
@@ -100,7 +100,7 @@ const QuestDetailsPage = () => {
     return response.json();
   };
 
-  const loadQuestDetails = async () => {
+  const loadQuestDetails = useCallback(async () => {
     if (!questId || !user) return;
     setLoading(true);
     try {
@@ -141,13 +141,13 @@ const QuestDetailsPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [questId, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (questId && user) {
       loadQuestDetails();
     }
-  }, [questId, user]);
+  }, [questId, user, loadQuestDetails]);
 
   const handleStartQuest = async () => {
     if (!questId) return;

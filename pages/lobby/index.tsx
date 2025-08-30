@@ -115,7 +115,7 @@ export default function LobbyPage() {
 
   // If user is not authenticated or data not loaded, render LobbyLayout which will show wallet connection
   if (!ready || !authenticated || !dashboardData) {
-    return <LobbyLayout></LobbyLayout>;
+    return <LobbyLayout><div /></LobbyLayout>;
   }
 
   const { profile, applications, enrollments, stats } = dashboardData;

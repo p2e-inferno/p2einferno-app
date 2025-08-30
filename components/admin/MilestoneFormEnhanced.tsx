@@ -107,7 +107,7 @@ export default function MilestoneFormEnhanced({
     if (isEditing && milestone?.id) {
       fetchExistingTasks();
     }
-  }, [isEditing, milestone?.id]);
+  }, [isEditing, milestone?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load draft data on mount for new milestones
   useEffect(() => {

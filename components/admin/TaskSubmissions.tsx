@@ -44,7 +44,7 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
 
   useEffect(() => {
     fetchSubmissions();
-  }, [taskId]);
+  }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSubmissions = async () => {
     try {

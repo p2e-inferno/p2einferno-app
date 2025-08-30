@@ -58,7 +58,7 @@ export default function QuestSubmissionsTable({
 
   useEffect(() => {
     fetchSubmissions();
-  }, [questId, statusFilter]);
+  }, [questId, statusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSubmissions = async () => {
     try {

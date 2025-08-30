@@ -63,12 +63,12 @@ function ProgramDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [cohortId]);
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!cohortId) return;
     fetchData();
-  }, [cohortId]);
+  }, [cohortId, fetchData]);
 
   const handleHighlightsSuccess = () => {
     fetchData();

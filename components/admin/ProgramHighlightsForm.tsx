@@ -34,7 +34,7 @@ export default function ProgramHighlightsForm({
 
   useEffect(() => {
     fetchExistingHighlights();
-  }, [cohortId]);
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchExistingHighlights = async () => {
     try {

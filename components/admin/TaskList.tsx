@@ -25,7 +25,7 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
 
   useEffect(() => {
     fetchTasks();
-  }, [milestoneId]);
+  }, [milestoneId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchTasks = async () => {
     try {

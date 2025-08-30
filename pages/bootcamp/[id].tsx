@@ -1,7 +1,7 @@
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
@@ -57,11 +57,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchBootcampData();
-  }, [bootcampId]);
-
-  const fetchBootcampData = async () => {
+  const fetchBootcampData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -85,7 +81,11 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [bootcampId]);
+
+  useEffect(() => {
+    fetchBootcampData();
+  }, [bootcampId, fetchBootcampData]);
 
   const handleJoinCohort = (cohortId: string) => {
     router.push(`/bootcamp/${bootcampId}/cohort/${cohortId}`);

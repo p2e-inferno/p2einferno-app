@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import Image from "next/image";
 import { X, Upload, Link as LinkIcon, FileText, Code, ExternalLink, AlertTriangle } from "lucide-react";
 import { CrystalIcon } from "@/components/icons/dashboard-icons";
 import { canEarnRewards } from "@/lib/utils/milestone-utils";
@@ -43,7 +44,7 @@ export default function TaskSubmissionModal({
   task,
   onSubmissionSuccess,
 }: TaskSubmissionModalProps) {
-  const [submissionType, setSubmissionType] = useState<string>(task.task_type);
+  const [_submissionType, _setSubmissionType] = useState<string>(task.task_type);
   const [submissionUrl, setSubmissionUrl] = useState("");
   const [submissionText, setSubmissionText] = useState("");
   const [submissionData, setSubmissionData] = useState<any>({});
@@ -258,7 +259,7 @@ export default function TaskSubmissionModal({
                             reader.onload = () => {
                               const result = reader.result as string;
                               const base64 = result.split(',')[1];
-                              resolve(base64);
+                              resolve(base64 || '');
                             };
                             reader.onerror = reject;
                             reader.readAsDataURL(f);
@@ -341,9 +342,11 @@ export default function TaskSubmissionModal({
                         {imagePreview && fileType.startsWith('image/') && (
                           <div className="mt-4">
                             <div className="relative max-w-md mx-auto">
-                              <img 
+                              <Image 
                                 src={imagePreview} 
                                 alt="Preview" 
+                                width={400}
+                                height={256}
                                 className="w-full h-auto max-h-64 object-contain rounded-lg border border-purple-500/20"
                                 style={{ maxHeight: '16rem' }}
                               />

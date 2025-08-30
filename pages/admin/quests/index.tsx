@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,11 +23,7 @@ export default function AdminQuestsPage() {
   const [error, setError] = useState<string | null>(null);
   const { adminFetch, loading } = useAdminApi();
 
-  useEffect(() => {
-    fetchQuests();
-  }, []);
-
-  const fetchQuests = async () => {
+  const fetchQuests = useCallback(async () => {
     try {
       setError(null);
 
@@ -46,7 +42,11 @@ export default function AdminQuestsPage() {
       console.error("Error fetching quests:", err);
       setError(err.message || "Failed to load quests");
     }
-  };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    fetchQuests();
+  }, [fetchQuests]);
 
   const toggleQuestStatus = async (quest: Quest) => {
     try {

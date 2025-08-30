@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/layouts/AdminLayout";
@@ -51,7 +51,7 @@ const AdminPaymentsPage: React.FC = () => {
     }
   }, [authenticated, isAdmin, authLoading, router, isClient]);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
@@ -80,13 +80,13 @@ const AdminPaymentsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [getAccessToken]);
 
   useEffect(() => {
     if (authenticated && isAdmin && isClient) {
       fetchTransactions();
     }
-  }, [authenticated, isAdmin, isClient]);
+  }, [authenticated, isAdmin, isClient, fetchTransactions]);
 
   const handleReconcile = async (applicationId: string) => {
     try {

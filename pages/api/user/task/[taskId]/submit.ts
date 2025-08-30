@@ -106,7 +106,8 @@ export default async function handler(
     }
 
     // Verify user is enrolled in the cohort
-    const cohortId = Array.isArray(task.milestone) ? task.milestone[0]?.cohort_id : task.milestone?.cohort_id;
+    const taskMilestone = task.milestone as any;
+    const cohortId = taskMilestone?.cohort_id;
     const { data: enrollment, error: enrollmentError } = await supabase
       .from("bootcamp_enrollments")
       .select("id")

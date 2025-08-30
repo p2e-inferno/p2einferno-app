@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { User, Mail, Wallet, Share2 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -25,17 +25,10 @@ const ProfilePage = () => {
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [linking, setLinking] = useState<string | null>(null);
 
-  // Update linked accounts when user data changes
-  useEffect(() => {
-    if (user) {
-      updateLinkedAccounts();
-    }
-  }, [user, user?.email, user?.farcaster, user?.wallet]);
-
   /**
    * Updates the linked accounts array based on current user data
    */
-  const updateLinkedAccounts = () => {
+  const updateLinkedAccounts = useCallback(() => {
     if (!user) return;
 
     const accounts: LinkedAccount[] = [
@@ -66,7 +59,14 @@ const ProfilePage = () => {
     ];
 
     setLinkedAccounts(accounts);
-  };
+  }, [user]);
+
+  // Update linked accounts when user data changes
+  useEffect(() => {
+    if (user) {
+      updateLinkedAccounts();
+    }
+  }, [user, user?.email, user?.farcaster, user?.wallet, updateLinkedAccounts]);
 
   /**
    * Handles linking of accounts through Privy
