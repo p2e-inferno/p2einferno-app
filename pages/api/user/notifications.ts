@@ -4,7 +4,6 @@ import { getPrivyUser } from "@/lib/auth/privy";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const user = await getPrivyUser(req);
-  console.log("GET_PRIVY_USER::NOTIFICATIONS::", user)
 
   if (!user) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -26,18 +25,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!profile) {
     console.log(`[NOTIFICATIONS] No profile found for privy_user_id: ${user.id}`);
     
-    // Debug: Check if any profiles exist at all
-    const { data: allProfiles } = await supabase
-      .from('user_profiles')
-      .select('privy_user_id')
-      .limit(5);
-    
-    console.log(`[NOTIFICATIONS] Sample existing privy_user_ids:`, allProfiles?.map(p => p.privy_user_id));
-    
     return res.status(404).json({ error: "User profile not found" });
   }
-
-  console.log(`[NOTIFICATIONS] Found profile with id: ${profile.id}`);
 
   if (req.method === 'GET') {
     const { data, error } = await supabase
@@ -46,8 +35,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       .eq('user_profile_id', profile.id)
       .order('created_at', { ascending: false })
       .limit(20);
-console.log("NOTIFICATIONS_DATA::", data)
-console.log("NOTIFICATIONS_ERROR::", error)
+
     if (error) return res.status(500).json({ error: error.message });
     return res.status(200).json({ notifications: data });
   }

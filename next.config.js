@@ -1,6 +1,14 @@
 /** @type {import('next').NextConfig} */
 module.exports = {
   reactStrictMode: true,
+  compress: true,
+  poweredByHeader: false,
+  
+  compiler: {
+    // Remove console logs in production only
+    removeConsole: process.env.NODE_ENV === "production",
+  },
+  
   images: {
     remotePatterns: [
       {
@@ -16,7 +24,42 @@ module.exports = {
         pathname: '/storage/v1/object/public/**',
       },
     ],
+    formats: ['image/webp', 'image/avif'],
+    minimumCacheTTL: 60,
   },
+
+  headers: async () => [
+    {
+      source: '/(.*)',
+      headers: [
+        {
+          key: 'X-Content-Type-Options',
+          value: 'nosniff',
+        },
+        {
+          key: 'Referrer-Policy',
+          value: 'strict-origin-when-cross-origin',
+        },
+        {
+          key: 'X-DNS-Prefetch-Control',
+          value: 'on',
+        },
+        {
+          key: 'Strict-Transport-Security',
+          value: 'max-age=31536000; includeSubDomains',
+        },
+      ],
+    },
+    {
+      source: '/_next/static/(.*)',
+      headers: [
+        {
+          key: 'Cache-Control',
+          value: 'public, max-age=31536000, immutable',
+        },
+      ],
+    },
+  ],
   webpack: (config, { isServer }) => {
     if (!isServer) {
       // Exclude problematic worker files from build
