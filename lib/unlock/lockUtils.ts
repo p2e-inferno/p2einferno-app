@@ -1,6 +1,6 @@
-import { type Address, parseEther } from "viem";
+import { type Address } from "viem";
 import { base, baseSepolia } from "viem/chains";
-import { ethers, formatUnits } from "ethers";
+import { ethers, formatUnits, parseUnits } from "ethers";
 import { UNIFIED_BLOCKCHAIN_CONFIG } from "../blockchain/config/unified-config";
 import { 
   ensureCorrectNetwork as ensureCorrectNetworkShared,
@@ -624,7 +624,10 @@ export const deployLock = async (
     if (!wallet || !wallet.address) {
       throw new Error("No wallet provided. Please connect your wallet first.");
     }
-
+    const usdcTokenAddress = UNIFIED_BLOCKCHAIN_CONFIG.usdcTokenAddress;
+    if (!usdcTokenAddress) {
+      throw new Error(`USDC token address not configured for ${UNIFIED_BLOCKCHAIN_CONFIG.networkName}.`);
+    }
     // Create ethers provider from Privy wallet
     const { signer, rawProvider } = await createEthersFromPrivyWallet(wallet);
 
@@ -644,16 +647,22 @@ export const deployLock = async (
       signer
     ) as any;
 
+    const usdcContract = new ethers.Contract(
+      usdcTokenAddress,
+      ERC20_ABI,
+      signer
+    ) as any;
+    const usdcDecimals = await usdcContract.decimals();
+
     // Convert price to wei (assuming USDC with 6 decimals, but Unlock uses 18 decimal representation)
     const keyPriceWei =
-      config.currency === "FREE" ? 0n : parseEther(config.price.toString());
+      config.currency === "FREE" ? 0n : parseUnits(config.price.toString(), usdcDecimals);
 
     // Use USDC token address for payments (0x0 for native ETH, but we prefer USDC)
     const tokenAddress =
       config.currency === "FREE"
         ? "0x0000000000000000000000000000000000000000" // Free locks use ETH address
-        : UNIFIED_BLOCKCHAIN_CONFIG.usdcTokenAddress ||
-          "0x0000000000000000000000000000000000000000";
+        : usdcTokenAddress;
 
     console.log(
       `Deploying lock with token address: ${tokenAddress} (${

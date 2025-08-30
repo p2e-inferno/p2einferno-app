@@ -3,6 +3,12 @@ import { CLIENT_CHAIN_CONFIG } from "./client-config";
 import { getAdminLockManagerAddresses } from "./transaction-helpers";
 import type { Cohort, BootcampProgram, Quest, CohortMilestone } from "../supabase/types";
 
+
+// ============================================================================
+// NAIRA TO USD RATE ESTIMATE CONSTANT
+// ============================================================================
+export const NAIRA_TO_USD_RATE = 1600;
+
 // ============================================================================
 // LOCK CONFIGURATION TYPES
 // ============================================================================
@@ -25,7 +31,7 @@ export interface LockConfig {
 // ============================================================================
 
 const EXPIRATION_DURATIONS = {
-  UNLIMITED: 0, // 0 means unlimited in Unlock Protocol
+  UNLIMITED: Number.MAX_SAFE_INTEGER, // Maximum bigint value
   ONE_YEAR: 365 * 24 * 60 * 60, // 365 days in seconds
 } as const;
 
@@ -41,7 +47,7 @@ const EXPIRATION_DURATIONS = {
  */
 export const generateCohortLockConfig = (cohort: Cohort): LockConfig => {
   // Use USDT amount if available, otherwise convert from Naira (rough estimate)
-  const priceInUSD = cohort.usdt_amount || (cohort.naira_amount ? cohort.naira_amount / 1600 : 0);
+  const priceInUSD = cohort.usdt_amount || (cohort.naira_amount ? cohort.naira_amount / NAIRA_TO_USD_RATE : 0);
   
   // If no price is set, create a free lock
   const isFree = priceInUSD === 0;
@@ -157,9 +163,9 @@ export const getTokenAddressForCurrency = (currency: string): Address => {
     let usdcAddress: string | undefined;
     
     if (chainId === 8453) { // Base Mainnet
-      usdcAddress = process.env.USDC_ADDRESS_BASE_MAINNET;
+      usdcAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
     } else if (chainId === 84532) { // Base Sepolia
-      usdcAddress = process.env.USDC_ADDRESS_BASE_SEPOLIA;
+      usdcAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
     }
     
     if (!usdcAddress) {

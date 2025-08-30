@@ -25,8 +25,8 @@ const validateEnvironment = () => {
   }
 
   // Silent validation for USDC addresses - only warn if both missing
-  const hasMainnetUsdc = !!process.env.USDC_ADDRESS_BASE_MAINNET;
-  const hasSepoliaUsdc = !!process.env.USDC_ADDRESS_BASE_SEPOLIA;
+  const hasMainnetUsdc = !!process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET;
+  const hasSepoliaUsdc = !!process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA;
   
   if (!hasMainnetUsdc && !hasSepoliaUsdc) {
     console.warn("USDC token addresses not configured - payments may be limited");
@@ -54,7 +54,7 @@ const resolveChain = () => {
       return {
         chain: base,
         defaultRpc: "https://mainnet.base.org",
-        usdcTokenAddress: process.env.USDC_ADDRESS_BASE_MAINNET,
+        usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET,
         networkName: "Base Mainnet",
       } as const;
     case "base-sepolia":
@@ -62,7 +62,7 @@ const resolveChain = () => {
       return {
         chain: baseSepolia,
         defaultRpc: "https://sepolia.base.org",
-        usdcTokenAddress: process.env.USDC_ADDRESS_BASE_SEPOLIA,
+        usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA,
         networkName: "Base Sepolia",
       } as const;
   }
