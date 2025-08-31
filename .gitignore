@@ -119,4 +119,8 @@ dist
 # Environment backup files
 .env.local.remote.backup
 
-supabase/.temp
+# Supabase local development files
+supabase/.branches/
+supabase/.temp/
+supabase/functions/.dist/
+supabase/functions/.env

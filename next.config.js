@@ -27,7 +27,14 @@ module.exports = {
     formats: ['image/webp', 'image/avif'],
     minimumCacheTTL: 60,
   },
-
+  turbopack: {
+    rules: {
+      // Ignore problematic worker files (equivalent to your webpack config)
+      '**/HeartbeatWorker.js': {
+        loaders: ['ignore-loader'],
+      },
+    },
+  },
   headers: async () => [
     {
       source: '/(.*)',
