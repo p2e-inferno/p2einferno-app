@@ -116,4 +116,7 @@ dist
 # Playwright MCP folder
 .playwright-mcp/
 
+# Environment backup files
+.env.local.remote.backup
+
 supabase/.temp
