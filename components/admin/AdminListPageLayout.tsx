@@ -30,40 +30,65 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
   return (
     <AdminLayout>
       <div className="w-full">
-        <div className="mb-6 flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-white">{title}</h1>
-          <Link href={newButtonLink}>
-            <Button className="bg-steel-red hover:bg-steel-red/90 text-white">
-              <PlusCircle className="mr-2 h-4 w-4" />
-              {newButtonText}
-            </Button>
-          </Link>
+        {/* Header Section */}
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">{title}</h1>
+            </div>
+            <div className="flex-shrink-0">
+              <Link href={newButtonLink}>
+                <Button className="w-full sm:w-auto">
+                  <PlusCircle className="w-4 h-4 mr-2" />
+                  {newButtonText}
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
 
-        {isLoading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-flame-yellow"></div>
-          </div>
-        ) : error ? (
-          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        ) : isEmpty ? (
-          <div className="bg-card border border-gray-800 rounded-lg p-12 text-center">
-            <h3 className="text-lg font-semibold text-white mb-2">
-              {emptyStateTitle}
-            </h3>
-            <p className="text-gray-400 mb-6">{emptyStateMessage}</p>
-            <Link href={newButtonLink}>
-              <Button className="bg-steel-red hover:bg-steel-red/90 text-white">
-                <PlusCircle className="mr-2 h-4 w-4" />
-                {newButtonText}
-              </Button>
-            </Link>
-          </div>
-        ) : (
-          children // This is where the table/list will be rendered
-        )}
+        {/* Content Section */}
+        <div className="space-y-6">
+          {/* Error State */}
+          {error && (
+            <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
+              <p className="text-red-300">{error}</p>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {isLoading && (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-flame-yellow"></div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isLoading && !error && isEmpty && (
+            <div className="text-center py-12">
+              <div className="max-w-md mx-auto">
+                <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <PlusCircle className="w-8 h-8 text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium text-white mb-2">{emptyStateTitle}</h3>
+                <p className="text-gray-400 mb-6">{emptyStateMessage}</p>
+                <Link href={newButtonLink}>
+                  <Button>
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    {newButtonText}
+                  </Button>
+                </Link>
+              </div>
+            </div>
+          )}
+
+          {/* Main Content */}
+          {!isLoading && !error && !isEmpty && (
+            <div className="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+              {children}
+            </div>
+          )}
+        </div>
       </div>
     </AdminLayout>
   );
