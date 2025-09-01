@@ -1,5 +1,5 @@
 import React from "react";
-import { FlameIcon } from "../icons/dashboard-icons";
+import { Gamepad2 } from "lucide-react";
 
 /**
  * Loading state component for the infernal lobby
@@ -12,7 +12,7 @@ export const LobbyLoadingState: React.FC = () => {
       style={{ backgroundColor: "#100F29" }}
     >
       <div className="text-center">
-        <FlameIcon size={64} className="mx-auto mb-4 animate-pulse" />
+        <Gamepad2 className="mx-auto mb-4 animate-pulse w-16 h-16 text-flame-yellow" />
         <p className="text-faded-grey">Loading your infernal realm...</p>
       </div>
     </div>

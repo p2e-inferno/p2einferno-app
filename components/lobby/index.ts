@@ -7,3 +7,4 @@ export { QuickActionsGrid } from "./quick-actions-grid";
 export { CurrentEnrollments } from "./current-enrollments";
 export { LobbyLoadingState } from "./loading-state";
 export { LobbyErrorState } from "./error-state";
+export { LobbyConnectWalletState } from "./connect-wallet-state";

@@ -16,7 +16,7 @@ export const QuickActionsGrid: React.FC = () => {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {/* Apply to Bootcamp */}
-      <Link href="/apply" className="group">
+      <Link href="/lobby/apply" className="group">
         <div className="bg-gradient-to-br from-purple-800/30 to-purple-900/30 rounded-xl p-6 border border-purple-500/20 backdrop-blur-sm hover:border-purple-400/40 transition-all duration-300 group-hover:scale-105">
           <div className="flex items-center space-x-4 mb-4">
             <FlameIcon

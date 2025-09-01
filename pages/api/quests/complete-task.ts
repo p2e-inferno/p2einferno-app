@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -9,7 +9,7 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, questId, taskId, verificationData } = req.body;
+  const { userId, questId, taskId, verificationData, inputData } = req.body;
 
   if (!userId || !questId || !taskId) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -30,6 +30,21 @@ export default async function handler(
       return res.status(400).json({ error: "Task already completed" });
     }
 
+    // Get the task details to check if it requires admin review
+    const { data: task, error: taskError } = await supabase
+      .from("quest_tasks")
+      .select("requires_admin_review, input_required")
+      .eq("id", taskId)
+      .single();
+
+    if (taskError) {
+      console.error("Error fetching task:", taskError);
+      return res.status(500).json({ error: "Failed to fetch task details" });
+    }
+
+    // Determine initial status
+    const initialStatus = task?.requires_admin_review ? "pending" : "completed";
+
     // Complete the task
     const { error: completionError } = await supabase
       .from("user_task_completions")
@@ -38,6 +53,8 @@ export default async function handler(
         quest_id: questId,
         task_id: taskId,
         verification_data: verificationData,
+        submission_data: inputData,
+        submission_status: initialStatus,
         reward_claimed: false,
       });
 
@@ -46,41 +63,17 @@ export default async function handler(
       return res.status(500).json({ error: "Failed to complete task" });
     }
 
-    // Update or create quest progress
-    const { data: existingProgress } = await supabase
-      .from("user_quest_progress")
-      .select("*")
-      .eq("user_id", userId)
-      .eq("quest_id", questId)
-      .single();
-
-    if (existingProgress) {
-      // Update existing progress
-      const { error: updateError } = await supabase
-        .from("user_quest_progress")
-        .update({
-          tasks_completed: existingProgress.tasks_completed + 1,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId)
-        .eq("quest_id", questId);
-
-      if (updateError) {
-        console.error("Error updating progress:", updateError);
-      }
-    } else {
-      // Create new progress entry
-      const { error: insertError } = await supabase
-        .from("user_quest_progress")
-        .insert({
-          user_id: userId,
-          quest_id: questId,
-          tasks_completed: 1,
-          is_completed: false,
+    // Update quest progress only if task is completed (not pending review)
+    if (initialStatus === "completed") {
+      // Use the database function to recalculate progress
+      try {
+        await supabase.rpc("recalculate_quest_progress", {
+          p_user_id: userId,
+          p_quest_id: questId,
         });
-
-      if (insertError) {
-        console.error("Error creating progress:", insertError);
+      } catch (progressError) {
+        console.error("Error recalculating progress:", progressError);
+        // Don't fail the main operation if progress update fails
       }
     }
 

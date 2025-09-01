@@ -12,6 +12,7 @@ export interface Quest {
   id: string;
   title: string;
   description: string;
+  image_url?: string;
   total_reward: number;
   is_active: boolean;
   created_at: string;

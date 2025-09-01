@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { User, Mail, Wallet, Share2 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -11,6 +11,7 @@ import {
   type LinkedAccount,
   type ProfileStats,
 } from "@/components/profile";
+import { useDashboardData } from "@/hooks/useDashboardData";
 
 /**
  * ProfilePage - Main profile management page for users
@@ -19,21 +20,15 @@ import {
 const ProfilePage = () => {
   const { user, linkEmail, unlinkEmail, linkFarcaster, unlinkFarcaster } =
     usePrivy();
+  const { data: dashboardData, loading: dashboardLoading, refetch } = useDashboardData();
 
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [linking, setLinking] = useState<string | null>(null);
 
-  // Update linked accounts when user data changes
-  useEffect(() => {
-    if (user) {
-      updateLinkedAccounts();
-    }
-  }, [user, user?.email, user?.farcaster, user?.wallet]);
-
   /**
    * Updates the linked accounts array based on current user data
    */
-  const updateLinkedAccounts = () => {
+  const updateLinkedAccounts = useCallback(() => {
     if (!user) return;
 
     const accounts: LinkedAccount[] = [
@@ -64,7 +59,14 @@ const ProfilePage = () => {
     ];
 
     setLinkedAccounts(accounts);
-  };
+  }, [user]);
+
+  // Update linked accounts when user data changes
+  useEffect(() => {
+    if (user) {
+      updateLinkedAccounts();
+    }
+  }, [user, user?.email, user?.farcaster, user?.wallet, updateLinkedAccounts]);
 
   /**
    * Handles linking of accounts through Privy
@@ -83,6 +85,7 @@ const ProfilePage = () => {
         default:
           toast.error("Cannot link this account type");
       }
+      refetch(); // Refresh dashboard data after linking
     } catch (error) {
       console.error("Error linking account:", error);
       toast.error("Failed to initiate account linking");
@@ -112,11 +115,7 @@ const ProfilePage = () => {
         default:
           toast.error("Cannot unlink this account type");
       }
-
-      // Allow time for Privy state to update
-      setTimeout(() => {
-        updateLinkedAccounts();
-      }, 1000);
+      refetch(); // Refresh dashboard data after unlinking
     } catch (error) {
       console.error("Error unlinking account:", error);
       toast.error("Failed to unlink account");
@@ -139,15 +138,26 @@ const ProfilePage = () => {
     );
   }
 
-  // Calculate profile stats
+  // Loading state while dashboard data is being fetched
+  if (dashboardLoading || !dashboardData) {
+    return (
+      <LobbyLayout>
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
+        </div>
+      </LobbyLayout>
+    );
+  }
+
+  // Calculate profile stats using live data
   const linkedCount = linkedAccounts.filter((acc) => acc.linked).length;
   const completionPercentage = Math.round(
     (linkedCount / linkedAccounts.length) * 100
   );
 
   const profileStats: ProfileStats = {
-    questsCompleted: 0, // TODO: Connect to actual quest data
-    dgEarned: 0, // TODO: Connect to actual token data
+    questsCompleted: dashboardData.stats.questsCompleted,
+    dgEarned: dashboardData.profile.experience_points,
     accountsLinked: linkedCount,
     totalAccounts: linkedAccounts.length,
   };
@@ -169,6 +179,7 @@ const ProfilePage = () => {
             onUnlinkAccount={handleUnlinkAccount}
           />
 
+  
           <CompletionCallToAction completionPercentage={completionPercentage} />
         </div>
       </div>

@@ -26,7 +26,7 @@ export const EventsPage = () => {
             Events Coming Soon
           </h2>
           <p className="text-gray-400 mb-6">
-            We're preparing exciting community events, workshops, and networking
+            We&apos;re preparing exciting community events, workshops, and networking
             opportunities for our Infernal community. Stay tuned for updates!
           </p>
 

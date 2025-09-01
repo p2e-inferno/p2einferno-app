@@ -47,7 +47,7 @@ export function CustomDropdown({
 
       {isOpen && (
         <div
-          className={`absolute ${alignmentClass} mt-2 w-56 origin-top-right rounded-md bg-card shadow-lg ring-1 ring-border focus:outline-none z-50 ${contentClassName}`}
+          className={`absolute ${alignmentClass} mt-2 w-56 origin-top-right rounded-md bg-card shadow-lg ring-1 ring-border focus:outline-none z-[60] ${contentClassName}`}
           role="menu"
           aria-orientation="vertical"
           aria-labelledby="menu-button"

@@ -8,8 +8,6 @@ export const infernalSparksProgram: BootcampProgram = {
     "Beginners entry point to P2E Inferno. Infernal Sparks is a 4-week bootcamp for learning the basics of Ethereum and the P2E Inferno community.",
   duration_weeks: 4,
   max_reward_dgt: 24000, // Total possible DG rewards across all weeks
-  cost_naira: 50000,
-  cost_usd: 50,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
 };
@@ -130,21 +128,4 @@ export function formatCurrency(
     style: "currency",
     currency: "USD",
   }).format(amount);
-}
-
-export function calculateTimeRemaining(deadline: string): string {
-  const now = new Date();
-  const deadlineDate = new Date(deadline);
-  const diff = deadlineDate.getTime() - now.getTime();
-
-  if (diff <= 0) return "Registration closed";
-
-  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-  if (days > 0) {
-    return `${days} day${days > 1 ? "s" : ""} remaining`;
-  }
-
-  return `${hours} hour${hours > 1 ? "s" : ""} remaining`;
 }

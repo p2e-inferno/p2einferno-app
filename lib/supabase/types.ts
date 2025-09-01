@@ -1,6 +1,6 @@
 /**
  * Database types for Supabase tables
- * 
+ *
  * These types should match your Supabase database schema.
  * Consider using `supabase gen types typescript` to auto-generate these.
  */
@@ -11,8 +11,8 @@ export interface BootcampProgram {
   description: string;
   duration_weeks: number;
   max_reward_dgt: number;
-  cost_naira: number;
-  cost_usd: number;
+  lock_address?: string;
+  image_url?: string;
   created_at: string;
   updated_at: string;
 }
@@ -27,6 +27,26 @@ export interface Cohort {
   current_participants: number;
   registration_deadline: string;
   status: "open" | "closed" | "upcoming";
+  lock_address?: string;
+  key_managers?: string[];
+  usdt_amount?: number;
+  naira_amount?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CohortMilestone {
+  id: string;
+  cohort_id: string;
+  name: string;
+  description: string;
+  order_index: number;
+  start_date?: string;
+  end_date?: string;
+  lock_address: string;
+  prerequisite_milestone_id?: string;
+  duration_hours?: number;
+  total_reward?: number;
   created_at: string;
   updated_at: string;
 }
@@ -54,21 +74,49 @@ export interface Quest {
   id: string;
   title: string;
   description: string;
+  image_url?: string;
   total_reward: number;
   is_active: boolean;
+  lock_address?: string;
   created_at: string;
+  updated_at: string;
   quest_tasks: QuestTask[];
 }
+
+export type TaskType =
+  | "link_email"
+  | "link_wallet"
+  | "link_farcaster"
+  | "sign_tos"
+  | "submit_url"
+  | "submit_text"
+  | "submit_proof"
+  | "complete_external"
+  | "custom";
+
+export type InputValidationType =
+  | "url"
+  | "text"
+  | "email"
+  | "number"
+  | "textarea";
 
 export interface QuestTask {
   id: string;
   quest_id: string;
   title: string;
   description: string;
-  task_type: "link_email" | "link_wallet" | "link_farcaster" | "sign_tos";
+  task_type: TaskType;
   verification_method: string;
   reward_amount: number;
   order_index: number;
+  input_required?: boolean;
+  input_label?: string;
+  input_placeholder?: string;
+  input_validation?: InputValidationType;
+  requires_admin_review?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface UserQuestProgress {
@@ -82,12 +130,142 @@ export interface UserQuestProgress {
   updated_at: string;
 }
 
+export type SubmissionStatus = "pending" | "completed" | "failed" | "retry";
+
 export interface UserTaskCompletion {
   id: string;
   user_id: string;
   quest_id: string;
   task_id: string;
   verification_data: any;
+  submission_data?: any;
+  submission_status?: SubmissionStatus;
+  admin_feedback?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
   reward_claimed: boolean;
   completed_at: string;
-} 
+}
+
+export interface MilestoneTask {
+  id: string;
+  milestone_id: string;
+  title: string;
+  description?: string;
+  reward_amount: number;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskSubmission {
+  id: string;
+  task_id: string;
+  user_id: string;
+  submission_url: string;
+  status: "pending" | "completed" | "failed" | "retry";
+  submitted_at: string;
+  reviewed_at?: string;
+  reviewed_by?: string;
+  feedback?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProgramHighlight {
+  id: string;
+  cohort_id: string;
+  content: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProgramRequirement {
+  id: string;
+  cohort_id: string;
+  content: string;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserMilestoneProgress {
+  id: string;
+  user_profile_id: string;
+  milestone_id: string;
+  status: "not_started" | "in_progress" | "completed" | "expired";
+  tasks_completed: number;
+  total_tasks: number;
+  progress_percentage: number;
+  started_at?: string;
+  completed_at?: string;
+  reward_claimed: boolean;
+  reward_amount: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface UserTaskProgress {
+  id: string;
+  user_profile_id: string;
+  milestone_id: string;
+  task_id: string;
+  status: "not_started" | "in_progress" | "completed" | "failed" | "expired";
+  submission_id?: string;
+  completed_at?: string;
+  reward_claimed: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnhancedMilestoneTask extends MilestoneTask {
+  task_type: "file_upload" | "url_submission" | "contract_interaction" | "text_submission" | "external_verification";
+  submission_requirements?: any;
+  validation_criteria?: any;
+  requires_admin_review: boolean;
+}
+
+export interface EnhancedTaskSubmission extends TaskSubmission {
+  submission_data?: any;
+  submission_type: string;
+  file_urls?: string[];
+  submission_metadata?: any;
+}
+
+export interface BootcampWithCohorts {
+  id: string;
+  name: string;
+  description: string;
+  duration_weeks: number;
+  max_reward_dgt: number;
+  image_url?: string;
+  created_at: string;
+  updated_at: string;
+  cohorts: Array<Cohort & {
+    is_enrolled?: boolean;
+    user_enrollment_id?: string;
+  }>;
+}
+
+export interface Enrollment {
+  id: string;
+  user_profile_id: string;
+  cohort_id: string;
+  enrollment_status: "enrolled" | "completed" | "dropped" | "suspended";
+  progress: {
+    modules_completed: number;
+    total_modules: number;
+  };
+  completion_date?: string;
+  certificate_issued: boolean;
+  created_at: string;
+  updated_at: string;
+  cohort?: {
+    id: string;
+    name: string;
+    bootcamp_program_id: string;
+    start_date: string;
+    end_date: string;
+  };
+}
