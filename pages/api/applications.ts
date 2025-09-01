@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "../../lib/supabase";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getPrivyUser } from "@/lib/auth/privy";
+
+const supabase = createAdminClient();
 
 export default async function handler(
   req: NextApiRequest,
@@ -11,6 +14,29 @@ export default async function handler(
 
   try {
     const applicationData = req.body;
+
+    // Get authorization token
+    const privyUser = await getPrivyUser(req);
+    const privyUserId = privyUser?.id;
+    let userProfileId: string | null = null;
+
+    if (privyUserId) {
+      try {
+        // Get user profile
+        const { data: userProfile } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("privy_user_id", privyUserId)
+          .single();
+
+        userProfileId = userProfile?.id || null;
+      } catch (error) {
+        console.log(
+          "Auth token verification failed, proceeding without user link"
+        );
+      }
+    }
+    console.log("privyUserId", userProfileId);
 
     // Validate required fields
     const requiredFields = [
@@ -45,6 +71,7 @@ export default async function handler(
       payment_status: "pending",
       application_status: "draft",
       payment_method: applicationData.payment_method || "fiat",
+      user_profile_id: userProfileId, // Add direct relationship
     };
 
     const { data, error } = await supabase
@@ -60,9 +87,22 @@ export default async function handler(
       });
     }
 
+    // If we have a user profile ID, create the link
+    if (userProfileId && data?.id) {
+      await supabase.from("user_application_status").insert([
+        {
+          user_profile_id: userProfileId,
+          application_id: data.id,
+          status: "pending",
+        },
+      ]);
+    }
+
     res.status(201).json({
       success: true,
-      applicationId: data.id,
+      data: {
+        applicationId: data.id,
+      },
       message: "Application saved successfully",
     });
   } catch (error) {

@@ -26,7 +26,7 @@ export const BountiesPage = () => {
             Bounty System Coming Soon
           </h2>
           <p className="text-gray-400 mb-6">
-            We're developing a comprehensive bounty system where you can tackle
+            We&apos;re developing a comprehensive bounty system where you can tackle
             real-world challenges and earn significant DG token rewards.
           </p>
 

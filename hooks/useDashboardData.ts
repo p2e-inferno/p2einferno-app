@@ -1,16 +1,15 @@
 import { useState, useEffect } from "react";
-import { getAccessToken } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
+import { Application } from "@/lib/supabase";
 
 export interface UserProfile {
   id: string;
   privy_user_id: string;
-  username?: string;
   display_name: string;
   email: string;
   wallet_address: string;
   linked_wallets: string[];
-  avatar_url?: string;
   level: number;
   experience_points: number;
   status: string;
@@ -19,56 +18,45 @@ export interface UserProfile {
   updated_at: string;
 }
 
-export interface ApplicationStatus {
+export interface Enrollment {
   id: string;
-  status: "pending" | "completed" | "failed" | "expired";
-  payment_intent_id?: string;
-  payment_method?: string;
-  amount_paid?: number;
-  currency?: string;
-  completed_at?: string;
-  created_at: string;
-  applications: {
-    cohort_id: string;
-    user_name: string;
-    user_email: string;
-    experience_level: string;
-    created_at: string;
-  };
-}
-
-export interface BootcampEnrollment {
-  id: string;
+  user_profile_id: string;
   cohort_id: string;
-  enrollment_status: "enrolled" | "completed" | "dropped" | "suspended";
-  progress: any;
-  completion_date?: string;
-  certificate_issued: boolean;
+  enrollment_status: string;
+  progress: {
+    modules_completed: number;
+    total_modules: number;
+  };
+  cohort?: {
+    id: string;
+    name: string;
+  };
   created_at: string;
   updated_at: string;
 }
 
-export interface UserActivity {
+export interface Activity {
   id: string;
+  user_profile_id: string;
   activity_type: string;
   activity_data: any;
   points_earned: number;
   created_at: string;
 }
 
-export interface DashboardStats {
-  totalApplications: number;
-  completedBootcamps: number;
-  totalPoints: number;
-  pendingPayments: number;
-}
-
 export interface UserDashboardData {
   profile: UserProfile;
-  applications: ApplicationStatus[];
-  enrollments: BootcampEnrollment[];
-  recentActivities: UserActivity[];
-  stats: DashboardStats;
+  applications: Application[];
+  enrollments: Enrollment[];
+  recentActivities: Activity[];
+  stats: {
+    totalApplications: number;
+    completedBootcamps: number;
+    enrolledBootcamps: number; // Added for enrolled bootcamps
+    totalPoints: number;
+    pendingPayments: number;
+    questsCompleted: number; // Added for live stats
+  };
 }
 
 interface UseDashboardDataResult {
@@ -76,28 +64,42 @@ interface UseDashboardDataResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
 }
 
 export const useDashboardData = (): UseDashboardDataResult => {
   const [data, setData] = useState<UserDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { user, authenticated, ready, getAccessToken } = usePrivy();
 
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("No access token available");
+      if (!user) {
+        throw new Error("No user data available");
       }
+      const token = await getAccessToken();
 
-      const response = await fetch("/api/user/profile", {
+      // Use client-side user data directly
+      const userData = {
+        privyUserId: user.id,
+        email: user.email?.address,
+        walletAddress: user.wallet?.address,
+        linkedWallets:
+          user.linkedAccounts
+            ?.filter((acc) => acc.type === "wallet")
+            ?.map((w) => w.address) || [],
+      };
+
+      const response = await fetch("/api/user/profile-simple", {
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify(userData),
       });
 
       if (!response.ok) {
@@ -116,53 +118,19 @@ export const useDashboardData = (): UseDashboardDataResult => {
     }
   };
 
-  const updateProfile = async (updates: Partial<UserProfile>) => {
-    try {
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("No access token available");
-      }
-
-      const response = await fetch("/api/user/profile", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(updates),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to update profile");
-      }
-
-      const result = await response.json();
-
-      // Update local data
-      if (data) {
-        setData({
-          ...data,
-          profile: { ...data.profile, ...result.data },
-        });
-      }
-
-      toast.success("Profile updated successfully");
-    } catch (err: any) {
-      console.error("Profile update error:", err);
-      toast.error(err.message || "Failed to update profile");
-    }
-  };
-
   useEffect(() => {
-    fetchDashboardData();
-  }, []);
+    if (ready && authenticated && user) {
+      fetchDashboardData();
+    } else if (ready && !authenticated) {
+      setLoading(false);
+    }
+  }, [ready, authenticated, user]);
 
+  console.log(data);
   return {
     data,
     loading,
     error,
     refetch: fetchDashboardData,
-    updateProfile,
   };
 };

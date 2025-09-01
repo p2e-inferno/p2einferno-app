@@ -81,6 +81,7 @@ typings/
 .env.test
 .env.local
 
+
 # parcel-bundler cache (https://parceljs.org/)
 .cache
 
@@ -111,3 +112,15 @@ dist
 
 # TernJS port file
 .tern-port
+
+# Playwright MCP folder
+.playwright-mcp/
+
+# Environment backup files
+.env.local.remote.backup
+
+# Supabase local development files
+supabase/.branches/
+supabase/.temp/
+supabase/functions/.dist/
+supabase/functions/.env

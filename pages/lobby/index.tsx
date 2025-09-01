@@ -1,13 +1,9 @@
-import React, { useEffect } from "react";
+import React, { useState } from "react";
 import { useRouter } from "next/router";
-import { usePrivy } from "@privy-io/react-auth";
-import Head from "next/head";
 import { toast } from "react-hot-toast";
-import { BottomDock } from "../../components/dashboard/bottom-dock";
-import { useDashboardDataSimple } from "../../hooks/useDashboardDataSimple";
+import { usePrivy } from "@privy-io/react-auth";
+import { useDashboardData } from "../../hooks/useDashboardData";
 import {
-  LobbyBackground,
-  LobbyNavigation,
   WelcomeSection,
   StatsGrid,
   PendingApplicationsAlert,
@@ -16,6 +12,19 @@ import {
   LobbyLoadingState,
   LobbyErrorState,
 } from "../../components/lobby";
+import LobbyConfirmationModal from "../../components/lobby/LobbyConfirmationModal";
+import { LobbyLayout } from "../../components/layouts/lobby-layout";
+import { Application } from "@/lib/supabase";
+
+// Add interface to match component requirements
+interface PendingApplication {
+  id: string;
+  application_id: string; // Add this field for the actual application ID
+  status: string;
+  created_at: string;
+  applications: Application;
+  needsReconciliation?: boolean; // Flag for data inconsistencies
+}
 
 /**
  * Infernal Lobby - Main dashboard for authenticated users
@@ -24,83 +33,151 @@ import {
  */
 export default function LobbyPage() {
   const router = useRouter();
-  const { ready, authenticated } = usePrivy();
-  const {
-    data: dashboardData,
-    loading,
-    error,
-    refetch,
-  } = useDashboardDataSimple();
+  const { getAccessToken, authenticated, ready } = usePrivy();
+  const { data: dashboardData, loading, error, refetch } = useDashboardData();
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [enrollmentToRemove, setEnrollmentToRemove] = useState<string | null>(null);
+  const [isRemoving, setIsRemoving] = useState(false);
 
-  useEffect(() => {
-    if (ready && !authenticated) {
-      router.push("/");
+  const handleCompletePayment = async (applicationId: string) => {
+    try {
+      toast.loading("Redirecting to payment portal...");
+
+      // Navigate to the payment page with the application ID
+      await router.push(`/payment/${applicationId}`);
+
+      toast.dismiss();
+    } catch (error) {
+      console.error("Failed to redirect to payment:", error);
+      toast.error("Failed to redirect to payment page");
     }
-  }, [ready, authenticated, router]);
-
-  const handleCompletePayment = async (_applicationId: string) => {
-    toast.success("Redirecting to payment portal...");
-    // TODO: Implement payment completion flow
   };
 
-  if (!ready || !authenticated) {
-    return null;
+  const handleRemoveJourney = (enrollmentId: string) => {
+    setEnrollmentToRemove(enrollmentId);
+    setShowRemoveModal(true);
+  };
+
+  const confirmRemoveJourney = async () => {
+    if (!enrollmentToRemove) return;
+
+    try {
+      setIsRemoving(true);
+
+      const token = await getAccessToken();
+      const response = await fetch(`/api/user/enrollment/${enrollmentToRemove}/remove`, {
+        method: "DELETE",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || "Failed to remove journey");
+      }
+
+      toast.success("Journey removed from lobby");
+      
+      // Refresh the dashboard data to update the UI
+      await refetch();
+      
+      // Close modal and reset state
+      setShowRemoveModal(false);
+      setEnrollmentToRemove(null);
+      
+    } catch (error: any) {
+      console.error("Failed to remove journey:", error);
+      toast.error(error.message || "Failed to remove journey");
+    } finally {
+      setIsRemoving(false);
+    }
+  };
+
+  const handleCloseRemoveModal = () => {
+    setShowRemoveModal(false);
+    setEnrollmentToRemove(null);
+  };
+
+  // Only show loading/error states if user is authenticated
+  // If not authenticated, let LobbyLayout handle the wallet connection screen
+  if (ready && authenticated) {
+    if (loading) {
+      return <LobbyLoadingState />;
+    }
+
+    if (error || !dashboardData) {
+      return <LobbyErrorState onRetry={refetch} />;
+    }
   }
 
-  if (loading) {
-    return <LobbyLoadingState />;
-  }
-
-  if (error || !dashboardData) {
-    return <LobbyErrorState onRetry={refetch} />;
+  // If user is not authenticated or data not loaded, render LobbyLayout which will show wallet connection
+  if (!ready || !authenticated || !dashboardData) {
+    return <LobbyLayout><div /></LobbyLayout>;
   }
 
   const { profile, applications, enrollments, stats } = dashboardData;
-  const pendingApplications = applications.filter(
-    (app) => app.status === "pending"
-  );
+  // Convert applications to the expected PendingApplication format
+  // Include applications that need attention (pending payment OR data inconsistencies)
+  const pendingApplications: PendingApplication[] = (applications as any[])
+    .filter((app: any) => {
+      const paymentStatus = app.applications?.payment_status;
+      const userAppStatus = app.status; // user_application_status.status
+
+      // Show if payment is pending OR there's a status mismatch
+      return (
+        paymentStatus === "pending" ||
+        (paymentStatus === "completed" && userAppStatus === "pending")
+      );
+    })
+    .map((app: any) => {
+      const paymentStatus = app.applications?.payment_status;
+      const userAppStatus = app.status;
+      const needsReconciliation = paymentStatus !== userAppStatus;
+
+      return {
+        id: app.id, // user_application_status ID
+        application_id: app.application_id, // actual application ID for API calls
+        status: paymentStatus || "pending",
+        created_at: app.created_at,
+        applications: app.applications,
+        needsReconciliation,
+      };
+    });
 
   return (
-    <>
-      <Head>
-        <title>Infernal Lobby - P2E Inferno</title>
-        <meta
-          name="description"
-          content="Your gateway to the P2E Inferno metaverse"
-        />
-      </Head>
-
-      <div
-        className="min-h-screen text-white overflow-x-hidden"
-        style={{ backgroundColor: "#100F29" }}
-      >
-        <LobbyBackground />
-        <LobbyNavigation />
-
-        {/* Main Content */}
-        <main className="relative z-10 px-4 lg:px-8 pb-32">
-          <div className="max-w-6xl mx-auto">
-            {/* Welcome Section */}
-            <div className="mb-8">
-              <WelcomeSection profile={profile} />
-              <StatsGrid stats={stats} />
-            </div>
-
-            {pendingApplications.length > 0 && (
-              <PendingApplicationsAlert
-                pendingApplications={pendingApplications}
-                onCompletePayment={handleCompletePayment}
-              />
-            )}
-
-            <QuickActionsGrid />
-
-            <CurrentEnrollments enrollments={enrollments} />
-          </div>
-        </main>
-
-        <BottomDock />
+    <LobbyLayout>
+      {/* Welcome Section */}
+      <div className="mb-8">
+        <WelcomeSection profile={profile} />
+        <StatsGrid stats={stats} />
       </div>
-    </>
+
+      {pendingApplications.length > 0 && (
+        <PendingApplicationsAlert
+          pendingApplications={pendingApplications}
+          onCompletePayment={handleCompletePayment}
+          onRefresh={refetch}
+        />
+      )}
+
+      <QuickActionsGrid />
+
+      <CurrentEnrollments enrollments={enrollments} onRemoveJourney={handleRemoveJourney} />
+      
+      <LobbyConfirmationModal
+        isOpen={showRemoveModal}
+        onClose={handleCloseRemoveModal}
+        onConfirm={confirmRemoveJourney}
+        title="Remove Journey"
+        description="Are you sure you want to remove this journey from your lobby? This action will hide it from your dashboard but won't affect your actual enrollment status."
+        confirmText="Remove Journey"
+        cancelText="Keep Journey"
+        variant="danger"
+        isLoading={isRemoving}
+      />
+    </LobbyLayout>
   );
 }

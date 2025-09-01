@@ -30,19 +30,27 @@ export const fetchAndVerifyAuthorization = async (
   }
 };
 
+// Initialize PrivyClient at module level like working /api/verify.ts
+const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+const PRIVY_APP_SECRET = process.env.NEXT_PRIVY_APP_SECRET;
+
+// Create the client once at module initialization like working verify endpoint
+let modulePrivyClient: PrivyClient | null = null;
+try {
+  if (PRIVY_APP_ID && PRIVY_APP_SECRET) {
+    modulePrivyClient = new PrivyClient(PRIVY_APP_ID, PRIVY_APP_SECRET);
+    console.log('[PRIVY_MODULE] PrivyClient initialized successfully at module level');
+  } else {
+    console.warn('[PRIVY_MODULE] Missing Privy credentials - client not initialized');
+  }
+} catch (error) {
+  console.error('[PRIVY_MODULE] Failed to initialize PrivyClient at module level:', error);
+  modulePrivyClient = null;
+}
+
 export const createPrivyClient = () => {
-  const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
-  const appSecret = process.env.NEXT_PRIVY_APP_SECRET;
-
-  if (!appId) {
-    throw new Error(
-      "NEXT_PUBLIC_PRIVY_APP_ID environment variable is required"
-    );
+  if (!modulePrivyClient) {
+    throw new Error("PrivyClient not properly initialized. Check environment variables.");
   }
-
-  if (!appSecret) {
-    throw new Error("PRIVY_APP_SECRET environment variable is required");
-  }
-
-  return new PrivyClient(appId, appSecret);
+  return modulePrivyClient;
 };

@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { createAdminClient } from "../../../lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/server";
 
 export default async function handler(
   req: NextApiRequest,
@@ -33,6 +33,11 @@ export default async function handler(
           verification_method,
           reward_amount,
           order_index,
+          input_required,
+          input_label,
+          input_placeholder,
+          input_validation,
+          requires_admin_review,
           created_at
         )
       `

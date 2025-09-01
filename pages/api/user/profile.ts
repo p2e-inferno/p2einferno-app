@@ -1,8 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "../../../lib/supabase";
-import { createPrivyClient } from "../../../lib/privyUtils";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getPrivyUser } from "@/lib/auth/privy";
 
-const client = createPrivyClient();
+// Use admin client (service role) to bypass RLS for profile CRUD
+const supabase = createAdminClient();
 
 interface UserProfile {
   id: string;
@@ -31,6 +32,7 @@ interface UserDashboardData {
     completedBootcamps: number;
     totalPoints: number;
     pendingPayments: number;
+    questsCompleted: number;
   };
 }
 
@@ -38,26 +40,37 @@ async function createOrUpdateUserProfile(
   privyUserId: string,
   userData: any
 ): Promise<UserProfile> {
+  // Extract data from multiple possible sources
+  const email = userData.email?.address || userData.email || null;
+  const walletAddress = userData.wallet?.address || userData.walletAddress || null;
+  const linkedWallets = userData.linkedWallets || 
+    (userData.linkedAccounts
+      ?.filter((acc: any) => acc.type === "wallet")
+      ?.map((w: any) => w.address)) || [];
+  
   const profileData = {
     privy_user_id: privyUserId,
-    email: userData.email?.address || null,
-    wallet_address: userData.wallet?.address || null,
-    linked_wallets:
-      userData.linkedAccounts
-        ?.filter((acc: any) => acc.type === "wallet")
-        .map((w: any) => w.address) || [],
+    email: email,
+    wallet_address: walletAddress,
+    linked_wallets: linkedWallets,
     display_name:
-      userData.email?.address?.split("@")[0] ||
-      (userData.wallet?.address
-        ? `Wallet${userData.wallet.address.slice(-6)}`
+      email?.split("@")[0] ||
+      (walletAddress
+        ? `Wallet${walletAddress.slice(-6)}`
         : `Infernal${privyUserId.slice(-6)}`),
   };
 
-  const { data: existingProfile } = await supabase
+  const { data: existingProfile, error: profileError } = await supabase
     .from("user_profiles")
     .select("*")
     .eq("privy_user_id", privyUserId)
     .single();
+
+  if (profileError && profileError.code !== 'PGRST116') {
+    // PGRST116 is "not found", which is expected for new users
+    console.error("Error checking existing profile:", profileError);
+    throw new Error(`Database error: ${profileError.message}`);
+  }
 
   if (existingProfile) {
     // Update existing profile
@@ -68,7 +81,10 @@ async function createOrUpdateUserProfile(
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error updating profile:", error);
+      throw new Error(`Failed to update profile: ${error.message}`);
+    }
     return data;
   } else {
     // Create new profile
@@ -78,17 +94,25 @@ async function createOrUpdateUserProfile(
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      console.error("Error creating profile:", error);
+      throw new Error(`Failed to create profile: ${error.message}`);
+    }
 
-    // Log user registration activity
-    await supabase.from("user_activities").insert([
-      {
-        user_profile_id: data.id,
-        activity_type: "user_registered",
-        points_earned: 100, // Welcome bonus
-        activity_data: { welcome_bonus: true },
-      },
-    ]);
+    // Log user registration activity (non-blocking)
+    try {
+      await supabase.from("user_activities").insert([
+        {
+          user_profile_id: data.id,
+          activity_type: "user_registered",
+          points_earned: 100, // Welcome bonus
+          activity_data: { welcome_bonus: true },
+        },
+      ]);
+    } catch (activityError) {
+      console.error("Error logging registration activity:", activityError);
+      // Don't fail the entire operation for logging errors
+    }
 
     return data;
   }
@@ -104,10 +128,13 @@ async function getUserDashboardData(
     .eq("id", userProfileId)
     .single();
 
-  if (profileError) throw profileError;
+  if (profileError) {
+    console.error("Error fetching user profile:", profileError);
+    throw new Error(`Failed to fetch profile: ${profileError.message}`);
+  }
 
-  // Get user applications with status
-  const { data: applications } = await supabase
+  // Get user applications with status (non-blocking)
+  const { data: applications, error: applicationsError } = await supabase
     .from("user_application_status")
     .select(
       `
@@ -117,37 +144,66 @@ async function getUserDashboardData(
         user_name,
         user_email,
         experience_level,
+        payment_status,
+        application_status,
         created_at
       )
     `
     )
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
+  
+  if (applicationsError) {
+    console.error("Error fetching applications:", applicationsError);
+  }
 
-  // Get bootcamp enrollments
-  const { data: enrollments } = await supabase
+  // Get bootcamp enrollments (non-blocking)
+  const { data: enrollments, error: enrollmentsError } = await supabase
     .from("bootcamp_enrollments")
     .select("*")
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
+  
+  if (enrollmentsError) {
+    console.error("Error fetching enrollments:", enrollmentsError);
+  }
 
-  // Get recent activities
-  const { data: recentActivities } = await supabase
+  // Get recent activities (non-blocking)
+  const { data: recentActivities, error: activitiesError } = await supabase
     .from("user_activities")
     .select("*")
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false })
     .limit(10);
+  
+  if (activitiesError) {
+    console.error("Error fetching activities:", activitiesError);
+  }
+
+  // Get quest completion statistics (non-blocking)
+  const { data: questProgress, error: questError } = await supabase
+    .from("user_quest_progress")
+    .select("*")
+    .eq("user_id", profile.privy_user_id)
+    .eq("is_completed", true);
+  
+  if (questError) {
+    console.error("Error fetching quest progress:", questError);
+  }
 
   // Calculate stats
   const stats = {
     totalApplications: applications?.length || 0,
     completedBootcamps:
-      enrollments?.filter((e) => e.enrollment_status === "completed").length ||
-      0,
+      enrollments?.filter((_e: any) => _e.enrollment_status === "completed")
+        .length || 0,
     totalPoints: profile.experience_points || 0,
     pendingPayments:
-      applications?.filter((a) => a.status === "pending").length || 0,
+      applications?.filter((_a: any) => {
+        const application = Array.isArray(_a.applications) ? _a.applications[0] : _a.applications;
+        return application?.payment_status === "pending";
+      }).length || 0,
+    questsCompleted: questProgress?.length || 0,
   };
 
   return {
@@ -164,27 +220,23 @@ export default async function handler(
   res: NextApiResponse
 ) {
   try {
-    // Get authorization token from request
-    const authToken = req.headers.authorization?.replace("Bearer ", "");
-    if (!authToken) {
-      return res.status(401).json({ error: "Authorization token required" });
-    }
-
-    // Verify the token with Privy
-    const verifiedClaims = await client.verifyAuthToken(authToken);
-    const privyUserId = verifiedClaims.userId;
+    // Get Privy user from request
+    const privyUser = await getPrivyUser(req);
+    const privyUserId = privyUser?.id;
 
     if (!privyUserId) {
       return res
         .status(401)
-        .json({ error: "Invalid user token - no user ID found" });
+        .json({ error: "Invalid user token and no privyUserId provided" });
     }
 
-    if (req.method === "GET") {
-      // Get or create user profile
+    if (req.method === "GET" || req.method === "POST") {
+      // Choose the richest source of user data we have
+      const userDataForProfile = privyUser || req.body;
+
       const profile = await createOrUpdateUserProfile(
         privyUserId,
-        verifiedClaims
+        userDataForProfile
       );
 
       // Get dashboard data

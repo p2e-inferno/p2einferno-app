@@ -30,10 +30,6 @@ function MyApp({ Component, pageProps }: AppProps) {
           content="Engage with the onchain economy through a gamified experience. Join our bootcamp to master Web3."
         />
         <link rel="icon" href="/favicon.ico" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Chakra+Petch:wght@700&display=swap"
-          rel="stylesheet"
-        />
       </Head>
       <DynamicClientSideWrapper>
         <Toaster
