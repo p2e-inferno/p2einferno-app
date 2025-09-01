@@ -59,7 +59,7 @@ export default function CohortsTable({
       key: "name",
       label: "Cohort Name",
       mobilePriority: "high" as const,
-      render: (value: string, row: Cohort) => (
+      render: (value: string) => (
         <div className="font-medium text-white">{value}</div>
       ),
     },

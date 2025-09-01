@@ -3,7 +3,6 @@ import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
-import { supabase } from "@/lib/supabase/client";
 import { Pencil, Eye, Trash2, Coins, CheckCircle2, Users } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
