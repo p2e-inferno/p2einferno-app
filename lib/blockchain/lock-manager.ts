@@ -174,7 +174,7 @@ export class LockManagerService {
         ...cacheOptions,
       })) as boolean;
 
-      if (!hasValidKey) {
+      if (hasValidKey === false) {
         blockchainLogger.logKeyCheck(lockAddress, userAddress, false);
         return null;
       }
@@ -198,7 +198,7 @@ export class LockManagerService {
           ...cacheOptions,
         })) as bigint;
 
-        blockchainLogger.logKeyCheck(lockAddress, userAddress, !hasValidKey);
+        blockchainLogger.logKeyCheck(lockAddress, userAddress, hasValidKey);
         
         return {
           tokenId,
