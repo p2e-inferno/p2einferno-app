@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { supabase } from "@/lib/supabase/client";
 import { Pencil, Eye, Trash2, Coins, CheckCircle2, Users } from "lucide-react";
 import Link from "next/link";
@@ -21,6 +22,16 @@ interface QuestWithStats extends Quest {
 export default function AdminQuestsPage() {
   const [quests, setQuests] = useState<QuestWithStats[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmation, setDeleteConfirmation] = useState<{
+    isOpen: boolean;
+    questId: string;
+    questTitle: string;
+  }>({
+    isOpen: false,
+    questId: "",
+    questTitle: "",
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
   const { adminFetch, loading } = useAdminApi();
 
   const fetchQuests = useCallback(async () => {
@@ -50,12 +61,15 @@ export default function AdminQuestsPage() {
 
   const toggleQuestStatus = async (quest: Quest) => {
     try {
-      const { error } = await supabase
-        .from("quests")
-        .update({ is_active: !quest.is_active })
-        .eq("id", quest.id);
+      setError(null);
+      const result = await adminFetch(`/api/admin/quests/${quest.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ is_active: !quest.is_active }),
+      });
 
-      if (error) throw error;
+      if (result.error) {
+        throw new Error(result.error);
+      }
 
       // Refresh quests
       fetchQuests();
@@ -65,24 +79,42 @@ export default function AdminQuestsPage() {
     }
   };
 
-  const deleteQuest = async (questId: string) => {
-    if (!window.confirm("Are you sure you want to delete this quest? This action cannot be undone.")) {
-      return;
-    }
+  const openDeleteConfirmation = (quest: Quest) => {
+    setDeleteConfirmation({
+      isOpen: true,
+      questId: quest.id,
+      questTitle: quest.title,
+    });
+  };
 
+  const closeDeleteConfirmation = () => {
+    setDeleteConfirmation({
+      isOpen: false,
+      questId: "",
+      questTitle: "",
+    });
+    setIsDeleting(false);
+  };
+
+  const handleDeleteConfirm = async () => {
     try {
-      const { error } = await supabase
-        .from("quests")
-        .delete()
-        .eq("id", questId);
+      setIsDeleting(true);
+      setError(null);
+      const result = await adminFetch(`/api/admin/quests/${deleteConfirmation.questId}`, {
+        method: 'DELETE',
+      });
 
-      if (error) throw error;
+      if (result.error) {
+        throw new Error(result.error);
+      }
 
       // Refresh quests
-      fetchQuests();
+      await fetchQuests();
+      closeDeleteConfirmation();
     } catch (err: any) {
       console.error("Error deleting quest:", err);
       setError(err.message || "Failed to delete quest");
+      setIsDeleting(false);
     }
   };
 
@@ -248,7 +280,7 @@ export default function AdminQuestsPage() {
                   size="sm"
                   variant="outline"
                   className="border-gray-700 hover:border-red-500 hover:text-red-500 w-full justify-center"
-                  onClick={() => deleteQuest(quest.id)}
+                  onClick={() => openDeleteConfirmation(quest)}
                 >
                   <Trash2 className="h-3 w-3" />
                 </Button>
@@ -375,7 +407,7 @@ export default function AdminQuestsPage() {
                   size="sm"
                   variant="outline"
                   className="border-gray-700 hover:border-red-500 hover:text-red-500"
-                  onClick={() => deleteQuest(quest.id)}
+                  onClick={() => openDeleteConfirmation(quest)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -384,6 +416,19 @@ export default function AdminQuestsPage() {
           </div>
         ))}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmationDialog
+        isOpen={deleteConfirmation.isOpen}
+        onClose={closeDeleteConfirmation}
+        onConfirm={handleDeleteConfirm}
+        title="Delete Quest"
+        description={`Are you sure you want to delete "${deleteConfirmation.questTitle}"? This action cannot be undone and will permanently remove the quest and all associated data.`}
+        confirmText="Delete Quest"
+        cancelText="Cancel"
+        variant="danger"
+        isLoading={isDeleting}
+      />
     </AdminListPageLayout>
   );
 }

@@ -21,6 +21,8 @@ async function handler(
         return await getQuest(req, res, supabase, id);
       case "PUT":
         return await updateQuest(req, res, supabase, id);
+      case "PATCH":
+        return await patchQuest(req, res, supabase, id);
       case "DELETE":
         return await deleteQuest(req, res, supabase, id);
       default:
@@ -195,6 +197,44 @@ async function updateQuest(
     });
   } catch (error: any) {
     console.error("Error updating quest:", error);
+    return res.status(500).json({ error: "Failed to update quest" });
+  }
+}
+
+async function patchQuest(
+  req: NextApiRequest,
+  res: NextApiResponse,
+  supabase: any,
+  questId: string
+) {
+  const updates = req.body;
+
+  if (!updates || typeof updates !== 'object') {
+    return res.status(400).json({ error: "Update data is required" });
+  }
+
+  try {
+    const now = new Date().toISOString();
+
+    // Update quest with only the provided fields
+    const { data: questData, error: questError } = await supabase
+      .from("quests")
+      .update({
+        ...updates,
+        updated_at: now,
+      })
+      .eq("id", questId)
+      .select()
+      .single();
+
+    if (questError) throw questError;
+
+    return res.status(200).json({
+      success: true,
+      data: questData,
+    });
+  } catch (error: any) {
+    console.error("Error patching quest:", error);
     return res.status(500).json({ error: "Failed to update quest" });
   }
 }
