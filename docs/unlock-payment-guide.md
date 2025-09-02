@@ -29,7 +29,8 @@ The app uses Privy for wallet management and authentication:
 ```typescript
 // src/components/PrivyProvider.tsx
 <Privy
-  appId={appId}
+  appId={privyAppId}
+  clientId={privyClientId}
   config={{
     loginMethods: ['email', 'wallet', 'sms'],
     defaultChain: {
