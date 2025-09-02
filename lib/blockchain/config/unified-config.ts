@@ -62,9 +62,9 @@ const validateEnvironment = (): {
  * Create properly configured RPC URL with Alchemy API key
  */
 const createAlchemyRpcUrl = (baseUrl: string): string => {
-  const apiKey = process.env.NEXT_ALCHEMY_API_KEY;
+  const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
   if (!apiKey) {
-    console.warn("NEXT_ALCHEMY_API_KEY not configured, using fallback RPC");
+    console.warn("NEXT_PUBLIC_ALCHEMY_API_KEY not configured, using fallback RPC");
     // Fallback to free RPC endpoints
     return baseUrl.includes('mainnet') ? "https://mainnet.base.org" : "https://sepolia.base.org";
   }

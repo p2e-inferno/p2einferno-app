@@ -117,7 +117,7 @@ export const validateAuthConfiguration = (): AuthConfigValidation => {
     }
 
     // Validate blockchain configuration
-    const blockchainVars = ['LOCK_MANAGER_PRIVATE_KEY', 'NEXT_ALCHEMY_API_KEY'];
+    const blockchainVars = ['LOCK_MANAGER_PRIVATE_KEY', 'NEXT_PUBLIC_ALCHEMY_API_KEY'];
     const missingBlockchain = blockchainVars.filter(key => !process.env[key]);
     
     if (missingBlockchain.length > 0) {
@@ -181,6 +181,6 @@ export const checkAuthFeatureAvailability = () => {
     jwtFallback: !!process.env.PRIVY_VERIFICATION_KEY,
     adminAuth: !!process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS,
     blockchainOps: !!process.env.LOCK_MANAGER_PRIVATE_KEY,
-    enhancedRpc: !!process.env.NEXT_ALCHEMY_API_KEY
+    enhancedRpc: !!process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
   };
 };

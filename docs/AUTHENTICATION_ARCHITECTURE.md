@@ -54,7 +54,7 @@ export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
 ```typescript
 // Server: Environment-based for flexibility + security
 const privateKey = process.env.LOCK_MANAGER_PRIVATE_KEY; // Server-only
-const apiKey = process.env.NEXT_ALCHEMY_API_KEY; // Server-only optimization
+const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY; // Server-only optimization
 const rpcUrl = `${process.env.BASE_SEPOLIA_RPC_URL}${apiKey}`;
 ```
 

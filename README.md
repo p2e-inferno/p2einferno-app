@@ -57,7 +57,7 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
 NEXT_PUBLIC_BLOCKCHAIN_NETWORK=base-sepolia
 NEXT_PUBLIC_ADMIN_LOCK_ADDRESS=0x...
 LOCK_MANAGER_PRIVATE_KEY=0x...
-NEXT_ALCHEMY_API_KEY=your_alchemy_api_key
+NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key
 BASE_MAINNET_RPC_URL=https://base-mainnet.g.alchemy.com/v2/
 BASE_SEPOLIA_RPC_URL=https://base-sepolia.g.alchemy.com/v2/
 
