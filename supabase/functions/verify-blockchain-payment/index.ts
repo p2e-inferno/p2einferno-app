@@ -7,8 +7,8 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Define RPC URLs for supported networks
 const RPC_URLS: Record<number, string> = {
-  8453: Deno.env.get('BASE_MAINNET_RPC_URL')!,
-  84532: Deno.env.get('BASE_SEPOLIA_RPC_URL')!,
+  8453: Deno.env.get('NEXT_PUBLIC_BASE_MAINNET_RPC_URL')!,
+  84532: Deno.env.get('NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL')!,
 };
 
 Deno.serve(async (req) => {

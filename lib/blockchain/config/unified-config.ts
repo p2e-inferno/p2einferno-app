@@ -81,7 +81,7 @@ const resolveChain = () => {
     case "mainnet":
       return {
         chain: base,
-        rpcUrl: createAlchemyRpcUrl(process.env.BASE_MAINNET_RPC_URL || "https://base-mainnet.g.alchemy.com/v2/"),
+        rpcUrl: createAlchemyRpcUrl(process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL || "https://base-mainnet.g.alchemy.com/v2/"),
         usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET,
         networkName: "Base Mainnet",
       } as const;
@@ -89,7 +89,7 @@ const resolveChain = () => {
     default:
       return {
         chain: baseSepolia,
-        rpcUrl: createAlchemyRpcUrl(process.env.BASE_SEPOLIA_RPC_URL || "https://base-sepolia.g.alchemy.com/v2/"),
+        rpcUrl: createAlchemyRpcUrl(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || "https://base-sepolia.g.alchemy.com/v2/"),
         usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA,
         networkName: "Base Sepolia",
       } as const;

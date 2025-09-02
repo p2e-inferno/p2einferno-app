@@ -130,8 +130,8 @@ This application implements a sophisticated **three-layer authentication system*
 - `NEXT_PUBLIC_ADMIN_LOCK_ADDRESS` - Admin access control contract address
 - `LOCK_MANAGER_PRIVATE_KEY` - Private key for blockchain operations (server-only)
 - `NEXT_PUBLIC_ALCHEMY_API_KEY` - Alchemy RPC API key (server-only)
-- `BASE_MAINNET_RPC_URL` - Base mainnet RPC endpoint
-- `BASE_SEPOLIA_RPC_URL` - Base sepolia testnet RPC endpoint
+- `NEXT_PUBLIC_BASE_MAINNET_RPC_URL` - Base mainnet RPC endpoint
+- `NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL` - Base sepolia testnet RPC endpoint
 
 **Development Configuration**:
 - `DEV_ADMIN_ADDRESSES` - Comma-separated admin addresses for local development

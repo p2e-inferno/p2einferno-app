@@ -55,7 +55,7 @@ export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
 // Server: Environment-based for flexibility + security
 const privateKey = process.env.LOCK_MANAGER_PRIVATE_KEY; // Server-only
 const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY; // Server-only optimization
-const rpcUrl = `${process.env.BASE_SEPOLIA_RPC_URL}${apiKey}`;
+const rpcUrl = `${process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL}${apiKey}`;
 ```
 
 ### 3. Smart Contract Authentication Layer
@@ -77,8 +77,8 @@ const rpcUrl = `${process.env.BASE_SEPOLIA_RPC_URL}${apiKey}`;
 ```typescript
 // Edge functions: Deno-style environment access
 const RPC_URLS: Record<number, string> = {
-  8453: Deno.env.get('BASE_MAINNET_RPC_URL')!, // Deno-specific
-  84532: Deno.env.get('BASE_SEPOLIA_RPC_URL')!,
+  8453: Deno.env.get('NEXT_PUBLIC_BASE_MAINNET_RPC_URL')!, // Deno-specific
+  84532: Deno.env.get('NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL')!,
 };
 ```
 
@@ -121,7 +121,7 @@ process.env.LOCK_MANAGER_PRIVATE_KEY // Server only
 process.env.ALCHEMY_API_KEY // Server only
 
 // ✅ EDGE FUNCTIONS: Deno environment
-Deno.env.get('BASE_MAINNET_RPC_URL') // Edge function only
+Deno.env.get('NEXT_PUBLIC_BASE_MAINNET_RPC_URL') // Edge function only
 ```
 
 ### JWT Fallback Mechanism
