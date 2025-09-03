@@ -2,6 +2,9 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('api:task-submissions');
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -43,7 +46,7 @@ async function getSubmissions(req: NextApiRequest, res: NextApiResponse) {
     const { data, error } = await query;
 
     if (error) {
-      console.error("Error fetching submissions:", error);
+      log.error("Error fetching submissions", { error });
       return res.status(500).json({ error: "Failed to fetch submissions" });
     }
 
@@ -52,7 +55,7 @@ async function getSubmissions(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in getSubmissions:", error);
+    log.error("Error in getSubmissions", { error });
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -97,7 +100,7 @@ async function updateSubmission(req: NextApiRequest, res: NextApiResponse) {
       .single();
 
     if (error) {
-      console.error("Error updating submission:", error);
+      log.error("Error updating submission", { error });
       return res.status(500).json({ error: "Failed to update submission" });
     }
 
@@ -106,7 +109,7 @@ async function updateSubmission(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in updateSubmission:", error);
+    log.error("Error in updateSubmission", { error });
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -160,7 +163,7 @@ async function createSubmission(req: NextApiRequest, res: NextApiResponse) {
       .single();
 
     if (error) {
-      console.error("Error creating submission:", error);
+      log.error("Error creating submission", { error });
       return res.status(500).json({ error: "Failed to create submission" });
     }
 
@@ -169,7 +172,7 @@ async function createSubmission(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in createSubmission:", error);
+    log.error("Error in createSubmission", { error });
     return res.status(500).json({ error: "Internal server error" });
   }
 }

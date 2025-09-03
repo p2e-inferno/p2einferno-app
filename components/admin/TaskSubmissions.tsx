@@ -8,6 +8,7 @@ import { ExternalLink, Calendar, User, MessageSquare, CheckCircle, XCircle, Rota
 import type { MilestoneTask } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePrivy } from "@privy-io/react-auth";
+import { NetworkError } from "@/components/ui/network-error";
 
 interface TaskSubmissionsProps {
   taskId: string;
@@ -34,13 +35,14 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
   const [submissions, setSubmissions] = useState<SubmissionWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [gradingStates, setGradingStates] = useState<Record<string, {
     status: string;
     feedback: string;
     isSubmitting: boolean;
   }>>({});
   const { getAccessToken, user } = usePrivy();
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   useEffect(() => {
     fetchSubmissions();
@@ -75,6 +77,15 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
       setError(err.message || "Failed to fetch submissions");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchSubmissions();
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -193,11 +204,7 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
   }
 
   if (error) {
-    return (
-      <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-        Error: {error}
-      </div>
-    );
+    return <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />;
   }
 
   return (

@@ -2,6 +2,9 @@ import { NextApiRequest } from "next";
 import { PrivyClient } from "@privy-io/server-auth";
 import * as jose from "jose";
 import { handleAuthError, handleJwtError, isNetworkError } from "./error-handler";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('auth:privy');
 
 // Initialize Privy client with app ID and secret
 const getPrivyClient = () => {
@@ -41,7 +44,7 @@ export async function getUserWalletAddresses(
 
     return walletAddresses;
   } catch (error) {
-    console.error("Error fetching user wallet addresses:", error);
+    log.error("Error fetching user wallet addresses", { error });
     return [];
   }
 }
@@ -85,7 +88,7 @@ export async function getPrivyUser(
         timeoutPromise
       ]);
     } catch (error: any) {
-      console.error('[PRIVY_AUTH] Raw error from verifyAuthToken:', error);
+      log.error('[PRIVY_AUTH] Raw error from verifyAuthToken', { error });
       const authError = handleAuthError(error, 'privy_token_verification', { 
         hasToken: !!token,
         errorType: error?.constructor?.name,
@@ -94,7 +97,7 @@ export async function getPrivyUser(
       
       // Check if this is a network/API error vs actual auth failure
       if (isNetworkError(error)) {
-        console.warn(`[PRIVY_AUTH] API unavailable, attempting JWT fallback verification`);
+        log.warn(`[PRIVY_AUTH] API unavailable, attempting JWT fallback verification`);
         
         try {
           // Fallback: Local JWT verification using jose
@@ -123,14 +126,14 @@ export async function getPrivyUser(
             ...payload
           };
           
-          console.log(`[PRIVY_AUTH] JWT fallback verification successful for user ${claims.userId}`);
+          log.info(`[PRIVY_AUTH] JWT fallback verification successful for user ${claims.userId}`);
         } catch (localVerifyError) {
           handleJwtError(localVerifyError, { fallbackAttempt: true, originalError: authError.code });
           return null;
         }
       } else {
         // Actual auth failure, not network issue
-        console.log(`[PRIVY_AUTH] Token verification failed: ${authError.code}`);
+        log.info(`[PRIVY_AUTH] Token verification failed: ${authError.code}`);
         return null;
       }
     }
@@ -161,7 +164,7 @@ export async function getPrivyUser(
     // The claims include userId (Privy DID). Return minimal user object
     return baseUser;
   } catch (error) {
-    console.error("Error verifying Privy token:", error);
+    log.error("Error verifying Privy token", { error });
     return null;
   }
 }
@@ -200,7 +203,7 @@ export async function getPrivyUserFromCookies(cookies: any) {
       sessionId: claims.sessionId,
     };
   } catch (error) {
-    console.error("Error verifying Privy token from cookies:", error);
+    log.error("Error verifying Privy token from cookies", { error });
     return null;
   }
 }

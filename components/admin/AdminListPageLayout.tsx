@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import AdminLayout from "@/components/layouts/AdminLayout";
+import { NetworkError } from "@/components/ui/network-error";
 
 interface AdminListPageLayoutProps {
   title: string;
@@ -10,6 +11,8 @@ interface AdminListPageLayoutProps {
   newButtonLink: string;
   isLoading: boolean;
   error?: string | null;
+  onRetry?: () => void;
+  isRetrying?: boolean;
   isEmpty: boolean;
   emptyStateTitle: string;
   emptyStateMessage: string;
@@ -22,6 +25,8 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
   newButtonLink,
   isLoading,
   error,
+  onRetry,
+  isRetrying = false,
   isEmpty,
   emptyStateTitle,
   emptyStateMessage,
@@ -51,9 +56,7 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
         <div className="space-y-6">
           {/* Error State */}
           {error && (
-            <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-              <p className="text-red-300">{error}</p>
-            </div>
+            <NetworkError error={error} onRetry={onRetry} isRetrying={isRetrying} />
           )}
 
           {/* Loading State */}

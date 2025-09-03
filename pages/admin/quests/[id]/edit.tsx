@@ -9,7 +9,7 @@ import { withAdminAuth } from "@/components/admin/withAdminAuth";
 function EditQuestPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
   
   const [quest, setQuest] = useState<Quest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,6 +47,17 @@ function EditQuestPage() {
     }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    if (!id || typeof id !== "string") return;
+    setIsRetrying(true);
+    try {
+      await fetchQuestDetails(id);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   return (
     <AdminEditPageLayout
       title="Edit Quest"
@@ -54,6 +65,8 @@ function EditQuestPage() {
       backLinkText="Back to Quest Details"
       isLoading={isLoading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
       {quest ? (
         <QuestForm quest={quest} isEditing={true} />

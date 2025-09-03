@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('client:auth');
 
 // Define types inline since the import file doesn't exist
 type AuthLevel = 'user' | 'admin';
@@ -87,7 +90,7 @@ export function useAuth(
         const adminLockAddress = process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS;
         
         if (!adminLockAddress) {
-          console.warn("NEXT_PUBLIC_ADMIN_LOCK_ADDRESS not set, no admin access");
+          log.warn("NEXT_PUBLIC_ADMIN_LOCK_ADDRESS not set, no admin access");
           setIsAdmin(false);
           setLoading(false);
           return;
@@ -105,7 +108,7 @@ export function useAuth(
               walletAddress = accounts[0];
             }
           } catch (err) {
-            console.warn("Unable to read accounts from provider", err);
+            log.warn("Unable to read accounts from provider", { err });
           }
         }
 
@@ -138,11 +141,11 @@ export function useAuth(
           setExpirationDate(expirationDate);
         }
 
-        console.log(`[USE_AUTH] Blockchain admin access: ${hasValidKey ? 'GRANTED' : 'DENIED'} for ${walletAddress}`);
+        log.info(`Blockchain admin access: ${hasValidKey ? 'GRANTED' : 'DENIED'} for ${walletAddress}`);
       }
 
     } catch (err) {
-      console.error('[USE_AUTH] Error checking auth:', err);
+      log.error('Error checking auth', { err });
       setError(err instanceof Error ? err.message : "Auth check failed");
       setIsAdmin(false);
     } finally {
@@ -166,7 +169,7 @@ export function useAuth(
     if (authLevel === 'admin' && options.adminStrategy !== 'database') {
       if (typeof window !== "undefined" && window.ethereum) {
         const handleAccountsChanged = async () => {
-          console.log('[USE_AUTH] Wallet accounts changed, refreshing auth');
+          log.info('Wallet accounts changed, refreshing auth');
           await checkAdminAccess();
         };
 

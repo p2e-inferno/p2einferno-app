@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
@@ -9,44 +9,53 @@ import { withAdminAuth } from "@/components/admin/withAdminAuth";
 function EditBootcampPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   const [bootcamp, setBootcamp] = useState<BootcampProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch bootcamp data
-  useEffect(() => {
-    async function fetchBootcamp() {
-      if (!id) return;
+  const fetchBootcamp = useCallback(async () => {
+    if (!id) return;
 
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: BootcampProgram}>(`/api/admin/bootcamps/${id}`);
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        if (!result.data?.data) {
-          throw new Error("Bootcamp not found");
-        }
-
-        setBootcamp(result.data.data);
-      } catch (err: any) {
-        console.error("Error fetching bootcamp:", err);
-        setError(err.message || "Failed to load bootcamp");
-      } finally {
-        setIsLoading(false);
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const result = await adminFetch<{success: boolean, data: BootcampProgram}>(`/api/admin/bootcamps/${id}`);
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
-    }
 
+      if (!result.data?.data) {
+        throw new Error("Bootcamp not found");
+      }
+
+      setBootcamp(result.data.data);
+    } catch (err: any) {
+      console.error("Error fetching bootcamp:", err);
+      setError(err.message || "Failed to load bootcamp");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [adminFetch, id]);
+
+  useEffect(() => {
     if (id) {
       fetchBootcamp();
     }
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id, fetchBootcamp]);
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchBootcamp();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <AdminEditPageLayout
@@ -55,6 +64,8 @@ function EditBootcampPage() {
       backLinkText="Back to bootcamps"
       isLoading={isLoading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
       {bootcamp ? (
         <BootcampForm bootcamp={bootcamp} isEditing />

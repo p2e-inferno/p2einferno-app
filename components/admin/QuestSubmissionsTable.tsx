@@ -8,6 +8,7 @@ import type {
   UserTaskCompletion,
   SubmissionStatus,
 } from "@/lib/supabase/types";
+import { NetworkError } from "@/components/ui/network-error";
 
 interface QuestSubmissionsTableProps {
   questId: string;
@@ -49,6 +50,7 @@ export default function QuestSubmissionsTable({
   const [submissions, setSubmissions] = useState<SubmissionWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "all">(
     "all"
   );
@@ -99,6 +101,15 @@ export default function QuestSubmissionsTable({
       setError(err.message || "Failed to load submissions");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchSubmissions();
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -184,11 +195,7 @@ export default function QuestSubmissionsTable({
   }
 
   if (error) {
-    return (
-      <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-        <p className="text-red-300">{error}</p>
-      </div>
-    );
+    return <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />;
   }
 
   return (

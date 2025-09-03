@@ -80,6 +80,7 @@ const sanitizeContext = (context: LogContext): Record<string, any> => {
 export class BlockchainLogger {
   private static instance: BlockchainLogger;
   private isDevelopment: boolean;
+  private transport?: (level: LogLevel, message: string, context?: LogContext) => void;
 
   private constructor() {
     this.isDevelopment = process.env.NODE_ENV === 'development';
@@ -103,6 +104,16 @@ export class BlockchainLogger {
       module: 'blockchain',
       ...sanitizedContext
     };
+
+    // If an external transport is configured (bridge), delegate to it
+    if (this.transport) {
+      try {
+        this.transport(level, message, sanitizedContext);
+        return;
+      } catch (e) {
+        // fall through to default behavior
+      }
+    }
 
     // In development, use console methods for better formatting
     if (this.isDevelopment) {
@@ -190,6 +201,11 @@ export class BlockchainLogger {
   logConfigurationWarning(message: string, context?: LogContext): void {
     this.warn(`Configuration warning: ${message}`, context);
   }
+
+  // Allow setting an external transport (e.g., app-wide logger)
+  setTransport(transport: (level: LogLevel, message: string, context?: LogContext) => void) {
+    this.transport = transport;
+  }
 }
 
 // ============================================================================
@@ -197,3 +213,10 @@ export class BlockchainLogger {
 // ============================================================================
 
 export const blockchainLogger = BlockchainLogger.getInstance();
+
+// Helper to set transport from outside without exposing instance directly
+export const setBlockchainLoggerTransport = (
+  transport: (level: LogLevel, message: string, context?: LogContext) => void
+) => {
+  BlockchainLogger.getInstance().setTransport(transport);
+};

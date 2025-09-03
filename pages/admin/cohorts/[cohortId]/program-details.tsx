@@ -13,7 +13,7 @@ import { withAdminAuth } from "@/components/admin/withAdminAuth";
 function ProgramDetailsPage() {
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [highlights, setHighlights] = useState<ProgramHighlight[]>([]);
@@ -64,6 +64,15 @@ function ProgramDetailsPage() {
       setIsLoading(false);
     }
   }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchData();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (!cohortId) return;
@@ -85,6 +94,8 @@ function ProgramDetailsPage() {
       backLinkText="Back to cohorts"
       isLoading={isLoading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
       {cohort && (
         <div className="space-y-6">

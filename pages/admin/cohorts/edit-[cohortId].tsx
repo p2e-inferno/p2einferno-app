@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
@@ -9,7 +9,7 @@ import { withAdminAuth } from "@/components/admin/withAdminAuth";
 function EditCohortPage() {
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -20,38 +20,47 @@ function EditCohortPage() {
     ? cohortId.replace('edit-', '') 
     : cohortId;
 
-  // Fetch cohort data
-  useEffect(() => {
-    async function fetchCohort() {
-      if (!actualCohortId || typeof actualCohortId !== 'string') return;
+  const fetchCohort = useCallback(async () => {
+    if (!actualCohortId || typeof actualCohortId !== 'string') return;
 
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: Cohort}>(`/api/admin/cohorts/${actualCohortId}`);
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        if (!result.data?.data) {
-          throw new Error("Cohort not found");
-        }
-
-        setCohort(result.data.data);
-      } catch (err: any) {
-        console.error("Error fetching cohort:", err);
-        setError(err.message || "Failed to load cohort");
-      } finally {
-        setIsLoading(false);
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const result = await adminFetch<{success: boolean, data: Cohort}>(`/api/admin/cohorts/${actualCohortId}`);
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
-    }
 
+      if (!result.data?.data) {
+        throw new Error("Cohort not found");
+      }
+
+      setCohort(result.data.data);
+    } catch (err: any) {
+      console.error("Error fetching cohort:", err);
+      setError(err.message || "Failed to load cohort");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [adminFetch, actualCohortId]);
+
+  useEffect(() => {
     if (actualCohortId) {
       fetchCohort();
     }
-  }, [actualCohortId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [actualCohortId, fetchCohort]);
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchCohort();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <AdminEditPageLayout
@@ -60,6 +69,8 @@ function EditCohortPage() {
       backLinkText="Back to cohorts"
       isLoading={isLoading} // This is for data loading, auth loading is handled above
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
       {cohort ? (
         <CohortForm cohort={cohort} isEditing />

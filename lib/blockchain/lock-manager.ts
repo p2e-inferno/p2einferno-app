@@ -5,6 +5,7 @@ import {
 } from "./server-config";
 import { COMPLETE_LOCK_ABI } from "./shared/abi-definitions";
 import { blockchainLogger } from "./shared/logging-utils";
+import "./shared/logger-bridge"; // side-effect import to bridge logging transport
 import { extractTokenIdsFromReceipt } from "./shared/transaction-utils";
 export interface GrantKeysParams {
   recipientAddress: Address;

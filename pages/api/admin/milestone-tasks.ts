@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('api:milestone-tasks');
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -59,7 +62,7 @@ async function createTasks(req: NextApiRequest, res: NextApiResponse) {
     const { data, error } = await supabaseAdmin.from("milestone_tasks").insert(tasks).select();
 
     if (error) {
-      console.error("Error creating tasks:", error);
+      log.error("Error creating tasks", { error });
       return res.status(500).json({ error: "Failed to create tasks" });
     }
     return res.status(201).json({
@@ -74,8 +77,17 @@ async function createTasks(req: NextApiRequest, res: NextApiResponse) {
 
 async function getTasks(req: NextApiRequest, res: NextApiResponse) {
   try {
-    const { milestoneId, taskId } = req.query;
+    // Debug logging
+    console.log('DEBUG: Full query params:', req.query);
+    console.log('DEBUG: Available keys:', Object.keys(req.query));
+    
+    // Handle both camelCase and snake_case parameters
+    const taskId = req.query.task_id || req.query.taskId;
+    const milestoneId = req.query.milestone_id || req.query.milestoneId;
 
+    console.log('DEBUG: taskId value:', taskId);
+    console.log('DEBUG: milestoneId value:', milestoneId);
+    
     // If taskId is provided, fetch a specific task
     if (taskId) {
       const { data, error } = await supabaseAdmin
@@ -84,7 +96,7 @@ async function getTasks(req: NextApiRequest, res: NextApiResponse) {
         .eq("id", taskId);
 
       if (error) {
-        console.error("Error fetching task:", error);
+        log.error("Error fetching task", { error });
         return res.status(500).json({ error: "Failed to fetch task" });
       }
 
@@ -107,7 +119,7 @@ async function getTasks(req: NextApiRequest, res: NextApiResponse) {
       .order("order_index");
 
     if (error) {
-      console.error("Error fetching tasks:", error);
+      log.error("Error fetching tasks", { error });
       return res.status(500).json({ error: "Failed to fetch tasks" });
     }
 
@@ -116,7 +128,7 @@ async function getTasks(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in getTasks:", error);
+    log.error("Error in getTasks", { error });
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -141,7 +153,7 @@ async function updateTask(req: NextApiRequest, res: NextApiResponse) {
       .single();
 
     if (error) {
-      console.error("Error updating task:", error);
+      log.error("Error updating task", { error });
       return res.status(500).json({ error: "Failed to update task" });
     }
 
@@ -150,7 +162,7 @@ async function updateTask(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in updateTask:", error);
+    log.error("Error in updateTask", { error });
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -170,7 +182,7 @@ async function deleteTask(req: NextApiRequest, res: NextApiResponse) {
       .eq("id", id);
 
     if (error) {
-      console.error("Error deleting task:", error);
+      log.error("Error deleting task", { error });
       return res.status(500).json({ error: "Failed to delete task" });
     }
 
@@ -179,7 +191,7 @@ async function deleteTask(req: NextApiRequest, res: NextApiResponse) {
       message: "Task deleted successfully",
     });
   } catch (error) {
-    console.error("Error in deleteTask:", error);
+    log.error("Error in deleteTask", { error });
     return res.status(500).json({ error: "Internal server error" });
   }
 }

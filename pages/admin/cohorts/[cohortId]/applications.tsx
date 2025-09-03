@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
 import { usePrivy } from '@privy-io/react-auth';
+import { NetworkError } from '@/components/ui/network-error';
+import { useAdminApi } from '@/hooks/useAdminApi';
 import { 
   Users, 
   CreditCard, 
@@ -60,43 +62,24 @@ const CohortDetailPage: React.FC = () => {
   const router = useRouter();
   const { cohortId } = router.query;
   const { getAccessToken } = usePrivy();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
   
   const [cohort, setCohort] = useState<CohortDetails | null>(null);
   const [applications, setApplications] = useState<CohortApplication[]>([]);
   const [stats, setStats] = useState<CohortStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [refreshing, setRefreshing] = useState(false);
 
-  // Authenticated fetch function using unified auth system
-  const adminFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      throw new Error("No access token available");
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }, [getAccessToken]);
+  // Removed local adminFetch in favor of shared useAdminApi for consistency
   
   const fetchCohortData = useCallback(async () => {
     if (!cohortId || typeof cohortId !== 'string') return;
     
     try {
       setLoading(true);
+      setError(null);
       
       // Fetch cohort details and applications in parallel using unified auth
       const [cohortRes, applicationsRes] = await Promise.all([
@@ -107,9 +90,9 @@ const CohortDetailPage: React.FC = () => {
       setCohort(cohortRes.data);
       setApplications(applicationsRes.data?.applications || []);
       setStats(applicationsRes.data?.stats);
-    } catch (error) {
-      console.error('Error fetching cohort data:', error);
-      toast.error('Failed to load cohort data');
+    } catch (err: any) {
+      console.error('Error fetching cohort data:', err);
+      setError(err?.message || 'Failed to load cohort data');
     } finally {
       setLoading(false);
     }
@@ -179,15 +162,8 @@ const CohortDetailPage: React.FC = () => {
   if (!cohort) {
     return (
       <AdminLayout>
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold text-gray-900">Cohort not found</h2>
-          <button
-            onClick={handleRefresh}
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <RefreshCcw className="w-4 h-4 mr-2" />
-            Retry
-          </button>
+        <div className="max-w-xl mx-auto py-12">
+          <NetworkError error={error || 'Cohort not found'} onRetry={handleRefresh} isRetrying={refreshing || loading} />
         </div>
       </AdminLayout>
     );

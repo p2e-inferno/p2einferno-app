@@ -31,7 +31,8 @@ export default function AdminQuestsPage() {
     questTitle: "",
   });
   const [isDeleting, setIsDeleting] = useState(false);
-  const { adminFetch, loading } = useAdminApi();
+  const { adminFetch, loading } = useAdminApi({ suppressToasts: true });
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const fetchQuests = useCallback(async () => {
     try {
@@ -57,6 +58,15 @@ export default function AdminQuestsPage() {
   useEffect(() => {
     fetchQuests();
   }, [fetchQuests]);
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchQuests();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const toggleQuestStatus = async (quest: Quest) => {
     try {
@@ -143,6 +153,8 @@ export default function AdminQuestsPage() {
       newButtonLink="/admin/quests/new"
       isLoading={loading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
       isEmpty={!loading && !error && quests.length === 0}
       emptyStateTitle="No quests found"
       emptyStateMessage="Create your first quest to engage users"

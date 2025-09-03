@@ -9,6 +9,7 @@ interface UseAdminApiOptions {
   redirectPath?: string;
   showAuthErrorModal?: boolean;
   verifyTokenBeforeRequest?: boolean;
+  suppressToasts?: boolean;
 }
 
 export interface ApiResponse<T = any> {
@@ -66,7 +67,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
             if (options.redirectOnAuthError) {
               router.push(options.redirectPath || "/admin/login");
             } else {
-              toast.error(errorMessage);
+              if (!options.suppressToasts) toast.error(errorMessage);
             }
 
             return { error: errorMessage };
@@ -75,14 +76,14 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
           if (response.status === 403) {
             const errorMessage = "Admin access required";
             setError(errorMessage);
-            toast.error(errorMessage);
+            if (!options.suppressToasts) toast.error(errorMessage);
             return { error: errorMessage };
           }
 
           const errorData = await response.json().catch(() => ({}));
           const errorMessage = errorData.error || `HTTP ${response.status}`;
           setError(errorMessage);
-          toast.error(errorMessage);
+          if (!options.suppressToasts) toast.error(errorMessage);
           return { error: errorMessage };
         }
 
@@ -91,7 +92,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
       } catch (err: any) {
         const errorMessage = err.message || "Network error";
         setError(errorMessage);
-        toast.error(errorMessage);
+        if (!options.suppressToasts) toast.error(errorMessage);
         return { error: errorMessage };
       } finally {
         setLoading(false);

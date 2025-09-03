@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 // useRouter is not directly used by the page anymore
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout"; // Import the new layout
 import { Button } from "@/components/ui/button";
@@ -16,32 +16,42 @@ export default function CohortListPage() {
     (Cohort & { bootcamp_program: BootcampProgram })[]
   >([]);
   const [error, setError] = useState<string | null>(null);
-  const { adminFetch, loading } = useAdminApi();
+  const { adminFetch, loading } = useAdminApi({ suppressToasts: true });
   console.log("Cohorts loaded:", cohorts.length, "items")
   // Fetch cohorts - This logic remains in the page
+  const fetchCohorts = useCallback(async () => {
+    try {
+      setError(null);
+      
+      const result = await adminFetch<{success: boolean, data: (Cohort & { bootcamp_program: BootcampProgram })[]}>("/api/admin/cohorts");
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      // Extract the data from the nested response structure
+      const cohortData = result.data?.data || [];
+      setCohorts(Array.isArray(cohortData) ? cohortData : []);
+    } catch (err: any) {
+      console.error("Error fetching cohorts:", err);
+      setError(err.message || "Failed to load cohorts");
+    }
+  }, [adminFetch]);
+
   useEffect(() => {
     // AdminListPageLayout handles auth check
-    async function fetchCohorts() {
-      try {
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: (Cohort & { bootcamp_program: BootcampProgram })[]}>("/api/admin/cohorts");
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        // Extract the data from the nested response structure
-        const cohortData = result.data?.data || [];
-        setCohorts(Array.isArray(cohortData) ? cohortData : []);
-      } catch (err: any) {
-        console.error("Error fetching cohorts:", err);
-        setError(err.message || "Failed to load cohorts");
-      }
-    }
-
     fetchCohorts();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchCohorts]);
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchCohorts();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // formatDate is now imported
 
@@ -66,6 +76,8 @@ export default function CohortListPage() {
       newButtonLink="/admin/cohorts/new"
       isLoading={loading} // Pass the data loading state
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
       isEmpty={!loading && !error && cohorts.length === 0}
       emptyStateTitle="No cohorts found"
       emptyStateMessage="Create your first cohort to get started"

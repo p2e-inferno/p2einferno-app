@@ -6,6 +6,7 @@ import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertCircle, ExternalLink } from "lucide-react";
+import { NetworkError } from "@/components/ui/network-error";
 import { usePrivy } from "@privy-io/react-auth";
 
 interface PaymentTransaction {
@@ -210,9 +211,8 @@ const AdminPaymentsPage: React.FC = () => {
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-flame-yellow"></div>
           </div>
         ) : error ? (
-          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-6 flex items-center">
-            <AlertCircle className="w-5 h-5 mr-2" />
-            {error}
+          <div className="mb-6">
+            <NetworkError error={error} onRetry={fetchTransactions} isRetrying={isLoading} />
           </div>
         ) : transactions.length === 0 ? (
           <div className="bg-card border border-gray-800 rounded-lg p-12 text-center">

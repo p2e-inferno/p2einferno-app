@@ -1,5 +1,8 @@
 import axios from "axios";
 import * as jose from "jose";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('api:client');
 
 // Create axios instance with default config
 const api = axios.create({
@@ -13,11 +16,11 @@ const api = axios.create({
 // Request interceptor for logging
 api.interceptors.request.use(
   (config) => {
-    console.log("API Request:", config.method?.toUpperCase(), config.url);
+    log.debug("API Request", { method: config.method?.toUpperCase(), url: config.url });
     return config;
   },
   (error) => {
-    console.error("API Request Error:", error);
+    log.error("API Request Error", { error });
     return Promise.reject(error);
   }
 );
@@ -25,15 +28,14 @@ api.interceptors.request.use(
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => {
-    console.log("API Response:", response.status, response.config.url);
+    log.debug("API Response", { status: response.status, url: response.config.url });
     return response;
   },
   (error) => {
-    console.error(
-      "API Response Error:",
-      error.response?.status,
-      error.response?.data
-    );
+    log.error("API Response Error", {
+      status: error.response?.status,
+      data: error.response?.data,
+    });
     return Promise.reject(error);
   }
 );
@@ -106,13 +108,13 @@ export function hasValidPrivyToken(): boolean {
     const isExpired = payload.exp < currentTime;
     
     if (isExpired) {
-      console.warn("Privy token has expired");
+      log.warn("Privy token has expired");
       return false;
     }
 
     return true;
   } catch (error) {
-    console.error("Error checking Privy token:", error);
+    log.error("Error checking Privy token", { error });
     return false;
   }
 }
@@ -128,7 +130,7 @@ export async function verifyPrivyTokenServer(token: string): Promise<boolean> {
     const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
     
     if (!verificationKey || !appId) {
-      console.error("Missing Privy verification key or app ID");
+      log.error("Missing Privy verification key or app ID");
       return false;
     }
 
@@ -148,7 +150,7 @@ export async function verifyPrivyTokenServer(token: string): Promise<boolean> {
 
     return true;
   } catch (error) {
-    console.error("Error verifying Privy token:", error);
+    log.error("Error verifying Privy token", { error });
     return false;
   }
 }

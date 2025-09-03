@@ -140,20 +140,22 @@ export const validateAuthConfiguration = (): AuthConfigValidation => {
  * Call this at application startup to catch configuration issues early
  */
 export const validateAndLogConfiguration = (): void => {
+  const { getLogger } = require('@/lib/utils/logger');
+  const log = getLogger('auth:config');
   const validation = validateAuthConfiguration();
   const context = getRuntimeContext();
 
-  console.log(`[CONFIG_VALIDATION] Runtime: ${context.type}, Environment: ${process.env.NODE_ENV}`);
+  log.info(`Runtime: ${context.type}, Environment: ${process.env.NODE_ENV}`);
 
   if (validation.warnings.length > 0) {
     validation.warnings.forEach(warning => {
-      console.warn(`[CONFIG_VALIDATION] WARNING: ${warning}`);
+      log.warn(`${warning}`);
     });
   }
 
   if (validation.errors.length > 0) {
     validation.errors.forEach(error => {
-      console.error(`[CONFIG_VALIDATION] ERROR: ${error}`);
+      log.error(`${error}`);
     });
     
     if (!context.isDevelopment) {
@@ -162,13 +164,13 @@ export const validateAndLogConfiguration = (): void => {
         `Check environment variables and restart the application.`
       );
     } else {
-      console.error(
-        `[CONFIG_VALIDATION] Configuration errors found but continuing in development mode. ` +
+      log.error(
+        `Configuration errors found but continuing in development mode. ` +
         `These MUST be fixed before production deployment.`
       );
     }
   } else {
-    console.log(`[CONFIG_VALIDATION] ✅ Configuration validation passed`);
+    log.info(`✅ Configuration validation passed`);
   }
 };
 

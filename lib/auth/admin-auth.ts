@@ -3,6 +3,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { checkMultipleWalletsForAdminKey, checkDevelopmentAdminAddress } from "./admin-key-checker";
 import { handleAdminAuthError, createErrorResponse } from "./error-handler";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('auth:admin');
 
 type NextApiHandler = (
   req: NextApiRequest,
@@ -31,7 +34,7 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
       // 3. Development mode fallback if no lock address is provided
       if (!adminLockAddress) {
         if (process.env.NODE_ENV === "development") {
-          console.warn("NEXT_PUBLIC_ADMIN_LOCK_ADDRESS not set, allowing all authenticated users as admins in development");
+          log.warn("NEXT_PUBLIC_ADMIN_LOCK_ADDRESS not set, allowing all authenticated users as admins in development");
           return handler(req, res);
         } else {
           return res.status(500).json({ error: "Admin lock address not configured" });

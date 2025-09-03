@@ -15,7 +15,7 @@ interface MilestoneWithCohort extends CohortMilestone {
 function MilestoneDetailsPage() {
   const router = useRouter();
   const { id: cohortId, milestoneId } = router.query;
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   const [milestone, setMilestone] = useState<MilestoneWithCohort | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -69,6 +69,16 @@ function MilestoneDetailsPage() {
     fetchMilestone();
   }, [milestoneId, fetchMilestone]);
 
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchMilestone();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
@@ -84,6 +94,8 @@ function MilestoneDetailsPage() {
       backLinkText="Back to cohort milestones"
       isLoading={isLoading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
       {milestone && (
         <div className="space-y-6">

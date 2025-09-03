@@ -16,6 +16,7 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { NetworkError } from "@/components/ui/network-error";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 
@@ -34,7 +35,7 @@ interface QuestDetails extends Quest {
 function QuestDetailsPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
   const [quest, setQuest] = useState<QuestDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +68,7 @@ function QuestDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [adminFetch]);
 
   // Initial fetch on mount / id change
   useEffect(() => {
@@ -108,14 +109,10 @@ function QuestDetailsPage() {
   if (error || !quest) {
     return (
       <AdminLayout>
-        <div className="text-center py-12">
-          <p className="text-red-400 mb-4">{error || "Quest not found"}</p>
-          <Link href="/admin/quests">
-            <Button variant="outline" className="border-gray-700">
-              Back to Quests
-            </Button>
-          </Link>
-        </div>
+        <QuestErrorWrapper 
+          error={error || "Quest not found"} 
+          onRetry={() => { if (id && typeof id === 'string') fetchQuestDetails(id); }}
+        />
       </AdminLayout>
     );
   }
@@ -362,3 +359,26 @@ export default withAdminAuth(
   QuestDetailsPage,
   { message: "You need admin access to manage quests" }
 );
+
+// Local helper to display NetworkError with retry
+function QuestErrorWrapper({ error, onRetry }: { error: string, onRetry: () => void }) {
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await onRetry();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+  return (
+    <div className="max-w-xl mx-auto py-12">
+      <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />
+      <div className="text-center mt-4">
+        <Link href="/admin/quests">
+          <Button variant="outline" className="border-gray-700">Back to Quests</Button>
+        </Link>
+      </div>
+    </div>
+  );
+}

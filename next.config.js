@@ -64,10 +64,10 @@ const nextConfig = {
         source: '/(.*)',
         headers: [
           // CSP enforcement mode
-          {
-            key: 'Content-Security-Policy',
-            value: buildCsp()
-          },
+          // {
+          //   key: 'Content-Security-Policy',
+          //   value: buildCsp()
+          // },
           // Existing security headers
           {
             key: 'X-Content-Type-Options',

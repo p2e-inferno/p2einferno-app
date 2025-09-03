@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('api:milestones');
 
 async function handler(
   req: NextApiRequest,
@@ -24,7 +27,7 @@ async function handler(
         return res.status(405).json({ error: "Method not allowed" });
     }
   } catch (error: any) {
-    console.error("Milestone API error:", error);
+    log.error("Milestone API error", { error });
     return res.status(500).json({ error: error.message || "Server error" });
   }
 }
@@ -52,7 +55,7 @@ async function getMilestones(
         data: data
       });
     } catch (error: any) {
-      console.error("Error fetching milestone:", error);
+      log.error("Error fetching milestone", { error });
       return res.status(400).json({ error: error.message });
     }
   }
@@ -76,7 +79,7 @@ async function getMilestones(
       data: data || []
     });
   } catch (error: any) {
-    console.error("Error fetching milestones:", error);
+    log.error("Error fetching milestones", { error });
     return res.status(400).json({ error: error.message });
   }
 }
@@ -115,7 +118,7 @@ async function createMilestone(
 
     return res.status(201).json(data);
   } catch (error: any) {
-    console.error("Error creating milestone:", error);
+    log.error("Error creating milestone", { error });
     return res.status(400).json({ error: error.message });
   }
 }
@@ -147,7 +150,7 @@ async function updateMilestone(
 
     return res.status(200).json(data);
   } catch (error: any) {
-    console.error("Error updating milestone:", error);
+    log.error("Error updating milestone", { error });
     return res.status(400).json({ error: error.message });
   }
 }
@@ -177,7 +180,7 @@ async function deleteMilestone(
       message: "Milestone deleted successfully" 
     });
   } catch (error: any) {
-    console.error("Error deleting milestone:", error);
+    log.error("Error deleting milestone", { error });
     return res.status(400).json({ error: error.message });
   }
 }

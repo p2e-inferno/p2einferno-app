@@ -6,6 +6,9 @@
 
 import { Address } from "viem";
 import { lockManagerService } from "../blockchain/lock-manager";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('auth:key-check');
 
 export interface AdminKeyResult {
   hasValidKey: boolean;
@@ -43,26 +46,26 @@ export const checkMultipleWalletsForAdminKey = async (
     };
   }
 
-  console.log(`[PARALLEL_KEY_CHECK] Checking ${walletAddresses.length} wallet(s) in parallel for admin access`);
+  log.info(`Checking ${walletAddresses.length} wallet(s) in parallel for admin access`);
 
   // Create parallel key check promises
   const keyCheckPromises = walletAddresses.map(async (address): Promise<WalletKeyCheck> => {
     try {
-      console.log(`[PARALLEL_KEY_CHECK] Checking wallet ${address}...`);
+      log.debug(`Checking wallet ${address}...`);
       
       const keyInfo = await lockManagerService.checkUserHasValidKey(
         address as Address,
         adminLockAddress as Address
       );
 
-      console.log(`[PARALLEL_KEY_CHECK] Wallet ${address}: ${keyInfo?.isValid ? 'VALID' : 'INVALID'}`);
+      log.debug(`Wallet ${address}: ${keyInfo?.isValid ? 'VALID' : 'INVALID'}`);
 
       return {
         address,
         keyInfo
       };
     } catch (error: any) {
-      console.error(`[PARALLEL_KEY_CHECK] Key check failed for ${address}:`, error.message);
+      log.error(`Key check failed for ${address}`, { error: error.message });
       
       return {
         address,
@@ -77,7 +80,7 @@ export const checkMultipleWalletsForAdminKey = async (
   const keyCheckResults = await Promise.allSettled(keyCheckPromises);
   const endTime = Date.now();
 
-  console.log(`[PARALLEL_KEY_CHECK] Completed ${walletAddresses.length} key checks in ${endTime - startTime}ms`);
+  log.info(`Completed ${walletAddresses.length} key checks in ${endTime - startTime}ms`);
 
   // Process results
   const errors: Array<{ address: string; error: string }> = [];
@@ -92,7 +95,7 @@ export const checkMultipleWalletsForAdminKey = async (
       } else if (keyInfo?.isValid && !validAddress) {
         // Use the first valid address found
         validAddress = address;
-        console.log(`[PARALLEL_KEY_CHECK] ✅ Admin access granted for wallet ${address}`);
+        log.info(`✅ Admin access granted for wallet ${address}`);
       }
     } else {
       // Promise was rejected - this should be rare due to individual error handling
@@ -111,11 +114,11 @@ export const checkMultipleWalletsForAdminKey = async (
   };
 
   if (result.hasValidKey) {
-    console.log(`[PARALLEL_KEY_CHECK] ✅ Access GRANTED - found valid admin key`);
+    log.info(`✅ Access GRANTED - found valid admin key`);
   } else {
-    console.log(`[PARALLEL_KEY_CHECK] ❌ Access DENIED - no valid admin keys found`);
+    log.info(`❌ Access DENIED - no valid admin keys found`);
     if (errors.length > 0) {
-      console.log(`[PARALLEL_KEY_CHECK] Encountered ${errors.length} errors during validation`);
+      log.warn(`Encountered ${errors.length} errors during validation`);
     }
   }
 
@@ -135,7 +138,7 @@ export const checkDevelopmentAdminAddress = async (
   adminLockAddress: string
 ): Promise<{ isValid: boolean; error?: string }> => {
   try {
-    console.log(`[DEV_ADMIN_CHECK] Checking development admin address: ${devAddress}`);
+    log.info(`Checking development admin address: ${devAddress}`);
     
     const keyInfo = await lockManagerService.checkUserHasValidKey(
       devAddress as Address,
@@ -143,12 +146,12 @@ export const checkDevelopmentAdminAddress = async (
     );
 
     const isValid = keyInfo?.isValid || false;
-    console.log(`[DEV_ADMIN_CHECK] Development admin check: ${isValid ? 'VALID' : 'INVALID'}`);
+    log.info(`Development admin check: ${isValid ? 'VALID' : 'INVALID'}`);
     
     return { isValid };
   } catch (error: any) {
     const errorMessage = error.message || 'Unknown error during dev admin check';
-    console.error(`[DEV_ADMIN_CHECK] Development admin check failed:`, errorMessage);
+    log.error(`Development admin check failed`, { error: errorMessage });
     
     return { isValid: false, error: errorMessage };
   }

@@ -3,6 +3,8 @@
  * Purpose: Unified error handling for authentication operations
  * Runtime: Server-side only
  */
+import { getLogger } from "@/lib/utils/logger";
+const log = getLogger('auth:error');
 
 /**
  * Standardized authentication error codes
@@ -141,7 +143,7 @@ export const handleAuthError = (
 ): AuthError => {
   // If already an AuthError, just log and return
   if (error instanceof AuthError) {
-    console.error(`[AUTH_ERROR] ${operation}:`, error.toLogData());
+    log.error(`[AUTH_ERROR] ${operation}`, error.toLogData());
     return error;
   }
 
@@ -189,7 +191,7 @@ export const handleAuthError = (
   }
 
   // Log the structured error
-  console.error(`[AUTH_ERROR] ${operation}:`, authError.toLogData());
+  log.error(`[AUTH_ERROR] ${operation}`, authError.toLogData());
 
   return authError;
 };
@@ -263,7 +265,7 @@ export const logSafeError = (error: AuthError, userId?: string): void => {
   delete safeContext.secret;
   delete safeContext.password;
   
-  console.error(`[AUTH_ERROR_SAFE] ${error.operation}:`, {
+  log.error(`[AUTH_ERROR_SAFE] ${error.operation}`, {
     code: error.code,
     message: error.message,
     operation: error.operation,

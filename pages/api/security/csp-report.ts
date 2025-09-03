@@ -1,4 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('security:csp');
 
 // Rate limiting config (5 reports per minute per IP)
 const RATE_LIMIT = {
@@ -40,7 +43,7 @@ function parseCspReportBody(body: any, contentType: string): any {
       try {
         return JSON.parse(body);
       } catch (err) {
-        console.error('Failed to parse CSP report body:', err);
+        log.error('Failed to parse CSP report body', { err });
         return null;
       }
     }
@@ -56,9 +59,9 @@ async function logToExternalService(level: string, data: any) {
     // TODO: Replace with your actual error tracking service
     // Example: await logToSentry(level, data);
     // Example: await logToDatadog(level, data);
-    console.log(`[${level.toUpperCase()}] External logging:`, data);
+    log.info(`[External] ${level.toUpperCase()} log`, { data });
   } catch (err) {
-    console.error('Failed to log to external service:', err);
+    log.error('Failed to log to external service', { err });
   }
 }
 
@@ -70,7 +73,7 @@ export default async function cspReportHandler(
   const ip = (req.headers['x-forwarded-for'] || req.socket.remoteAddress) as string;
   
   if (!checkRateLimit(ip)) {
-    console.warn(`CSP report rate limited for IP: ${ip}`);
+    log.warn('CSP report rate limited', { ip });
     return res.status(429).json({ 
       status: 'rate_limited',
       message: 'Too many requests',
@@ -150,15 +153,10 @@ export default async function cspReportHandler(
       }
 
       // 6. Log to multiple outputs
-      console.warn('CSP Violation:', sanitizedReport); // Local dev
+      log.warn('CSP Violation', { report: sanitizedReport }); // Local dev
       
       // Structured logging for production
-      console.log(JSON.stringify({
-        level: 'warn',
-        message: 'CSP_VIOLATION',
-        timestamp: sanitizedReport.timestamp,
-        data: sanitizedReport
-      }));
+      log.warn('CSP_VIOLATION', { timestamp: sanitizedReport.timestamp, data: sanitizedReport });
 
       // External service logging
       await logToExternalService('warning', {
@@ -175,7 +173,7 @@ export default async function cspReportHandler(
       });
 
     } catch (err) {
-      console.error('Error processing CSP report:', err);
+      log.error('Error processing CSP report', { err });
       return res.status(500).json({ 
         status: 'processing_error',
         message: 'Failed to process report',

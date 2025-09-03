@@ -3,6 +3,7 @@ import Head from "next/head";
 import { useRouter } from "next/router";
 import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
+import { NetworkError } from "@/components/ui/network-error";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { Clock, Users, Trophy, Calendar, ChevronRight } from "lucide-react";
@@ -56,6 +57,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
   const [bootcamp, setBootcamp] = useState<BootcampData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const fetchBootcampData = useCallback(async () => {
     try {
@@ -87,6 +89,15 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
     fetchBootcampData();
   }, [bootcampId, fetchBootcampData]);
 
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchBootcampData();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   const handleJoinCohort = (cohortId: string) => {
     router.push(`/bootcamp/${bootcampId}/cohort/${cohortId}`);
   };
@@ -108,17 +119,11 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
     return (
       <MainLayout>
         <div className="min-h-screen flex items-center justify-center">
-          <div className="text-center">
-            <p className="text-red-400">
-              Error: {error || "Bootcamp not found"}
-            </p>
-            <Button
-              onClick={() => router.push("/")}
-              className="mt-4"
-              variant="outline"
-            >
-              Go Home
-            </Button>
+          <div className="w-full max-w-xl">
+            <NetworkError error={error || "Bootcamp not found"} onRetry={handleRetry} isRetrying={isRetrying} />
+            <div className="text-center mt-4">
+              <Button onClick={() => router.push("/")} variant="outline">Go Home</Button>
+            </div>
           </div>
         </div>
       </MainLayout>

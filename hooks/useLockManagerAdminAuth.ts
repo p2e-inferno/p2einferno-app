@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger('client:frontend-admin-auth');
 
 /**
  * Custom hook for admin authentication using Unlock Protocol
@@ -30,7 +33,7 @@ export const useLockManagerAdminAuth = () => {
 
       // Default to false if no lock address is provided
       if (!adminLockAddress) {
-        console.warn(
+        log.warn(
           "NEXT_PUBLIC_ADMIN_LOCK_ADDRESS not set, no admin access"
         );
         setIsAdmin(false);
@@ -52,7 +55,7 @@ export const useLockManagerAdminAuth = () => {
               walletAddresses.push(accounts[0]);
             }
           } catch (err) {
-            console.warn("Unable to read accounts from provider", err);
+            log.warn("Unable to read accounts from provider", { err });
           }
         }
 
@@ -71,19 +74,19 @@ export const useLockManagerAdminAuth = () => {
           if (response.ok) {
             const data = await response.json();
             if (data.success && data.walletAddresses) {
-              console.log(`[FRONTEND_ADMIN_AUTH] Got ${data.walletAddresses.length} wallet addresses from backend:`, data.walletAddresses);
+              log.info(`Got ${data.walletAddresses.length} wallet addresses from backend`, { walletAddresses: data.walletAddresses });
               walletAddresses = [...walletAddresses, ...data.walletAddresses];
             }
           } else {
-            console.warn('[FRONTEND_ADMIN_AUTH] Failed to fetch wallet addresses from backend, falling back to local data');
+            log.warn('Failed to fetch wallet addresses from backend, falling back to local data');
           }
         } catch (error) {
-          console.error('[FRONTEND_ADMIN_AUTH] Error fetching wallet addresses from backend:', error);
+          log.error('Error fetching wallet addresses from backend', { error });
         }
 
         // Fallback: Add linkedAccounts from frontend (may be incomplete)
         if (user.linkedAccounts) {
-          console.log(`[FRONTEND_ADMIN_AUTH] Processing ${user.linkedAccounts.length} linked accounts as fallback...`);
+          log.info(`Processing ${user.linkedAccounts.length} linked accounts as fallback...`);
           for (const account of user.linkedAccounts) {
             if (account.type === "wallet" && account.address) {
               walletAddresses.push(account.address);
@@ -101,9 +104,9 @@ export const useLockManagerAdminAuth = () => {
           return;
         }
 
-        console.log(`[FRONTEND_ADMIN_AUTH] User object:`, user);
-        console.log(`[FRONTEND_ADMIN_AUTH] User linkedAccounts:`, user?.linkedAccounts);
-        console.log(`[FRONTEND_ADMIN_AUTH] Checking ${uniqueWalletAddresses.length} wallet(s) for admin access:`, uniqueWalletAddresses);
+        log.debug(`User object`, { user });
+        log.debug(`User linkedAccounts`, { linkedAccounts: user?.linkedAccounts });
+        log.info(`Checking ${uniqueWalletAddresses.length} wallet(s) for admin access`, { uniqueWalletAddresses });
 
         // Check ALL wallets for admin access (like backend does)
         let hasValidKey = false;
@@ -119,26 +122,27 @@ export const useLockManagerAdminAuth = () => {
             if (keyInfo && keyInfo.isValid) {
               hasValidKey = true;
               
-              console.log(
-                `[FRONTEND_ADMIN_AUTH] ✅ Admin access GRANTED for ${walletAddress}, expires: ${
+              log.info(
+                `✅ Admin access GRANTED for ${walletAddress}, expires: ${
                   keyInfo.expirationTimestamp > BigInt(Number.MAX_SAFE_INTEGER)
                     ? "Never (infinite)"
                     : new Date(
                         Number(keyInfo.expirationTimestamp) * 1000
                       ).toLocaleString()
-                }`
+                }`,
+                { walletAddress }
               );
               break; // Stop checking once we find a valid key
             } else {
-              console.log(`[FRONTEND_ADMIN_AUTH] ❌ Admin access DENIED for ${walletAddress}`);
+              log.info(`❌ Admin access DENIED for ${walletAddress}`);
             }
           } catch (error) {
-            console.error(`[FRONTEND_ADMIN_AUTH] Error checking ${walletAddress}:`, error);
+            log.error(`Error checking ${walletAddress}`, { error });
           }
         }
 
         if (!hasValidKey) {
-          console.log(`[FRONTEND_ADMIN_AUTH] ❌ No valid admin keys found across ${uniqueWalletAddresses.length} wallet(s)`);
+          log.info(`❌ No valid admin keys found across ${uniqueWalletAddresses.length} wallet(s)`);
         }
 
         setIsAdmin(hasValidKey);
@@ -148,7 +152,7 @@ export const useLockManagerAdminAuth = () => {
           setLastRefreshTime(Date.now());
         }
       } catch (error) {
-        console.error("Error checking admin access:", error);
+        log.error("Error checking admin access", { error });
         setIsAdmin(false);
       } finally {
         setLoading(false);
@@ -176,11 +180,11 @@ export const useLockManagerAdminAuth = () => {
       const handleAccountsChanged = async () => {
         // When accounts change, just re-check admin access without re-login
         try {
-          console.log("Wallet accounts changed, refreshing admin status");
+          log.info("Wallet accounts changed, refreshing admin status");
           // Check admin access again with force refresh (no login needed)
           await checkAdminAccess(true);
         } catch (error) {
-          console.error("Error handling account change:", error);
+          log.error("Error handling account change", { error });
         }
       };
 

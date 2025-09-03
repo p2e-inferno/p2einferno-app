@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import MilestoneList from "@/components/admin/MilestoneList";
@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { NetworkError } from "@/components/ui/network-error";
 
 interface CohortWithProgram extends Cohort {
   bootcamp_program?: {
@@ -18,44 +19,53 @@ interface CohortWithProgram extends Cohort {
 function CohortMilestonesPage() {
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   const [cohort, setCohort] = useState<CohortWithProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch cohort data
-  useEffect(() => {
-    async function fetchCohort() {
-      if (!cohortId) return;
+  const fetchCohort = useCallback(async () => {
+    if (!cohortId) return;
 
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: CohortWithProgram}>(`/api/admin/cohorts/${cohortId}`);
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        if (!result.data?.data) {
-          throw new Error("Cohort not found");
-        }
-
-        setCohort(result.data.data);
-      } catch (err: any) {
-        console.error("Error fetching cohort:", err);
-        setError(err.message || "Failed to load cohort");
-      } finally {
-        setIsLoading(false);
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const result = await adminFetch<{success: boolean, data: CohortWithProgram}>(`/api/admin/cohorts/${cohortId}`);
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
-    }
 
+      if (!result.data?.data) {
+        throw new Error("Cohort not found");
+      }
+
+      setCohort(result.data.data);
+    } catch (err: any) {
+      console.error("Error fetching cohort:", err);
+      setError(err.message || "Failed to load cohort");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [adminFetch, cohortId]);
+
+  useEffect(() => {
     if (cohortId) {
       fetchCohort();
     }
-  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cohortId, fetchCohort]);
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchCohort();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -68,31 +78,18 @@ function CohortMilestonesPage() {
             <ArrowLeft className="h-4 w-4 mr-1" /> Back to cohorts
           </Link>
 
-          {isLoading ? (
-            <h1 className="text-2xl font-bold text-white">
-              Loading cohort data...
-            </h1>
-          ) : error ? (
-            <h1 className="text-2xl font-bold text-white">
-              Error Loading Cohort
-            </h1>
-          ) : (
-            <>
-              <h1 className="text-2xl font-bold text-white">
-                Milestones: {cohort?.name}
-              </h1>
-              <p className="text-gray-400 mt-1">
-                Manage cohort milestones for{" "}
-                {cohort?.bootcamp_program?.name || "Unknown Bootcamp"}
-              </p>
-            </>
+          <h1 className="text-2xl font-bold text-white">
+            {cohort?.name ? `Milestones: ${cohort.name}` : "Cohort Milestones"}
+          </h1>
+          {!error && cohort && (
+            <p className="text-gray-400 mt-1">
+              Manage cohort milestones for {cohort.bootcamp_program?.name || "Unknown Bootcamp"}
+            </p>
           )}
         </div>
 
         {error && !isLoading && (
-          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-            {error}
-          </div>
+          <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />
         )}
 
         {!isLoading && !error && cohort && (

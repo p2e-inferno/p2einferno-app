@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
@@ -15,34 +15,44 @@ function BootcampsPage() {
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const { adminFetch, loading } = useAdminApi();
+  const { adminFetch, loading } = useAdminApi({ suppressToasts: true });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bootcampToDelete, setBootcampToDelete] =
     useState<BootcampProgram | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    async function fetchBootcamps() {
-      try {
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: BootcampProgram[]}>("/api/admin/bootcamps");
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
-        // Extract the data from the nested response structure
-        const bootcampData = result.data?.data || [];
-        setBootcamps(Array.isArray(bootcampData) ? bootcampData : []);
-      } catch (err: any) {
-        console.error("Error fetching bootcamps:", err);
-        setError(err.message || "Failed to load bootcamps");
+  const fetchBootcamps = useCallback(async () => {
+    try {
+      setError(null);
+      
+      const result = await adminFetch<{success: boolean, data: BootcampProgram[]}>("/api/admin/bootcamps");
+      
+      if (result.error) {
+        throw new Error(result.error);
       }
-    }
 
+      // Extract the data from the nested response structure
+      const bootcampData = result.data?.data || [];
+      setBootcamps(Array.isArray(bootcampData) ? bootcampData : []);
+    } catch (err: any) {
+      console.error("Error fetching bootcamps:", err);
+      setError(err.message || "Failed to load bootcamps");
+    }
+  }, [adminFetch]);
+
+  useEffect(() => {
     fetchBootcamps();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fetchBootcamps]);
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchBootcamps();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   async function handleConfirmDelete() {
     if (!bootcampToDelete) return;
@@ -83,6 +93,8 @@ function BootcampsPage() {
         newButtonLink="/admin/bootcamps/new"
         isLoading={loading}
         error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
         isEmpty={!loading && !error && bootcamps.length === 0}
         emptyStateTitle="No bootcamps found"
         emptyStateMessage="Create your first bootcamp to get started"

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, Users, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { MilestoneTask } from "@/lib/supabase/types";
+import { NetworkError } from "@/components/ui/network-error";
 
 interface TaskWithSubmissions extends MilestoneTask {
   submission_count: number;
@@ -22,6 +23,7 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
   const [tasks, setTasks] = useState<TaskWithSubmissions[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     fetchTasks();
@@ -35,7 +37,8 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
       console.log("Fetching tasks for milestone ID:", milestoneId);
 
       // Use API endpoint instead of direct Supabase to avoid RLS issues
-      const response = await fetch(`/api/admin/milestone-tasks?milestoneId=${milestoneId}`);
+      // API expects snake_case: milestone_id
+      const response = await fetch(`/api/admin/milestone-tasks?milestone_id=${milestoneId}`);
       
       if (!response.ok) {
         throw new Error("Failed to fetch tasks");
@@ -92,6 +95,15 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
     }
   };
 
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchTasks();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
@@ -114,11 +126,7 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
   }
 
   if (error) {
-    return (
-      <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-        Error: {error}
-      </div>
-    );
+    return <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />;
   }
 
   if (tasks.length === 0) {

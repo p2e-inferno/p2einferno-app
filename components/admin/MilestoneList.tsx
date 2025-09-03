@@ -7,6 +7,7 @@ import type { CohortMilestone } from "@/lib/supabase/types";
 import MilestoneFormEnhanced from "./MilestoneFormEnhanced";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { usePrivy } from "@privy-io/react-auth";
+import { NetworkError } from "@/components/ui/network-error";
 
 interface MilestoneListProps {
   cohortId: string;
@@ -16,13 +17,14 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   const [milestones, setMilestones] = useState<CohortMilestone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [editingMilestone, setEditingMilestone] =
     useState<CohortMilestone | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [deletingMilestone, setDeletingMilestone] = useState<CohortMilestone | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { getAccessToken } = usePrivy();
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   // Fetch milestones
   const fetchMilestones = async () => {
@@ -40,6 +42,15 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
       setError(err.message || "Failed to load milestones");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchMilestones();
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -169,9 +180,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-          {error}
-        </div>
+        <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />
       )}
 
       {isLoading ? (

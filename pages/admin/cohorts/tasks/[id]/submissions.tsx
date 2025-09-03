@@ -18,18 +18,23 @@ interface TaskWithMilestone extends MilestoneTask {
 function TaskSubmissionsPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   const [task, setTask] = useState<TaskWithMilestone | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const fetchTask = useCallback(async () => {
     try {
       setIsLoading(true);
       
       // Get the task using API endpoint
-      const taskResult = await adminFetch<{success: boolean, data: MilestoneTask[]}>(`/api/admin/milestone-tasks?taskId=${id}`);
+      const taskUrl = `/api/admin/milestone-tasks?task_id=${id}`;
+      console.log('DEBUG: Fetching task with URL:', taskUrl);
+      console.log('DEBUG: Task ID value:', id);
+      
+      const taskResult = await adminFetch<{success: boolean, data: MilestoneTask[]}>(taskUrl);
       
       if (taskResult.error) {
         throw new Error(taskResult.error);
@@ -45,8 +50,8 @@ function TaskSubmissionsPage() {
         throw new Error("Invalid task data");
       }
 
-      // Get the milestone
-      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestone-tasks?milestone_id=${task?.milestone_id}`);
+      // Get the milestone (use milestones endpoint, not milestone-tasks)
+      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestones?milestone_id=${task?.milestone_id}`);
       
       if (milestoneResult.error) {
         throw new Error(milestoneResult.error);
@@ -92,6 +97,32 @@ function TaskSubmissionsPage() {
     fetchTask();
   }, [id, fetchTask]);
 
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchTask();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  // Safety net: ensure retry button is shown even if layout props are not picked up
+  if (!isLoading && error) {
+    return (
+      <AdminEditPageLayout
+        title={"Task Submissions"}
+        backLinkHref={"/admin/cohorts"}
+        backLinkText="Back to milestone"
+        isLoading={false}
+        error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
+      >
+        {/* no children when in error */}
+      </AdminEditPageLayout>
+    );
+  }
+
   return (
     <AdminEditPageLayout
       title={task ? `Task Submissions: ${task.title}` : "Task Submissions"}
@@ -99,6 +130,8 @@ function TaskSubmissionsPage() {
       backLinkText="Back to milestone"
       isLoading={isLoading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
       {task && (
         <>
