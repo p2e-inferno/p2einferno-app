@@ -1,6 +1,6 @@
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { NetworkError } from '../../network-error';
+import { NetworkError } from '@/components/ui/network-error';
 
 describe('NetworkError', () => {
   test('renders error message and retry button', () => {

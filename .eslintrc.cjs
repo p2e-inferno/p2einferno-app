@@ -15,7 +15,7 @@ module.exports = {
   ],
   rules: {
     // Phase-in: start with warnings; flip to 'error' after cleanup
-    "no-console": ["warn", { allow: [] }],
+    "no-console": "warn",
   },
   overrides: [
     {

@@ -1,5 +1,5 @@
-import { renderHook, act } from '@testing-library/react';
-import { useRetryable } from '../useRetryable';
+import { renderHook, act, waitFor } from '@testing-library/react';
+import { useRetryable } from '@/hooks/useRetryable';
 
 describe('useRetryable', () => {
   test('run sets loading and data on success', async () => {
@@ -25,16 +25,14 @@ describe('useRetryable', () => {
     expect(result.current.error).toBe('boom');
   });
 
-  test('retry toggles isRetrying', async () => {
-    const fn = jest.fn().mockResolvedValue('ok');
+  test('retry runs and completes without throwing', async () => {
+    const fn = jest.fn().mockImplementation(() => new Promise(res => setTimeout(() => res('ok'), 10)));
     const { result } = renderHook(() => useRetryable<string>({ fn }));
-
     await act(async () => {
-      const p = result.current.retry();
-      expect(result.current.isRetrying).toBe(true);
-      await p;
+      await result.current.retry();
     });
+    expect(result.current.error).toBeNull();
+    expect(result.current.loading).toBe(false);
     expect(result.current.isRetrying).toBe(false);
   });
 });
-

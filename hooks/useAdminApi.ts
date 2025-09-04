@@ -10,6 +10,7 @@ interface UseAdminApiOptions {
   showAuthErrorModal?: boolean;
   verifyTokenBeforeRequest?: boolean;
   suppressToasts?: boolean;
+  autoSessionRefresh?: boolean;
 }
 
 export interface ApiResponse<T = any> {
@@ -60,6 +61,32 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
         });
 
         if (!response.ok) {
+          // If unauthorized and auto refresh enabled, attempt session issuance then retry once
+          if (response.status === 401 && options.autoSessionRefresh !== false) {
+            try {
+              const sessionResp = await fetch('/api/v2/admin/session', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}` },
+              });
+              if (sessionResp.ok) {
+                const retry = await fetch(url, {
+                  ...requestOptions,
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${accessToken}`,
+                    ...requestOptions.headers,
+                  },
+                });
+                if (retry.ok) {
+                  const data = await retry.json();
+                  return { data } as any;
+                }
+                // fallthrough to normal error handling if retry failed
+              }
+            } catch (_) {
+              // ignore and continue to normal error handling
+            }
+          }
           if (response.status === 401) {
             const errorMessage = "Authentication required";
             setError(errorMessage);

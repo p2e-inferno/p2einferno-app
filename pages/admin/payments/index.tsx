@@ -5,7 +5,7 @@ import AdminLayout from "@/components/layouts/AdminLayout";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, AlertCircle, ExternalLink } from "lucide-react";
+import { RefreshCw, ExternalLink } from "lucide-react";
 import { NetworkError } from "@/components/ui/network-error";
 import { usePrivy } from "@privy-io/react-auth";
 

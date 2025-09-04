@@ -2,8 +2,10 @@ import "@testing-library/jest-dom";
 import React from "react";
 
 // Add polyfills for TextEncoder/TextDecoder (needed for viem)
-const { TextEncoder } = require("util");
+const { TextEncoder, TextDecoder } = require("util");
 global.TextEncoder = TextEncoder;
+// @ts-ignore
+global.TextDecoder = TextDecoder;
 
 // Mock crypto.getRandomValues (needed for ethers.js)
 Object.defineProperty(global, "crypto", {
@@ -68,4 +70,30 @@ global.fetch = jest.fn();
 // Reset mocks before each test
 beforeEach(() => {
   jest.clearAllMocks();
+});
+
+// Mock ESM-only libs that Jest struggles to transform by default
+jest.mock('jose', () => {
+  class SignJWTMock {
+    setProtectedHeader() { return this; }
+    setIssuedAt() { return this; }
+    setExpirationTime() { return this; }
+    setSubject() { return this; }
+    setIssuer() { return this; }
+    setAudience() { return this; }
+    sign() { return Promise.resolve('test.jwt.token'); }
+  }
+  return {
+    SignJWT: SignJWTMock,
+    jwtVerify: jest.fn(async (token: string) => ({ payload: { sub: 'did:privy:test', roles: ['admin'] } })),
+  };
+});
+
+jest.mock('@privy-io/server-auth', () => {
+  class PrivyClientMock {
+    constructor(appId: string, secret: string) {}
+    async getUser(userId: string) { return { linkedAccounts: [] }; }
+    async verifyAuthToken(token: string) { return { userId: 'did:privy:test', sessionId: 'sess' }; }
+  }
+  return { PrivyClient: PrivyClientMock };
 });

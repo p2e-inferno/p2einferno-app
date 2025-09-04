@@ -35,9 +35,51 @@
 
 ## Testing Guidelines
 - Framework: Jest + Testing Library (jsdom). Config in `jest.config.ts` and `jest.setup.ts`.
-- Locations: colocate tests or use `**/*.(test|spec).(ts|tsx)` across `components/`, `pages/`, `lib/`, `hooks/`.
+- Location: tests are centralized under `__tests__/` (unit/integration) mirroring source folders. Prefer this over scattering test folders across the tree.
+- Filenames: `*.test.ts(x)` or `*.spec.ts(x)`.
 - Coverage: collected from UI, lib, hooks; use `npm run test:coverage` for reports.
 - Mocks: see router/Privy/crypto mocks in `jest.setup.ts`.
+
+## Admin Sessions & Bundle APIs
+- Admin session: short‑lived JWT stored in an HttpOnly cookie (`admin-session`).
+  - Issue: `POST /api/admin/session` after Privy login; server verifies Privy and admin key once, then sets cookie.
+  - Verify: Optional middleware (disabled by default) enforces session on `/api/admin/*`. Enable with `ADMIN_SESSION_ENABLED=true`.
+  - TTL: `ADMIN_SESSION_TTL_SECONDS` (single source). Secret: `ADMIN_SESSION_JWT_SECRET`.
+- Consolidated endpoints: prefer Route Handlers under `app/api/` that return bundled data to cut round‑trips.
+  - Implemented: `GET /api/admin/tasks/details?task_id=...&include=milestone,cohort,submissions[:status|:limit|:offset]`.
+  - Keep Pages API versions for compatibility; migrate clients progressively.
+
+### New Route Handlers (Mutations + Invalidation)
+- `app/api/admin/milestones/route.ts` (GET/POST/PUT/DELETE)
+- `app/api/admin/milestone-tasks/route.ts` (POST/PUT/DELETE; supports bulk create)
+- `app/api/admin/task-submissions/route.ts` (GET/POST/PUT)
+- All call `revalidateTag` for cache-coherent reads with the bundle route.
+
+### Migration Checklist (Client)
+1. Enable dev middleware: set `ADMIN_SESSION_ENABLED=true` locally.
+2. Adopt `useAdminApi` with `autoSessionRefresh` (default on) for 401 → session → retry.
+3. Read endpoints: switch to `tasks/details` where multiple fetches are chained.
+4. Write endpoints: switch to Route Handlers listed above to benefit from tag invalidation.
+5. Keep old Pages API calls as fallback until stabilized; remove later.
+
+See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
+
+## Retryable Error UX
+- Use `components/ui/network-error` for fetch/DB failures with a Try Again button.
+- Wire a local `handleRetry` and set `isRetrying` while refetching.
+- When calling `useAdminApi`, pass `{ suppressToasts: true }` if rendering `NetworkError` to avoid duplicate toasts.
+
+## New Environment Variables
+- `ADMIN_SESSION_TTL_SECONDS` — admin session expiry in seconds (default 60).
+- `ADMIN_RPC_TIMEOUT_MS` — RPC timeout for on‑chain admin checks (default 10000).
+- `ADMIN_MAX_PAGE_SIZE` — upper bound for list endpoints (default 200).
+- `ADMIN_SESSION_ENABLED` — enable middleware enforcement on `/api/admin/*` (default false).
+- `ADMIN_SESSION_JWT_SECRET` — HS256 secret for admin session signing. Set a strong random value in prod.
+
+## Migration Notes
+- Existing Pages API endpoints remain unchanged; new Route Handlers are additive.
+- Prefer bundle endpoints for new work; migrate heavy admin pages opportunistically.
+- When enabling middleware, ensure your admin UI calls `POST /api/admin/session` after login and retries on 401.
 
 ## Logging
 - Module logger: Use `getLogger(module)` from `lib/utils/logger`. Levels: `debug|info|warn|error`; pretty in dev, JSON in prod.

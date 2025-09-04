@@ -29,60 +29,19 @@ function TaskSubmissionsPage() {
     try {
       setIsLoading(true);
       
-      // Get the task using API endpoint
-      const taskUrl = `/api/admin/milestone-tasks?task_id=${id}`;
-      console.log('DEBUG: Fetching task with URL:', taskUrl);
-      console.log('DEBUG: Task ID value:', id);
-      
-      const taskResult = await adminFetch<{success: boolean, data: MilestoneTask[]}>(taskUrl);
-      
-      if (taskResult.error) {
-        throw new Error(taskResult.error);
-      }
-      
-      const taskData = taskResult.data?.data;
-      if (!taskData || taskData.length === 0) {
-        throw new Error("Task not found");
-      }
-
-      const task = taskData[0];
-      if (!task || !task.id) {
-        throw new Error("Invalid task data");
-      }
-
-      // Get the milestone (use milestones endpoint, not milestone-tasks)
-      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestones?milestone_id=${task?.milestone_id}`);
-      
-      if (milestoneResult.error) {
-        throw new Error(milestoneResult.error);
-      }
-      
-      const milestone = milestoneResult.data?.data;
-      if (!milestone) {
-        throw new Error("Milestone not found");
-      }
-
-      // Get the cohort
-      const cohortResult = await adminFetch<{success: boolean, data: {id: string, name: string}}>(`/api/admin/cohorts/${milestone.cohort_id}`);
-      
-      if (cohortResult.error) {
-        throw new Error(cohortResult.error);
-      }
-      
-      const cohort = cohortResult.data?.data;
-      if (!cohort) {
-        throw new Error("Cohort not found");
-      }
-
-      // Combine the data
+      // Use consolidated bundle endpoint for task + milestone + cohort
+      const detailsUrl = `/api/v2/admin/tasks/details?task_id=${id}&include=milestone,cohort`;
+      const result = await adminFetch<{ success: boolean; data: { task: MilestoneTask; milestone: CohortMilestone; cohort: { id: string; name: string } } }>(detailsUrl);
+      if (result.error) throw new Error(result.error);
+      const data = result.data?.data as any;
+      if (!data?.task || !data?.milestone || !data?.cohort) throw new Error('Failed to load task details');
       const combinedTask: TaskWithMilestone = {
-        ...task,
+        ...data.task,
         milestone: {
-          ...milestone,
-          cohort: cohort
-        }
-      };
-
+          ...data.milestone,
+          cohort: data.cohort,
+        },
+      } as any;
       setTask(combinedTask);
     } catch (err: any) {
       console.error("Error fetching task:", err);

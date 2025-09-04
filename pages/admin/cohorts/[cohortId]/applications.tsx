@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
-import { usePrivy } from '@privy-io/react-auth';
 import { NetworkError } from '@/components/ui/network-error';
 import { useAdminApi } from '@/hooks/useAdminApi';
 import { 
@@ -11,8 +10,7 @@ import {
   AlertCircle, 
   Clock, 
   RefreshCw,
-  Settings,
-  RefreshCcw
+  Settings
 } from 'lucide-react';
 import AdminLayout from '../../../../components/layouts/AdminLayout';
 import { withAdminAuth } from '../../../../components/admin/withAdminAuth';
@@ -61,7 +59,6 @@ interface CohortStats {
 const CohortDetailPage: React.FC = () => {
   const router = useRouter();
   const { cohortId } = router.query;
-  const { getAccessToken } = usePrivy();
   const { adminFetch } = useAdminApi({ suppressToasts: true });
   
   const [cohort, setCohort] = useState<CohortDetails | null>(null);

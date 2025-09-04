@@ -36,29 +36,6 @@ const nextConfig = {
     },
   },
   headers: async () => {
-    const buildCsp = () => {
-      const directives = [
-        "default-src 'self'",
-        "base-uri 'self'",
-        "object-src 'none'",
-        "form-action 'self'",
-        "frame-ancestors 'none'",
-        `script-src 'self' https://challenges.cloudflare.com https://js.paystack.co${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ""}`,
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src 'self' https://fonts.gstatic.com",
-        "img-src 'self' data: blob: https:",
-        "connect-src 'self' https://auth.privy.io wss://relay.walletconnect.com wss://relay.walletconnect.org wss://www.walletlink.org https://*.rpc.privy.systems https://explorer-api.walletconnect.com https://*.supabase.co https://api.paystack.co https://pulse.walletconnect.org https://api.web3modal.org https://sepolia.base.org https://mainnet.base.org",
-        "child-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org",
-        "frame-src https://auth.privy.io https://verify.walletconnect.com https://verify.walletconnect.org https://challenges.cloudflare.com https://checkout.paystack.com https://js.paystack.co https://*.paystack.com",
-        "worker-src 'self'",
-        "manifest-src 'self'",
-        // CSP reporting directives
-        "report-uri /api/security/csp-report",
-        "report-to default"
-      ];
-      return directives.join("; ");
-    };
-
     return [
       {
         source: '/(.*)',
