@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +50,9 @@ export default function CohortForm({
   );
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
   const { getAccessToken } = usePrivy();
-  const { adminFetch } = useAdminApi();
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({}), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
   const wallet = useSmartWalletSelection();
   const [keyManagersInput, setKeyManagersInput] = useState<string>(
     cohort?.key_managers?.join(", ") || ""
@@ -80,8 +82,8 @@ export default function CohortForm({
     }
   );
 
-  // Validation function
-  const validateForm = useCallback((data: Partial<Cohort>) => {
+  // Validation function - no dependencies needed, stable across renders
+  const validateForm = (data: Partial<Cohort>) => {
     const errors: typeof validationErrors = {};
     
     // Required field validations
@@ -126,12 +128,12 @@ export default function CohortForm({
     setIsFormValid(Object.keys(errors).length === 0);
     
     return errors;
-  }, []);
+  };
 
   // Validate form whenever formData changes
   useEffect(() => {
     validateForm(formData);
-  }, [formData, validateForm]);
+  }, [formData]); // Remove validateForm from dependencies since it's now stable
 
   // Load draft data on mount
   useEffect(() => {
@@ -144,12 +146,18 @@ export default function CohortForm({
     }
   }, [isEditing]);
 
-  // Fetch bootcamp programs
+  // Fetch bootcamp programs on mount only
   useEffect(() => {
-    async function fetchBootcampPrograms() {
+    let isMounted = true;
+    
+    const fetchBootcampPrograms = async () => {
       try {
+        if (!isMounted) return;
         setIsLoadingPrograms(true);
+        
         const result = await adminFetch<{success: boolean, data: BootcampProgram[]}>('/api/admin/bootcamps');
+        
+        if (!isMounted) return;
         
         if (result.error) {
           throw new Error(result.error);
@@ -157,15 +165,22 @@ export default function CohortForm({
         
         setBootcampPrograms(result.data?.data || []);
       } catch (err: any) {
+        if (!isMounted) return;
         console.error("Error fetching bootcamp programs:", err);
         setError(err.message || "Failed to load bootcamp programs");
       } finally {
-        setIsLoadingPrograms(false);
+        if (isMounted) {
+          setIsLoadingPrograms(false);
+        }
       }
-    }
+    };
 
     fetchBootcampPrograms();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []); // Empty dependency array - only run on mount, no dependencies on unstable functions
 
   const handleChange = (
     e: React.ChangeEvent<

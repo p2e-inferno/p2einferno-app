@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { createPublicClient, http } from "viem";
 import { mainnet, base } from "viem/chains";
+import { createPublicClientUnified, createPublicClientForChain } from "@/lib/blockchain/config/unified-config";
 import { getEnsName } from "viem/ens";
 
 interface ENSResolutionResult {
@@ -37,16 +37,9 @@ export const useENSResolution = (
       setResult((prev) => ({ ...prev, loading: true, error: null }));
 
       try {
-        // Create public clients for mainnet and base
-        const mainnetClient = createPublicClient({
-          chain: mainnet,
-          transport: http(),
-        });
-
-        const baseClient = createPublicClient({
-          chain: base,
-          transport: http(),
-        });
+        // Create public clients via unified transports
+        const baseClient = createPublicClientUnified();
+        const mainnetClient = createPublicClientForChain(mainnet);
 
         // Resolve ENS name on mainnet
         let ensName: string | null = null;

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import MilestoneList from "@/components/admin/MilestoneList";
@@ -8,6 +8,7 @@ import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
 import { NetworkError } from "@/components/ui/network-error";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface CohortWithProgram extends Cohort {
   bootcamp_program?: {
@@ -19,7 +20,10 @@ interface CohortWithProgram extends Cohort {
 function CohortMilestonesPage() {
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
 
   const [cohort, setCohort] = useState<CohortWithProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,7 +53,7 @@ function CohortMilestonesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [adminFetch, cohortId]);
+  }, [cohortId]); // Remove adminFetch from dependencies to prevent infinite loop
 
   useEffect(() => {
     if (cohortId) {

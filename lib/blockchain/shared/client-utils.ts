@@ -5,7 +5,8 @@
 
 import { ethers } from "ethers";
 import { type PublicClient, type WalletClient } from "viem";
-import { UNIFIED_BLOCKCHAIN_CONFIG } from "../config/unified-config";
+import { UNIFIED_BLOCKCHAIN_CONFIG, getClientRpcUrls } from "../config/unified-config";
+import { blockchainLogger } from "./logging-utils";
 
 // ============================================================================
 // TYPES
@@ -31,8 +32,15 @@ export interface PrivyWalletInfo {
 /**
  * Create read-only ethers provider for server-side operations
  */
-export const createEthersReadOnlyProvider = (): ethers.JsonRpcProvider => {
-  return new ethers.JsonRpcProvider(UNIFIED_BLOCKCHAIN_CONFIG.rpcUrl);
+export const createEthersReadOnlyProvider = (): ethers.JsonRpcProvider | ethers.FallbackProvider => {
+  const urls = getClientRpcUrls();
+  const providers = urls.map((u) => new ethers.JsonRpcProvider(u));
+  try {
+    const hosts = urls.map((u) => { try { return new URL(u).host; } catch { return '[unparseable]'; } });
+    blockchainLogger.debug('Ethers FallbackProvider configured', { operation: 'config:rpc:ethers', order: hosts });
+  } catch {}
+  if (providers.length === 1) return providers[0];
+  return new ethers.FallbackProvider(providers);
 };
 
 /**

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
@@ -9,7 +9,9 @@ import { withAdminAuth } from "@/components/admin/withAdminAuth";
 function EditCohortPage() {
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
 
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,13 +41,13 @@ function EditCohortPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [adminFetch, cohortId]);
+  }, [cohortId]); // adminFetch is now stable due to memoized options
 
   useEffect(() => {
     if (cohortId) {
       fetchCohort();
     }
-  }, [cohortId, fetchCohort]);
+  }, [cohortId]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {

@@ -161,12 +161,14 @@ export class LockManagerService {
     forceRefresh = false
   ): Promise<KeyInfo | null> {
     try {
+      const overallStart = Date.now();
       // Add cache-busting parameter if forceRefresh is true
       const cacheOptions = forceRefresh
         ? { multicallAddress: undefined } // This forces viem to not use its internal cache
         : {};
 
       // First check if the user has a valid key
+      const t1 = Date.now();
       const hasValidKey = (await this.publicClient.readContract({
         address: lockAddress,
         abi: this.contractAbi,
@@ -174,14 +176,18 @@ export class LockManagerService {
         args: [userAddress],
         ...cacheOptions,
       })) as boolean;
+      const t1d = Date.now() - t1;
+      blockchainLogger.debug('readContract:getHasValidKey complete', { operation: 'keyCheck', lockAddress, userAddress, durationMs: t1d });
 
       if (hasValidKey === false) {
         blockchainLogger.logKeyCheck(lockAddress, userAddress, false);
+        blockchainLogger.info('Key check finished (no key)', { operation: 'keyCheck', totalDurationMs: Date.now() - overallStart });
         return null;
       }
 
       try {
         // Get the token ID for the user
+        const t2 = Date.now();
         const tokenId = (await this.publicClient.readContract({
           address: lockAddress,
           abi: this.contractAbi,
@@ -189,8 +195,11 @@ export class LockManagerService {
           args: [userAddress, 0n],
           ...cacheOptions,
         })) as bigint;
+        const t2d = Date.now() - t2;
+        blockchainLogger.debug('readContract:tokenOfOwnerByIndex complete', { operation: 'keyCheck', lockAddress, userAddress, durationMs: t2d });
 
         // Get key expiration
+        const t3 = Date.now();
         const expirationTimestamp = (await this.publicClient.readContract({
           address: lockAddress,
           abi: this.contractAbi,
@@ -198,8 +207,11 @@ export class LockManagerService {
           args: [tokenId],
           ...cacheOptions,
         })) as bigint;
+        const t3d = Date.now() - t3;
+        blockchainLogger.debug('readContract:keyExpirationTimestampFor complete', { operation: 'keyCheck', lockAddress, userAddress, durationMs: t3d });
 
         blockchainLogger.logKeyCheck(lockAddress, userAddress, hasValidKey);
+        blockchainLogger.info('Key check finished (with token details)', { operation: 'keyCheck', totalDurationMs: Date.now() - overallStart });
         
         return {
           tokenId,
@@ -214,6 +226,7 @@ export class LockManagerService {
           lockAddress,
           error: error instanceof Error ? error.message : 'Unknown error'
         });
+        blockchainLogger.info('Key check finished (fallback details)', { operation: 'keyCheck', totalDurationMs: Date.now() - overallStart });
         // Even though getHasValidKey returned true, we couldn't get the token details
         // This might happen if the contract doesn't implement ERC721Enumerable
         return {

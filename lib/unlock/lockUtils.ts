@@ -1,7 +1,9 @@
 import { type Address } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { ethers, formatUnits, parseUnits } from "ethers";
-import { UNIFIED_BLOCKCHAIN_CONFIG } from "../blockchain/config/unified-config";
+import { UNIFIED_BLOCKCHAIN_CONFIG, getClientRpcUrls } from "../blockchain/config/unified-config";
+import { blockchainLogger } from "../blockchain/shared/logging-utils";
+import { createEthersReadOnlyProvider as createSharedReadOnlyProvider } from "../blockchain/shared/client-utils";
 import { 
   ensureCorrectNetwork as ensureCorrectNetworkShared,
   getBlockExplorerUrl as getBlockExplorerUrlShared,
@@ -150,7 +152,17 @@ const COMPLETE_LOCK_ABI = [...PUBLIC_LOCK_CONTRACT.abi, ...ADDITIONAL_LOCK_ABI];
  * Create read-only provider for blockchain operations
  */
 export const getReadOnlyProvider = () => {
-  return new ethers.JsonRpcProvider(UNIFIED_BLOCKCHAIN_CONFIG.rpcUrl);
+  const { chain } = UNIFIED_BLOCKCHAIN_CONFIG;
+  try {
+    const urls = getClientRpcUrls();
+    const hosts = urls.map((u) => { try { return new URL(u).host; } catch { return '[unparseable]'; } });
+    blockchainLogger.debug('Creating read-only provider (fallback)', {
+      operation: 'provider:create',
+      order: hosts,
+      chainId: chain.id,
+    });
+  } catch {}
+  return createSharedReadOnlyProvider();
 };
 
 /**
@@ -363,23 +375,58 @@ export const checkKeyOwnership = async (
   userAddress: string
 ): Promise<boolean> => {
   try {
+    const start = Date.now();
     if (!ethers.isAddress(lockAddress) || !ethers.isAddress(userAddress)) {
+      blockchainLogger.warn('Invalid addresses for key ownership check', {
+        operation: 'keyCheck',
+        lockAddress,
+        userAddress,
+      });
       return false;
     }
 
     if (lockAddress === "Unknown") {
+      blockchainLogger.warn('Key check skipped for unknown lock address', {
+        operation: 'keyCheck',
+        lockAddress,
+        userAddress,
+      });
       return false;
     }
 
+    const { rpcUrl, chain } = UNIFIED_BLOCKCHAIN_CONFIG;
     const provider = getReadOnlyProvider();
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
       provider
     ) as any;
-    return await lockContract.getHasValidKey(userAddress);
+
+    blockchainLogger.debug('Invoking getHasValidKey', {
+      operation: 'keyCheck',
+      lockAddress,
+      userAddress,
+      chainId: chain.id,
+      rpcHost: (() => { try { return new URL(rpcUrl).host; } catch { return '[unparseable]'; } })(),
+    });
+
+    const hasKey = await lockContract.getHasValidKey(userAddress);
+    const durationMs = Date.now() - start;
+    blockchainLogger.logKeyCheck(lockAddress, userAddress, !!hasKey);
+    blockchainLogger.info('Key ownership check completed', {
+      operation: 'keyCheck',
+      durationMs,
+      lockAddress,
+      userAddress,
+    });
+    return hasKey;
   } catch (error) {
-    console.error(`Error checking key ownership for ${lockAddress}:`, error);
+    blockchainLogger.error(`Error checking key ownership for ${lockAddress}`, {
+      operation: 'keyCheck',
+      lockAddress,
+      userAddress,
+      error: (error as any)?.message || String(error),
+    });
     return false;
   }
 };

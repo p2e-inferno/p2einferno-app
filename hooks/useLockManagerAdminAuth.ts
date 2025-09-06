@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
@@ -16,15 +16,25 @@ export const useLockManagerAdminAuth = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
+  const inFlightRef = useRef(false);
+  const lastCheckRef = useRef(0);
 
   // Function to check admin access via admin lock
   const checkAdminAccess = useCallback(
     async (forceRefresh = false) => {
+      if (inFlightRef.current) return;
+      const now = Date.now();
+      if (!forceRefresh && now - lastCheckRef.current < 10000) {
+        // Throttle repeated checks within 10s
+        return;
+      }
+      inFlightRef.current = true;
       setLoading(true);
 
       if (!authenticated || !user) {
         setIsAdmin(false);
         setLoading(false);
+        inFlightRef.current = false;
         return;
       }
 
@@ -38,6 +48,7 @@ export const useLockManagerAdminAuth = () => {
         );
         setIsAdmin(false);
         setLoading(false);
+        inFlightRef.current = false;
         return;
       }
 
@@ -101,6 +112,7 @@ export const useLockManagerAdminAuth = () => {
         if (uniqueWalletAddresses.length === 0) {
           setIsAdmin(false);
           setLoading(false);
+          inFlightRef.current = false;
           return;
         }
 
@@ -151,14 +163,16 @@ export const useLockManagerAdminAuth = () => {
         if (forceRefresh) {
           setLastRefreshTime(Date.now());
         }
+        lastCheckRef.current = Date.now();
       } catch (error) {
         log.error("Error checking admin access", { error });
         setIsAdmin(false);
       } finally {
         setLoading(false);
+        inFlightRef.current = false;
       }
     },
-    [user, authenticated, user?.wallet?.address, user?.linkedAccounts]
+    [authenticated, user?.id]
   );
 
   // Function to manually refresh admin status
@@ -168,11 +182,11 @@ export const useLockManagerAdminAuth = () => {
   }, [checkAdminAccess]);
 
   useEffect(() => {
-    // Wait until Privy is ready and user data is loaded
+    // Run once when Privy becomes ready
     if (!ready) return;
-
     checkAdminAccess();
-  }, [ready, checkAdminAccess]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready]);
 
   // Listen for wallet account changes
   useEffect(() => {

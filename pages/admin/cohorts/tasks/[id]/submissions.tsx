@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskSubmissions from "@/components/admin/TaskSubmissions";
@@ -18,7 +18,9 @@ interface TaskWithMilestone extends MilestoneTask {
 function TaskSubmissionsPage() {
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
 
   const [task, setTask] = useState<TaskWithMilestone | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,7 +51,7 @@ function TaskSubmissionsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [id]); // adminFetch is now stable due to memoized options
 
   useEffect(() => {
     if (!id) return;

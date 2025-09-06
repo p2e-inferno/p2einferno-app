@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/router';
 import { toast } from 'react-hot-toast';
 import { NetworkError } from '@/components/ui/network-error';
@@ -59,7 +59,9 @@ interface CohortStats {
 const CohortDetailPage: React.FC = () => {
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
   
   const [cohort, setCohort] = useState<CohortDetails | null>(null);
   const [applications, setApplications] = useState<CohortApplication[]>([]);
@@ -93,7 +95,7 @@ const CohortDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [cohortId, adminFetch]);
+  }, [cohortId]); // Remove adminFetch from dependencies to prevent infinite loop
   
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -115,7 +117,7 @@ const CohortDetailPage: React.FC = () => {
       console.error('Reconciliation error:', error);
       toast.error('Failed to reconcile application');
     }
-  }, [adminFetch, fetchCohortData]);
+  }, [fetchCohortData]); // Remove adminFetch from dependencies to prevent infinite loop
   
   const handleBulkReconcile = useCallback(async () => {
     const applicationsNeedingReconciliation = applications.filter(app => app.needs_reconciliation);
@@ -140,7 +142,7 @@ const CohortDetailPage: React.FC = () => {
       console.error('Bulk reconciliation error:', error);
       toast.error('Some reconciliations failed');
     }
-  }, [applications, adminFetch, fetchCohortData]);
+  }, [applications, fetchCohortData]); // Remove adminFetch from dependencies to prevent infinite loop
   
   useEffect(() => {
     fetchCohortData();

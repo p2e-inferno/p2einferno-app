@@ -1,4 +1,6 @@
 import { ethers } from 'ethers';
+import { getClientConfig, getClientRpcUrls } from './config/unified-config';
+import { blockchainLogger } from './shared/logging-utils';
 
 /**
  * Frontend blockchain configuration
@@ -48,9 +50,13 @@ export const getCurrentNetworkConfig = (): NetworkConfig => {
 };
 
 // Create a read-only provider for frontend use
-export const createFrontendReadOnlyProvider = (network?: NetworkType): ethers.JsonRpcProvider => {
-  const config = network ? NETWORK_CONFIGS[network] : getCurrentNetworkConfig();
-  return new ethers.JsonRpcProvider(config.rpcUrl);
+export const createFrontendReadOnlyProvider = (network?: NetworkType): ethers.JsonRpcProvider | ethers.FallbackProvider => {
+  const unified = getClientConfig();
+  const urls = getClientRpcUrls();
+  const hosts = urls.map((u) => { try { return new URL(u).host; } catch { return '[unparseable]'; } });
+  blockchainLogger.debug('Frontend provider configured (fallback)', { operation: 'provider:create:frontend', order: hosts, chainId: unified.chain.id });
+  const providers = urls.map((u) => new ethers.JsonRpcProvider(u));
+  return providers.length > 1 ? new ethers.FallbackProvider(providers) : providers[0];
 };
 
 // Default frontend provider instance

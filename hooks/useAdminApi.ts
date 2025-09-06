@@ -64,10 +64,17 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
           // If unauthorized and auto refresh enabled, attempt session issuance then retry once
           if (response.status === 401 && options.autoSessionRefresh !== false) {
             try {
-              const sessionResp = await fetch('/api/v2/admin/session', {
+              // Prefer Route Handler; fallback to v2 Pages API
+              let sessionResp = await fetch('/api/admin/session', {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${accessToken}` },
               });
+              if (!sessionResp.ok) {
+                sessionResp = await fetch('/api/v2/admin/session', {
+                  method: 'POST',
+                  headers: { 'Authorization': `Bearer ${accessToken}` },
+                });
+              }
               if (sessionResp.ok) {
                 const retry = await fetch(url, {
                   ...requestOptions,

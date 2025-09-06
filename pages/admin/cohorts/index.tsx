@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 // useRouter is not directly used by the page anymore
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout"; // Import the new layout
 import { Button } from "@/components/ui/button";
@@ -9,14 +9,17 @@ import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { formatDate } from "@/lib/dateUtils"; // + Import shared function
 import { Badge } from "@/components/ui/badge"; // Keep Badge for status display
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 
 export default function CohortListPage() {
   // Auth and client checks are handled by AdminListPageLayout
+  const { authenticated, isAdmin, loading: authLoading } = useLockManagerAdminAuth();
   const [cohorts, setCohorts] = useState<
     (Cohort & { bootcamp_program: BootcampProgram })[]
   >([]);
   const [error, setError] = useState<string | null>(null);
-  const { adminFetch, loading } = useAdminApi({ suppressToasts: true });
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch, loading } = useAdminApi(apiOptions);
   console.log("Cohorts loaded:", cohorts.length, "items")
   // Fetch cohorts - This logic remains in the page
   const fetchCohorts = useCallback(async () => {
@@ -38,10 +41,14 @@ export default function CohortListPage() {
     }
   }, [adminFetch]);
 
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
-    // AdminListPageLayout handles auth check
+    // Only fetch after admin auth is confirmed
+    if (!authenticated || !isAdmin) return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
     fetchCohorts();
-  }, [fetchCohorts]);
+  }, [authenticated, isAdmin, fetchCohorts]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -74,7 +81,7 @@ export default function CohortListPage() {
       title="Cohorts"
       newButtonText="New Cohort"
       newButtonLink="/admin/cohorts/new"
-      isLoading={loading} // Pass the data loading state
+      isLoading={authLoading || loading} // Wait for auth + data
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}

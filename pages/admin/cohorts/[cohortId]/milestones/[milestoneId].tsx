@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskList from "@/components/admin/TaskList";
@@ -15,7 +15,9 @@ interface MilestoneWithCohort extends CohortMilestone {
 function MilestoneDetailsPage() {
   const router = useRouter();
   const { id: cohortId, milestoneId } = router.query;
-  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
 
   const [milestone, setMilestone] = useState<MilestoneWithCohort | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -62,7 +64,7 @@ function MilestoneDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [milestoneId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [milestoneId]); // adminFetch is now stable due to memoized options
 
   useEffect(() => {
     if (!milestoneId) return;
