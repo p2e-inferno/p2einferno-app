@@ -12,6 +12,7 @@ import {
   fallback,
   type WalletClient,
   type PublicClient,
+  type Chain,
 } from "viem";
 import { blockchainLogger } from "../shared/logging-utils";
 
@@ -208,16 +209,23 @@ export const createPublicClientUnified = (): PublicClient => {
 
   return createPublicClient({
     chain,
-    transport: fallback(transports, { stallTimeout: stallMs, retryCount, retryDelay }),
-  }) as PublicClient;
+    transport: fallback(transports, {
+      rank: { timeout: stallMs },
+      retryCount,
+      retryDelay,
+    }),
+  }) as unknown as PublicClient;
 };
 
 /**
  * Create a public client for an arbitrary chain.
  * Uses fallback transport for Base/Base Sepolia; defaults for others.
  */
-export const createPublicClientForChain = (targetChain: typeof base | typeof baseSepolia | typeof mainnet | any): PublicClient => {
-  const { timeoutMs, stallMs, retryCount, retryDelay } = getRpcFallbackSettings();
+export const createPublicClientForChain = (
+  targetChain: Chain,
+): PublicClient => {
+  const { timeoutMs, stallMs, retryCount, retryDelay } =
+    getRpcFallbackSettings();
   // Use prioritized fallback for known chains (Base mainnet/sepolia, Ethereum mainnet)
   if (targetChain?.id) {
     const { urls, hosts } = resolveRpcUrls(targetChain.id);
@@ -236,13 +244,16 @@ export const createPublicClientForChain = (targetChain: typeof base | typeof bas
       chain: targetChain,
       transport: fallback(
         urls.map((u) => http(u, { timeout: timeoutMs })),
-        { stallTimeout: stallMs, retryCount, retryDelay }
+        { rank: { timeout: stallMs }, retryCount, retryDelay },
       ),
-    }) as PublicClient;
+    }) as unknown as PublicClient;
   }
 
   // Fallback: default http transport
-  return createPublicClient({ chain: targetChain, transport: http(undefined as any, { timeout: timeoutMs }) }) as PublicClient;
+  return createPublicClient({
+    chain: targetChain,
+    transport: http(undefined as any, { timeout: timeoutMs }),
+  }) as unknown as PublicClient;
 };
 
 /**
@@ -268,9 +279,9 @@ export const createWalletClientUnified = (): WalletClient | null => {
       chain,
       transport: fallback(
         urls.map((u) => http(u, { timeout: timeoutMs })),
-        { stallTimeout: stallMs, retryCount, retryDelay }
+        { rank: { timeout: stallMs }, retryCount, retryDelay },
       ),
-    }) as WalletClient;
+    }) as unknown as WalletClient;
   } catch (error) {
     blockchainLogger.error("Failed to create wallet client", { operation: 'walletClient:create', error: (error as any)?.message || String(error) });
     return null;
