@@ -21,7 +21,7 @@ import { blockchainLogger } from "../shared/logging-utils";
 // ============================================================================
 
 export interface BlockchainConfig {
-  chain: typeof base | typeof baseSepolia;
+  chain: typeof base | typeof baseSepolia | typeof mainnet;
   rpcUrl: string;
   networkName: string;
   usdcTokenAddress?: string;
@@ -83,12 +83,21 @@ const resolveChain = () => {
   
   switch (network) {
     case "base":
-    case "mainnet":
       return {
         chain: base,
         rpcUrl: createAlchemyRpcUrl(process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL || "https://base-mainnet.g.alchemy.com/v2/"),
         usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET,
         networkName: "Base Mainnet",
+      } as const;
+    case "mainnet":
+      // Ethereum mainnet
+      return {
+        chain: mainnet,
+        rpcUrl: process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+          ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+          : "https://cloudflare-eth.com",
+        usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_ETHEREUM_MAINNET,
+        networkName: "Ethereum Mainnet",
       } as const;
     case "base-sepolia":
     default:
@@ -130,7 +139,9 @@ const resolveRpcUrls = (chainId: number) => {
 
   if (chainId === base.id) {
     // Base Mainnet: Alchemy -> Infura -> Base public
-    const alchemyUrl = createAlchemyRpcUrl(process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL || "https://base-mainnet.g.alchemy.com/v2/");
+    const alchemyUrl = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+      ? `${(process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL || "https://base-mainnet.g.alchemy.com/v2/")}${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+      : undefined;
     const infuraEnv = process.env.NEXT_PUBLIC_INFURA_BASE_MAINNET_RPC_URL;
     const infuraUrl = infuraEnv || (infuraKey ? `https://base-mainnet.infura.io/v3/${infuraKey}` : undefined);
     // Push in preferred order
@@ -144,7 +155,9 @@ const resolveRpcUrls = (chainId: number) => {
     urls.push("https://mainnet.base.org");
   } else if (chainId === baseSepolia.id) {
     // Base Sepolia: Alchemy -> Infura -> Base public
-    const alchemyUrl = createAlchemyRpcUrl(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || "https://base-sepolia.g.alchemy.com/v2/");
+    const alchemyUrl = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+      ? `${(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || "https://base-sepolia.g.alchemy.com/v2/")}${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+      : undefined;
     const infuraEnv = process.env.NEXT_PUBLIC_INFURA_BASE_SEPOLIA_RPC_URL;
     const infuraUrl = infuraEnv || (infuraKey ? `https://base-sepolia.infura.io/v3/${infuraKey}` : undefined);
     if (preferred === 'infura') {
@@ -171,16 +184,21 @@ const resolveRpcUrls = (chainId: number) => {
     urls.push("https://cloudflare-eth.com");
   }
 
+  // De-duplicate while preserving order
+  const deduped: string[] = [];
+  for (const u of urls) {
+    if (u && !deduped.includes(u)) deduped.push(u);
+  }
   // As a final safety, if no URLs were computed, use the currently resolved rpcUrl
-  if (urls.length === 0) {
+  if (deduped.length === 0) {
     const { rpcUrl } = resolveChain();
-    urls.push(rpcUrl);
+    deduped.push(rpcUrl);
   }
 
-  const hosts = urls.map((u) => {
+  const hosts = deduped.map((u) => {
     try { return new URL(u).host; } catch { return '[unparseable]'; }
   });
-  return { urls, hosts };
+  return { urls: deduped, hosts };
 };
 
 // ============================================================================
