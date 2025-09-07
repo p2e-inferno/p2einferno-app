@@ -79,7 +79,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md sm:max-w-lg bg-card border-border text-foreground">
+      <DialogContent className="bg-card border-border text-foreground">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <Wallet className="w-5 h-5 text-flame-yellow" />
