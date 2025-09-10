@@ -139,6 +139,35 @@ const ERC20_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  {
+    inputs: [
+      { internalType: "address", name: "owner", type: "address" },
+      { internalType: "address", name: "spender", type: "address" },
+    ],
+    name: "allowance",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "account", type: "address" },
+    ],
+    name: "balanceOf",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "spender", type: "address" },
+      { internalType: "uint256", name: "value", type: "uint256" },
+    ],
+    name: "approve",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
 ] as const;
 
 // Combine existing ABI with additional functions
@@ -554,27 +583,98 @@ export const purchaseKey = async (
       signer
     ) as any;
 
+    // Resolve signer address to avoid mismatch with provided wallet object
+    let signerAddress: string;
+    try {
+      signerAddress = await signer.getAddress();
+    } catch {
+      signerAddress = wallet.address;
+    }
+    const effectiveAddress = signerAddress || wallet.address;
+
     // Get the key price and token address directly from the contract
     const onChainKeyPrice = await lockContract.keyPrice();
     const lockTokenAddress = await lockContract.tokenAddress();
 
-    // Determine if this is ETH or ERC20 payment
-    const isETHPayment =
+  // Determine if this is ETH or ERC20 payment
+  const isETHPayment =
       lockTokenAddress === "0x0000000000000000000000000000000000000000";
-
-    console.log(`Lock token address: ${lockTokenAddress}`);
-    console.log(`Key price from contract: ${onChainKeyPrice.toString()}`);
-    console.log(`Payment type: ${isETHPayment ? "ETH" : "ERC20"}`);
 
     // Handle ERC20 token payments (USDC, etc.)
     if (!isETHPayment && onChainKeyPrice > 0n) {
+      // Ensure sufficient token balance and allowance
+      const tokenContract = new ethers.Contract(
+        lockTokenAddress,
+        ERC20_ABI,
+        signer
+      ) as any;
+
+      const [balance, allowance] = await Promise.all([
+        tokenContract.balanceOf(effectiveAddress),
+        tokenContract.allowance(effectiveAddress, lockAddress),
+      ]);
+
+      if (balance < onChainKeyPrice) {
+        throw new Error(
+          "Insufficient token balance to purchase the key. Please fund your wallet with the required stablecoin."
+        );
+      }
+
+      if (allowance < onChainKeyPrice) {
+        console.log(
+          `Approving spender ${lockAddress} for ${onChainKeyPrice.toString()} tokens`
+        );
+        try {
+          const approveAmount = onChainKeyPrice; // could be maxUint; keep exact to be conservative
+          const approveTx = await tokenContract.approve(lockAddress, approveAmount);
+          console.log('[LOCK_UTILS] Sent approve tx:', approveTx?.hash);
+          await approveTx.wait();
+          console.log('[LOCK_UTILS] Approve tx mined, verifying allowance...');
+
+          // Poll for the updated allowance (in case of RPC/provider lag)
+          const maxChecks = 12; // ~6 seconds @ 500ms
+          for (let i = 0; i < maxChecks; i++) {
+            const newAllowance = await tokenContract.allowance(effectiveAddress, lockAddress);
+            console.log(`[LOCK_UTILS] Allowance check ${i + 1}/${maxChecks}:`, newAllowance?.toString?.());
+            if (newAllowance >= onChainKeyPrice) {
+              break;
+            }
+            await new Promise((r) => setTimeout(r, 500));
+            if (i === maxChecks - 1) {
+              throw new Error('Approval mined but allowance not updated yet. Please try again in a few seconds.');
+            }
+          }
+        } catch (approveErr: any) {
+          // Some tokens require resetting allowance to 0 first
+          if (
+            approveErr?.message &&
+            approveErr.message.toLowerCase().includes("must be zero")
+          ) {
+            const resetTx = await tokenContract.approve(lockAddress, 0);
+            await resetTx.wait();
+            const approveTx = await tokenContract.approve(
+              lockAddress,
+              onChainKeyPrice
+            );
+            await approveTx.wait();
+            // After reset+approve, verify allowance
+            const verifiedAllowance = await tokenContract.allowance(effectiveAddress, lockAddress);
+            if (verifiedAllowance < onChainKeyPrice) {
+              throw new Error('Allowance still insufficient after reset/approve. Please retry.');
+            }
+          } else {
+            throw approveErr;
+          }
+        }
+      }
+
+      // For ERC20 payments, no ETH is sent; _values should be 0
       const tx = await lockContract.purchase(
-        [onChainKeyPrice], // _values (exact token amount from contract)
-        [wallet.address], // _recipients
+        [onChainKeyPrice], // _ for ERC20
+        [effectiveAddress], // _recipients
         ["0x0000000000000000000000000000000000000000"], // _referrers
         ["0x0000000000000000000000000000000000000000"], // _keyManagers
         ["0x"] // _data
-        // No ETH value for ERC20 payments
       );
 
       console.log("ERC20 purchase transaction sent:", tx.hash);
@@ -594,15 +694,11 @@ export const purchaseKey = async (
 
     // Handle ETH payments
     else {
-      console.log(
-        `Calling ETH purchase for recipient: ${
-          wallet.address
-        } with value: ${onChainKeyPrice.toString()} wei`
-      );
+      console.log(`Calling ETH purchase for recipient: ${effectiveAddress} with value: ${onChainKeyPrice.toString()} wei`);
 
       const tx = await lockContract.purchase(
         [onChainKeyPrice], // _values
-        [wallet.address], // _recipients
+        [effectiveAddress], // _recipients
         ["0x0000000000000000000000000000000000000000"], // _referrers
         ["0x0000000000000000000000000000000000000000"], // _keyManagers
         ["0x"], // _data
@@ -639,6 +735,12 @@ export const purchaseKey = async (
       } else if (error.message.includes("insufficient funds")) {
         errorMessage =
           "Insufficient funds to purchase the key. Please add more crypto to your wallet.";
+      } else if (
+        error.message.includes("missing revert data") ||
+        error.message.includes("CALL_EXCEPTION")
+      ) {
+        errorMessage =
+          "The transaction could not be simulated. Ensure you have enough stablecoin balance and have approved the lock to spend your tokens, and that you're on the correct network.";
       } else if (error.message.includes("ERC20: insufficient allowance")) {
         errorMessage =
           "Please approve the USDC spending first. The approval transaction will be requested before payment.";

@@ -13,9 +13,6 @@ const ScrollbarFix = () => {
   return null;
 };
 
-console.log("NEXT_PUBLIC_PRIVY_CLIENT_ID", process.env.NEXT_PUBLIC_PRIVY_CLIENT_ID);
-console.log("NEXT_PUBLIC_PRIVY_APP_ID", process.env.NEXT_PUBLIC_PRIVY_APP_ID);
-
 // This wrapper now contains the PrivyProvider and is only ever rendered on the client side.
 // This is the key to preventing SSR-related errors from libraries that expect a window object.
 function ClientSideWrapper({ children }: { children: React.ReactNode }) {

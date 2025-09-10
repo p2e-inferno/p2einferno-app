@@ -7,6 +7,7 @@ import { toast } from "react-hot-toast";
 import { unlockUtils } from "../../lib/unlock/lockUtils";
 import { getClientConfig } from "../../lib/blockchain/config/unified-config";
 import { LoadingButton } from "../ui/loading-button";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 interface BlockchainPaymentProps {
   applicationId: string;
@@ -34,7 +35,18 @@ export function BlockchainPayment({
   disabled,
 }: BlockchainPaymentProps) {
   const { wallets } = useWallets();
-  const wallet = wallets[0];
+  const wallet = useSmartWalletSelection() as any;
+  
+  if (typeof window !== 'undefined') {
+    // Log wallet selection for debugging
+    console.log('[BlockchainPayment] Selected wallet:', {
+      address: wallet?.address,
+      walletClientType: wallet?.walletClientType,
+      connectorType: wallet?.connectorType,
+      type: wallet?.type,
+      availableWallets: wallets?.map(w => ({ address: w.address, type: w.walletClientType || w.connectorType }))
+    });
+  }
   const router = useRouter();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -212,9 +224,21 @@ export function BlockchainPayment({
         </div>
       )}
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800 text-sm flex items-center gap-2">
-          <AlertCircle className="w-5 h-5" />
-          <span>{error}</span>
+        <div
+          className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800 text-sm flex items-start gap-2 overflow-x-auto"
+          role="alert"
+        >
+          <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+          <span className="break-all whitespace-pre-wrap">{error}</span>
+          <button
+            type="button"
+            onClick={() => setError(null)}
+            className="ml-auto text-red-500/70 hover:text-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 rounded"
+            aria-label="Dismiss error"
+            title="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
       )}
     </div>

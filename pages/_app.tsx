@@ -30,6 +30,8 @@ function MyApp({ Component, pageProps }: AppProps) {
           content="Engage with the onchain economy through a gamified experience. Join our bootcamp to master Web3."
         />
         <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/favicon.svg" />
       </Head>
       <DynamicClientSideWrapper>
         <Toaster

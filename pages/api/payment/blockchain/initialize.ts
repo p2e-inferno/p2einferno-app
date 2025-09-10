@@ -4,6 +4,7 @@ import {
   generatePaymentReference,
   validatePaymentAmount,
   type Currency,
+  convertToSmallestUnit,
 } from "../../../../lib/payment-utils";
 
 interface BlockchainPaymentRequest {
@@ -116,6 +117,7 @@ export default async function handler(
         payment_reference: reference,
         amount,
         currency,
+        amount_in_kobo: 0, // For blockchain (USD) payments, we don't use kobo — set 0.
         status: "pending",
         payment_method: "blockchain",
         network_chain_id: chainId, // NEW: Store the chainId
