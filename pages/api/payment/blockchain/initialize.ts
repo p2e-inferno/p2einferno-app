@@ -4,7 +4,6 @@ import {
   generatePaymentReference,
   validatePaymentAmount,
   type Currency,
-  convertToSmallestUnit,
 } from "../../../../lib/payment-utils";
 
 interface BlockchainPaymentRequest {

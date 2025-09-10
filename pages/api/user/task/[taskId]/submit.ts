@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import { canEarnRewards } from "@/lib/utils/milestone-utils";
+import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
 import type { ApiResponse } from "@/lib/api";
 
 interface TaskSubmissionData {
@@ -123,9 +123,16 @@ export default async function handler(
       });
     }
 
-    // Check if milestone reward period has expired
+    // Check milestone timing
     const milestone = Array.isArray(task.milestone) ? task.milestone[0] : task.milestone;
-    const rewardsAvailable = canEarnRewards(milestone?.start_date, milestone?.end_date);
+    const timing = getMilestoneTimingInfo(milestone?.start_date, milestone?.end_date);
+    if (timing.status === 'not_started') {
+      return res.status(400).json({
+        success: false,
+        error: 'This milestone is not yet available. Please wait until the start date.'
+      });
+    }
+    const rewardsAvailable = timing.status === 'active';
     const effectiveRewardAmount = rewardsAvailable ? task.reward_amount : 0;
 
     // Check if user already has any submission for this task

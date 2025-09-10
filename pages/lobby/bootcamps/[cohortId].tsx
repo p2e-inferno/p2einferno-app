@@ -9,6 +9,7 @@ import MilestoneTimer from "@/components/lobby/MilestoneTimer";
 import { toast } from "react-hot-toast";
 import MilestoneTaskClaimButton from "@/components/lobby/MilestoneTaskClaimButton";
 import { useMilestoneClaim } from "@/hooks/useMilestoneClaim";
+import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
 import { 
   FlameIcon, 
   CrystalIcon 
@@ -225,6 +226,15 @@ export default function BootcampLearningPage() {
   }
 
   const handleTaskSubmit = (task: MilestoneTask, milestone: MilestoneWithProgress) => {
+    // Prevent starting before milestone start date
+    if (milestone.start_date) {
+      const now = new Date().getTime();
+      const start = new Date(milestone.start_date).getTime();
+      if (now < start) {
+        toast.error(`This milestone is not yet available. Available from ${new Date(milestone.start_date).toLocaleDateString()}`);
+        return;
+      }
+    }
     // Add milestone timing data to task for reward checking
     const taskWithMilestone = {
       ...task,
@@ -340,6 +350,10 @@ export default function BootcampLearningPage() {
             const previousMilestone = index > 0 ? data.milestones[index - 1] : null;
             const isUnlocked = !previousMilestone || previousMilestone.has_key;
 
+            // Date-based availability
+            const timing = getMilestoneTimingInfo(milestone.start_date, milestone.end_date);
+            const isClickable = isUnlocked && !timing.isNotStarted;
+
             const isExpanded = selectedMilestone === milestone.id;
             const status = milestone.user_progress?.status || 'not_started';
 
@@ -353,9 +367,9 @@ export default function BootcampLearningPage() {
                 {/* Milestone Header */}
                 <div 
                   className={`p-6 cursor-pointer transition-all ${
-                    isUnlocked ? 'hover:bg-purple-900/10' : 'opacity-60 cursor-not-allowed'
+                    isClickable ? 'hover:bg-purple-900/10' : 'opacity-60 cursor-not-allowed'
                   }`}
-                  onClick={() => isUnlocked && setSelectedMilestone(isExpanded ? null : milestone.id)}
+                  onClick={() => isClickable && setSelectedMilestone(isExpanded ? null : milestone.id)}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
@@ -368,7 +382,7 @@ export default function BootcampLearningPage() {
                           <CheckCircle size={32} className="text-green-400" />
                         ) : status === 'in_progress' ? (
                           <PlayCircle size={32} className="text-flame-yellow" />
-                        ) : isUnlocked ? (
+                        ) : isUnlocked && !timing.isNotStarted ? (
                           <Target size={32} className="text-cyan-400" />
                         ) : (
                           <Clock size={32} className="text-gray-400" />
@@ -492,7 +506,13 @@ export default function BootcampLearningPage() {
                               {task.submission_status !== 'completed' ? (
                                 <button 
                                   onClick={() => handleTaskSubmit(task, milestone)}
-                                  className="px-4 py-2 rounded-lg font-medium transition-all bg-flame-yellow text-black hover:bg-flame-orange"
+                                  disabled={!isUnlocked || timing.isNotStarted}
+                                  title={timing.isNotStarted && milestone.start_date ? `Available from ${new Date(milestone.start_date).toLocaleDateString()}` : undefined}
+                                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                                    !isUnlocked || timing.isNotStarted
+                                      ? 'bg-gray-600 text-gray-300 cursor-not-allowed'
+                                      : 'bg-flame-yellow text-black hover:bg-flame-orange'
+                                  }`}
                                 >
                                   {task.submission_status === 'pending' ? 'Edit Submission' : 'Submit'}
                                 </button>

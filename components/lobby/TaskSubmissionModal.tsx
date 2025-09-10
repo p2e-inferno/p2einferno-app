@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { X, Upload, Link as LinkIcon, FileText, Code, ExternalLink, AlertTriangle } from "lucide-react";
 import { CrystalIcon } from "@/components/icons/dashboard-icons";
-import { canEarnRewards } from "@/lib/utils/milestone-utils";
+import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -88,10 +88,18 @@ export default function TaskSubmissionModal({
 
   if (!isOpen) return null;
 
+  const timing = getMilestoneTimingInfo(task.milestone?.start_date, task.milestone?.end_date);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (isSubmitting) return;
+    if (timing.status === 'not_started') {
+      toast.error(task.milestone?.start_date
+        ? `This milestone opens on ${new Date(task.milestone.start_date).toLocaleDateString()}`
+        : 'This milestone is not yet available');
+      return;
+    }
     
     try {
       setIsSubmitting(true);
@@ -541,8 +549,8 @@ export default function TaskSubmissionModal({
             </div>
           </div>
 
-          {/* Reward Expiration Warning */}
-          {task.milestone && !canEarnRewards(task.milestone.start_date, task.milestone.end_date) && (
+          {/* Availability / Reward Period Messaging */}
+          {task.milestone && timing.status === 'expired' && (
             <div className="bg-red-900/20 border border-red-500/20 rounded-lg p-4 mb-6">
               <div className="flex items-center space-x-2 mb-2">
                 <AlertTriangle size={16} className="text-red-400" />
@@ -550,6 +558,19 @@ export default function TaskSubmissionModal({
               </div>
               <div className="text-sm text-faded-grey">
                 The reward period for this milestone has ended. You can still complete the task for progress, but no DGT rewards will be granted.
+              </div>
+            </div>
+          )}
+          {task.milestone && timing.status === 'not_started' && (
+            <div className="bg-blue-900/20 border border-blue-500/20 rounded-lg p-4 mb-6">
+              <div className="flex items-center space-x-2 mb-2">
+                <AlertTriangle size={16} className="text-blue-300" />
+                <h4 className="font-medium text-blue-300">Not Available Yet</h4>
+              </div>
+              <div className="text-sm text-faded-grey">
+                {task.milestone.start_date
+                  ? `This milestone opens on ${new Date(task.milestone.start_date).toLocaleDateString()}.`
+                  : 'This milestone is not yet available.'}
               </div>
             </div>
           )}
@@ -584,7 +605,7 @@ export default function TaskSubmissionModal({
             </Button>
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || timing.status === 'not_started'}
               className="flex-1 bg-flame-yellow text-black hover:bg-flame-orange transition-all"
             >
               {isSubmitting ? (
