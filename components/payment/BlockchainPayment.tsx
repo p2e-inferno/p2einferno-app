@@ -1,7 +1,6 @@
-import { useState } from "react";
-import { useRouter } from "next/router";
+import { useCallback, useState } from "react";
 import { formatCurrency, type Currency } from "../../lib/payment-utils";
-import { AlertCircle, Wallet, X, CheckCircle } from "lucide-react";
+import { AlertCircle, Wallet, X } from "lucide-react";
 import { useWallets } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "../../lib/unlock/lockUtils";
@@ -47,10 +46,9 @@ export function BlockchainPayment({
       availableWallets: wallets?.map(w => ({ address: w.address, type: w.walletClientType || w.connectorType }))
     });
   }
-  const router = useRouter();
-
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [pollingProgress, setPollingProgress] = useState({ current: 0, total: 0 });
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
@@ -139,15 +137,14 @@ export function BlockchainPayment({
       }
 
       setIsProcessing(true);
+      setPollingProgress({ current: 0, total: 0 });
       toast.success(
-        "Verification in progress! You can now leave this page. We'll notify you upon completion.",
-        { id: "payment-tx", duration: 8000 },
+        "Verification started! We'll redirect once it's confirmed.",
+        { id: "payment-tx", duration: 6000 },
       );
 
-      // Redirect user to the lobby immediately
-      setTimeout(() => {
-        router.push("/lobby");
-      }, 3000);
+      // Begin polling for verification completion, similar to Paystack flow
+      await pollVerificationStatus(paymentData.reference);
     } catch (err: any) {
       const errorMessage = err.message || "An unknown error occurred.";
       setError(errorMessage);
@@ -164,20 +161,94 @@ export function BlockchainPayment({
     setIsProcessing(false);
   };
 
+  const pollVerificationStatus = useCallback(async (reference: string) => {
+    // Edge function polls up to ~60s; give a small grace period
+    const maxPollingTime = 70000; // 70 seconds total
+    const pollInterval = 1000; // every 1s
+    const maxAttempts = Math.floor(maxPollingTime / pollInterval);
+
+    setPollingProgress({ current: 0, total: maxAttempts });
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      setPollingProgress({ current: attempt, total: maxAttempts });
+      try {
+        const resp = await fetch(`/api/payment/blockchain/status/${reference}`);
+        const data = await resp.json();
+        if (data?.success && data?.status === 'success') {
+          // Verified — redirect like Paystack flow
+          window.location.href = "/lobby";
+          return;
+        }
+        if (data?.status === 'failed') {
+          throw new Error('Blockchain verification failed.');
+        }
+      } catch (e) {
+        // soft-fail and continue unless last attempt or explicit failure
+        if (attempt === maxAttempts) {
+          setError(
+            'Payment verification timeout. If funds left your wallet, please contact support with your transaction hash.'
+          );
+          setIsProcessing(false);
+          return;
+        }
+      }
+
+      // wait
+      await new Promise((r) => setTimeout(r, pollInterval));
+    }
+
+    // Reached attempts without success
+    setIsProcessing(false);
+    setError(
+      'Payment verification timeout. If funds left your wallet, please contact support with your transaction hash.'
+    );
+  }, [setPollingProgress]);
+
   if (isProcessing) {
     return (
       <div className="text-center p-8 bg-blue-50 rounded-lg border border-blue-200">
-        <CheckCircle className="w-16 h-16 text-blue-600 mx-auto mb-4" />
-        <h3 className="font-bold text-blue-800 mb-2 text-xl">
-          Verification in Progress
-        </h3>
-        <p className="text-blue-700 mb-4">
-          Your transaction is being verified on the blockchain. You will be
-          redirected to the lobby shortly and will receive a notification once
-          your enrollment is confirmed.
+        <div className="flex items-center justify-center mb-4">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
+          <div className="flex space-x-1">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
+        </div>
+        <h3 className="font-bold text-blue-800 mb-2 text-xl">Verification in Progress</h3>
+        <p className="text-blue-700 mb-3">
+          Your transaction is being verified on-chain. This can take up to about a minute.
         </p>
-        <p className="text-sm font-mono text-blue-600 break-all">
-          Tx: {transactionHash}
+        <div className="bg-blue-100 rounded-lg p-3 mb-3">
+          <p className="text-blue-800 text-sm font-medium mb-2">What’s happening:</p>
+          <p className="text-blue-700 text-xs mb-3">
+            • Transaction submitted ✓<br/>
+            • Waiting for blockchain confirmation...<br/>
+            • Finalizing enrollment...
+          </p>
+          {pollingProgress.total > 0 && (
+            <div className="mt-2">
+              <div className="flex justify-between text-xs text-blue-700 mb-1">
+                <span>Verification Progress</span>
+                <span>{pollingProgress.current} / {pollingProgress.total}</span>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-1.5">
+                <div
+                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                  style={{ width: `${(pollingProgress.current / pollingProgress.total) * 100}%` }}
+                ></div>
+              </div>
+              <p className="text-xs text-blue-600 mt-1">
+                Estimated time: {Math.max(0, Math.floor((pollingProgress.total - pollingProgress.current)))}s remaining
+              </p>
+            </div>
+          )}
+        </div>
+        {transactionHash && (
+          <p className="text-xs font-mono text-blue-600 break-all">Tx: {transactionHash}</p>
+        )}
+        <p className="text-blue-600 text-xs mt-2">
+          Please don’t refresh. You’ll be redirected automatically once verified.
         </p>
       </div>
     );
