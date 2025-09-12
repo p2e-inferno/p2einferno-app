@@ -1,5 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getPrivyUser } from "@/lib/auth/privy";
+import { createPrivyClient } from "@/lib/privyUtils";
 
 export default async function handler(
   req: NextApiRequest,
@@ -9,20 +11,27 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, questId, taskId, verificationData, inputData } = req.body;
+  const { userId: _ignoreUserId, questId, taskId, verificationData: clientVerificationData, inputData } = req.body;
 
-  if (!userId || !questId || !taskId) {
+  if (!questId || !taskId) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
     const supabase = createAdminClient();
 
+    // Verify Privy user from token in header or cookie
+    const authUser = await getPrivyUser(req);
+    if (!authUser?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const effectiveUserId = authUser.id;
+
     // Check if task is already completed
     const { data: existingCompletion } = await supabase
       .from("user_task_completions")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", effectiveUserId)
       .eq("task_id", taskId)
       .single();
 
@@ -30,10 +39,10 @@ export default async function handler(
       return res.status(400).json({ error: "Task already completed" });
     }
 
-    // Get the task details to check if it requires admin review
+    // Get the task details to check type and review requirements
     const { data: task, error: taskError } = await supabase
       .from("quest_tasks")
-      .select("requires_admin_review, input_required")
+      .select("requires_admin_review, input_required, task_type")
       .eq("id", taskId)
       .single();
 
@@ -45,11 +54,31 @@ export default async function handler(
     // Determine initial status
     const initialStatus = task?.requires_admin_review ? "pending" : "completed";
 
+    // Build verification data
+    let verificationData = clientVerificationData;
+    if (task?.task_type === "link_farcaster") {
+      // Verify Farcaster linkage via Privy server SDK and use server-trusted data
+      const privy = createPrivyClient();
+      const profile: any = await privy.getUserById(effectiveUserId);
+      const farcasterAccount = profile?.linkedAccounts?.find(
+        (a: any) => a?.type === "farcaster" && a?.fid
+      );
+      if (!farcasterAccount) {
+        return res
+          .status(400)
+          .json({ error: "Farcaster not linked to your Privy account" });
+      }
+      verificationData = {
+        fid: farcasterAccount.fid,
+        username: farcasterAccount.username,
+      };
+    }
+
     // Complete the task
     const { error: completionError } = await supabase
       .from("user_task_completions")
       .insert({
-        user_id: userId,
+        user_id: effectiveUserId,
         quest_id: questId,
         task_id: taskId,
         verification_data: verificationData,
@@ -68,7 +97,7 @@ export default async function handler(
       // Use the database function to recalculate progress
       try {
         await supabase.rpc("recalculate_quest_progress", {
-          p_user_id: userId,
+          p_user_id: effectiveUserId,
           p_quest_id: questId,
         });
       } catch (progressError) {

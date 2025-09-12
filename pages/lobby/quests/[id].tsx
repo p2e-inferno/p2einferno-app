@@ -192,12 +192,18 @@ const QuestDetailsPage = () => {
           });
           break;
         case "link_farcaster":
-          // Placeholder for Farcaster linking. Original used handleLinkFarcaster.
-          toast.error(
-            "Farcaster linking not fully implemented in this view yet."
-          );
-          result = { success: false, error: "Farcaster linking pending." };
-          // result = await handleLinkFarcaster(questId as string, task.id); // If function is available
+          // Verify Farcaster is linked in Privy, then complete via API
+          if (user?.farcaster?.fid) {
+            result = await completeTaskAPI(questId as string, task.id, {
+              fid: user.farcaster.fid,
+              username: user.farcaster.username,
+            });
+          } else {
+            toast.error(
+              "No Farcaster found. Link it in your profile first."
+            );
+            result = { success: false, error: "Farcaster not linked" };
+          }
           break;
         case "sign_tos":
           const signature = await signTOS();
