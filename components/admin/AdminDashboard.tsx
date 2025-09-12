@@ -89,7 +89,8 @@ export default function AdminDashboard() {
           Admin Dashboard
         </h1>
         <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-          Welcome to the P2E Inferno management console. Manage your bootcamps, cohorts, quests, and more.
+          Welcome to the P2E Inferno management console. Manage your bootcamps,
+          cohorts, quests, and more.
         </p>
       </div>
 
@@ -127,7 +128,9 @@ export default function AdminDashboard() {
           >
             {/* Icon and Title */}
             <div className="flex items-start space-x-4 mb-4">
-              <div className={`p-3 rounded-lg bg-gradient-to-r ${module.color}`}>
+              <div
+                className={`p-3 rounded-lg bg-gradient-to-r ${module.color}`}
+              >
                 <module.icon className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1 min-w-0">

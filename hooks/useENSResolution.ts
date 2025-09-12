@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
-import { mainnet, base } from "viem/chains";
+import { mainnet } from "viem/chains";
 import { createPublicClientUnified, createPublicClientForChain } from "@/lib/blockchain/config/unified-config";
 import { getEnsName } from "viem/ens";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('hooks:useENSResolution');
+
 
 interface ENSResolutionResult {
   ensName: string | null;
@@ -48,7 +52,7 @@ export const useENSResolution = (
             address: address as `0x${string}`,
           });
         } catch (err) {
-          console.log("ENS resolution failed:", err);
+          log.info("ENS resolution failed:", err);
         }
 
         // Resolve basename on Base network
@@ -58,7 +62,7 @@ export const useENSResolution = (
             address: address as `0x${string}`,
           });
         } catch (err) {
-          console.log("Basename resolution failed:", err);
+          log.info("Basename resolution failed:", err);
         }
 
         // Determine display name priority: basename > ENS > null
@@ -72,7 +76,7 @@ export const useENSResolution = (
           error: null,
         });
       } catch (error) {
-        console.error("Name resolution error:", error);
+        log.error("Name resolution error:", error);
         setResult((prev) => ({
           ...prev,
           loading: false,

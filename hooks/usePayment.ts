@@ -3,6 +3,10 @@ import { usePaystackPayment } from "react-paystack";
 import { useApiCall } from "./useApiCall";
 import { convertToSmallestUnit, type Currency } from "../lib/payment-utils";
 import api from "../lib/api";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('hooks:usePayment');
+
 
 interface PaymentConfig {
   applicationId: string;
@@ -46,7 +50,7 @@ export const usePayment = (paymentData: PaymentConfig) => {
   // Verify payment with backend
   const { execute: verifyPayment } = useApiCall({
     onSuccess: (data) => {
-      console.log("Payment verified successfully:", data);
+      log.info("Payment verified successfully:", data);
       // Use window.location to ensure clean navigation and modal cleanup
       window.location.href = "/lobby";
     },
@@ -81,8 +85,8 @@ export const usePayment = (paymentData: PaymentConfig) => {
       const pollInterval = 1000; // Poll every 1 second
       const maxAttempts = Math.floor(maxPollingTime / pollInterval);
       
-      console.log(`Starting webhook polling for payment ${reference}`);
-      console.log(`Will poll ${maxAttempts} times over ${maxPollingTime/1000} seconds`);
+      log.info(`Starting webhook polling for payment ${reference}`);
+      log.info(`Will poll ${maxAttempts} times over ${maxPollingTime/1000} seconds`);
       
       // Initialize progress
       setPollingProgress({ current: 0, total: maxAttempts });
@@ -91,21 +95,21 @@ export const usePayment = (paymentData: PaymentConfig) => {
         // Update progress
         setPollingProgress({ current: attempt, total: maxAttempts });
         try {
-          console.log(`Polling attempt ${attempt}/${maxAttempts} - waiting for webhook...`);
+          log.info(`Polling attempt ${attempt}/${maxAttempts} - waiting for webhook...`);
           
           const response = await api.get(`/payment/verify/${reference}${queryParams}`);
           
           // Check if webhook has updated the status
           if (response.data?.success) {
-            console.log('Webhook processed successfully! Payment verified.');
+            log.info('Webhook processed successfully! Payment verified.');
             await verifyPayment(() => Promise.resolve(response));
             break;
           } else if (response.data?.data?.status === 'failed') {
-            console.log('Payment failed according to webhook');
+            log.info('Payment failed according to webhook');
             throw new Error('Payment failed');
           } else {
             // Still pending, continue polling
-            console.log(`Status: ${response.data?.data?.status || 'pending'} - continuing to poll...`);
+            log.info(`Status: ${response.data?.data?.status || 'pending'} - continuing to poll...`);
           }
           
           if (attempt === maxAttempts) {
@@ -122,7 +126,7 @@ export const usePayment = (paymentData: PaymentConfig) => {
           }
           
           // For network errors, continue polling
-          console.log(`Network error on attempt ${attempt}, continuing...`);
+          log.info(`Network error on attempt ${attempt}, continuing...`);
           await new Promise(resolve => setTimeout(resolve, pollInterval));
         }
       }

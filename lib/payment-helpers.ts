@@ -1,3 +1,7 @@
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('payment-helpers');
+
 /**
  * Payment Processing Helper Functions
  * 
@@ -20,17 +24,17 @@ export interface ApplicationIdExtractionResult {
  * @returns ApplicationIdExtractionResult with applicationId and method used
  */
 export function extractApplicationId(paystackData: any): ApplicationIdExtractionResult {
-  console.log("Extracting applicationId from referrer URL...");
+  log.info("Extracting applicationId from referrer URL...");
   
   // Extract applicationId from referrer URL (only reliable method)
   if (paystackData?.metadata?.referrer) {
-    console.log("Checking referrer URL:", paystackData.metadata.referrer);
+    log.info("Checking referrer URL:", paystackData.metadata.referrer);
     
     // Match UUID pattern in payment URL: /payment/[uuid]
     const referrerMatch = paystackData.metadata.referrer.match(/\/payment\/([a-fA-F0-9-]+)/);
     if (referrerMatch && referrerMatch[1]) {
       const applicationId = referrerMatch[1];
-      console.log("✓ Found applicationId from referrer URL:", applicationId);
+      log.info("✓ Found applicationId from referrer URL:", applicationId);
       
       return {
         applicationId,
@@ -38,13 +42,13 @@ export function extractApplicationId(paystackData: any): ApplicationIdExtraction
         success: true
       };
     } else {
-      console.log("✗ No valid UUID found in referrer URL");
+      log.info("✗ No valid UUID found in referrer URL");
     }
   } else {
-    console.log("✗ No referrer URL found in metadata");
+    log.info("✗ No referrer URL found in metadata");
   }
   
-  console.error("Failed to extract applicationId from referrer URL");
+  log.error("Failed to extract applicationId from referrer URL");
   
   return {
     applicationId: null,
@@ -79,7 +83,7 @@ export function extractAndValidateApplicationId(paystackData: any): ApplicationI
   if (result.success && result.applicationId) {
     const isValid = isValidApplicationId(result.applicationId);
     if (!isValid) {
-      console.error("Extracted applicationId has invalid UUID format:", result.applicationId);
+      log.error("Extracted applicationId has invalid UUID format:", result.applicationId);
       return {
         applicationId: null,
         method: 'not_found',

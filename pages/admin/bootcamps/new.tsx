@@ -4,7 +4,6 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 
 export default function NewBootcampPage() {
-
   return (
     <AdminLayout>
       <div className="w-full max-w-4xl mx-auto">

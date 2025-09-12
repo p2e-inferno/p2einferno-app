@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:user:task:[taskId]:upload");
 
 type UploadResponse = {
   success: boolean;
@@ -11,10 +14,12 @@ type UploadResponse = {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<UploadResponse>
+  res: NextApiResponse<UploadResponse>,
 ) {
   if (req.method !== "POST") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
+    return res
+      .status(405)
+      .json({ success: false, error: "Method not allowed" });
   }
 
   try {
@@ -22,18 +27,25 @@ export default async function handler(
     const user = await getPrivyUser(req);
 
     if (!user?.id) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
+      return res
+        .status(401)
+        .json({ success: false, error: "Authentication required" });
     }
 
     const { file, fileName, contentType } = req.body || {};
 
     if (!file || !fileName || !contentType) {
-      return res.status(400).json({ success: false, error: "Missing required fields: file, fileName, contentType" });
+      return res.status(400).json({
+        success: false,
+        error: "Missing required fields: file, fileName, contentType",
+      });
     }
 
     const fileBuffer = Buffer.from(file, "base64");
     if (fileBuffer.length > 20 * 1024 * 1024) {
-      return res.status(400).json({ success: false, error: "File size must be less than 20MB" });
+      return res
+        .status(400)
+        .json({ success: false, error: "File size must be less than 20MB" });
     }
 
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
@@ -57,11 +69,13 @@ export default async function handler(
       .from("task-submissions")
       .getPublicUrl(data.path);
 
-    return res.status(200).json({ success: true, url: urlData.publicUrl, path: data.path });
+    return res
+      .status(200)
+      .json({ success: true, url: urlData.publicUrl, path: data.path });
   } catch (err: any) {
-    console.error("Task file upload error:", err);
-    return res.status(500).json({ success: false, error: err?.message || "Failed to upload file" });
+    log.error("Task file upload error:", err);
+    return res
+      .status(500)
+      .json({ success: false, error: err?.message || "Failed to upload file" });
   }
 }
-
-

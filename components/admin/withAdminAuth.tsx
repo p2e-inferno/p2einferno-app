@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "./AdminAccessRequired";
 import { listenForWalletChanges } from "@/lib/utils";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:withAdminAuth");
 
 /**
  * Higher Order Component that wraps components requiring admin authentication
@@ -15,7 +18,7 @@ export function withAdminAuth<P extends object>(
   options?: {
     redirectTo?: string;
     message?: string;
-  }
+  },
 ) {
   return function WithAdminAuth(props: P) {
     const { isAdmin, loading, refreshAdminStatus } = useLockManagerAdminAuth();
@@ -31,7 +34,7 @@ export function withAdminAuth<P extends object>(
           // Refresh admin status when wallet changes
           await refreshAdminStatus();
         } catch (error) {
-          console.error("Error refreshing admin status:", error);
+          log.error("Error refreshing admin status:", error);
         } finally {
           // Add a small delay to ensure the UI updates are visible
           setTimeout(() => setIsRefreshing(false), 500);

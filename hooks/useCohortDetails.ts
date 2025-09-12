@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import toast from "react-hot-toast";
+import { getLogger } from "@/lib/utils/logger";
 import type { 
   BootcampProgram, 
   Cohort, 
@@ -9,6 +10,8 @@ import type {
   ProgramHighlight,
   ProgramRequirement 
 } from "@/lib/supabase/types";
+
+const log = getLogger("hooks:useCohortDetails");
 
 interface MilestoneWithTasks extends CohortMilestone {
   milestone_tasks: MilestoneTask[];
@@ -57,7 +60,7 @@ export const useCohortDetails = (cohortId: string): UseCohortDetailsResult => {
             headers.Authorization = `Bearer ${token}`;
           }
         } catch (tokenError) {
-          console.warn("Could not get access token:", tokenError);
+          log.warn("Could not get access token:", tokenError);
           // Continue without token for public data
         }
       }
@@ -75,7 +78,7 @@ export const useCohortDetails = (cohortId: string): UseCohortDetailsResult => {
       const result = await response.json();
       setData(result.data || null);
     } catch (err: any) {
-      console.error("Cohort details fetch error:", err);
+      log.error("Cohort details fetch error:", err);
       setError(err.message);
       toast.error("Failed to load cohort details");
     } finally {

@@ -2,6 +2,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
 import { getLockManagerAddress } from "@/lib/blockchain/server-config";
 import { isServerBlockchainConfigured } from "@/lib/blockchain/server-config";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:admin:server-wallet");
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -9,7 +12,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (!isServerBlockchainConfigured()) {
-    return res.status(500).json({ error: "Server blockchain is not configured." });
+    return res
+      .status(500)
+      .json({ error: "Server blockchain is not configured." });
   }
 
   try {
@@ -18,13 +23,17 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     if (!serverWalletAddress) {
       // This should theoretically not be hit if isServerBlockchainConfigured is true,
       // but it's a good safeguard.
-      return res.status(500).json({ error: "Could not retrieve server wallet address." });
+      return res
+        .status(500)
+        .json({ error: "Could not retrieve server wallet address." });
     }
 
     res.status(200).json({ serverWalletAddress });
   } catch (error: any) {
-    console.error("Error fetching server wallet address:", error);
-    res.status(500).json({ error: "Internal Server Error", details: error.message });
+    log.error("Error fetching server wallet address:", error);
+    res
+      .status(500)
+      .json({ error: "Internal Server Error", details: error.message });
   }
 }
 

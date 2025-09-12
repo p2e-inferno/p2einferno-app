@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:applications:[id]");
 
 const supabase = createAdminClient();
 
@@ -9,7 +12,7 @@ const supabase = createAdminClient();
  */
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   const { id } = req.query;
 
@@ -31,7 +34,7 @@ export default async function handler(
  */
 async function handleDeleteApplication(
   res: NextApiResponse,
-  applicationId: string
+  applicationId: string,
 ) {
   try {
     // First, check if the application exists and get its current status
@@ -55,8 +58,8 @@ async function handleDeleteApplication(
       });
     }
 
-    console.log(
-      `Canceling application ${applicationId} for user ${application.user_email}`
+    log.info(
+      `Canceling application ${applicationId} for user ${application.user_email}`,
     );
 
     // Delete related payment transactions first (CASCADE should handle this, but being explicit)
@@ -66,10 +69,7 @@ async function handleDeleteApplication(
       .eq("application_id", applicationId);
 
     if (paymentDeleteError) {
-      console.error(
-        "Failed to delete payment transactions:",
-        paymentDeleteError
-      );
+      log.error("Failed to delete payment transactions:", paymentDeleteError);
       // Continue anyway - the CASCADE should clean this up
     }
 
@@ -80,20 +80,20 @@ async function handleDeleteApplication(
       .eq("id", applicationId);
 
     if (deleteError) {
-      console.error("Failed to delete application:", deleteError);
+      log.error("Failed to delete application:", deleteError);
       return res.status(500).json({
         error: "Failed to cancel application. Please try again.",
       });
     }
 
-    console.log(`Successfully cancelled application ${applicationId}`);
+    log.info(`Successfully cancelled application ${applicationId}`);
 
     res.status(200).json({
       success: true,
       message: "Application cancelled successfully",
     });
   } catch (error) {
-    console.error("Error canceling application:", error);
+    log.error("Error canceling application:", error);
     res.status(500).json({
       error: "Internal server error",
     });

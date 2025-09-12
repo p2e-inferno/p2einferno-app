@@ -2,6 +2,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
 import { getPrivyUser } from "@/lib/auth/privy";
 import type { ApiResponse } from "@/lib/api";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:bootcamps");
 
 interface BootcampWithCohorts {
   id: string;
@@ -30,12 +33,12 @@ interface BootcampWithCohorts {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<BootcampWithCohorts[]>>
+  res: NextApiResponse<ApiResponse<BootcampWithCohorts[]>>,
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
@@ -60,7 +63,8 @@ export default async function handler(
     // Fetch all bootcamp programs with their cohorts
     const { data: bootcamps, error: bootcampsError } = await supabase
       .from("bootcamp_programs")
-      .select(`
+      .select(
+        `
         id,
         name,
         description,
@@ -69,7 +73,8 @@ export default async function handler(
         image_url,
         created_at,
         updated_at
-      `)
+      `,
+      )
       .order("created_at", { ascending: false });
 
     if (bootcampsError) {
@@ -79,7 +84,8 @@ export default async function handler(
     // Fetch cohorts for all bootcamps
     const { data: cohorts, error: cohortsError } = await supabase
       .from("cohorts")
-      .select(`
+      .select(
+        `
         id,
         bootcamp_program_id,
         name,
@@ -91,7 +97,8 @@ export default async function handler(
         status,
         usdt_amount,
         naira_amount
-      `)
+      `,
+      )
       .order("start_date", { ascending: false });
 
     if (cohortsError) {
@@ -105,32 +112,34 @@ export default async function handler(
         .from("bootcamp_enrollments")
         .select("id, cohort_id")
         .eq("user_profile_id", userProfileId);
-      
+
       userEnrollments = enrollments || [];
     }
 
     // Combine bootcamps with their cohorts and enrollment status
-    const bootcampsWithCohorts: BootcampWithCohorts[] = (bootcamps || []).map((bootcamp) => {
-      const bootcampCohorts = (cohorts || [])
-        .filter((cohort) => cohort.bootcamp_program_id === bootcamp.id)
-        .map((cohort) => {
-          // Check if user is enrolled in this cohort
-          const enrollment = userEnrollments.find(
-            (enrollment) => enrollment.cohort_id === cohort.id
-          );
+    const bootcampsWithCohorts: BootcampWithCohorts[] = (bootcamps || []).map(
+      (bootcamp) => {
+        const bootcampCohorts = (cohorts || [])
+          .filter((cohort) => cohort.bootcamp_program_id === bootcamp.id)
+          .map((cohort) => {
+            // Check if user is enrolled in this cohort
+            const enrollment = userEnrollments.find(
+              (enrollment) => enrollment.cohort_id === cohort.id,
+            );
 
-          return {
-            ...cohort,
-            is_enrolled: !!enrollment,
-            user_enrollment_id: enrollment?.id || undefined,
-          };
-        });
+            return {
+              ...cohort,
+              is_enrolled: !!enrollment,
+              user_enrollment_id: enrollment?.id || undefined,
+            };
+          });
 
-      return {
-        ...bootcamp,
-        cohorts: bootcampCohorts,
-      };
-    });
+        return {
+          ...bootcamp,
+          cohorts: bootcampCohorts,
+        };
+      },
+    );
 
     // Filter out bootcamps that have no cohorts (optional)
     // const bootcampsWithActiveCohorts = bootcampsWithCohorts.filter(
@@ -142,7 +151,7 @@ export default async function handler(
       data: bootcampsWithCohorts,
     });
   } catch (error: any) {
-    console.error("Error fetching bootcamps:", error);
+    log.error("Error fetching bootcamps:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch bootcamps",

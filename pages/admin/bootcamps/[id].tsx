@@ -5,6 +5,9 @@ import BootcampForm from "@/components/admin/BootcampForm";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:bootcamps:[id]");
 
 function EditBootcampPage() {
   const router = useRouter();
@@ -21,9 +24,12 @@ function EditBootcampPage() {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const result = await adminFetch<{success: boolean, data: BootcampProgram}>(`/api/admin/bootcamps/${id}`);
-      
+
+      const result = await adminFetch<{
+        success: boolean;
+        data: BootcampProgram;
+      }>(`/api/admin/bootcamps/${id}`);
+
       if (result.error) {
         throw new Error(result.error);
       }
@@ -34,7 +40,7 @@ function EditBootcampPage() {
 
       setBootcamp(result.data.data);
     } catch (err: any) {
-      console.error("Error fetching bootcamp:", err);
+      log.error("Error fetching bootcamp:", err);
       setError(err.message || "Failed to load bootcamp");
     } finally {
       setIsLoading(false);
@@ -67,23 +73,23 @@ function EditBootcampPage() {
       onRetry={handleRetry}
       isRetrying={isRetrying}
     >
-      {bootcamp ? (
-        <BootcampForm bootcamp={bootcamp} isEditing />
-      ) : // This specific "Bootcamp not found" message can be shown if !isLoading && !error && !bootcamp
-      // AdminEditPageLayout will show general error if `error` prop is set.
-      // If no error, but no bootcamp, and not loading, it implies not found.
-      !isLoading && !error && !bootcamp ? (
-        <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
-          Bootcamp not found. It may have been deleted or the ID is incorrect.
-        </div>
-      ) : null // Loading/Error is handled by AdminEditPageLayout
+      {
+        bootcamp ? (
+          <BootcampForm bootcamp={bootcamp} isEditing />
+        ) : // This specific "Bootcamp not found" message can be shown if !isLoading && !error && !bootcamp
+        // AdminEditPageLayout will show general error if `error` prop is set.
+        // If no error, but no bootcamp, and not loading, it implies not found.
+        !isLoading && !error && !bootcamp ? (
+          <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
+            Bootcamp not found. It may have been deleted or the ID is incorrect.
+          </div>
+        ) : null // Loading/Error is handled by AdminEditPageLayout
       }
     </AdminEditPageLayout>
   );
 }
 
 // Export the page wrapped in admin authentication
-export default withAdminAuth(
-  EditBootcampPage,
-  { message: "You need admin access to manage bootcamps" }
-);
+export default withAdminAuth(EditBootcampPage, {
+  message: "You need admin access to manage bootcamps",
+});

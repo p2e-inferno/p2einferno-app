@@ -5,6 +5,9 @@ import { Plus, Trash2 } from "lucide-react";
 import type { ProgramRequirement } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { usePrivy } from "@privy-io/react-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:ProgramRequirementsForm");
 
 interface RequirementForm {
   id: string;
@@ -39,23 +42,27 @@ export default function ProgramRequirementsForm({
   const fetchExistingRequirements = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/admin/program-requirements?cohortId=${cohortId}`);
-      
+      const response = await fetch(
+        `/api/admin/program-requirements?cohortId=${cohortId}`,
+      );
+
       if (response.ok) {
         const result = await response.json();
         if (result.data && result.data.length > 0) {
           setExistingRequirements(result.data);
           // Populate form with existing requirements
-          const formRequirements = result.data.map((requirement: ProgramRequirement) => ({
-            id: requirement.id,
-            content: requirement.content,
-            order_index: requirement.order_index,
-          }));
+          const formRequirements = result.data.map(
+            (requirement: ProgramRequirement) => ({
+              id: requirement.id,
+              content: requirement.content,
+              order_index: requirement.order_index,
+            }),
+          );
           setRequirements(formRequirements);
         }
       }
     } catch (err: any) {
-      console.error("Error fetching requirements:", err);
+      log.error("Error fetching requirements:", err);
     } finally {
       setIsLoading(false);
     }
@@ -73,14 +80,18 @@ export default function ProgramRequirementsForm({
   };
 
   const removeRequirement = (requirementId: string) => {
-    setRequirements((prev) => prev.filter((requirement) => requirement.id !== requirementId));
+    setRequirements((prev) =>
+      prev.filter((requirement) => requirement.id !== requirementId),
+    );
   };
 
   const updateRequirement = (requirementId: string, content: string) => {
     setRequirements((prev) =>
       prev.map((requirement) =>
-        requirement.id === requirementId ? { ...requirement, content } : requirement
-      )
+        requirement.id === requirementId
+          ? { ...requirement, content }
+          : requirement,
+      ),
     );
   };
 
@@ -91,7 +102,9 @@ export default function ProgramRequirementsForm({
 
     try {
       // Filter out empty requirements
-      const validRequirements = requirements.filter((requirement) => requirement.content.trim());
+      const validRequirements = requirements.filter((requirement) =>
+        requirement.content.trim(),
+      );
 
       if (validRequirements.length === 0) {
         throw new Error("At least one requirement is required");
@@ -105,7 +118,9 @@ export default function ProgramRequirementsForm({
 
       // Prepare requirements data
       const requirementsData = validRequirements.map((requirement, index) => ({
-        id: requirement.id.startsWith("temp_") ? getRecordId(false) : requirement.id,
+        id: requirement.id.startsWith("temp_")
+          ? getRecordId(false)
+          : requirement.id,
         cohort_id: cohortId,
         content: requirement.content.trim(),
         order_index: index,
@@ -132,7 +147,7 @@ export default function ProgramRequirementsForm({
         onSubmitSuccess();
       }
     } catch (err: any) {
-      console.error("Error saving requirements:", err);
+      log.error("Error saving requirements:", err);
       setError(err.message || "Failed to save requirements");
       setIsSubmitting(false);
     }
@@ -159,7 +174,9 @@ export default function ProgramRequirementsForm({
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Program Requirements</h3>
+          <h3 className="text-lg font-semibold text-white">
+            Program Requirements
+          </h3>
           <Button
             type="button"
             onClick={addRequirement}
@@ -184,7 +201,9 @@ export default function ProgramRequirementsForm({
               <div className="flex-1">
                 <Input
                   value={requirement.content}
-                  onChange={(e) => updateRequirement(requirement.id, e.target.value)}
+                  onChange={(e) =>
+                    updateRequirement(requirement.id, e.target.value)
+                  }
                   placeholder="e.g., Basic understanding of blockchain concepts"
                   className={inputClass}
                 />
@@ -205,7 +224,8 @@ export default function ProgramRequirementsForm({
         </div>
 
         <p className="text-sm text-gray-400">
-          Add prerequisites or requirements that participants should meet before joining this program.
+          Add prerequisites or requirements that participants should meet before
+          joining this program.
         </p>
       </div>
 

@@ -8,6 +8,9 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:quests:index");
 
 interface QuestWithStats extends Quest {
   stats?: {
@@ -39,8 +42,10 @@ export default function AdminQuestsPage() {
       setError(null);
 
       // Fetch quests via adminFetch
-      const result = await adminFetch<{success: boolean, data: Quest[]}>("/api/admin/quests");
-      
+      const result = await adminFetch<{ success: boolean; data: Quest[] }>(
+        "/api/admin/quests",
+      );
+
       if (result.error) {
         throw new Error(result.error);
       }
@@ -50,7 +55,7 @@ export default function AdminQuestsPage() {
 
       setQuests(Array.isArray(questsWithStats) ? questsWithStats : []);
     } catch (err: any) {
-      console.error("Error fetching quests:", err);
+      log.error("Error fetching quests:", err);
       setError(err.message || "Failed to load quests");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -72,7 +77,7 @@ export default function AdminQuestsPage() {
     try {
       setError(null);
       const result = await adminFetch(`/api/admin/quests/${quest.id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify({ is_active: !quest.is_active }),
       });
 
@@ -83,7 +88,7 @@ export default function AdminQuestsPage() {
       // Refresh quests
       fetchQuests();
     } catch (err: any) {
-      console.error("Error toggling quest status:", err);
+      log.error("Error toggling quest status:", err);
       setError(err.message || "Failed to update quest status");
     }
   };
@@ -109,9 +114,12 @@ export default function AdminQuestsPage() {
     try {
       setIsDeleting(true);
       setError(null);
-      const result = await adminFetch(`/api/admin/quests/${deleteConfirmation.questId}`, {
-        method: 'DELETE',
-      });
+      const result = await adminFetch(
+        `/api/admin/quests/${deleteConfirmation.questId}`,
+        {
+          method: "DELETE",
+        },
+      );
 
       if (result.error) {
         throw new Error(result.error);
@@ -121,7 +129,7 @@ export default function AdminQuestsPage() {
       await fetchQuests();
       closeDeleteConfirmation();
     } catch (err: any) {
-      console.error("Error deleting quest:", err);
+      log.error("Error deleting quest:", err);
       setError(err.message || "Failed to delete quest");
       setIsDeleting(false);
     }
@@ -181,9 +189,15 @@ export default function AdminQuestsPage() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-white mb-1 leading-tight">{quest.title}</h3>
+                  <h3 className="text-lg font-bold text-white mb-1 leading-tight">
+                    {quest.title}
+                  </h3>
                   <div className="flex flex-wrap gap-2">
-                    <Badge className={quest.is_active ? "bg-green-600" : "bg-gray-600"}>
+                    <Badge
+                      className={
+                        quest.is_active ? "bg-green-600" : "bg-gray-600"
+                      }
+                    >
                       {quest.is_active ? "Active" : "Inactive"}
                     </Badge>
                     {quest.stats && quest.stats.pending_submissions > 0 && (
@@ -199,7 +213,9 @@ export default function AdminQuestsPage() {
               <div className="flex justify-between items-center mb-3 p-3 bg-gray-800/50 rounded-lg">
                 <div className="flex items-center text-yellow-400">
                   <Coins className="w-4 h-4 mr-1" />
-                  <span className="font-bold text-base">{quest.total_reward} DG</span>
+                  <span className="font-bold text-base">
+                    {quest.total_reward} DG
+                  </span>
                 </div>
                 <div className="text-xs text-gray-400">
                   {quest.quest_tasks?.length || 0} tasks
@@ -207,8 +223,10 @@ export default function AdminQuestsPage() {
               </div>
 
               {/* Description */}
-              <p className="text-gray-400 text-sm mb-3 leading-relaxed">{quest.description}</p>
-              
+              <p className="text-gray-400 text-sm mb-3 leading-relaxed">
+                {quest.description}
+              </p>
+
               {/* Quest Tasks Preview */}
               <div className="flex flex-wrap gap-1 mb-3">
                 {quest.quest_tasks?.slice(0, 4).map((task) => (
@@ -237,18 +255,24 @@ export default function AdminQuestsPage() {
                     <div className="flex justify-center mb-1">
                       <Users className="w-3 h-3 text-gray-400" />
                     </div>
-                    <span className="text-gray-300 block">{quest.stats.total_users}</span>
+                    <span className="text-gray-300 block">
+                      {quest.stats.total_users}
+                    </span>
                     <span className="text-gray-500">users</span>
                   </div>
                   <div className="text-center">
                     <div className="flex justify-center mb-1">
                       <CheckCircle2 className="w-3 h-3 text-green-400" />
                     </div>
-                    <span className="text-gray-300 block">{quest.stats.completed_users}</span>
+                    <span className="text-gray-300 block">
+                      {quest.stats.completed_users}
+                    </span>
                     <span className="text-gray-500">completed</span>
                   </div>
                   <div className="text-center">
-                    <span className="text-gray-300 block">{quest.stats.completion_rate}%</span>
+                    <span className="text-gray-300 block">
+                      {quest.stats.completion_rate}%
+                    </span>
                     <span className="text-gray-500">completion</span>
                   </div>
                 </div>
@@ -266,7 +290,7 @@ export default function AdminQuestsPage() {
                     <span className="text-xs">View</span>
                   </Button>
                 </Link>
-                
+
                 <Link href={`/admin/quests/${quest.id}/edit`} className="flex">
                   <Button
                     size="sm"
@@ -315,8 +339,14 @@ export default function AdminQuestsPage() {
                   )}
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-white">{quest.title}</h3>
-                      <Badge className={quest.is_active ? "bg-green-600" : "bg-gray-600"}>
+                      <h3 className="text-xl font-bold text-white">
+                        {quest.title}
+                      </h3>
+                      <Badge
+                        className={
+                          quest.is_active ? "bg-green-600" : "bg-gray-600"
+                        }
+                      >
                         {quest.is_active ? "Active" : "Inactive"}
                       </Badge>
                       {quest.stats && quest.stats.pending_submissions > 0 && (
@@ -325,8 +355,10 @@ export default function AdminQuestsPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-gray-400 mb-3 line-clamp-2">{quest.description}</p>
-                    
+                    <p className="text-gray-400 mb-3 line-clamp-2">
+                      {quest.description}
+                    </p>
+
                     {/* Quest Tasks Preview */}
                     <div className="flex flex-wrap gap-2 mb-3">
                       {quest.quest_tasks?.slice(0, 5).map((task) => (
@@ -353,11 +385,15 @@ export default function AdminQuestsPage() {
                       <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-300">{quest.stats.total_users} users</span>
+                          <span className="text-gray-300">
+                            {quest.stats.total_users} users
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="w-4 h-4 text-green-400" />
-                          <span className="text-gray-300">{quest.stats.completed_users} completed</span>
+                          <span className="text-gray-300">
+                            {quest.stats.completed_users} completed
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-gray-300">
@@ -368,12 +404,14 @@ export default function AdminQuestsPage() {
                     )}
                   </div>
                 </div>
-                
+
                 {/* Total Reward */}
                 <div className="text-right ml-4">
                   <div className="flex items-center text-yellow-400 mb-2">
                     <Coins className="w-5 h-5 mr-1" />
-                    <span className="font-bold text-lg">{quest.total_reward} DG</span>
+                    <span className="font-bold text-lg">
+                      {quest.total_reward} DG
+                    </span>
                   </div>
                   <div className="text-xs text-gray-400">
                     {quest.quest_tasks?.length || 0} tasks
@@ -393,7 +431,7 @@ export default function AdminQuestsPage() {
                     View Details
                   </Button>
                 </Link>
-                
+
                 <Link href={`/admin/quests/${quest.id}/edit`}>
                   <Button
                     size="sm"
@@ -408,7 +446,11 @@ export default function AdminQuestsPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className={quest.is_active ? "border-gray-700 hover:border-orange-500" : "border-gray-700 hover:border-green-500"}
+                  className={
+                    quest.is_active
+                      ? "border-gray-700 hover:border-orange-500"
+                      : "border-gray-700 hover:border-green-500"
+                  }
                   onClick={() => toggleQuestStatus(quest)}
                 >
                   {quest.is_active ? "Deactivate" : "Activate"}

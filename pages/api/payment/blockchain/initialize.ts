@@ -1,10 +1,13 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
 import {
   generatePaymentReference,
   validatePaymentAmount,
   type Currency,
 } from "../../../../lib/payment-utils";
+
+const log = getLogger("api:payment:blockchain:initialize");
 
 interface BlockchainPaymentRequest {
   applicationId: string;
@@ -68,11 +71,9 @@ export default async function handler(
 
     // Validate amount
     if (!validatePaymentAmount(amount, currency)) {
-      return res
-        .status(400)
-        .json({
-          error: `Invalid amount. Minimum is $1 for blockchain payments`,
-        });
+      return res.status(400).json({
+        error: `Invalid amount. Minimum is $1 for blockchain payments`,
+      });
     }
 
     // Check application and cohort details
@@ -93,16 +94,16 @@ export default async function handler(
         .json({ error: "Payment already completed for this application" });
     }
 
-    const cohort = Array.isArray(application.cohorts) ? application.cohorts[0] : application.cohorts;
+    const cohort = Array.isArray(application.cohorts)
+      ? application.cohorts[0]
+      : application.cohorts;
     if (!cohort || cohort.usdt_amount !== amount) {
       return res.status(400).json({ error: "Invalid amount for this cohort." });
     }
     if (!cohort.lock_address) {
-      return res
-        .status(400)
-        .json({
-          error: "Cohort lock address not configured. Contact support.",
-        });
+      return res.status(400).json({
+        error: "Cohort lock address not configured. Contact support.",
+      });
     }
 
     // Generate payment reference
@@ -129,7 +130,7 @@ export default async function handler(
       });
 
     if (transactionError) {
-      console.error(
+      log.error(
         "Failed to save blockchain payment transaction:",
         transactionError,
       );
@@ -147,7 +148,7 @@ export default async function handler(
       },
     });
   } catch (error) {
-    console.error("Blockchain payment initialization error:", error);
+    log.error("Blockchain payment initialization error:", error);
     res.status(500).json({
       error: "Internal server error",
     });

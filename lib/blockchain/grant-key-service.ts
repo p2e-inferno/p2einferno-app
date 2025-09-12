@@ -1,6 +1,10 @@
 import { type Address } from "viem";
 import { lockManagerService } from "./lock-manager";
 import { getLockManagerAddress } from "./server-config";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('blockchain:grant-key-service');
+
 
 export interface GrantKeyOptions {
   walletAddress: string;
@@ -82,7 +86,7 @@ export class GrantKeyService {
         }
 
         if (result.success) {
-          console.log(`Successfully granted key to ${walletAddress}`);
+          log.info(`Successfully granted key to ${walletAddress}`);
           return {
             success: true,
             transactionHash: result.transactionHash,
@@ -107,7 +111,7 @@ export class GrantKeyService {
         }
       } catch (error: any) {
         lastError = error.message || "Transaction failed";
-        console.error(`Attempt ${attempt + 1} failed:`, error);
+        log.error(`Attempt ${attempt + 1} failed:`, error);
 
         // Don't retry on certain errors
         if (this.isPermanentError(lastError)) {
@@ -118,7 +122,7 @@ export class GrantKeyService {
       // Wait before retrying (except on last attempt)
       if (attempt < maxRetries) {
         retryCount = attempt + 1;
-        console.log(
+        log.info(
           `Retrying in ${
             retryDelay / 1000
           } seconds... (Attempt ${retryCount}/${maxRetries})`
@@ -153,7 +157,7 @@ export class GrantKeyService {
       );
       return keyInfo !== null && keyInfo.isValid;
     } catch (error) {
-      console.error("Error checking user key:", error);
+      log.error("Error checking user key:", error);
       return false;
     }
   }

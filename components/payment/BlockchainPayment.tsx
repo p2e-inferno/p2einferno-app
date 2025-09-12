@@ -7,6 +7,9 @@ import { unlockUtils } from "../../lib/unlock/lockUtils";
 import { getClientConfig } from "../../lib/blockchain/config/unified-config";
 import { LoadingButton } from "../ui/loading-button";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("payment:BlockchainPayment");
 
 interface BlockchainPaymentProps {
   applicationId: string;
@@ -35,20 +38,26 @@ export function BlockchainPayment({
 }: BlockchainPaymentProps) {
   const { wallets } = useWallets();
   const wallet = useSmartWalletSelection() as any;
-  
-  if (typeof window !== 'undefined') {
+
+  if (typeof window !== "undefined") {
     // Log wallet selection for debugging
-    console.log('[BlockchainPayment] Selected wallet:', {
+    log.info("[BlockchainPayment] Selected wallet:", {
       address: wallet?.address,
       walletClientType: wallet?.walletClientType,
       connectorType: wallet?.connectorType,
       type: wallet?.type,
-      availableWallets: wallets?.map(w => ({ address: w.address, type: w.walletClientType || w.connectorType }))
+      availableWallets: wallets?.map((w) => ({
+        address: w.address,
+        type: w.walletClientType || w.connectorType,
+      })),
     });
   }
   const [isLoading, setIsLoading] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [pollingProgress, setPollingProgress] = useState({ current: 0, total: 0 });
+  const [pollingProgress, setPollingProgress] = useState({
+    current: 0,
+    total: 0,
+  });
   const [paymentData, setPaymentData] = useState<PaymentData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [transactionHash, setTransactionHash] = useState<string | null>(null);
@@ -161,48 +170,53 @@ export function BlockchainPayment({
     setIsProcessing(false);
   };
 
-  const pollVerificationStatus = useCallback(async (reference: string) => {
-    // Edge function polls up to ~60s; give a small grace period
-    const maxPollingTime = 70000; // 70 seconds total
-    const pollInterval = 1000; // every 1s
-    const maxAttempts = Math.floor(maxPollingTime / pollInterval);
+  const pollVerificationStatus = useCallback(
+    async (reference: string) => {
+      // Edge function polls up to ~60s; give a small grace period
+      const maxPollingTime = 70000; // 70 seconds total
+      const pollInterval = 1000; // every 1s
+      const maxAttempts = Math.floor(maxPollingTime / pollInterval);
 
-    setPollingProgress({ current: 0, total: maxAttempts });
+      setPollingProgress({ current: 0, total: maxAttempts });
 
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      setPollingProgress({ current: attempt, total: maxAttempts });
-      try {
-        const resp = await fetch(`/api/payment/blockchain/status/${reference}`);
-        const data = await resp.json();
-        if (data?.success && data?.status === 'success') {
-          // Verified — redirect like Paystack flow
-          window.location.href = "/lobby";
-          return;
-        }
-        if (data?.status === 'failed') {
-          throw new Error('Blockchain verification failed.');
-        }
-      } catch (e) {
-        // soft-fail and continue unless last attempt or explicit failure
-        if (attempt === maxAttempts) {
-          setError(
-            'Payment verification timeout. If funds left your wallet, please contact support with your transaction hash.'
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        setPollingProgress({ current: attempt, total: maxAttempts });
+        try {
+          const resp = await fetch(
+            `/api/payment/blockchain/status/${reference}`,
           );
-          setIsProcessing(false);
-          return;
+          const data = await resp.json();
+          if (data?.success && data?.status === "success") {
+            // Verified — redirect like Paystack flow
+            window.location.href = "/lobby";
+            return;
+          }
+          if (data?.status === "failed") {
+            throw new Error("Blockchain verification failed.");
+          }
+        } catch (e) {
+          // soft-fail and continue unless last attempt or explicit failure
+          if (attempt === maxAttempts) {
+            setError(
+              "Payment verification timeout. If funds left your wallet, please contact support with your transaction hash.",
+            );
+            setIsProcessing(false);
+            return;
+          }
         }
+
+        // wait
+        await new Promise((r) => setTimeout(r, pollInterval));
       }
 
-      // wait
-      await new Promise((r) => setTimeout(r, pollInterval));
-    }
-
-    // Reached attempts without success
-    setIsProcessing(false);
-    setError(
-      'Payment verification timeout. If funds left your wallet, please contact support with your transaction hash.'
-    );
-  }, [setPollingProgress]);
+      // Reached attempts without success
+      setIsProcessing(false);
+      setError(
+        "Payment verification timeout. If funds left your wallet, please contact support with your transaction hash.",
+      );
+    },
+    [setPollingProgress],
+  );
 
   if (isProcessing) {
     return (
@@ -210,45 +224,71 @@ export function BlockchainPayment({
         <div className="flex items-center justify-center mb-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mr-3"></div>
           <div className="flex space-x-1">
-            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+            <div
+              className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+              style={{ animationDelay: "0ms" }}
+            ></div>
+            <div
+              className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+              style={{ animationDelay: "150ms" }}
+            ></div>
+            <div
+              className="w-2 h-2 bg-blue-600 rounded-full animate-bounce"
+              style={{ animationDelay: "300ms" }}
+            ></div>
           </div>
         </div>
-        <h3 className="font-bold text-blue-800 mb-2 text-xl">Verification in Progress</h3>
+        <h3 className="font-bold text-blue-800 mb-2 text-xl">
+          Verification in Progress
+        </h3>
         <p className="text-blue-700 mb-3">
-          Your transaction is being verified on-chain. This can take up to about a minute.
+          Your transaction is being verified on-chain. This can take up to about
+          a minute.
         </p>
         <div className="bg-blue-100 rounded-lg p-3 mb-3">
-          <p className="text-blue-800 text-sm font-medium mb-2">What’s happening:</p>
+          <p className="text-blue-800 text-sm font-medium mb-2">
+            What’s happening:
+          </p>
           <p className="text-blue-700 text-xs mb-3">
-            • Transaction submitted ✓<br/>
-            • Waiting for blockchain confirmation...<br/>
-            • Finalizing enrollment...
+            • Transaction submitted ✓<br />
+            • Waiting for blockchain confirmation...
+            <br />• Finalizing enrollment...
           </p>
           {pollingProgress.total > 0 && (
             <div className="mt-2">
               <div className="flex justify-between text-xs text-blue-700 mb-1">
                 <span>Verification Progress</span>
-                <span>{pollingProgress.current} / {pollingProgress.total}</span>
+                <span>
+                  {pollingProgress.current} / {pollingProgress.total}
+                </span>
               </div>
               <div className="w-full bg-blue-200 rounded-full h-1.5">
                 <div
                   className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: `${(pollingProgress.current / pollingProgress.total) * 100}%` }}
+                  style={{
+                    width: `${(pollingProgress.current / pollingProgress.total) * 100}%`,
+                  }}
                 ></div>
               </div>
               <p className="text-xs text-blue-600 mt-1">
-                Estimated time: {Math.max(0, Math.floor((pollingProgress.total - pollingProgress.current)))}s remaining
+                Estimated time:{" "}
+                {Math.max(
+                  0,
+                  Math.floor(pollingProgress.total - pollingProgress.current),
+                )}
+                s remaining
               </p>
             </div>
           )}
         </div>
         {transactionHash && (
-          <p className="text-xs font-mono text-blue-600 break-all">Tx: {transactionHash}</p>
+          <p className="text-xs font-mono text-blue-600 break-all">
+            Tx: {transactionHash}
+          </p>
         )}
         <p className="text-blue-600 text-xs mt-2">
-          Please don’t refresh. You’ll be redirected automatically once verified.
+          Please don’t refresh. You’ll be redirected automatically once
+          verified.
         </p>
       </div>
     );

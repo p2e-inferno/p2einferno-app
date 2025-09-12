@@ -39,7 +39,10 @@ export const createEthersReadOnlyProvider = (): ethers.JsonRpcProvider | ethers.
     const hosts = urls.map((u) => { try { return new URL(u).host; } catch { return '[unparseable]'; } });
     blockchainLogger.debug('Ethers FallbackProvider configured', { operation: 'config:rpc:ethers', order: hosts });
   } catch {}
-  if (providers.length === 1) return providers[0];
+  if (providers.length === 0) {
+    throw new Error('No RPC URLs configured for read-only provider');
+  }
+  if (providers.length === 1) return providers[0]!;
   return new ethers.FallbackProvider(providers);
 };
 

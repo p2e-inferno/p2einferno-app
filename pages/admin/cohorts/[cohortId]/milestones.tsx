@@ -8,7 +8,9 @@ import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
 import { NetworkError } from "@/components/ui/network-error";
-import { usePrivy } from "@privy-io/react-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:[cohortId]:milestones");
 
 interface CohortWithProgram extends Cohort {
   bootcamp_program?: {
@@ -20,7 +22,7 @@ interface CohortWithProgram extends Cohort {
 function CohortMilestonesPage() {
   const router = useRouter();
   const { cohortId } = router.query;
-  
+
   // Memoize options to prevent adminFetch from being recreated every render
   const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch } = useAdminApi(adminApiOptions);
@@ -35,9 +37,12 @@ function CohortMilestonesPage() {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const result = await adminFetch<{success: boolean, data: CohortWithProgram}>(`/api/admin/cohorts/${cohortId}`);
-      
+
+      const result = await adminFetch<{
+        success: boolean;
+        data: CohortWithProgram;
+      }>(`/api/admin/cohorts/${cohortId}`);
+
       if (result.error) {
         throw new Error(result.error);
       }
@@ -48,7 +53,7 @@ function CohortMilestonesPage() {
 
       setCohort(result.data.data);
     } catch (err: any) {
-      console.error("Error fetching cohort:", err);
+      log.error("Error fetching cohort:", err);
       setError(err.message || "Failed to load cohort");
     } finally {
       setIsLoading(false);
@@ -87,13 +92,18 @@ function CohortMilestonesPage() {
           </h1>
           {!error && cohort && (
             <p className="text-gray-400 mt-1">
-              Manage cohort milestones for {cohort.bootcamp_program?.name || "Unknown Bootcamp"}
+              Manage cohort milestones for{" "}
+              {cohort.bootcamp_program?.name || "Unknown Bootcamp"}
             </p>
           )}
         </div>
 
         {error && !isLoading && (
-          <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />
+          <NetworkError
+            error={error}
+            onRetry={handleRetry}
+            isRetrying={isRetrying}
+          />
         )}
 
         {!isLoading && !error && cohort && (
@@ -113,7 +123,6 @@ function CohortMilestonesPage() {
 }
 
 // Export the page wrapped in admin authentication
-export default withAdminAuth(
-  CohortMilestonesPage,
-  { message: "You need admin access to manage cohorts" }
-);
+export default withAdminAuth(CohortMilestonesPage, {
+  message: "You need admin access to manage cohorts",
+});

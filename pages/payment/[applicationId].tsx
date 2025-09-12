@@ -21,14 +21,17 @@ import {
 } from "@/lib/payment-utils";
 import { CheckCircle, AlertCircle } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("payment:[applicationId]");
 
 // Load the Paystack component only on the client to avoid `window` references
 const PaystackPayment = dynamic(
   () =>
     import("@/components/payment/PaystackPayment").then(
-      (m) => m.PaystackPayment
+      (m) => m.PaystackPayment,
     ),
-  { ssr: false }
+  { ssr: false },
 );
 
 interface PaymentPageProps {
@@ -50,7 +53,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
   try {
     // Create admin client for server-side operations
     const supabase = createAdminClient();
-    
+
     // Fetch application data from database
     const { data: application, error } = await supabase
       .from("applications")
@@ -109,7 +112,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
       },
     };
   } catch (error) {
-    console.error("Error fetching application data:", error);
+    log.error("Error fetching application data:", error);
     return {
       notFound: true,
     };
@@ -207,7 +210,7 @@ export default function PaymentPage({
                                 currency === "NGN"
                                   ? cohort.naira_amount || 0
                                   : cohort.usdt_amount || 0,
-                                currency
+                                currency,
                               )}
                             </div>
                             <div className="text-sm text-faded-grey">
@@ -274,7 +277,6 @@ export default function PaymentPage({
                         currency={selectedCurrency}
                         email={application.user_email}
                         lockAddress={cohort.lock_address || ""}
-
                         onSuccess={handlePaymentSuccess}
                       />
                     )}

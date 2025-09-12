@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,16 +10,22 @@ import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "@/lib/unlock/lockUtils";
-import { generateCohortLockConfig, createLockConfigWithManagers } from "@/lib/blockchain/admin-lock-config";
+import {
+  generateCohortLockConfig,
+  createLockConfigWithManagers,
+} from "@/lib/blockchain/admin-lock-config";
 import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
-import { 
-  saveDraft, 
-  removeDraft, 
-  getDraft, 
+import {
+  saveDraft,
+  removeDraft,
+  getDraft,
   savePendingDeployment,
-  removePendingDeployment
+  removePendingDeployment,
 } from "@/lib/utils/lock-deployment-state";
 import { getRecordId } from "@/lib/utils/id-generation";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:CohortForm");
 
 interface CohortFormProps {
   cohort?: Cohort;
@@ -33,7 +39,7 @@ export default function CohortForm({
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // Validation state
   const [validationErrors, setValidationErrors] = useState<{
     name?: string;
@@ -46,7 +52,7 @@ export default function CohortForm({
   }>({});
   const [isFormValid, setIsFormValid] = useState(false);
   const [bootcampPrograms, setBootcampPrograms] = useState<BootcampProgram[]>(
-    []
+    [],
   );
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
   const { getAccessToken } = usePrivy();
@@ -55,14 +61,16 @@ export default function CohortForm({
   const { adminFetch } = useAdminApi(adminApiOptions);
   const wallet = useSmartWalletSelection();
   const [keyManagersInput, setKeyManagersInput] = useState<string>(
-    cohort?.key_managers?.join(", ") || ""
+    cohort?.key_managers?.join(", ") || "",
   );
-  
+
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState<string>("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
-  const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(null);
+  const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(
+    null,
+  );
 
   const [formData, setFormData] = useState<Partial<Cohort>>(
     cohort || {
@@ -79,54 +87,60 @@ export default function CohortForm({
       key_managers: [],
       usdt_amount: 0,
       naira_amount: 0,
-    }
+    },
   );
 
   // Validation function - no dependencies needed, stable across renders
   const validateForm = (data: Partial<Cohort>) => {
     const errors: typeof validationErrors = {};
-    
+
     // Required field validations
     if (!data.name?.trim()) {
       errors.name = "Cohort name is required";
     }
-    
+
     if (!data.bootcamp_program_id) {
       errors.bootcamp_program_id = "Please select a bootcamp program";
     }
-    
+
     if (!data.start_date) {
       errors.start_date = "Start date is required";
     }
-    
+
     if (!data.end_date) {
       errors.end_date = "End date is required";
     }
-    
+
     if (!data.registration_deadline) {
       errors.registration_deadline = "Registration deadline is required";
     }
-    
+
     // Date validations
-    if (data.start_date && data.end_date && new Date(data.end_date) <= new Date(data.start_date)) {
+    if (
+      data.start_date &&
+      data.end_date &&
+      new Date(data.end_date) <= new Date(data.start_date)
+    ) {
       errors.end_date = "End date must be after start date";
     }
-    
+
     // Pricing validations
     const nairaAmount = data.naira_amount || 0;
     const usdtAmount = data.usdt_amount || 0;
-    
+
     if (nairaAmount < 10) {
-      errors.naira_amount = "Naira amount must be at least ₦10 for Paystack payments";
+      errors.naira_amount =
+        "Naira amount must be at least ₦10 for Paystack payments";
     }
-    
+
     if (usdtAmount < 1) {
-      errors.usdt_amount = "USDT amount must be at least $1 for blockchain payments";
+      errors.usdt_amount =
+        "USDT amount must be at least $1 for blockchain payments";
     }
-    
+
     setValidationErrors(errors);
     setIsFormValid(Object.keys(errors).length === 0);
-    
+
     return errors;
   };
 
@@ -138,9 +152,9 @@ export default function CohortForm({
   // Load draft data on mount
   useEffect(() => {
     if (!isEditing) {
-      const draft = getDraft('cohort');
+      const draft = getDraft("cohort");
       if (draft) {
-        setFormData(prev => ({ ...prev, ...draft.formData }));
+        setFormData((prev) => ({ ...prev, ...draft.formData }));
         toast.success("Restored draft data");
       }
     }
@@ -149,24 +163,27 @@ export default function CohortForm({
   // Fetch bootcamp programs on mount only
   useEffect(() => {
     let isMounted = true;
-    
+
     const fetchBootcampPrograms = async () => {
       try {
         if (!isMounted) return;
         setIsLoadingPrograms(true);
-        
-        const result = await adminFetch<{success: boolean, data: BootcampProgram[]}>('/api/admin/bootcamps');
-        
+
+        const result = await adminFetch<{
+          success: boolean;
+          data: BootcampProgram[];
+        }>("/api/admin/bootcamps");
+
         if (!isMounted) return;
-        
+
         if (result.error) {
           throw new Error(result.error);
         }
-        
+
         setBootcampPrograms(result.data?.data || []);
       } catch (err: any) {
         if (!isMounted) return;
-        console.error("Error fetching bootcamp programs:", err);
+        log.error("Error fetching bootcamp programs:", err);
         setError(err.message || "Failed to load bootcamp programs");
       } finally {
         if (isMounted) {
@@ -176,7 +193,7 @@ export default function CohortForm({
     };
 
     fetchBootcampPrograms();
-    
+
     return () => {
       isMounted = false;
     };
@@ -185,7 +202,7 @@ export default function CohortForm({
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    >,
   ) => {
     const { name, value } = e.target;
     let parsedValue: string | number = value;
@@ -227,7 +244,7 @@ export default function CohortForm({
       // Generate lock config from cohort data
       const lockConfig = generateCohortLockConfig(formData as Cohort);
       const deployConfig = createLockConfigWithManagers(lockConfig);
-      
+
       setDeploymentStep("Deploying lock on blockchain...");
       toast.loading("Deploying cohort access lock...", { id: "lock-deploy" });
 
@@ -240,7 +257,9 @@ export default function CohortForm({
 
       // Get lock address from deployment result
       if (!result.lockAddress) {
-        throw new Error("Lock deployment succeeded but no lock address returned");
+        throw new Error(
+          "Lock deployment succeeded but no lock address returned",
+        );
       }
 
       const lockAddress = result.lockAddress;
@@ -249,10 +268,12 @@ export default function CohortForm({
       // Save deployment state before database operation
       const deploymentId = savePendingDeployment({
         lockAddress,
-        entityType: 'cohort',
+        entityType: "cohort",
         entityData: formData,
         transactionHash: result.transactionHash,
-        blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
+        blockExplorerUrl: result.transactionHash
+          ? getBlockExplorerUrl(result.transactionHash)
+          : undefined,
       });
 
       // Store deployment ID for cleanup on success
@@ -263,9 +284,9 @@ export default function CohortForm({
           Lock deployed successfully!
           <br />
           {result.transactionHash && (
-            <a 
-              href={getBlockExplorerUrl(result.transactionHash)} 
-              target="_blank" 
+            <a
+              href={getBlockExplorerUrl(result.transactionHash)}
+              target="_blank"
               rel="noopener noreferrer"
               className="underline"
             >
@@ -273,23 +294,24 @@ export default function CohortForm({
             </a>
           )}
         </>,
-        { 
+        {
           id: "lock-deploy",
-          duration: 5000 
-        }
+          duration: 5000,
+        },
       );
 
-      console.log("Lock deployed:", {
+      log.info("Lock deployed:", {
         lockAddress,
         transactionHash: result.transactionHash,
         deploymentId,
       });
 
       return lockAddress;
-
     } catch (error: any) {
-      console.error("Lock deployment failed:", error);
-      toast.error(error.message || "Failed to deploy lock", { id: "lock-deploy" });
+      log.error("Lock deployment failed:", error);
+      toast.error(error.message || "Failed to deploy lock", {
+        id: "lock-deploy",
+      });
       setDeploymentStep("");
       throw error;
     } finally {
@@ -299,14 +321,14 @@ export default function CohortForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Check if form is valid before proceeding
     if (!isFormValid) {
       setError("Please fix the validation errors before submitting");
       return;
     }
-    
-        setIsSubmitting(true);
+
+    setIsSubmitting(true);
     setError("");
 
     try {
@@ -320,7 +342,7 @@ export default function CohortForm({
 
       // Save draft before starting deployment (for new cohorts)
       if (!isEditing) {
-        saveDraft('cohort', formData);
+        saveDraft("cohort", formData);
       }
 
       let lockAddress: string | undefined = formData.lock_address || undefined;
@@ -328,9 +350,9 @@ export default function CohortForm({
       // Deploy lock if not editing and auto-creation is enabled and no lock address provided
       if (!isEditing && showAutoLockCreation && !lockAddress) {
         try {
-          console.log("Auto-deploying lock for cohort...");
+          log.info("Auto-deploying lock for cohort...");
           lockAddress = await deployLockForCohort();
-          
+
           if (!lockAddress) {
             throw new Error("Lock deployment failed");
           }
@@ -365,42 +387,52 @@ export default function CohortForm({
         body: JSON.stringify(
           isEditing
             ? { ...dataToSave, id: cohort!.id }
-            : { ...dataToSave, created_at: now, updated_at: now }
+            : { ...dataToSave, created_at: now, updated_at: now },
         ),
       });
 
       if (!response.ok) {
         const err = await response.json();
-        
+
         // Handle specific error cases with better UX
         if (err.error === "Forbidden: User profile not found") {
-          setError("Your admin profile needs to be set up. Please contact the system administrator or try logging out and back in.");
+          setError(
+            "Your admin profile needs to be set up. Please contact the system administrator or try logging out and back in.",
+          );
         } else if (err.error === "Forbidden: Admins only") {
-          setError("You don't have admin permissions. Please contact the system administrator if you believe this is an error.");
+          setError(
+            "You don't have admin permissions. Please contact the system administrator if you believe this is an error.",
+          );
         } else if (err.error?.includes("Forbidden")) {
-          setError("Access denied. Please ensure you have proper admin permissions.");
+          setError(
+            "Access denied. Please ensure you have proper admin permissions.",
+          );
         } else {
           throw new Error(err.error || "Failed to save cohort");
         }
       } else {
         // Clean up drafts and pending deployments on success
         if (!isEditing) {
-          removeDraft('cohort');
-          
+          removeDraft("cohort");
+
           // Clean up pending deployment if we deployed a lock
           if (currentDeploymentId) {
             removePendingDeployment(currentDeploymentId);
-            console.log(`Cleaned up pending deployment: ${currentDeploymentId}`);
+            log.info(`Cleaned up pending deployment: ${currentDeploymentId}`);
           }
         }
-        
-        toast.success(isEditing ? "Cohort updated successfully!" : "Cohort created successfully!");
-        
+
+        toast.success(
+          isEditing
+            ? "Cohort updated successfully!"
+            : "Cohort created successfully!",
+        );
+
         // Redirect back to cohort list
         router.push("/admin/cohorts");
       }
     } catch (err: any) {
-      console.error("Error saving cohort:", err);
+      log.error("Error saving cohort:", err);
       setError(err.message || "Failed to save cohort");
     } finally {
       setIsSubmitting(false);
@@ -420,12 +452,22 @@ export default function CohortForm({
         <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
           <div className="flex items-start space-x-3">
             <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+              <svg
+                className="h-5 w-5 text-red-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="text-sm font-medium text-red-300">Error creating cohort</h3>
+              <h3 className="text-sm font-medium text-red-300">
+                Error creating cohort
+              </h3>
               <p className="mt-1 text-sm text-red-200">{error}</p>
               {error.includes("admin") && (
                 <div className="mt-2 text-xs text-red-200">
@@ -469,12 +511,10 @@ export default function CohortForm({
             onChange={handleChange}
             placeholder="e.g., Winter 2024 Cohort"
             required
-            className={`${inputClass} ${validationErrors.name ? 'border-red-500' : ''}`}
+            className={`${inputClass} ${validationErrors.name ? "border-red-500" : ""}`}
           />
           {validationErrors.name && (
-            <p className="text-sm text-red-400 mt-1">
-              {validationErrors.name}
-            </p>
+            <p className="text-sm text-red-400 mt-1">{validationErrors.name}</p>
           )}
         </div>
 
@@ -489,7 +529,7 @@ export default function CohortForm({
             onChange={handleChange}
             required
             disabled={isEditing}
-            className={`${inputClass} w-full h-10 rounded-md px-3 ${validationErrors.bootcamp_program_id ? 'border-red-500' : ''}`}
+            className={`${inputClass} w-full h-10 rounded-md px-3 ${validationErrors.bootcamp_program_id ? "border-red-500" : ""}`}
           >
             <option value="" disabled>
               {isLoadingPrograms
@@ -543,7 +583,7 @@ export default function CohortForm({
             value={formData.start_date}
             onChange={handleChange}
             required
-            className={`${dateInputClass} ${validationErrors.start_date ? 'border-red-500' : ''}`}
+            className={`${dateInputClass} ${validationErrors.start_date ? "border-red-500" : ""}`}
             onClick={(e) => e.currentTarget.showPicker()}
           />
           {validationErrors.start_date && (
@@ -564,7 +604,7 @@ export default function CohortForm({
             value={formData.end_date}
             onChange={handleChange}
             required
-            className={`${dateInputClass} ${validationErrors.end_date ? 'border-red-500' : ''}`}
+            className={`${dateInputClass} ${validationErrors.end_date ? "border-red-500" : ""}`}
             onClick={(e) => e.currentTarget.showPicker()}
           />
           {validationErrors.end_date && (
@@ -585,7 +625,7 @@ export default function CohortForm({
             value={formData.registration_deadline}
             onChange={handleChange}
             required
-            className={`${dateInputClass} ${validationErrors.registration_deadline ? 'border-red-500' : ''}`}
+            className={`${dateInputClass} ${validationErrors.registration_deadline ? "border-red-500" : ""}`}
             onClick={(e) => e.currentTarget.showPicker()}
           />
           {validationErrors.registration_deadline && (
@@ -643,35 +683,43 @@ export default function CohortForm({
                   onChange={(e) => setShowAutoLockCreation(e.target.checked)}
                   className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
                 />
-                <Label htmlFor="auto_lock_creation" className="text-sm text-gray-300 cursor-pointer">
+                <Label
+                  htmlFor="auto_lock_creation"
+                  className="text-sm text-gray-300 cursor-pointer"
+                >
                   Auto-create lock
                 </Label>
               </div>
             )}
           </div>
-          
+
           <Input
             id="lock_address"
             name="lock_address"
             value={formData.lock_address}
             onChange={handleChange}
-            placeholder={showAutoLockCreation && !isEditing ? "Will be auto-generated..." : "e.g., 0x1234..."}
+            placeholder={
+              showAutoLockCreation && !isEditing
+                ? "Will be auto-generated..."
+                : "e.g., 0x1234..."
+            }
             className={inputClass}
             disabled={showAutoLockCreation && !isEditing}
           />
-          
+
           {showAutoLockCreation && !isEditing && !formData.lock_address && (
             <p className="text-sm text-blue-400 mt-1">
-              ✨ A new lock will be automatically deployed for this cohort using your connected wallet
+              ✨ A new lock will be automatically deployed for this cohort using
+              your connected wallet
             </p>
           )}
-          
+
           {!showAutoLockCreation && (
             <p className="text-sm text-gray-400 mt-1">
               Optional: Unlock Protocol lock address for cohort access NFTs
             </p>
           )}
-          
+
           {isDeployingLock && (
             <div className="bg-blue-900/20 border border-blue-700 text-blue-300 px-3 py-2 rounded mt-2">
               <div className="flex items-center space-x-2">
@@ -712,7 +760,7 @@ export default function CohortForm({
             onChange={handleChange}
             min={0}
             placeholder="0.00"
-            className={`${inputClass} ${validationErrors.usdt_amount ? 'border-red-500' : ''}`}
+            className={`${inputClass} ${validationErrors.usdt_amount ? "border-red-500" : ""}`}
           />
           <p className="text-sm text-gray-400 mt-1">
             Optional: Cohort price in USDT
@@ -737,7 +785,7 @@ export default function CohortForm({
             onChange={handleChange}
             min={0}
             placeholder="0.00"
-            className={`${inputClass} ${validationErrors.naira_amount ? 'border-red-500' : ''}`}
+            className={`${inputClass} ${validationErrors.naira_amount ? "border-red-500" : ""}`}
           />
           <p className="text-sm text-gray-400 mt-1">
             Optional: Cohort price in Naira

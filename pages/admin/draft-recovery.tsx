@@ -3,7 +3,13 @@ import AdminLayout from "@/components/layouts/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Clock, Database, ExternalLink, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  Database,
+  ExternalLink,
+  Trash2,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   getPendingDeployments,
@@ -14,12 +20,17 @@ import {
   clearAllDeploymentState,
   incrementDeploymentRetry,
   type PendingDeployment,
-  type DeploymentDraft
+  type DeploymentDraft,
 } from "@/lib/utils/lock-deployment-state";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:draft-recovery");
 
 export default function DraftRecoveryPage() {
-  const [pendingDeployments, setPendingDeployments] = useState<PendingDeployment[]>([]);
+  const [pendingDeployments, setPendingDeployments] = useState<
+    PendingDeployment[]
+  >([]);
   const [drafts, setDrafts] = useState<DeploymentDraft[]>([]);
   const [isRecovering, setIsRecovering] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
@@ -45,10 +56,10 @@ export default function DraftRecoveryPage() {
     setDrafts(draftData);
     setStats(statistics);
 
-    console.log("Draft recovery data loaded:", {
+    log.info("Draft recovery data loaded:", {
       pending: pending.length,
       drafts: draftData.length,
-      stats: statistics
+      stats: statistics,
     });
   };
 
@@ -64,20 +75,20 @@ export default function DraftRecoveryPage() {
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
-    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    if (days > 0) return `${days} day${days > 1 ? "s" : ""} ago`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+    return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
   };
 
   const recoverPendingDeployment = async (deployment: PendingDeployment) => {
     if (isRecovering) return;
-    
+
     setIsRecovering(deployment.id);
-    
+
     try {
       // Generate new UUID for the entity if needed
       const entityData = { ...deployment.entityData };
-      if (deployment.entityType === 'bootcamp' && !entityData.id) {
+      if (deployment.entityType === "bootcamp" && !entityData.id) {
         entityData.id = crypto.randomUUID();
       }
 
@@ -90,10 +101,10 @@ export default function DraftRecoveryPage() {
       };
 
       const endpoints = {
-        bootcamp: '/api/admin/bootcamps',
-        cohort: '/api/admin/cohorts', 
-        quest: '/api/admin/quests',
-        milestone: '/api/admin/milestones',
+        bootcamp: "/api/admin/bootcamps",
+        cohort: "/api/admin/cohorts",
+        quest: "/api/admin/quests",
+        milestone: "/api/admin/milestones",
       };
 
       const endpoint = endpoints[deployment.entityType];
@@ -101,14 +112,14 @@ export default function DraftRecoveryPage() {
         throw new Error(`Unknown entity type: ${deployment.entityType}`);
       }
 
-      console.log(`Attempting to recover ${deployment.entityType}:`, {
+      log.info(`Attempting to recover ${deployment.entityType}:`, {
         deploymentId: deployment.id,
         lockAddress: deployment.lockAddress,
-        apiData
+        apiData,
       });
 
       const response = await adminApi.adminFetch(endpoint, {
-        method: 'POST',
+        method: "POST",
         body: JSON.stringify(apiData),
       });
 
@@ -122,15 +133,14 @@ export default function DraftRecoveryPage() {
         // Success! Remove pending deployment
         removePendingDeployment(deployment.id);
         toast.success(`Successfully recovered ${deployment.entityType}!`);
-        
+
         // Refresh data
         loadData();
       }
-
     } catch (error: any) {
-      console.error('Recovery failed:', error);
+      log.error("Recovery failed:", error);
       toast.error(`Recovery failed: ${error.message}`);
-      
+
       // Refresh data to update retry count
       loadData();
     } finally {
@@ -139,9 +149,13 @@ export default function DraftRecoveryPage() {
   };
 
   const deletePendingDeployment = (deploymentId: string) => {
-    if (confirm('Are you sure you want to delete this pending deployment? This will NOT affect the deployed lock on the blockchain.')) {
+    if (
+      confirm(
+        "Are you sure you want to delete this pending deployment? This will NOT affect the deployed lock on the blockchain.",
+      )
+    ) {
       removePendingDeployment(deploymentId);
-      toast.success('Pending deployment removed');
+      toast.success("Pending deployment removed");
       loadData();
     }
   };
@@ -149,15 +163,19 @@ export default function DraftRecoveryPage() {
   const deleteDraft = (entityType: string) => {
     if (confirm(`Are you sure you want to delete the ${entityType} draft?`)) {
       removeDraft(entityType as any);
-      toast.success('Draft removed');
+      toast.success("Draft removed");
       loadData();
     }
   };
 
   const clearAllData = () => {
-    if (confirm('Are you sure you want to clear ALL drafts and pending deployments? This action cannot be undone.')) {
+    if (
+      confirm(
+        "Are you sure you want to clear ALL drafts and pending deployments? This action cannot be undone.",
+      )
+    ) {
       clearAllDeploymentState();
-      toast.success('All deployment state cleared');
+      toast.success("All deployment state cleared");
       loadData();
     }
   };
@@ -172,8 +190,8 @@ export default function DraftRecoveryPage() {
               Manage orphaned locks and recover from failed database operations
             </p>
           </div>
-          <Button 
-            onClick={clearAllData} 
+          <Button
+            onClick={clearAllData}
             variant="destructive"
             className="bg-red-600 hover:bg-red-700"
           >
@@ -185,22 +203,32 @@ export default function DraftRecoveryPage() {
         {/* Statistics */}
         {stats && (
           <Card className="bg-card border border-gray-800 p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Statistics</h2>
+            <h2 className="text-lg font-semibold text-white mb-4">
+              Statistics
+            </h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-400">{stats.pendingCount}</div>
+                <div className="text-2xl font-bold text-red-400">
+                  {stats.pendingCount}
+                </div>
                 <div className="text-sm text-gray-400">Pending Deployments</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">{stats.draftCount}</div>
+                <div className="text-2xl font-bold text-yellow-400">
+                  {stats.draftCount}
+                </div>
                 <div className="text-sm text-gray-400">Drafts</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-400">{stats.pendingByType.bootcamp}</div>
+                <div className="text-2xl font-bold text-blue-400">
+                  {stats.pendingByType.bootcamp}
+                </div>
                 <div className="text-sm text-gray-400">Bootcamp Locks</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-400">{stats.pendingByType.quest}</div>
+                <div className="text-2xl font-bold text-green-400">
+                  {stats.pendingByType.quest}
+                </div>
                 <div className="text-sm text-gray-400">Quest Locks</div>
               </div>
             </div>
@@ -215,7 +243,7 @@ export default function DraftRecoveryPage() {
               Pending Deployments ({pendingDeployments.length})
             </h2>
           </div>
-          
+
           {pendingDeployments.length === 0 ? (
             <p className="text-gray-400">No pending deployments found.</p>
           ) : (
@@ -228,32 +256,45 @@ export default function DraftRecoveryPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="flex items-center space-x-2 mb-2">
-                        <Badge variant="outline" className="bg-red-900/20 border-red-700 text-red-300">
+                        <Badge
+                          variant="outline"
+                          className="bg-red-900/20 border-red-700 text-red-300"
+                        >
                           {deployment.entityType}
                         </Badge>
                         {deployment.retryCount > 0 && (
-                          <Badge variant="outline" className="bg-yellow-900/20 border-yellow-700 text-yellow-300">
+                          <Badge
+                            variant="outline"
+                            className="bg-yellow-900/20 border-yellow-700 text-yellow-300"
+                          >
                             {deployment.retryCount} retries
                           </Badge>
                         )}
                       </div>
                       <h3 className="font-medium text-white">
-                        {deployment.entityData?.name || `${deployment.entityType} deployment`}
+                        {deployment.entityData?.name ||
+                          `${deployment.entityType} deployment`}
                       </h3>
                       <p className="text-sm text-gray-400 mt-1">
-                        Lock: <span className="font-mono text-blue-300">{deployment.lockAddress}</span>
+                        Lock:{" "}
+                        <span className="font-mono text-blue-300">
+                          {deployment.lockAddress}
+                        </span>
                       </p>
                       <p className="text-sm text-gray-400">
-                        Created: {formatTimestamp(deployment.timestamp)} ({getTimeSince(deployment.timestamp)})
+                        Created: {formatTimestamp(deployment.timestamp)} (
+                        {getTimeSince(deployment.timestamp)})
                       </p>
                     </div>
-                    
+
                     <div className="flex items-center space-x-2">
                       {deployment.blockExplorerUrl && (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => window.open(deployment.blockExplorerUrl, '_blank')}
+                          onClick={() =>
+                            window.open(deployment.blockExplorerUrl, "_blank")
+                          }
                           className="border-gray-700 text-gray-300 hover:bg-gray-800"
                         >
                           <ExternalLink className="h-4 w-4" />
@@ -287,7 +328,7 @@ export default function DraftRecoveryPage() {
                       </Button>
                     </div>
                   </div>
-                  
+
                   {deployment.entityData && (
                     <details className="text-sm">
                       <summary className="cursor-pointer text-gray-400 hover:text-white">
@@ -312,7 +353,7 @@ export default function DraftRecoveryPage() {
               Drafts ({drafts.length})
             </h2>
           </div>
-          
+
           {drafts.length === 0 ? (
             <p className="text-gray-400">No drafts found.</p>
           ) : (
@@ -325,7 +366,10 @@ export default function DraftRecoveryPage() {
                   <div className="flex justify-between items-start">
                     <div>
                       <div className="flex items-center space-x-2 mb-2">
-                        <Badge variant="outline" className="bg-yellow-900/20 border-yellow-700 text-yellow-300">
+                        <Badge
+                          variant="outline"
+                          className="bg-yellow-900/20 border-yellow-700 text-yellow-300"
+                        >
                           {draft.entityType}
                         </Badge>
                       </div>
@@ -333,10 +377,11 @@ export default function DraftRecoveryPage() {
                         {draft.formData?.name || `${draft.entityType} draft`}
                       </h3>
                       <p className="text-sm text-gray-400">
-                        Created: {formatTimestamp(draft.timestamp)} ({getTimeSince(draft.timestamp)})
+                        Created: {formatTimestamp(draft.timestamp)} (
+                        {getTimeSince(draft.timestamp)})
                       </p>
                     </div>
-                    
+
                     <Button
                       size="sm"
                       variant="destructive"
@@ -346,7 +391,7 @@ export default function DraftRecoveryPage() {
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  
+
                   <details className="text-sm">
                     <summary className="cursor-pointer text-gray-400 hover:text-white">
                       View draft data

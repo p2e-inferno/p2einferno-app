@@ -8,19 +8,23 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { base, baseSepolia } from "viem/chains";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('blockchain:config');
+
 
 // Validate environment variables - secure validation without exposing details
 const validateEnvironment = () => {
   const privateKey = process.env.LOCK_MANAGER_PRIVATE_KEY;
   
   if (!privateKey) {
-    console.warn("Blockchain write operations disabled - missing configuration");
+    log.warn("Blockchain write operations disabled - missing configuration");
     return null;
   }
 
   // Validate format without logging details
   if (!privateKey.startsWith("0x") || privateKey.length !== 66) {
-    console.error("Invalid private key format - write operations disabled");
+    log.error("Invalid private key format - write operations disabled");
     return null;
   }
 
@@ -29,7 +33,7 @@ const validateEnvironment = () => {
   const hasSepoliaUsdc = !!process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA;
   
   if (!hasMainnetUsdc && !hasSepoliaUsdc) {
-    console.warn("USDC token addresses not configured - payments may be limited");
+    log.warn("USDC token addresses not configured - payments may be limited");
   }
 
   return privateKey as `0x${string}`;
@@ -87,7 +91,7 @@ const createLockManagerAccount = (): Account | null => {
     if (!privateKey) return null;
     return privateKeyToAccount(privateKey);
   } catch (error) {
-    console.error("Failed to create lock manager account:", error);
+    log.error("Failed to create lock manager account:", error);
     throw error;
   }
 };
@@ -106,7 +110,7 @@ export const createBlockchainWalletClient = () => {
 
   // If we don't have a private key, we can't create a wallet client
   if (!account) {
-    console.warn("No private key available - write operations will not work");
+    log.warn("No private key available - write operations will not work");
     return null;
   }
 

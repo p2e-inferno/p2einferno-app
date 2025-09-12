@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:user:wallet-addresses");
 
 type ApiResponse = {
   success: boolean;
@@ -9,17 +12,21 @@ type ApiResponse = {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse>
+  res: NextApiResponse<ApiResponse>,
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({ success: false, error: "Method not allowed" });
+    return res
+      .status(405)
+      .json({ success: false, error: "Method not allowed" });
   }
 
   try {
     // Get authenticated user
     const user = await getPrivyUser(req);
     if (!user) {
-      return res.status(401).json({ success: false, error: "Authentication required" });
+      return res
+        .status(401)
+        .json({ success: false, error: "Authentication required" });
     }
 
     // Get all wallet addresses for this user from Privy API
@@ -30,7 +37,7 @@ export default async function handler(
       walletAddresses,
     });
   } catch (error) {
-    console.error("Error fetching wallet addresses:", error);
+    log.error("Error fetching wallet addresses:", error);
     return res.status(500).json({
       success: false,
       error: "Internal server error",

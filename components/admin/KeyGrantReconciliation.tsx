@@ -5,7 +5,17 @@ import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "react-hot-toast";
 import { usePrivy } from "@privy-io/react-auth";
-import { RefreshCw, AlertTriangle, CheckCircle, Clock, User, Wallet } from "lucide-react";
+import {
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  User,
+  Wallet,
+} from "lucide-react";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:KeyGrantReconciliation");
 
 interface FailedGrant {
   id: string;
@@ -69,9 +79,8 @@ export default function KeyGrantReconciliation() {
 
       const result = await response.json();
       setFailedGrants(result.data?.failedGrants || []);
-      
     } catch (error: any) {
-      console.error("Error loading failed grants:", error);
+      log.error("Error loading failed grants:", error);
       toast.error(error.message || "Failed to load failed grants");
     } finally {
       setIsLoading(false);
@@ -108,15 +117,16 @@ export default function KeyGrantReconciliation() {
 
       toast.success(
         `Retry completed: ${successful} successful, ${failed} failed out of ${attempted} attempts`,
-        { id: "bulk-retry", duration: 5000 }
+        { id: "bulk-retry", duration: 5000 },
       );
 
       // Reload the list to reflect changes
       await loadFailedGrants();
-
     } catch (error: any) {
-      console.error("Error retrying failed grants:", error);
-      toast.error(error.message || "Failed to retry grants", { id: "bulk-retry" });
+      log.error("Error retrying failed grants:", error);
+      toast.error(error.message || "Failed to retry grants", {
+        id: "bulk-retry",
+      });
     } finally {
       setIsRetrying(false);
     }
@@ -154,19 +164,26 @@ export default function KeyGrantReconciliation() {
 
       if (result.success) {
         if (result.alreadyHasKey) {
-          toast.success("User already has a valid key", { id: `retry-${grant.id}` });
+          toast.success("User already has a valid key", {
+            id: `retry-${grant.id}`,
+          });
         } else {
-          toast.success("Key granted successfully!", { id: `retry-${grant.id}` });
+          toast.success("Key granted successfully!", {
+            id: `retry-${grant.id}`,
+          });
         }
         // Reload the list to reflect changes
         await loadFailedGrants();
       } else {
-        toast.error(`Key grant failed: ${result.error}`, { id: `retry-${grant.id}` });
+        toast.error(`Key grant failed: ${result.error}`, {
+          id: `retry-${grant.id}`,
+        });
       }
-
     } catch (error: any) {
-      console.error("Error retrying single grant:", error);
-      toast.error(error.message || "Failed to retry grant", { id: `retry-${grant.id}` });
+      log.error("Error retrying single grant:", error);
+      toast.error(error.message || "Failed to retry grant", {
+        id: `retry-${grant.id}`,
+      });
     } finally {
       setRetryingGrantId(null);
     }
@@ -183,7 +200,9 @@ export default function KeyGrantReconciliation() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">Key Grant Reconciliation</h2>
+        <h2 className="text-2xl font-bold text-white">
+          Key Grant Reconciliation
+        </h2>
         <div className="flex space-x-2">
           <Button
             onClick={loadFailedGrants}
@@ -191,7 +210,9 @@ export default function KeyGrantReconciliation() {
             variant="outline"
             className="border-gray-700 text-gray-300 hover:bg-gray-800"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`}
+            />
             Refresh
           </Button>
           <Button
@@ -199,7 +220,9 @@ export default function KeyGrantReconciliation() {
             disabled={isRetrying || failedGrants.length === 0}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            <RefreshCw className={`w-4 h-4 mr-2 ${isRetrying ? 'animate-spin' : ''}`} />
+            <RefreshCw
+              className={`w-4 h-4 mr-2 ${isRetrying ? "animate-spin" : ""}`}
+            />
             Retry All
           </Button>
         </div>
@@ -217,7 +240,9 @@ export default function KeyGrantReconciliation() {
               id="since"
               type="datetime-local"
               value={filters.since || ""}
-              onChange={(e) => setFilters({ ...filters, since: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, since: e.target.value })
+              }
               className="bg-transparent border-gray-700 text-gray-100"
             />
           </div>
@@ -228,7 +253,9 @@ export default function KeyGrantReconciliation() {
             <Input
               id="cohortId"
               value={filters.cohortId || ""}
-              onChange={(e) => setFilters({ ...filters, cohortId: e.target.value })}
+              onChange={(e) =>
+                setFilters({ ...filters, cohortId: e.target.value })
+              }
               placeholder="e.g., cohort-2024-q1"
               className="bg-transparent border-gray-700 text-gray-100"
             />
@@ -241,7 +268,12 @@ export default function KeyGrantReconciliation() {
               id="limit"
               type="number"
               value={filters.limit || ""}
-              onChange={(e) => setFilters({ ...filters, limit: parseInt(e.target.value) || 20 })}
+              onChange={(e) =>
+                setFilters({
+                  ...filters,
+                  limit: parseInt(e.target.value) || 20,
+                })
+              }
               min={1}
               max={100}
               className="bg-transparent border-gray-700 text-gray-100"
@@ -271,7 +303,9 @@ export default function KeyGrantReconciliation() {
           <Card className="p-8 text-center bg-gray-900/50 border-gray-800">
             <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-4" />
             <p className="text-gray-400 text-lg">No failed key grants found</p>
-            <p className="text-gray-500 text-sm mt-2">All key grants are working properly!</p>
+            <p className="text-gray-500 text-sm mt-2">
+              All key grants are working properly!
+            </p>
           </Card>
         ) : (
           <>
@@ -279,21 +313,26 @@ export default function KeyGrantReconciliation() {
               <AlertTriangle className="w-5 h-5 text-orange-400" />
               <span>{failedGrants.length} failed key grant(s) found</span>
             </div>
-            
+
             {failedGrants.map((grant) => (
-              <Card key={grant.id} className="p-4 bg-gray-900/50 border-gray-800">
+              <Card
+                key={grant.id}
+                className="p-4 bg-gray-900/50 border-gray-800"
+              >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-3">
                       <User className="w-4 h-4 text-gray-400" />
                       <span className="text-white font-medium">
-                        {grant.userInfo.displayName || grant.userInfo.email || "Unknown User"}
+                        {grant.userInfo.displayName ||
+                          grant.userInfo.email ||
+                          "Unknown User"}
                       </span>
                       <span className="text-gray-400 text-sm">
                         ({grant.userInfo.privyUserId.substring(0, 8)}...)
                       </span>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
                         <div className="flex items-center space-x-2 mb-2">
@@ -304,7 +343,7 @@ export default function KeyGrantReconciliation() {
                           {grant.userInfo.walletAddress}
                         </code>
                       </div>
-                      
+
                       <div>
                         <div className="flex items-center space-x-2 mb-2">
                           <span className="text-gray-300">Cohort:</span>
@@ -313,7 +352,7 @@ export default function KeyGrantReconciliation() {
                           {grant.failureDetails.cohortId}
                         </code>
                       </div>
-                      
+
                       <div className="md:col-span-2">
                         <div className="flex items-center space-x-2 mb-2">
                           <span className="text-gray-300">Lock Address:</span>
@@ -322,7 +361,7 @@ export default function KeyGrantReconciliation() {
                           {grant.failureDetails.lockAddress}
                         </code>
                       </div>
-                      
+
                       <div>
                         <div className="flex items-center space-x-2 mb-2">
                           <AlertTriangle className="w-4 h-4 text-red-400" />
@@ -332,7 +371,7 @@ export default function KeyGrantReconciliation() {
                           {grant.failureDetails.error}
                         </p>
                       </div>
-                      
+
                       <div>
                         <div className="flex items-center space-x-2 mb-2">
                           <Clock className="w-4 h-4 text-gray-400" />
@@ -344,7 +383,7 @@ export default function KeyGrantReconciliation() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div className="ml-4">
                     <Button
                       onClick={() => retrySingleGrant(grant)}
@@ -366,11 +405,13 @@ export default function KeyGrantReconciliation() {
                     </Button>
                   </div>
                 </div>
-                
+
                 <div className="mt-3 pt-3 border-t border-gray-700">
                   <div className="flex items-center space-x-4 text-xs text-gray-500">
                     <span>Attempts: {grant.failureDetails.attempts}</span>
-                    <span>Profile ID: {grant.userProfileId.substring(0, 8)}...</span>
+                    <span>
+                      Profile ID: {grant.userProfileId.substring(0, 8)}...
+                    </span>
                   </div>
                 </div>
               </Card>
@@ -385,18 +426,23 @@ export default function KeyGrantReconciliation() {
           <h3 className="text-lg font-semibold text-white mb-3">Summary</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
             <div className="bg-red-900/20 border border-red-700 rounded p-3">
-              <div className="text-2xl font-bold text-red-400">{failedGrants.length}</div>
+              <div className="text-2xl font-bold text-red-400">
+                {failedGrants.length}
+              </div>
               <div className="text-sm text-red-300">Failed Grants</div>
             </div>
             <div className="bg-blue-900/20 border border-blue-700 rounded p-3">
               <div className="text-2xl font-bold text-blue-400">
-                {new Set(failedGrants.map(g => g.userProfileId)).size}
+                {new Set(failedGrants.map((g) => g.userProfileId)).size}
               </div>
               <div className="text-sm text-blue-300">Affected Users</div>
             </div>
             <div className="bg-purple-900/20 border border-purple-700 rounded p-3">
               <div className="text-2xl font-bold text-purple-400">
-                {new Set(failedGrants.map(g => g.failureDetails.cohortId)).size}
+                {
+                  new Set(failedGrants.map((g) => g.failureDetails.cohortId))
+                    .size
+                }
               </div>
               <div className="text-sm text-purple-300">Affected Cohorts</div>
             </div>

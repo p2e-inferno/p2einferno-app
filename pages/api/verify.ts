@@ -18,7 +18,7 @@ async function handler(
   req: NextApiRequest,
   res: NextApiResponse<
     AuthenticateSuccessResponse | AuthenticationErrorResponse
-  >
+  >,
 ) {
   const headerAuthToken = req.headers.authorization?.replace(/^Bearer /, "");
   const cookieAuthToken = req.cookies["privy-token"];

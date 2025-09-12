@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:check-tos");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -27,7 +30,7 @@ export default async function handler(
 
     res.status(200).json({ signed: !!signature });
   } catch (error) {
-    console.error("Error checking TOS status:", error);
+    log.error("Error checking TOS status:", error);
     res.status(200).json({ signed: false });
   }
 }

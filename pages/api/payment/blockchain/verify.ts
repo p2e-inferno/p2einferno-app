@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:payment:blockchain:verify");
 
 // Note: This endpoint is now a simple proxy to invoke the Edge Function.
 // It can be secured with admin or user authentication as needed.
@@ -11,12 +14,10 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { transactionHash, applicationId, paymentReference } = req.body;
 
   if (!transactionHash || !applicationId || !paymentReference) {
-    return res
-      .status(400)
-      .json({
-        error:
-          "Missing required fields: transactionHash, applicationId, paymentReference",
-      });
+    return res.status(400).json({
+      error:
+        "Missing required fields: transactionHash, applicationId, paymentReference",
+    });
   }
 
   try {
@@ -42,10 +43,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         "Verification is processing in the background. You will be notified upon completion.",
     });
   } catch (error) {
-    console.error(
-      "Error invoking blockchain verification Edge Function:",
-      error,
-    );
+    log.error("Error invoking blockchain verification Edge Function:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

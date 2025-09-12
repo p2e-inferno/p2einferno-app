@@ -5,6 +5,9 @@ import CohortForm from "@/components/admin/CohortForm";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:edit-[cohortId]");
 
 function EditCohortPage() {
   const router = useRouter();
@@ -18,19 +21,22 @@ function EditCohortPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Extract actual cohort ID from the route parameter
-  const actualCohortId = typeof cohortId === 'string' && cohortId.startsWith('edit-') 
-    ? cohortId.replace('edit-', '') 
-    : cohortId;
+  const actualCohortId =
+    typeof cohortId === "string" && cohortId.startsWith("edit-")
+      ? cohortId.replace("edit-", "")
+      : cohortId;
 
   const fetchCohort = useCallback(async () => {
-    if (!actualCohortId || typeof actualCohortId !== 'string') return;
+    if (!actualCohortId || typeof actualCohortId !== "string") return;
 
     try {
       setIsLoading(true);
       setError(null);
-      
-      const result = await adminFetch<{success: boolean, data: Cohort}>(`/api/admin/cohorts/${actualCohortId}`);
-      
+
+      const result = await adminFetch<{ success: boolean; data: Cohort }>(
+        `/api/admin/cohorts/${actualCohortId}`,
+      );
+
       if (result.error) {
         throw new Error(result.error);
       }
@@ -41,7 +47,7 @@ function EditCohortPage() {
 
       setCohort(result.data.data);
     } catch (err: any) {
-      console.error("Error fetching cohort:", err);
+      log.error("Error fetching cohort:", err);
       setError(err.message || "Failed to load cohort");
     } finally {
       setIsLoading(false);
@@ -74,21 +80,20 @@ function EditCohortPage() {
       onRetry={handleRetry}
       isRetrying={isRetrying}
     >
-      {cohort ? (
-        <CohortForm cohort={cohort} isEditing />
-      ) : (
-        !isLoading && !error && !cohort ?
+      {
+        cohort ? (
+          <CohortForm cohort={cohort} isEditing />
+        ) : !isLoading && !error && !cohort ? (
           <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
             Cohort not found. It may have been deleted or the ID is incorrect.
           </div>
-        : null // Loading/Error is handled by AdminEditPageLayout based on props
-      )}
+        ) : null // Loading/Error is handled by AdminEditPageLayout based on props
+      }
     </AdminEditPageLayout>
   );
 }
 
 // Export the page wrapped in admin authentication
-export default withAdminAuth(
-  EditCohortPage,
-  { message: "You need admin access to manage cohorts" }
-);
+export default withAdminAuth(EditCohortPage, {
+  message: "You need admin access to manage cohorts",
+});

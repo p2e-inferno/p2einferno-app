@@ -1,3 +1,7 @@
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('blockchain:shared:logging-utils');
+
 /**
  * Consistent logging strategy for blockchain operations
  * Provides structured, secure logging with proper context
@@ -119,21 +123,21 @@ export class BlockchainLogger {
     if (this.isDevelopment) {
       switch (level) {
         case LogLevel.DEBUG:
-          console.debug(`[BLOCKCHAIN] ${message}`, sanitizedContext);
+          log.debug(`[BLOCKCHAIN] ${message}`, sanitizedContext);
           break;
         case LogLevel.INFO:
-          console.info(`[BLOCKCHAIN] ${message}`, sanitizedContext);
+          log.info(`[BLOCKCHAIN] ${message}`, sanitizedContext);
           break;
         case LogLevel.WARN:
-          console.warn(`[BLOCKCHAIN] ${message}`, sanitizedContext);
+          log.warn(`[BLOCKCHAIN] ${message}`, sanitizedContext);
           break;
         case LogLevel.ERROR:
-          console.error(`[BLOCKCHAIN] ${message}`, sanitizedContext);
+          log.error(`[BLOCKCHAIN] ${message}`, sanitizedContext);
           break;
       }
     } else {
       // In production, use structured JSON logging
-      console.log(JSON.stringify(logEntry));
+      log.info(JSON.stringify(logEntry));
     }
   }
 

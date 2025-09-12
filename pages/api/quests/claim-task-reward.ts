@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:claim-task-reward");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -34,7 +37,7 @@ export default async function handler(
         user_profiles!user_task_completions_user_id_fkey (
           id
         )
-      `
+      `,
       )
       .eq("id", completionId)
       .single();
@@ -54,32 +57,36 @@ export default async function handler(
       .eq("id", completionId);
 
     if (updateError) {
-      console.error("Error updating completion:", updateError);
+      log.error("Error updating completion:", updateError);
       return res.status(500).json({
         error: "Failed to claim reward",
         details: updateError.message,
       });
     }
-    
-    const questTask = Array.isArray(completion.quest_tasks) ? completion.quest_tasks[0] : completion.quest_tasks;
+
+    const questTask = Array.isArray(completion.quest_tasks)
+      ? completion.quest_tasks[0]
+      : completion.quest_tasks;
     const rewardAmount = questTask?.reward_amount || 0;
 
     // Award XP to the user by calling the RPC function
-    const userProfile = Array.isArray(completion.user_profiles) ? completion.user_profiles[0] : completion.user_profiles;
-    const { error: rpcError } = await supabase.rpc('award_xp_to_user', {
+    const userProfile = Array.isArray(completion.user_profiles)
+      ? completion.user_profiles[0]
+      : completion.user_profiles;
+    const { error: rpcError } = await supabase.rpc("award_xp_to_user", {
       p_user_id: userProfile?.id,
       p_xp_amount: rewardAmount,
-      p_activity_type: 'task_reward_claimed',
+      p_activity_type: "task_reward_claimed",
       p_activity_data: {
         quest_id: completion.quest_id,
         task_id: completion.task_id,
         completion_id: completion.id,
-        reward_amount: rewardAmount
-      }
+        reward_amount: rewardAmount,
+      },
     });
-    
+
     if (rpcError) {
-      console.error("Error awarding XP:", rpcError);
+      log.error("Error awarding XP:", rpcError);
       // Don't fail the transaction, but log the error
     }
 
@@ -89,7 +96,7 @@ export default async function handler(
       rewardAmount,
     });
   } catch (error) {
-    console.error("Error in claim task reward API:", error);
+    log.error("Error in claim task reward API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

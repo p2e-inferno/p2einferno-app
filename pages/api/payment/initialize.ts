@@ -2,16 +2,17 @@ import { NextApiRequest, NextApiResponse } from "next";
 // Use the admin Supabase client – this API route runs on the server and
 // needs elevated privileges to bypass RLS when inserting payment records.
 import { createAdminClient } from "@/lib/supabase/server";
-
-// Create a fresh instance for this request
-const supabase = createAdminClient();
-
+import { getLogger } from "@/lib/utils/logger";
 import {
   generatePaymentReference,
   convertToSmallestUnit,
   validatePaymentAmount,
   type Currency,
 } from "../../../lib/payment-utils";
+
+// Create a fresh instance for this request
+const supabase = createAdminClient();
+const log = getLogger("api:payment:initialize");
 
 interface InitializePaymentRequest {
   applicationId: string;
@@ -22,7 +23,7 @@ interface InitializePaymentRequest {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -84,7 +85,8 @@ export default async function handler(
     }
 
     // Validate amount against cohort pricing
-    const expectedAmount = currency === "NGN" ? cohort.naira_amount : cohort.usdt_amount;
+    const expectedAmount =
+      currency === "NGN" ? cohort.naira_amount : cohort.usdt_amount;
     if (!expectedAmount || amount !== expectedAmount) {
       return res.status(400).json({
         error: `Invalid amount. Expected ${currency === "NGN" ? "₦" : "$"}${expectedAmount}`,
@@ -130,14 +132,14 @@ export default async function handler(
             process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
           }/payment/callback`,
         }),
-      }
+      },
     );
 
     const paystackData = await paystackResponse.json();
-    console.log("paystackData from initialize:: ", paystackData);
-    
+    log.info("paystackData from initialize:: ", paystackData);
+
     if (!paystackData.status) {
-      console.error("Paystack initialization failed:", paystackData);
+      log.error("Paystack initialization failed:", paystackData);
       return res.status(400).json({
         error: "Payment initialization failed",
         details: paystackData.message,
@@ -145,7 +147,7 @@ export default async function handler(
     }
 
     const officialReference = paystackData.data.reference || reference;
-    console.log("officialReference being saved to database:: ", officialReference);
+    log.info("officialReference being saved to database:: ", officialReference);
 
     // Save payment transaction to database (use Paystack's confirmed reference)
     const { error: transactionError } = await supabase
@@ -165,7 +167,7 @@ export default async function handler(
       });
 
     if (transactionError) {
-      console.error("Failed to save payment transaction:", transactionError);
+      log.error("Failed to save payment transaction:", transactionError);
       return res.status(500).json({
         error: "Failed to save payment transaction",
       });
@@ -186,7 +188,7 @@ export default async function handler(
       },
     });
   } catch (error) {
-    console.error("Payment initialization error:", error);
+    log.error("Payment initialization error:", error);
     res.status(500).json({
       error: "Internal server error",
     });

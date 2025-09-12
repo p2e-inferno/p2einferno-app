@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { toast } from 'react-hot-toast';
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('hooks:useNotifications');
+
 
 export interface Notification {
   id: string;
@@ -32,7 +36,7 @@ export const useNotifications = () => {
         setUnreadCount((data.notifications || []).filter((n: Notification) => !n.read).length);
       }
     } catch (error) {
-      console.error("Failed to fetch notifications:", error);
+      log.error("Failed to fetch notifications:", error);
     } finally {
       setLoading(false);
     }
@@ -54,7 +58,7 @@ export const useNotifications = () => {
       setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
     } catch (error) {
       toast.error("Failed to mark notifications as read.");
-      console.error("Failed to mark notifications as read:", error);
+      log.error("Failed to mark notifications as read:", error);
     }
   };
 
@@ -81,7 +85,7 @@ export const useNotifications = () => {
       }
     } catch (error) {
       toast.error("Failed to delete notification.");
-      console.error("Failed to delete notification:", error);
+      log.error("Failed to delete notification:", error);
     }
   };
 

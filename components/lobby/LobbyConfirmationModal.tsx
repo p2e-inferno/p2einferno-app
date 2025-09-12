@@ -21,7 +21,7 @@ export default function LobbyConfirmationModal({
   title,
   description,
   confirmText = "Confirm",
-  cancelText = "Cancel", 
+  cancelText = "Cancel",
   variant = "default",
   isLoading = false,
 }: LobbyConfirmationModalProps) {
@@ -35,23 +35,23 @@ export default function LobbyConfirmationModal({
           iconColor: "text-red-400",
           headerBg: "from-red-600/10 to-red-700/10",
           border: "border-red-500/20",
-          confirmButton: "bg-red-600 hover:bg-red-700 text-white"
+          confirmButton: "bg-red-600 hover:bg-red-700 text-white",
         };
       case "warning":
         return {
           icon: AlertTriangle,
           iconColor: "text-flame-yellow",
-          headerBg: "from-flame-yellow/10 to-flame-orange/10", 
+          headerBg: "from-flame-yellow/10 to-flame-orange/10",
           border: "border-flame-yellow/20",
-          confirmButton: "bg-flame-yellow text-black hover:bg-flame-orange"
+          confirmButton: "bg-flame-yellow text-black hover:bg-flame-orange",
         };
       default:
         return {
           icon: AlertTriangle,
           iconColor: "text-cyan-400",
           headerBg: "from-purple-600/10 to-indigo-600/10",
-          border: "border-purple-500/20", 
-          confirmButton: "bg-flame-yellow text-black hover:bg-flame-orange"
+          border: "border-purple-500/20",
+          confirmButton: "bg-flame-yellow text-black hover:bg-flame-orange",
         };
     }
   };
@@ -61,9 +61,13 @@ export default function LobbyConfirmationModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className={`bg-background border ${config.border} rounded-2xl w-full max-w-md`}>
+      <div
+        className={`bg-background border ${config.border} rounded-2xl w-full max-w-md`}
+      >
         {/* Header */}
-        <div className={`bg-gradient-to-r ${config.headerBg} p-6 border-b ${config.border} rounded-t-2xl`}>
+        <div
+          className={`bg-gradient-to-r ${config.headerBg} p-6 border-b ${config.border} rounded-t-2xl`}
+        >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <IconComponent size={24} className={config.iconColor} />
@@ -81,9 +85,7 @@ export default function LobbyConfirmationModal({
 
         {/* Content */}
         <div className="p-6">
-          <p className="text-faded-grey mb-6 leading-relaxed">
-            {description}
-          </p>
+          <p className="text-faded-grey mb-6 leading-relaxed">{description}</p>
 
           {/* Actions */}
           <div className="flex space-x-3">

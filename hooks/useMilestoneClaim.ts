@@ -1,5 +1,9 @@
 import { useState } from 'react';
 import { toast } from 'react-hot-toast';
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('hooks:useMilestoneClaim');
+
 
 interface UseMilestoneClaimProps {
   milestoneId: string;
@@ -49,7 +53,7 @@ export const useMilestoneClaim = ({ milestoneId, onSuccess }: UseMilestoneClaimP
       onSuccess();
 
     } catch (error: any) {
-      console.error("Failed to claim milestone key:", error);
+      log.error("Failed to claim milestone key:", error);
       const errorMessage = error.message || "An unknown error occurred while claiming the key.";
       toast.error(errorMessage, { id: toastId });
       // Don't re-throw the error to prevent runtime error overlay

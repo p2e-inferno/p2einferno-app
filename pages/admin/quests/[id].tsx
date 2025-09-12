@@ -19,6 +19,9 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { NetworkError } from "@/components/ui/network-error";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:quests:[id]");
 
 interface QuestDetails extends Quest {
   stats?: {
@@ -42,33 +45,41 @@ function QuestDetailsPage() {
   const [activeTab, setActiveTab] = useState("overview");
 
   // Reusable function to fetch quest details by id
-  const fetchQuestDetails = useCallback(async (questId: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  const fetchQuestDetails = useCallback(
+    async (questId: string) => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-      const result = await adminFetch<{quest: QuestDetails}>(`/api/admin/quests/${questId}`);
-      
-      if (result.error) {
-        throw new Error(result.error);
+        const result = await adminFetch<{ quest: QuestDetails }>(
+          `/api/admin/quests/${questId}`,
+        );
+
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        if (!result.data?.quest) {
+          throw new Error("Quest not found");
+        }
+
+        setQuest(result.data.quest);
+
+        if (
+          result.data.quest.stats?.pending_submissions &&
+          result.data.quest.stats.pending_submissions > 0
+        ) {
+          setActiveTab("submissions");
+        }
+      } catch (err: any) {
+        log.error("Error fetching quest:", err);
+        setError(err.message || "Failed to load quest details");
+      } finally {
+        setIsLoading(false);
       }
-
-      if (!result.data?.quest) {
-        throw new Error("Quest not found");
-      }
-
-      setQuest(result.data.quest);
-
-      if (result.data.quest.stats?.pending_submissions && result.data.quest.stats.pending_submissions > 0) {
-        setActiveTab("submissions");
-      }
-    } catch (err: any) {
-      console.error("Error fetching quest:", err);
-      setError(err.message || "Failed to load quest details");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [adminFetch]);
+    },
+    [adminFetch],
+  );
 
   // Initial fetch on mount / id change
   useEffect(() => {
@@ -109,9 +120,11 @@ function QuestDetailsPage() {
   if (error || !quest) {
     return (
       <AdminLayout>
-        <QuestErrorWrapper 
-          error={error || "Quest not found"} 
-          onRetry={() => { if (id && typeof id === 'string') fetchQuestDetails(id); }}
+        <QuestErrorWrapper
+          error={error || "Quest not found"}
+          onRetry={() => {
+            if (id && typeof id === "string") fetchQuestDetails(id);
+          }}
         />
       </AdminLayout>
     );
@@ -355,13 +368,18 @@ function QuestDetailsPage() {
 }
 
 // Export the page wrapped in admin authentication
-export default withAdminAuth(
-  QuestDetailsPage,
-  { message: "You need admin access to manage quests" }
-);
+export default withAdminAuth(QuestDetailsPage, {
+  message: "You need admin access to manage quests",
+});
 
 // Local helper to display NetworkError with retry
-function QuestErrorWrapper({ error, onRetry }: { error: string, onRetry: () => void }) {
+function QuestErrorWrapper({
+  error,
+  onRetry,
+}: {
+  error: string;
+  onRetry: () => void;
+}) {
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -373,10 +391,16 @@ function QuestErrorWrapper({ error, onRetry }: { error: string, onRetry: () => v
   };
   return (
     <div className="max-w-xl mx-auto py-12">
-      <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />
+      <NetworkError
+        error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
+      />
       <div className="text-center mt-4">
         <Link href="/admin/quests">
-          <Button variant="outline" className="border-gray-700">Back to Quests</Button>
+          <Button variant="outline" className="border-gray-700">
+            Back to Quests
+          </Button>
         </Link>
       </div>
     </div>

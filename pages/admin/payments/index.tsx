@@ -8,6 +8,9 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, ExternalLink } from "lucide-react";
 import { NetworkError } from "@/components/ui/network-error";
 import { usePrivy } from "@privy-io/react-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:payments:index");
 
 interface PaymentTransaction {
   id: string;
@@ -32,7 +35,11 @@ interface PaymentTransaction {
 }
 
 const AdminPaymentsPage: React.FC = () => {
-  const { isAdmin, loading: authLoading, authenticated } = useLockManagerAdminAuth();
+  const {
+    isAdmin,
+    loading: authLoading,
+    authenticated,
+  } = useLockManagerAdminAuth();
   const { getAccessToken } = usePrivy();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
@@ -74,9 +81,9 @@ const AdminPaymentsPage: React.FC = () => {
       const data = await response.json();
       setTransactions(data.transactions || []);
     } catch (err) {
-      console.error("Error fetching transactions:", err);
+      log.error("Error fetching transactions:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to fetch transactions"
+        err instanceof Error ? err.message : "Failed to fetch transactions",
       );
     } finally {
       setIsLoading(false);
@@ -105,18 +112,18 @@ const AdminPaymentsPage: React.FC = () => {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           applicationId,
           // Let the service determine what actions are needed
-          actions: []
+          actions: [],
         }),
       });
 
       const result = await response.json();
-      console.log("Reconcile response:", { status: response.status, result });
+      log.info("Reconcile response:", { status: response.status, result });
 
       if (!response.ok) {
-        console.error("Reconcile failed:", result);
+        log.error("Reconcile failed:", result);
         throw new Error(result.error || "Reconciliation failed");
       }
 
@@ -128,7 +135,7 @@ const AdminPaymentsPage: React.FC = () => {
         toast.error(result.message || "Reconciliation failed");
       }
     } catch (err) {
-      console.error("Reconciliation error:", err);
+      log.error("Reconciliation error:", err);
       toast.error(err instanceof Error ? err.message : "Reconciliation failed");
     } finally {
       setReconcilingIds((prev) => {
@@ -212,7 +219,11 @@ const AdminPaymentsPage: React.FC = () => {
           </div>
         ) : error ? (
           <div className="mb-6">
-            <NetworkError error={error} onRetry={fetchTransactions} isRetrying={isLoading} />
+            <NetworkError
+              error={error}
+              onRetry={fetchTransactions}
+              isRetrying={isLoading}
+            />
           </div>
         ) : transactions.length === 0 ? (
           <div className="bg-card border border-gray-800 rounded-lg p-12 text-center">
@@ -268,24 +279,29 @@ const AdminPaymentsPage: React.FC = () => {
                           {transaction.applications.user_email}
                         </div>
                         {(() => {
-                          const userProfile = Array.isArray(transaction.applications.user_profiles) 
-                            ? transaction.applications.user_profiles[0] 
+                          const userProfile = Array.isArray(
+                            transaction.applications.user_profiles,
+                          )
+                            ? transaction.applications.user_profiles[0]
                             : transaction.applications.user_profiles;
-                          return userProfile?.wallet_address && (
-                            <div className="text-xs font-mono text-gray-500">
-                              {userProfile.wallet_address.slice(0, 6)}
-                              ...
-                              {userProfile.wallet_address.slice(-4)}
-                            </div>
+                          return (
+                            userProfile?.wallet_address && (
+                              <div className="text-xs font-mono text-gray-500">
+                                {userProfile.wallet_address.slice(0, 6)}
+                                ...
+                                {userProfile.wallet_address.slice(-4)}
+                              </div>
+                            )
                           );
                         })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-300">
-                          {Array.isArray(transaction.applications.cohorts) 
-                            ? transaction.applications.cohorts[0]?.name || "Unknown"
-                            : transaction.applications.cohorts?.name || "Unknown"
-                          }
+                          {Array.isArray(transaction.applications.cohorts)
+                            ? transaction.applications.cohorts[0]?.name ||
+                              "Unknown"
+                            : transaction.applications.cohorts?.name ||
+                              "Unknown"}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -303,7 +319,7 @@ const AdminPaymentsPage: React.FC = () => {
                               <a
                                 href={getBlockExplorerUrl(
                                   transaction.transaction_hash,
-                                  transaction.network_chain_id
+                                  transaction.network_chain_id,
                                 )}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -326,7 +342,7 @@ const AdminPaymentsPage: React.FC = () => {
                             handleReconcile(transaction.application_id)
                           }
                           disabled={reconcilingIds.has(
-                            transaction.application_id
+                            transaction.application_id,
                           )}
                           size="sm"
                           className="bg-flame-yellow hover:bg-flame-yellow/90 text-black"

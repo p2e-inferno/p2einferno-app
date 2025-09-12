@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { Application } from "@/lib/supabase";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('hooks:useDashboardData');
+
 
 export interface UserProfile {
   id: string;
@@ -110,7 +114,7 @@ export const useDashboardData = (): UseDashboardDataResult => {
       const result = await response.json();
       setData(result.data);
     } catch (err: any) {
-      console.error("Dashboard data fetch error:", err);
+      log.error("Dashboard data fetch error:", err);
       setError(err.message);
       toast.error("Failed to load dashboard data");
     } finally {

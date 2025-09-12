@@ -1,9 +1,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
-import {
-  FlameIcon,
-  CrystalIcon,
-} from "@/components/icons/dashboard-icons";
+import { FlameIcon, CrystalIcon } from "@/components/icons/dashboard-icons";
 import {
   Users,
   Calendar,
@@ -33,7 +30,8 @@ interface CohortWithEnrollment {
   updated_at: string;
 }
 
-interface BootcampWithCohortsEnrollment extends Omit<BootcampWithCohorts, 'cohorts'> {
+interface BootcampWithCohortsEnrollment
+  extends Omit<BootcampWithCohorts, "cohorts"> {
   cohorts: CohortWithEnrollment[];
 }
 
@@ -45,7 +43,7 @@ interface BootcampCohortCardProps {
 
 interface CohortStatusInfo {
   statusText: string;
-  statusColor: 'green' | 'blue' | 'red';
+  statusColor: "green" | "blue" | "red";
   statusIcon: string;
   spotsRemaining: number;
   isOpen: boolean;
@@ -57,23 +55,31 @@ interface CohortStatusInfo {
   pendingApplication?: any;
 }
 
-export function BootcampCohortCard({ 
-  bootcamp, 
+export function BootcampCohortCard({
+  bootcamp,
   getPendingApplication,
-  defaultExpanded = false 
+  defaultExpanded = false,
 }: BootcampCohortCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   // Filter available cohorts
-  const availableCohorts = bootcamp.cohorts.filter(cohort => 
-    cohort.status === 'open' || cohort.status === 'upcoming' || cohort.is_enrolled
+  const availableCohorts = bootcamp.cohorts.filter(
+    (cohort) =>
+      cohort.status === "open" ||
+      cohort.status === "upcoming" ||
+      cohort.is_enrolled,
   );
 
   // Get cohort status display info
-  const getCohortStatusInfo = (cohort: CohortWithEnrollment): CohortStatusInfo => {
-    const registrationStatus = getCohortRegistrationStatus(cohort, cohort.is_enrolled || false);
+  const getCohortStatusInfo = (
+    cohort: CohortWithEnrollment,
+  ): CohortStatusInfo => {
+    const registrationStatus = getCohortRegistrationStatus(
+      cohort,
+      cohort.is_enrolled || false,
+    );
     const pendingApplication = getPendingApplication(cohort.id);
-    
+
     return {
       ...registrationStatus,
       isRegistrationOpen: registrationStatus.isOpen,
@@ -95,7 +101,7 @@ export function BootcampCohortCard({
               <p className="text-faded-grey">{bootcamp.description}</p>
             </div>
           </div>
-          
+
           {/* Cohort Count Badge */}
           <div className="bg-background/30 rounded-xl px-4 py-2 text-center">
             <div className="font-bold">{availableCohorts.length}</div>
@@ -114,7 +120,9 @@ export function BootcampCohortCard({
           </div>
           <div className="bg-background/30 rounded-xl p-4 text-center">
             <CrystalIcon size={24} className="text-cyan-400 mx-auto mb-2" />
-            <div className="font-bold">{bootcamp.max_reward_dgt.toLocaleString()} DGT</div>
+            <div className="font-bold">
+              {bootcamp.max_reward_dgt.toLocaleString()} DGT
+            </div>
             <div className="text-xs text-faded-grey">Max Rewards</div>
           </div>
           <div className="bg-background/30 rounded-xl p-4 text-center">
@@ -129,7 +137,9 @@ export function BootcampCohortCard({
       <div className="p-6">
         {availableCohorts.length === 0 ? (
           <div className="text-center py-8 border-2 border-dashed border-faded-grey/30 rounded-lg">
-            <p className="text-faded-grey">No cohorts available for this bootcamp yet.</p>
+            <p className="text-faded-grey">
+              No cohorts available for this bootcamp yet.
+            </p>
           </div>
         ) : (
           <>
@@ -139,7 +149,9 @@ export function BootcampCohortCard({
             >
               <div className="flex items-center space-x-3">
                 <h4 className="text-xl font-bold">Select Cohort</h4>
-                <span className="text-sm text-faded-grey">({availableCohorts.length} available)</span>
+                <span className="text-sm text-faded-grey">
+                  ({availableCohorts.length} available)
+                </span>
               </div>
               {isExpanded ? (
                 <ChevronUp size={20} className="text-faded-grey" />
@@ -152,9 +164,12 @@ export function BootcampCohortCard({
               <div className="mt-4 space-y-3">
                 {availableCohorts.map((cohort) => {
                   const statusInfo = getCohortStatusInfo(cohort);
-                  
+
                   return (
-                    <div key={cohort.id} className="border border-faded-grey/20 rounded-xl p-4 bg-background/20">
+                    <div
+                      key={cohort.id}
+                      className="border border-faded-grey/20 rounded-xl p-4 bg-background/20"
+                    >
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <h5 className="font-bold text-lg flex items-center space-x-2">
@@ -166,15 +181,20 @@ export function BootcampCohortCard({
                             )}
                           </h5>
                           <p className="text-sm text-faded-grey">
-                            {new Date(cohort.start_date).toLocaleDateString()} - {new Date(cohort.end_date).toLocaleDateString()}
+                            {new Date(cohort.start_date).toLocaleDateString()} -{" "}
+                            {new Date(cohort.end_date).toLocaleDateString()}
                           </p>
                         </div>
-                        
-                        <div className={`flex items-center space-x-2 px-3 py-1 rounded-lg border text-sm font-medium ${
-                          statusInfo.statusColor === 'green' ? 'bg-green-500/10 border-green-500/20 text-green-400' :
-                          statusInfo.statusColor === 'blue' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
-                          'bg-red-500/10 border-red-500/20 text-red-400'
-                        }`}>
+
+                        <div
+                          className={`flex items-center space-x-2 px-3 py-1 rounded-lg border text-sm font-medium ${
+                            statusInfo.statusColor === "green"
+                              ? "bg-green-500/10 border-green-500/20 text-green-400"
+                              : statusInfo.statusColor === "blue"
+                                ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                                : "bg-red-500/10 border-red-500/20 text-red-400"
+                          }`}
+                        >
                           <span>{statusInfo.statusIcon}</span>
                           <span>{statusInfo.statusText}</span>
                         </div>
@@ -183,12 +203,20 @@ export function BootcampCohortCard({
                       {/* Cohort Quick Stats */}
                       <div className="grid grid-cols-2 gap-4 mb-4">
                         <div className="bg-background/40 rounded-lg p-3 text-center">
-                          <div className="font-bold text-lg">{statusInfo.spotsRemaining}</div>
-                          <div className="text-xs text-faded-grey">Spots Left</div>
+                          <div className="font-bold text-lg">
+                            {statusInfo.spotsRemaining}
+                          </div>
+                          <div className="text-xs text-faded-grey">
+                            Spots Left
+                          </div>
                         </div>
                         <div className="bg-background/40 rounded-lg p-3 text-center">
-                          <div className="font-bold text-lg">₦{cohort.naira_amount?.toLocaleString() || 'TBD'}</div>
-                          <div className="text-xs text-faded-grey">Cost (NGN)</div>
+                          <div className="font-bold text-lg">
+                            ₦{cohort.naira_amount?.toLocaleString() || "TBD"}
+                          </div>
+                          <div className="text-xs text-faded-grey">
+                            Cost (NGN)
+                          </div>
                         </div>
                       </div>
 
@@ -223,7 +251,9 @@ export function BootcampCohortCard({
                         ) : (
                           <div className="inline-flex items-center space-x-2 bg-gray-600 text-gray-300 px-4 py-2 rounded-lg font-medium cursor-not-allowed text-sm">
                             <span>
-                              {cohort.status === "upcoming" ? "Coming Soon" : "Registration Closed"}
+                              {cohort.status === "upcoming"
+                                ? "Coming Soon"
+                                : "Registration Closed"}
                             </span>
                           </div>
                         )}

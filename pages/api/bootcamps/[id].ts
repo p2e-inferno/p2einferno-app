@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:bootcamps:[id]");
 
 interface BootcampWithCohorts {
   id: string;
@@ -32,12 +35,12 @@ interface ApiResponse<T> {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<BootcampWithCohorts>>
+  res: NextApiResponse<ApiResponse<BootcampWithCohorts>>,
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
@@ -46,7 +49,7 @@ export default async function handler(
   if (!id || typeof id !== "string") {
     return res.status(400).json({
       success: false,
-      error: "Invalid bootcamp ID"
+      error: "Invalid bootcamp ID",
     });
   }
 
@@ -65,14 +68,15 @@ export default async function handler(
     if (!bootcampData) {
       return res.status(404).json({
         success: false,
-        error: "Bootcamp not found"
+        error: "Bootcamp not found",
       });
     }
 
     // Fetch cohorts for this bootcamp
     const { data: cohortsData, error: cohortsError } = await supabase
       .from("cohorts")
-      .select(`
+      .select(
+        `
         id,
         name,
         start_date,
@@ -83,7 +87,8 @@ export default async function handler(
         status,
         usdt_amount,
         naira_amount
-      `)
+      `,
+      )
       .eq("bootcamp_program_id", id)
       .order("start_date", { ascending: false });
 
@@ -101,7 +106,7 @@ export default async function handler(
       data: bootcampWithCohorts,
     });
   } catch (error: any) {
-    console.error("Error fetching bootcamp:", error);
+    log.error("Error fetching bootcamp:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch bootcamp",

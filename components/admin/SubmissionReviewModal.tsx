@@ -4,6 +4,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { X, CheckCircle, XCircle, RotateCcw, AlertCircle } from "lucide-react";
 import type { SubmissionStatus } from "@/lib/supabase/types";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:SubmissionReviewModal");
 
 interface SubmissionReviewModalProps {
   submission: {
@@ -28,30 +31,34 @@ interface SubmissionReviewModalProps {
   };
   isOpen: boolean;
   onClose: () => void;
-  onStatusUpdate: (submissionId: string, newStatus: SubmissionStatus, feedback?: string) => Promise<void>;
+  onStatusUpdate: (
+    submissionId: string,
+    newStatus: SubmissionStatus,
+    feedback?: string,
+  ) => Promise<void>;
 }
 
 const statusOptions = [
-  { 
-    value: "completed" as SubmissionStatus, 
-    label: "Approve", 
-    icon: CheckCircle, 
+  {
+    value: "completed" as SubmissionStatus,
+    label: "Approve",
+    icon: CheckCircle,
     color: "bg-green-600 hover:bg-green-700",
-    description: "User gets reward and task is marked complete"
+    description: "User gets reward and task is marked complete",
   },
-  { 
-    value: "failed" as SubmissionStatus, 
-    label: "Reject", 
-    icon: XCircle, 
+  {
+    value: "failed" as SubmissionStatus,
+    label: "Reject",
+    icon: XCircle,
     color: "bg-red-600 hover:bg-red-700",
-    description: "Task is marked as failed, no reward"
+    description: "Task is marked as failed, no reward",
   },
-  { 
-    value: "retry" as SubmissionStatus, 
-    label: "Request Retry", 
-    icon: RotateCcw, 
+  {
+    value: "retry" as SubmissionStatus,
+    label: "Request Retry",
+    icon: RotateCcw,
     color: "bg-yellow-600 hover:bg-yellow-700",
-    description: "User can resubmit with your feedback"
+    description: "User can resubmit with your feedback",
   },
 ];
 
@@ -59,9 +66,11 @@ export default function SubmissionReviewModal({
   submission,
   isOpen,
   onClose,
-  onStatusUpdate
+  onStatusUpdate,
 }: SubmissionReviewModalProps) {
-  const [selectedStatus, setSelectedStatus] = useState<SubmissionStatus | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<SubmissionStatus | null>(
+    null,
+  );
   const [feedback, setFeedback] = useState(submission.admin_feedback || "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -74,7 +83,7 @@ export default function SubmissionReviewModal({
     try {
       await onStatusUpdate(submission.id, selectedStatus, feedback);
     } catch (error) {
-      console.error("Error updating status:", error);
+      log.error("Error updating status:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -82,11 +91,11 @@ export default function SubmissionReviewModal({
 
   const formatSubmissionData = (data: any) => {
     if (!data) return "No submission data";
-    
+
     if (typeof data === "string") {
       return data;
     }
-    
+
     if (typeof data === "object") {
       // Handle different data structures
       if (data.url) return data.url;
@@ -94,7 +103,7 @@ export default function SubmissionReviewModal({
       if (data.response) return data.response;
       return JSON.stringify(data, null, 2);
     }
-    
+
     return String(data);
   };
 
@@ -112,16 +121,18 @@ export default function SubmissionReviewModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
       <div className="relative bg-gray-900 border border-gray-700 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-800">
-          <h3 className="text-xl font-semibold text-white">Review Submission</h3>
+          <h3 className="text-xl font-semibold text-white">
+            Review Submission
+          </h3>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"
@@ -139,16 +150,20 @@ export default function SubmissionReviewModal({
             <div className="space-y-1 text-sm">
               <p className="text-gray-300">
                 <span className="text-gray-400">Name:</span>{" "}
-                {submission.user.display_name || submission.user.email || "Unknown User"}
+                {submission.user.display_name ||
+                  submission.user.email ||
+                  "Unknown User"}
               </p>
               {submission.user.email && (
                 <p className="text-gray-300">
-                  <span className="text-gray-400">Email:</span> {submission.user.email}
+                  <span className="text-gray-400">Email:</span>{" "}
+                  {submission.user.email}
                 </p>
               )}
               {submission.user.wallet_address && (
                 <p className="text-gray-300">
-                  <span className="text-gray-400">Wallet:</span> {submission.user.wallet_address}
+                  <span className="text-gray-400">Wallet:</span>{" "}
+                  {submission.user.wallet_address}
                 </p>
               )}
             </div>
@@ -159,10 +174,12 @@ export default function SubmissionReviewModal({
             <h4 className="font-medium text-white mb-2">Task Details</h4>
             <div className="space-y-1 text-sm">
               <p className="text-gray-300">
-                <span className="text-gray-400">Task:</span> {submission.task.title}
+                <span className="text-gray-400">Task:</span>{" "}
+                {submission.task.title}
               </p>
               <p className="text-gray-300">
-                <span className="text-gray-400">Type:</span> {submission.task.task_type}
+                <span className="text-gray-400">Type:</span>{" "}
+                {submission.task.task_type}
               </p>
               <p className="text-gray-300">
                 <span className="text-gray-400">Submitted:</span>{" "}
@@ -193,20 +210,26 @@ export default function SubmissionReviewModal({
           </div>
 
           {/* Current Status */}
-          {submission.submission_status && submission.submission_status !== "pending" && (
-            <div className="bg-gray-800/50 rounded-lg p-4">
-              <h4 className="font-medium text-white mb-2">Current Status</h4>
-              <p className="text-gray-300 text-sm">
-                Status: <span className="capitalize">{submission.submission_status}</span>
-              </p>
-              {submission.admin_feedback && (
-                <div className="mt-2">
-                  <p className="text-gray-400 text-sm">Previous feedback:</p>
-                  <p className="text-gray-300 text-sm mt-1">{submission.admin_feedback}</p>
-                </div>
-              )}
-            </div>
-          )}
+          {submission.submission_status &&
+            submission.submission_status !== "pending" && (
+              <div className="bg-gray-800/50 rounded-lg p-4">
+                <h4 className="font-medium text-white mb-2">Current Status</h4>
+                <p className="text-gray-300 text-sm">
+                  Status:{" "}
+                  <span className="capitalize">
+                    {submission.submission_status}
+                  </span>
+                </p>
+                {submission.admin_feedback && (
+                  <div className="mt-2">
+                    <p className="text-gray-400 text-sm">Previous feedback:</p>
+                    <p className="text-gray-300 text-sm mt-1">
+                      {submission.admin_feedback}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
 
           {/* Status Selection */}
           <div className="space-y-4">
@@ -228,7 +251,9 @@ export default function SubmissionReviewModal({
                     <Icon className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
                     <div className="text-left">
                       <p className="font-medium text-white">{option.label}</p>
-                      <p className="text-sm text-gray-400">{option.description}</p>
+                      <p className="text-sm text-gray-400">
+                        {option.description}
+                      </p>
                     </div>
                   </button>
                 );
@@ -239,7 +264,8 @@ export default function SubmissionReviewModal({
           {/* Feedback */}
           <div className="space-y-2">
             <Label htmlFor="feedback" className="text-white">
-              Feedback for User {selectedStatus === "completed" ? "(Optional)" : "(Required)"}
+              Feedback for User{" "}
+              {selectedStatus === "completed" ? "(Optional)" : "(Required)"}
             </Label>
             <Textarea
               id="feedback"
@@ -249,10 +275,10 @@ export default function SubmissionReviewModal({
                 selectedStatus === "completed"
                   ? "Great work! (optional message)"
                   : selectedStatus === "failed"
-                  ? "Please explain why this submission was rejected..."
-                  : selectedStatus === "retry"
-                  ? "Please explain what needs to be improved..."
-                  : "Provide feedback for the user..."
+                    ? "Please explain why this submission was rejected..."
+                    : selectedStatus === "retry"
+                      ? "Please explain what needs to be improved..."
+                      : "Provide feedback for the user..."
               }
               className="bg-gray-800 border-gray-700 text-gray-100"
               rows={3}
@@ -266,8 +292,8 @@ export default function SubmissionReviewModal({
               <AlertCircle className="w-5 h-5 text-yellow-400 mr-2 mt-0.5 flex-shrink-0" />
               <div className="text-sm">
                 <p className="text-yellow-300 font-medium">
-                  {selectedStatus === "failed" 
-                    ? "This will fail the task permanently" 
+                  {selectedStatus === "failed"
+                    ? "This will fail the task permanently"
                     : "This will allow the user to resubmit"}
                 </p>
                 <p className="text-yellow-400">
@@ -292,10 +318,15 @@ export default function SubmissionReviewModal({
           </Button>
           <Button
             onClick={handleStatusUpdate}
-            disabled={!selectedStatus || isSubmitting || (selectedStatus !== "completed" && !feedback.trim())}
+            disabled={
+              !selectedStatus ||
+              isSubmitting ||
+              (selectedStatus !== "completed" && !feedback.trim())
+            }
             className={
               selectedStatus
-                ? statusOptions.find(o => o.value === selectedStatus)?.color || "bg-gray-600"
+                ? statusOptions.find((o) => o.value === selectedStatus)
+                    ?.color || "bg-gray-600"
                 : "bg-gray-600"
             }
           >
@@ -305,7 +336,7 @@ export default function SubmissionReviewModal({
                 Updating...
               </>
             ) : (
-              `${selectedStatus ? statusOptions.find(o => o.value === selectedStatus)?.label : "Select Status"}`
+              `${selectedStatus ? statusOptions.find((o) => o.value === selectedStatus)?.label : "Select Status"}`
             )}
           </Button>
         </div>

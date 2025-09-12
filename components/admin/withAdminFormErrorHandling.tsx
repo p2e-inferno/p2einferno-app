@@ -9,7 +9,7 @@ import { AuthError } from "@/components/ui/auth-error";
  * @returns A wrapped component with authentication error handling
  */
 export function withAdminFormErrorHandling<P extends object>(
-  Component: React.ComponentType<P>
+  Component: React.ComponentType<P>,
 ) {
   return function WithAdminFormErrorHandling(props: P) {
     const [error, setError] = useState<string | null>(null);

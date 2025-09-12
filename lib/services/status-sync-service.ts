@@ -4,6 +4,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { getLogger } from '@/lib/utils/logger';
 import { 
   PaymentStatus, 
   ApplicationStatus, 
@@ -12,6 +13,8 @@ import {
   computeUserApplicationStatus,
   canTransition 
 } from '../types/application-status';
+
+const log = getLogger('services:status-sync-service');
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -161,7 +164,7 @@ export class StatusSyncService {
       };
 
     } catch (error) {
-      console.error('Status sync error:', error);
+      log.error('Status sync error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -290,7 +293,7 @@ export class StatusSyncService {
           }
         });
     } catch (error) {
-      console.error('Failed to log status change:', error);
+      log.error('Failed to log status change:', error);
       // Don't fail the main operation if logging fails
     }
   }
@@ -360,7 +363,7 @@ export class StatusSyncService {
       return { success: true, data: { reconciled: true } };
 
     } catch (error) {
-      console.error('Reconciliation error:', error);
+      log.error('Reconciliation error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error'

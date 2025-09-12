@@ -126,7 +126,7 @@ export const CohortHero: React.FC<CohortHeroProps> = ({
                 month: "short",
                 day: "numeric",
                 year: "numeric",
-              }
+              },
             )}{" "}
             ({timeRemaining})
           </span>

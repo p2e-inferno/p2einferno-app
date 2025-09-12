@@ -82,11 +82,14 @@ See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
 - When enabling middleware, ensure your admin UI calls `POST /api/admin/session` after login and retries on 401.
 
 ## Logging
-- Module logger: Use `getLogger(module)` from `lib/utils/logger`. Levels: `debug|info|warn|error`; pretty in dev, JSON in prod.
+- Use `getLogger(module)` from `lib/utils/logger`. Levels: `debug|info|warn|error|silent`.
+- Output format: pretty text in dev; structured JSON in prod.
+- Transport: avoids `console.*` (uses stdout/stderr on server; safe buffer in browser). Next.js `removeConsole` does not affect logger output.
+- Defaults: dev defaults to `debug`; prod defaults to `silent` unless overridden by env.
+- Env vars: `LOG_LEVEL` (server) and `NEXT_PUBLIC_LOG_LEVEL` (client). Recommended: leave client unset in prod.
 - Example (API route): `const log = getLogger('api:milestone-tasks'); log.error('db error', { milestoneId, err });`
-- Client usage: safe for browser; control with `NEXT_PUBLIC_LOG_LEVEL` (`debug` default in dev).
-- Env: `LOG_LEVEL` (server), `NEXT_PUBLIC_LOG_LEVEL` (client). Use `silent` to disable.
-- Blockchain: `blockchainLogger` is bridged to the same transport; prefer existing methods in `lib/blockchain/shared/logging-utils`.
+- Blockchain: `blockchainLogger` uses the same transport; prefer helpers in `lib/blockchain/shared/logging-utils`.
+- See `docs/logging.md` for full guidance and best practices.
 
 ## Commit & Pull Request Guidelines
 - Commits: Prefer Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`). Keep messages imperative and scoped (e.g., `feat(wallet): add chain selector`).

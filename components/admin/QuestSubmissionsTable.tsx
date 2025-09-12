@@ -9,6 +9,9 @@ import type {
   SubmissionStatus,
 } from "@/lib/supabase/types";
 import { NetworkError } from "@/components/ui/network-error";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:QuestSubmissionsTable");
 
 interface QuestSubmissionsTableProps {
   questId: string;
@@ -52,7 +55,7 @@ export default function QuestSubmissionsTable({
   const [error, setError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "all">(
-    "all"
+    "all",
   );
   const [selectedSubmission, setSelectedSubmission] =
     useState<SubmissionWithDetails | null>(null);
@@ -85,7 +88,7 @@ export default function QuestSubmissionsTable({
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -97,7 +100,7 @@ export default function QuestSubmissionsTable({
       };
       setSubmissions(json.submissions || []);
     } catch (err: any) {
-      console.error("Error fetching submissions:", err);
+      log.error("Error fetching submissions:", err);
       setError(err.message || "Failed to load submissions");
     } finally {
       setIsLoading(false);
@@ -121,7 +124,7 @@ export default function QuestSubmissionsTable({
   const handleStatusUpdate = async (
     submissionId: string,
     newStatus: SubmissionStatus,
-    feedback?: string
+    feedback?: string,
   ) => {
     try {
       const token = await getAccessToken();
@@ -156,7 +159,7 @@ export default function QuestSubmissionsTable({
 
       setIsReviewModalOpen(false);
     } catch (err: any) {
-      console.error("Error updating submission:", err);
+      log.error("Error updating submission:", err);
       setError(err.message || "Failed to update submission");
     }
   };
@@ -195,7 +198,13 @@ export default function QuestSubmissionsTable({
   }
 
   if (error) {
-    return <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />;
+    return (
+      <NetworkError
+        error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
+      />
+    );
   }
 
   return (

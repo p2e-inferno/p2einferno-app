@@ -4,13 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Pencil, Calendar, Trash2, Star } from "lucide-react";
 import Link from "next/link";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
-import { formatDate } from "@/lib/dateUtils"; 
-import { Badge } from "@/components/ui/badge"; 
+import { formatDate } from "@/lib/dateUtils";
+import { Badge } from "@/components/ui/badge";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:index");
 
 export default function CohortListPage() {
-  const { authenticated, isAdmin, loading: authLoading } = useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const [cohorts, setCohorts] = useState<
     (Cohort & { bootcamp_program: BootcampProgram })[]
   >([]);
@@ -20,9 +27,12 @@ export default function CohortListPage() {
   const fetchCohorts = useCallback(async () => {
     try {
       setError(null);
-      
-      const result = await adminFetch<{success: boolean, data: (Cohort & { bootcamp_program: BootcampProgram })[]}>("/api/admin/cohorts");
-      
+
+      const result = await adminFetch<{
+        success: boolean;
+        data: (Cohort & { bootcamp_program: BootcampProgram })[];
+      }>("/api/admin/cohorts");
+
       if (result.error) {
         throw new Error(result.error);
       }
@@ -31,7 +41,7 @@ export default function CohortListPage() {
       const cohortData = result.data?.data || [];
       setCohorts(Array.isArray(cohortData) ? cohortData : []);
     } catch (err: any) {
-      console.error("Error fetching cohorts:", err);
+      log.error("Error fetching cohorts:", err);
       setError(err.message || "Failed to load cohorts");
     }
   }, [adminFetch]);
@@ -112,8 +122,11 @@ export default function CohortListPage() {
                 className="border-b border-gray-800 hover:bg-gray-900"
               >
                 <td className="py-4 px-4 text-sm text-white">
-                  <Link href={`/admin/cohorts/${cohort.id}/applications`} className="hover:text-flame-yellow">
-                      {cohort.name}
+                  <Link
+                    href={`/admin/cohorts/${cohort.id}/applications`}
+                    className="hover:text-flame-yellow"
+                  >
+                    {cohort.name}
                   </Link>
                 </td>
                 <td className="py-4 px-4 text-sm text-white">
@@ -167,7 +180,9 @@ export default function CohortListPage() {
                       className="border-gray-700 hover:border-red-500 hover:text-red-500"
                       title="Delete cohort"
                       // TODO: Implement delete functionality
-                      onClick={() => alert("Delete functionality not yet implemented.")}
+                      onClick={() =>
+                        alert("Delete functionality not yet implemented.")
+                      }
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

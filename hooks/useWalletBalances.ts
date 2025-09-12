@@ -1,11 +1,14 @@
 import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { ethers } from 'ethers';
+import { getLogger } from '@/lib/utils/logger';
 import { 
   frontendReadOnlyProvider, 
   CURRENT_NETWORK, 
   ERC20_ABI 
 } from '@/lib/blockchain/frontend-config';
+
+const log = getLogger('hooks:useWalletBalances');
 
 export interface WalletBalance {
   eth: {
@@ -50,7 +53,7 @@ export const useWalletBalances = () => {
             setConnectedAddress(addr ?? null);
           }
         } catch (err) {
-          console.warn("Unable to fetch accounts from provider", err);
+          log.warn("Unable to fetch accounts from provider", { error: err });
         }
       }
     };
@@ -111,7 +114,7 @@ export const useWalletBalances = () => {
             usdcSymbol = await usdcContract.symbol?.() || 'USDC';
           }
         } catch (usdcError) {
-          console.warn('Error fetching USDC balance:', usdcError);
+          log.warn('Error fetching USDC balance:', { error: usdcError });
         }
 
         // Format balances using ethers
@@ -132,7 +135,7 @@ export const useWalletBalances = () => {
           },
         });
       } catch (err) {
-        console.error('Error fetching wallet balances:', err);
+        log.error('Error fetching wallet balances:', { error: err });
         setError('Failed to fetch balances');
         setBalances({
           eth: { balance: '0', formatted: '0.0000', loading: false },
@@ -173,7 +176,7 @@ export const useWalletBalances = () => {
           ]);
         }
       } catch (usdcError) {
-        console.warn('Error fetching USDC balance during refresh:', usdcError);
+        log.warn('Error fetching USDC balance during refresh:', { error: usdcError });
       }
 
       const ethFormatted = ethers.formatEther(ethBalance);
@@ -193,7 +196,7 @@ export const useWalletBalances = () => {
         },
       });
     } catch (err) {
-      console.error('Error refreshing wallet balances:', err);
+      log.error('Error refreshing wallet balances:', { error: err });
       setError('Failed to refresh balances');
       setBalances(prev => ({
         eth: { ...prev.eth, loading: false },

@@ -1,3 +1,7 @@
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('utils:lock-deployment-state');
+
 // ============================================================================
 // LOCAL STORAGE KEYS
 // ============================================================================
@@ -56,11 +60,11 @@ export const savePendingDeployment = (deployment: Omit<PendingDeployment, 'id' |
     const updated = [...existing, pendingDeployment];
     
     localStorage.setItem(STORAGE_KEYS.PENDING_DEPLOYMENTS, JSON.stringify(updated));
-    console.log('Saved pending deployment:', deploymentId);
+    log.info('Saved pending deployment:', deploymentId);
     
     return deploymentId;
   } catch (error) {
-    console.error('Error saving pending deployment:', error);
+    log.error('Error saving pending deployment:', error);
     return '';
   }
 };
@@ -88,7 +92,7 @@ export const getPendingDeployments = (): PendingDeployment[] => {
     
     return validDeployments;
   } catch (error) {
-    console.error('Error getting pending deployments:', error);
+    log.error('Error getting pending deployments:', error);
     return [];
   }
 };
@@ -104,9 +108,9 @@ export const removePendingDeployment = (deploymentId: string): void => {
     const updated = existing.filter(d => d.id !== deploymentId);
     
     localStorage.setItem(STORAGE_KEYS.PENDING_DEPLOYMENTS, JSON.stringify(updated));
-    console.log('Removed pending deployment:', deploymentId);
+    log.info('Removed pending deployment:', deploymentId);
   } catch (error) {
-    console.error('Error removing pending deployment:', error);
+    log.error('Error removing pending deployment:', error);
   }
 };
 
@@ -126,7 +130,7 @@ export const incrementDeploymentRetry = (deploymentId: string): void => {
     
     localStorage.setItem(STORAGE_KEYS.PENDING_DEPLOYMENTS, JSON.stringify(updated));
   } catch (error) {
-    console.error('Error incrementing retry count:', error);
+    log.error('Error incrementing retry count:', error);
   }
 };
 
@@ -164,11 +168,11 @@ export const saveDraft = (entityType: EntityType, formData: any): string => {
     const updated = [...existing.filter(d => d.entityType !== entityType), draft]; // Keep only latest draft per type
     
     localStorage.setItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS, JSON.stringify(updated));
-    console.log('Saved draft:', draftId);
+    log.info('Saved draft:', draftId);
     
     return draftId;
   } catch (error) {
-    console.error('Error saving draft:', error);
+    log.error('Error saving draft:', error);
     return '';
   }
 };
@@ -196,7 +200,7 @@ export const getDrafts = (): DeploymentDraft[] => {
     
     return validDrafts;
   } catch (error) {
-    console.error('Error getting drafts:', error);
+    log.error('Error getting drafts:', error);
     return [];
   }
 };
@@ -220,9 +224,9 @@ export const removeDraft = (entityType: EntityType): void => {
     const updated = existing.filter(d => d.entityType !== entityType);
     
     localStorage.setItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS, JSON.stringify(updated));
-    console.log('Removed draft for:', entityType);
+    log.info('Removed draft for:', entityType);
   } catch (error) {
-    console.error('Error removing draft:', error);
+    log.error('Error removing draft:', error);
   }
 };
 
@@ -239,9 +243,9 @@ export const clearAllDeploymentState = (): void => {
 
     localStorage.removeItem(STORAGE_KEYS.PENDING_DEPLOYMENTS);
     localStorage.removeItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS);
-    console.log('Cleared all deployment state');
+    log.info('Cleared all deployment state');
   } catch (error) {
-    console.error('Error clearing deployment state:', error);
+    log.error('Error clearing deployment state:', error);
   }
 };
 

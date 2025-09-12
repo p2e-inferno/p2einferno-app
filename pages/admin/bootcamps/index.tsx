@@ -9,9 +9,11 @@ import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:bootcamps:index");
 
 function BootcampsPage() {
-
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,9 +26,12 @@ function BootcampsPage() {
   const fetchBootcamps = useCallback(async () => {
     try {
       setError(null);
-      
-      const result = await adminFetch<{success: boolean, data: BootcampProgram[]}>("/api/admin/bootcamps");
-      
+
+      const result = await adminFetch<{
+        success: boolean;
+        data: BootcampProgram[];
+      }>("/api/admin/bootcamps");
+
       if (result.error) {
         throw new Error(result.error);
       }
@@ -35,7 +40,7 @@ function BootcampsPage() {
       const bootcampData = result.data?.data || [];
       setBootcamps(Array.isArray(bootcampData) ? bootcampData : []);
     } catch (err: any) {
-      console.error("Error fetching bootcamps:", err);
+      log.error("Error fetching bootcamps:", err);
       setError(err.message || "Failed to load bootcamps");
     }
   }, [adminFetch]);
@@ -65,7 +70,7 @@ function BootcampsPage() {
         `/api/admin/bootcamps/${bootcampToDelete.id}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (result.error) {
@@ -74,10 +79,10 @@ function BootcampsPage() {
 
       // Remove from UI
       setBootcamps((prev) =>
-        prev.filter((bootcamp) => bootcamp.id !== bootcampToDelete.id)
+        prev.filter((bootcamp) => bootcamp.id !== bootcampToDelete.id),
       );
     } catch (err: any) {
-      console.error("Error deleting bootcamp:", err);
+      log.error("Error deleting bootcamp:", err);
     } finally {
       setIsDeleting(false);
       setDeleteDialogOpen(false);
@@ -190,7 +195,6 @@ function BootcampsPage() {
 }
 
 // Export the page wrapped in admin authentication
-export default withAdminAuth(
-  BootcampsPage,
-  { message: "You need admin access to manage bootcamps" }
-);
+export default withAdminAuth(BootcampsPage, {
+  message: "You need admin access to manage bootcamps",
+});

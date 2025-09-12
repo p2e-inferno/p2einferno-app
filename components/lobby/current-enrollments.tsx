@@ -35,7 +35,10 @@ export const CurrentEnrollments: React.FC<CurrentEnrollmentsProps> = ({
   // Filter out enrollments that are hidden by user preference
   const visibleEnrollments = enrollments.filter((enrollment) => {
     // If no preferences exist, show the enrollment
-    if (!enrollment.user_journey_preferences || enrollment.user_journey_preferences.length === 0) {
+    if (
+      !enrollment.user_journey_preferences ||
+      enrollment.user_journey_preferences.length === 0
+    ) {
       return true;
     }
     // If preferences exist, only show if not hidden
@@ -67,7 +70,9 @@ export const CurrentEnrollments: React.FC<CurrentEnrollmentsProps> = ({
           >
             <div className="flex items-center justify-between">
               <div className="flex-1">
-                <h4 className="font-bold text-lg">{getJourneyDisplayName(enrollment)}</h4>
+                <h4 className="font-bold text-lg">
+                  {getJourneyDisplayName(enrollment)}
+                </h4>
                 <p className="text-faded-grey capitalize">
                   Status: {enrollment.enrollment_status}
                 </p>
@@ -92,7 +97,10 @@ export const CurrentEnrollments: React.FC<CurrentEnrollmentsProps> = ({
                     className="p-2 hover:bg-red-500/20 rounded-lg transition-colors group"
                     title="Remove from lobby"
                   >
-                    <X size={20} className="text-faded-grey group-hover:text-red-400 transition-colors" />
+                    <X
+                      size={20}
+                      className="text-faded-grey group-hover:text-red-400 transition-colors"
+                    />
                   </button>
                 )}
               </div>

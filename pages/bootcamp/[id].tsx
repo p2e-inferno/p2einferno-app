@@ -8,6 +8,9 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { Clock, Users, Trophy, Calendar, ChevronRight } from "lucide-react";
 import { calculateTimeRemaining } from "@/lib/utils/registration-validation";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("bootcamp:[id]");
 
 interface BootcampData {
   id: string;
@@ -64,21 +67,21 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
       setLoading(true);
 
       const response = await fetch(`/api/bootcamps/${bootcampId}`);
-      
+
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || "Failed to fetch bootcamp");
       }
 
       const result = await response.json();
-      
+
       if (!result.success) {
         throw new Error(result.error || "Failed to fetch bootcamp");
       }
 
       setBootcamp(result.data);
     } catch (err: any) {
-      console.error("Error fetching bootcamp data:", err);
+      log.error("Error fetching bootcamp data:", err);
       setError(err.message || "Failed to load bootcamp details");
     } finally {
       setLoading(false);
@@ -120,9 +123,15 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
       <MainLayout>
         <div className="min-h-screen flex items-center justify-center">
           <div className="w-full max-w-xl">
-            <NetworkError error={error || "Bootcamp not found"} onRetry={handleRetry} isRetrying={isRetrying} />
+            <NetworkError
+              error={error || "Bootcamp not found"}
+              onRetry={handleRetry}
+              isRetrying={isRetrying}
+            />
             <div className="text-center mt-4">
-              <Button onClick={() => router.push("/")} variant="outline">Go Home</Button>
+              <Button onClick={() => router.push("/")} variant="outline">
+                Go Home
+              </Button>
             </div>
           </div>
         </div>
@@ -182,7 +191,9 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
                 <Users className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
-                <div className="text-2xl font-bold">{bootcamp.cohorts.length}</div>
+                <div className="text-2xl font-bold">
+                  {bootcamp.cohorts.length}
+                </div>
                 <div className="text-sm text-faded-grey">Cohorts Available</div>
               </div>
             </div>
@@ -220,9 +231,12 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                   const spotsRemaining =
                     cohort.max_participants - cohort.current_participants;
                   const timeRemaining = calculateTimeRemaining(
-                    cohort.registration_deadline
+                    cohort.registration_deadline,
                   );
-                  const isOpen = cohort.status === "open" && spotsRemaining > 0 && timeRemaining !== "Registration Closed";
+                  const isOpen =
+                    cohort.status === "open" &&
+                    spotsRemaining > 0 &&
+                    timeRemaining !== "Registration Closed";
 
                   return (
                     <Card
@@ -236,8 +250,8 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                             isOpen
                               ? "bg-green-500/20 border-green-500/30"
                               : cohort.status === "upcoming"
-                              ? "bg-blue-500/20 border-blue-500/30"
-                              : "bg-red-500/20 border-red-500/30"
+                                ? "bg-blue-500/20 border-blue-500/30"
+                                : "bg-red-500/20 border-red-500/30"
                           }`}
                         >
                           <div
@@ -245,20 +259,29 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                               isOpen
                                 ? "bg-green-500 animate-pulse"
                                 : cohort.status === "upcoming"
-                                ? "bg-blue-500"
-                                : "bg-red-500"
+                                  ? "bg-blue-500"
+                                  : "bg-red-500"
                             }`}
                           ></div>
                           <span
                             className={`font-medium text-sm ${
-                              isOpen ? "text-green-400" : cohort.status === "upcoming" ? "text-blue-400" : "text-red-400"
+                              isOpen
+                                ? "text-green-400"
+                                : cohort.status === "upcoming"
+                                  ? "text-blue-400"
+                                  : "text-red-400"
                             }`}
                           >
-                            {isOpen ? "Open" : 
-                             cohort.status === "upcoming" ? "Coming Soon" :
-                             spotsRemaining <= 0 ? "Full" :
-                             timeRemaining === "Registration Closed" ? "Closed" : 
-                             cohort.status.charAt(0).toUpperCase() + cohort.status.slice(1)}
+                            {isOpen
+                              ? "Open"
+                              : cohort.status === "upcoming"
+                                ? "Coming Soon"
+                                : spotsRemaining <= 0
+                                  ? "Full"
+                                  : timeRemaining === "Registration Closed"
+                                    ? "Closed"
+                                    : cohort.status.charAt(0).toUpperCase() +
+                                      cohort.status.slice(1)}
                           </span>
                         </div>
                       </div>
@@ -275,7 +298,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                                 month: "long",
                                 day: "numeric",
                                 year: "numeric",
-                              }
+                              },
                             )}{" "}
                             -{" "}
                             {new Date(cohort.end_date).toLocaleDateString(
@@ -284,7 +307,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                                 month: "long",
                                 day: "numeric",
                                 year: "numeric",
-                              }
+                              },
                             )}
                           </div>
                         </div>
@@ -309,8 +332,8 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                               {timeRemaining.includes("day")
                                 ? "Days Left"
                                 : timeRemaining.includes("Closed")
-                                ? "Closed"
-                                : "Status"}
+                                  ? "Closed"
+                                  : "Status"}
                             </div>
                           </div>
                         </div>
@@ -323,7 +346,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                             </div>
                             <div className="text-xs text-faded-grey">
                               {new Date(
-                                cohort.registration_deadline
+                                cohort.registration_deadline,
                               ).toLocaleDateString("en-US", {
                                 month: "short",
                                 day: "numeric",
@@ -346,8 +369,8 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                           {isOpen && spotsRemaining > 0
                             ? "Join Cohort"
                             : spotsRemaining <= 0
-                            ? "Cohort Full"
-                            : "Registration Closed"}
+                              ? "Cohort Full"
+                              : "Registration Closed"}
                           {isOpen && spotsRemaining > 0 && (
                             <ChevronRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                           )}

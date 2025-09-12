@@ -14,6 +14,9 @@ import { toast } from "react-hot-toast";
 // Import the new components
 import QuestHeader from "@/components/quests/QuestHeader";
 import TaskItem from "@/components/quests/TaskItem";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("lobby:quests:[id]");
 
 // Assuming types for Task, TaskCompletion would be defined or imported,
 // similar to those in TaskItem.tsx. For this refactor, we'll rely on `any`
@@ -83,12 +86,12 @@ const QuestDetailsPage = () => {
     const response = await fetch(`/api/quests/complete-task`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        questId: qId, 
-        taskId, 
-        userId: user?.id, 
+      body: JSON.stringify({
+        questId: qId,
+        taskId,
+        userId: user?.id,
         verificationData: details,
-        inputData: details.inputData 
+        inputData: details.inputData,
       }),
     });
     if (!response.ok) {
@@ -113,7 +116,7 @@ const QuestDetailsPage = () => {
         const processedTasks = tasks
           .map((task: any) => {
             const completion = completions.find(
-              (c: any) => c.task_id === task.id
+              (c: any) => c.task_id === task.id,
             );
             return {
               task,
@@ -127,16 +130,16 @@ const QuestDetailsPage = () => {
         setTasksWithCompletion(processedTasks);
 
         const completedCount = processedTasks.filter(
-          (t: any) => t.isCompleted
+          (t: any) => t.isCompleted,
         ).length;
         setProgress(
           tasks.length > 0
             ? Math.round((completedCount / tasks.length) * 100)
-            : 0
+            : 0,
         );
       }
     } catch (error) {
-      console.error("Error loading quest details:", error);
+      log.error("Error loading quest details:", error);
       toast.error("Failed to load quest details");
     } finally {
       setLoading(false);
@@ -199,9 +202,7 @@ const QuestDetailsPage = () => {
               username: user.farcaster.username,
             });
           } else {
-            toast.error(
-              "No Farcaster found. Link it in your profile first."
-            );
+            toast.error("No Farcaster found. Link it in your profile first.");
             result = { success: false, error: "Farcaster not linked" };
           }
           break;
@@ -223,11 +224,13 @@ const QuestDetailsPage = () => {
         case "submit_proof":
           // These task types require input data
           if (inputData && inputData.trim()) {
-            result = await completeTaskAPI(questId as string, task.id, { inputData });
+            result = await completeTaskAPI(questId as string, task.id, {
+              inputData,
+            });
           } else {
-            result = { 
-              success: false, 
-              error: `Please provide ${task.input_label || 'required information'}` 
+            result = {
+              success: false,
+              error: `Please provide ${task.input_label || "required information"}`,
             };
           }
           break;
@@ -235,21 +238,23 @@ const QuestDetailsPage = () => {
           // External tasks are completed outside the platform
           result = await completeTaskAPI(questId as string, task.id, {
             completed_external: true,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
           });
           break;
         case "custom":
           // Custom tasks may or may not require input
           if (task.input_required && inputData) {
-            result = await completeTaskAPI(questId as string, task.id, { inputData });
+            result = await completeTaskAPI(questId as string, task.id, {
+              inputData,
+            });
           } else if (task.input_required) {
-            result = { 
-              success: false, 
-              error: `Please provide ${task.input_label || 'required input'}` 
+            result = {
+              success: false,
+              error: `Please provide ${task.input_label || "required input"}`,
             };
           } else {
             result = await completeTaskAPI(questId as string, task.id, {
-              custom_action: true
+              custom_action: true,
             });
           }
           break;
@@ -264,9 +269,9 @@ const QuestDetailsPage = () => {
         toast.error(result.error || "Failed to perform task action");
       }
     } catch (error: any) {
-      console.error("Error completing task:", error);
+      log.error("Error completing task:", error);
       toast.error(
-        error.message || "An error occurred while completing the task"
+        error.message || "An error occurred while completing the task",
       );
     } finally {
       setProcessingTask(null);
@@ -284,9 +289,9 @@ const QuestDetailsPage = () => {
         toast.error(result.error || "Failed to claim reward");
       }
     } catch (error: any) {
-      console.error("Error claiming reward:", error);
+      log.error("Error claiming reward:", error);
       toast.error(
-        error.message || "An error occurred while claiming the reward"
+        error.message || "An error occurred while claiming the reward",
       );
     } finally {
       setProcessingTask(null);
@@ -364,8 +369,8 @@ const QuestDetailsPage = () => {
                 Start the Quest to Unlock Tasks
               </h3>
               <p className="text-gray-400 mb-4">
-                This quest has tasks waiting for you. Click &quot;Start Quest&quot; above
-                to begin!
+                This quest has tasks waiting for you. Click &quot;Start
+                Quest&quot; above to begin!
               </p>
             </div>
           )}

@@ -4,6 +4,9 @@ import { Label } from "@/components/ui/label";
 import { Upload, X, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
 import { usePrivy } from "@privy-io/react-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("ui:image-upload");
 
 interface ImageUploadProps {
   value?: string;
@@ -48,20 +51,20 @@ export default function ImageUpload({
       const reader = new FileReader();
       reader.readAsDataURL(file);
       reader.onload = () => {
-        if (typeof reader.result === 'string') {
+        if (typeof reader.result === "string") {
           // Remove the data URL prefix to get just the base64 data
-          const parts = reader.result.split(',');
+          const parts = reader.result.split(",");
           const base64 = parts[1];
           if (base64) {
             resolve(base64);
           } else {
-            reject(new Error('Failed to read file'));
+            reject(new Error("Failed to read file"));
           }
         } else {
-          reject(new Error('Failed to read file'));
+          reject(new Error("Failed to read file"));
         }
       };
-      reader.onerror = error => reject(error);
+      reader.onerror = (error) => reject(error);
     });
   };
 
@@ -86,10 +89,10 @@ export default function ImageUpload({
       const base64Data = await fileToBase64(file);
 
       // Upload via API
-      const response = await fetch('/api/admin/images', {
-        method: 'POST',
+      const response = await fetch("/api/admin/images", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -102,13 +105,13 @@ export default function ImageUpload({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to upload image');
+        throw new Error(errorData.error || "Failed to upload image");
       }
 
       const result = await response.json();
       onChange(result.url);
     } catch (error: any) {
-      console.error("Upload error:", error);
+      log.error("Upload error:", error);
       setErrorMsg(error.message || "Failed to upload image");
     } finally {
       setIsUploading(false);
@@ -155,10 +158,10 @@ export default function ImageUpload({
       }
 
       // Delete via API
-      await fetch('/api/admin/images', {
-        method: 'DELETE',
+      await fetch("/api/admin/images", {
+        method: "DELETE",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -170,7 +173,7 @@ export default function ImageUpload({
       // Update form state regardless of API success
       onChange("");
     } catch (error) {
-      console.error("Error removing image:", error);
+      log.error("Error removing image:", error);
       // Still remove from form even if API deletion fails
       onChange("");
     }

@@ -53,11 +53,16 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({
               placeholder="Enter your full name"
               value={formData.user_name}
               onChange={(e) => updateFormData("user_name", e.target.value)}
-              aria-describedby={fieldErrors.user_name ? "user_name-error" : undefined}
+              aria-describedby={
+                fieldErrors.user_name ? "user_name-error" : undefined
+              }
             />
           </div>
           {fieldErrors.user_name && (
-            <p id="user_name-error" className="mt-1 text-sm text-red-600 flex items-center gap-1">
+            <p
+              id="user_name-error"
+              className="mt-1 text-sm text-red-600 flex items-center gap-1"
+            >
               <XCircle className="w-4 h-4" />
               {fieldErrors.user_name}
             </p>
@@ -65,7 +70,10 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({
         </div>
 
         <div>
-          <label htmlFor="user_email" className="block text-sm font-medium mb-2">
+          <label
+            htmlFor="user_email"
+            className="block text-sm font-medium mb-2"
+          >
             Email Address
           </label>
           <div className="relative">
@@ -81,11 +89,16 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({
               placeholder="Enter your email address"
               value={formData.user_email}
               onChange={(e) => updateFormData("user_email", e.target.value)}
-              aria-describedby={fieldErrors.user_email ? "user_email-error" : undefined}
+              aria-describedby={
+                fieldErrors.user_email ? "user_email-error" : undefined
+              }
             />
           </div>
           {fieldErrors.user_email && (
-            <p id="user_email-error" className="mt-1 text-sm text-red-600 flex items-center gap-1">
+            <p
+              id="user_email-error"
+              className="mt-1 text-sm text-red-600 flex items-center gap-1"
+            >
               <XCircle className="w-4 h-4" />
               {fieldErrors.user_email}
             </p>
@@ -93,7 +106,10 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({
         </div>
 
         <div>
-          <label htmlFor="phone_number" className="block text-sm font-medium mb-2">
+          <label
+            htmlFor="phone_number"
+            className="block text-sm font-medium mb-2"
+          >
             Phone Number
           </label>
           <div className="relative">
@@ -109,11 +125,16 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({
               placeholder="Enter your phone number"
               value={formData.phone_number}
               onChange={(e) => updateFormData("phone_number", e.target.value)}
-              aria-describedby={fieldErrors.phone_number ? "phone_number-error" : undefined}
+              aria-describedby={
+                fieldErrors.phone_number ? "phone_number-error" : undefined
+              }
             />
           </div>
           {fieldErrors.phone_number && (
-            <p id="phone_number-error" className="mt-1 text-sm text-red-600 flex items-center gap-1">
+            <p
+              id="phone_number-error"
+              className="mt-1 text-sm text-red-600 flex items-center gap-1"
+            >
               <XCircle className="w-4 h-4" />
               {fieldErrors.phone_number}
             </p>

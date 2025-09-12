@@ -5,20 +5,23 @@ import AdminLayout from "@/components/layouts/AdminLayout";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
-import { 
-  RefreshCw, 
-  AlertCircle, 
-  CheckCircle, 
-  XCircle, 
+import {
+  RefreshCw,
+  AlertCircle,
+  CheckCircle,
+  XCircle,
   Clock,
   Users,
   CreditCard,
   Eye,
   Settings,
-  UserCheck
+  UserCheck,
 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { NetworkError } from "@/components/ui/network-error";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:applications:index");
 
 interface Application {
   id: string; // This is the user_application_status ID
@@ -51,7 +54,11 @@ interface ApplicationStats {
 }
 
 const AdminApplicationsPage: React.FC = () => {
-  const { isAdmin, loading: authLoading, authenticated } = useLockManagerAdminAuth();
+  const {
+    isAdmin,
+    loading: authLoading,
+    authenticated,
+  } = useLockManagerAdminAuth();
   const { getAccessToken } = usePrivy();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
@@ -59,8 +66,9 @@ const AdminApplicationsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<ApplicationStats | null>(null);
-  const [selectedStatus, setSelectedStatus] = useState<string>('');
-  const [selectedPaymentStatus, setSelectedPaymentStatus] = useState<string>('');
+  const [selectedStatus, setSelectedStatus] = useState<string>("");
+  const [selectedPaymentStatus, setSelectedPaymentStatus] =
+    useState<string>("");
   const [reconcilingIds, setReconcilingIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -81,16 +89,20 @@ const AdminApplicationsPage: React.FC = () => {
 
       const accessToken = await getAccessToken();
       const params = new URLSearchParams();
-      if (selectedStatus) params.append('status', selectedStatus);
-      if (selectedPaymentStatus) params.append('payment_status', selectedPaymentStatus);
+      if (selectedStatus) params.append("status", selectedStatus);
+      if (selectedPaymentStatus)
+        params.append("payment_status", selectedPaymentStatus);
 
-      const response = await fetch(`/api/admin/applications?${params.toString()}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
+      const response = await fetch(
+        `/api/admin/applications?${params.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
         },
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -101,9 +113,9 @@ const AdminApplicationsPage: React.FC = () => {
       setApplications(data.applications || []);
       setStats(data.stats);
     } catch (err) {
-      console.error("Error fetching applications:", err);
+      log.error("Error fetching applications:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to fetch applications"
+        err instanceof Error ? err.message : "Failed to fetch applications",
       );
     } finally {
       setIsLoading(false);
@@ -118,7 +130,12 @@ const AdminApplicationsPage: React.FC = () => {
 
   const handleReconcile = async (applicationId: string, actions: string[]) => {
     try {
-      console.log('Reconciling application:', applicationId, 'with actions:', actions);
+      log.info(
+        "Reconciling application:",
+        applicationId,
+        "with actions:",
+        actions,
+      );
       if (!applicationId) {
         throw new Error("Application ID is required");
       }
@@ -145,14 +162,16 @@ const AdminApplicationsPage: React.FC = () => {
       }
 
       if (result.success) {
-        toast.success(`Application reconciled successfully! ${result.summary.successful}/${result.summary.total} actions completed.`);
+        toast.success(
+          `Application reconciled successfully! ${result.summary.successful}/${result.summary.total} actions completed.`,
+        );
         await fetchApplications();
       } else {
         toast.error(result.message || "Reconciliation partially failed");
-        console.log("Reconciliation results:", result.results);
+        log.info("Reconciliation results:", result.results);
       }
     } catch (err) {
-      console.error("Reconciliation error:", err);
+      log.error("Reconciliation error:", err);
       toast.error(err instanceof Error ? err.message : "Reconciliation failed");
     } finally {
       setReconcilingIds((prev) => {
@@ -196,18 +215,26 @@ const AdminApplicationsPage: React.FC = () => {
   const detectInconsistencies = (app: Application) => {
     const issues = [];
     const paymentStatus = app.payment_status;
-    const hasEnrollment = app.bootcamp_enrollments && app.bootcamp_enrollments.length > 0;
-    
+    const hasEnrollment =
+      app.bootcamp_enrollments && app.bootcamp_enrollments.length > 0;
+
     // For successful payments, status should be 'approved', not 'under_review' or 'pending'
-    if (paymentStatus === 'completed' && (app.status === 'under_review' || app.status === 'pending')) {
-      issues.push('Needs approval');
+    if (
+      paymentStatus === "completed" &&
+      (app.status === "under_review" || app.status === "pending")
+    ) {
+      issues.push("Needs approval");
     }
-    
+
     // For approved applications with completed payments, check if enrollment is missing
-    if (paymentStatus === 'completed' && app.status === 'approved' && !hasEnrollment) {
-      issues.push('Missing enrollment');
+    if (
+      paymentStatus === "completed" &&
+      app.status === "approved" &&
+      !hasEnrollment
+    ) {
+      issues.push("Missing enrollment");
     }
-    
+
     // Note: We're not checking for missing payment records here
     // because the data structure doesn't include payment transaction data
     // This should be handled by the backend reconcile service
@@ -219,12 +246,12 @@ const AdminApplicationsPage: React.FC = () => {
     const actions = [];
     const issues = detectInconsistencies(app);
 
-    if (issues.includes('Needs approval')) {
-      actions.push('approve_application');
+    if (issues.includes("Needs approval")) {
+      actions.push("approve_application");
     }
-    
-    if (issues.includes('Missing enrollment')) {
-      actions.push('create_enrollment');
+
+    if (issues.includes("Missing enrollment")) {
+      actions.push("create_enrollment");
     }
 
     return actions;
@@ -255,7 +282,9 @@ const AdminApplicationsPage: React.FC = () => {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-white">Applications Management</h1>
+              <h1 className="text-2xl font-bold text-white">
+                Applications Management
+              </h1>
               <p className="text-gray-400 mt-1">
                 Manage user applications and resolve data inconsistencies
               </p>
@@ -265,7 +294,9 @@ const AdminApplicationsPage: React.FC = () => {
               disabled={isLoading}
               className="bg-steel-red hover:bg-steel-red/90 text-white"
             >
-              <RefreshCw className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`mr-2 h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
+              />
               Refresh
             </Button>
           </div>
@@ -278,7 +309,9 @@ const AdminApplicationsPage: React.FC = () => {
                   <Users className="h-5 w-5 text-blue-400 mr-2" />
                   <div>
                     <p className="text-xs text-gray-400">Total</p>
-                    <p className="text-lg font-semibold text-white">{stats.total}</p>
+                    <p className="text-lg font-semibold text-white">
+                      {stats.total}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -287,7 +320,9 @@ const AdminApplicationsPage: React.FC = () => {
                   <Clock className="h-5 w-5 text-yellow-400 mr-2" />
                   <div>
                     <p className="text-xs text-gray-400">Pending</p>
-                    <p className="text-lg font-semibold text-white">{stats.pending}</p>
+                    <p className="text-lg font-semibold text-white">
+                      {stats.pending}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -296,7 +331,9 @@ const AdminApplicationsPage: React.FC = () => {
                   <CheckCircle className="h-5 w-5 text-green-400 mr-2" />
                   <div>
                     <p className="text-xs text-gray-400">Completed</p>
-                    <p className="text-lg font-semibold text-white">{stats.completed}</p>
+                    <p className="text-lg font-semibold text-white">
+                      {stats.completed}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -305,7 +342,9 @@ const AdminApplicationsPage: React.FC = () => {
                   <XCircle className="h-5 w-5 text-red-400 mr-2" />
                   <div>
                     <p className="text-xs text-gray-400">Failed</p>
-                    <p className="text-lg font-semibold text-white">{stats.failed}</p>
+                    <p className="text-lg font-semibold text-white">
+                      {stats.failed}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -314,7 +353,9 @@ const AdminApplicationsPage: React.FC = () => {
                   <AlertCircle className="h-5 w-5 text-orange-400 mr-2" />
                   <div>
                     <p className="text-xs text-gray-400">Inconsistent</p>
-                    <p className="text-lg font-semibold text-white">{stats.inconsistent}</p>
+                    <p className="text-lg font-semibold text-white">
+                      {stats.inconsistent}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -323,7 +364,9 @@ const AdminApplicationsPage: React.FC = () => {
                   <UserCheck className="h-5 w-5 text-purple-400 mr-2" />
                   <div>
                     <p className="text-xs text-gray-400">Missing Enrollments</p>
-                    <p className="text-lg font-semibold text-white">{stats.missingEnrollments}</p>
+                    <p className="text-lg font-semibold text-white">
+                      {stats.missingEnrollments}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -332,7 +375,9 @@ const AdminApplicationsPage: React.FC = () => {
                   <CreditCard className="h-5 w-5 text-cyan-400 mr-2" />
                   <div>
                     <p className="text-xs text-gray-400">Missing Payments</p>
-                    <p className="text-lg font-semibold text-white">{stats.missingPaymentRecords}</p>
+                    <p className="text-lg font-semibold text-white">
+                      {stats.missingPaymentRecords}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -382,7 +427,11 @@ const AdminApplicationsPage: React.FC = () => {
           </div>
         ) : error ? (
           <div className="mb-6">
-            <NetworkError error={error} onRetry={fetchApplications} isRetrying={isLoading} />
+            <NetworkError
+              error={error}
+              onRetry={fetchApplications}
+              isRetrying={isLoading}
+            />
           </div>
         ) : applications.length === 0 ? (
           <div className="bg-card border border-gray-800 rounded-lg p-12 text-center">
@@ -429,9 +478,12 @@ const AdminApplicationsPage: React.FC = () => {
                   {applications.map((application) => {
                     const issues = detectInconsistencies(application);
                     const suggestedActions = getSuggestedActions(application);
-                    
+
                     return (
-                      <tr key={application.application_id} className="hover:bg-gray-900/30">
+                      <tr
+                        key={application.application_id}
+                        className="hover:bg-gray-900/30"
+                      >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-mono text-gray-300">
                             {application.application_id.slice(0, 8)}...
@@ -439,7 +491,7 @@ const AdminApplicationsPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-300">
-                            {application.user_name || 'Unknown'}
+                            {application.user_name || "Unknown"}
                           </div>
                           <div className="text-xs text-gray-500">
                             {application.user_email}
@@ -447,16 +499,26 @@ const AdminApplicationsPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm text-gray-300">
-                            {application.cohort_name || application.cohort_id || 'Unknown'}
+                            {application.cohort_name ||
+                              application.cohort_id ||
+                              "Unknown"}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={getPaymentStatusBadge(application.payment_status || '')}>
+                          <span
+                            className={getPaymentStatusBadge(
+                              application.payment_status || "",
+                            )}
+                          >
                             {application.payment_status}
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={getApplicationStatusBadge(application.application_status || '')}>
+                          <span
+                            className={getApplicationStatusBadge(
+                              application.application_status || "",
+                            )}
+                          >
                             {application.application_status}
                           </span>
                         </td>
@@ -464,7 +526,7 @@ const AdminApplicationsPage: React.FC = () => {
                           {issues.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {issues.map((issue, index) => (
-                                <span 
+                                <span
                                   key={index}
                                   className="px-2 py-1 bg-red-900/30 text-red-300 border border-red-700 rounded text-xs"
                                 >
@@ -477,18 +539,29 @@ const AdminApplicationsPage: React.FC = () => {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                          {new Date(application.created_at).toLocaleDateString()}
+                          {new Date(
+                            application.created_at,
+                          ).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex space-x-2">
                             {suggestedActions.length > 0 && (
                               <Button
-                                onClick={() => handleReconcile(application.application_id, suggestedActions)}
-                                disabled={reconcilingIds.has(application.application_id)}
+                                onClick={() =>
+                                  handleReconcile(
+                                    application.application_id,
+                                    suggestedActions,
+                                  )
+                                }
+                                disabled={reconcilingIds.has(
+                                  application.application_id,
+                                )}
                                 size="sm"
                                 className="bg-flame-yellow hover:bg-flame-yellow/90 text-black"
                               >
-                                {reconcilingIds.has(application.application_id) ? (
+                                {reconcilingIds.has(
+                                  application.application_id,
+                                ) ? (
                                   <>
                                     <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
                                     Reconciling...
@@ -503,7 +576,7 @@ const AdminApplicationsPage: React.FC = () => {
                             )}
                             <Button
                               onClick={() => {
-                                toast('Application details view coming soon');
+                                toast("Application details view coming soon");
                               }}
                               size="sm"
                               variant="outline"

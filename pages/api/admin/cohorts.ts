@@ -1,11 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
 
-async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+const log = getLogger("api:admin:cohorts");
+
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const supabase = createAdminClient();
 
@@ -20,7 +20,7 @@ async function handler(
         return res.status(405).json({ error: "Method not allowed" });
     }
   } catch (error: any) {
-    console.error("API error:", error);
+    log.error("API error:", error);
     return res
       .status(500)
       .json({ error: error.message || "Internal server error" });
@@ -30,18 +30,20 @@ async function handler(
 async function getCohorts(
   _req: NextApiRequest,
   res: NextApiResponse,
-  supabase: any
+  supabase: any,
 ) {
   try {
     const { data, error } = await supabase
       .from("cohorts")
-      .select(`
+      .select(
+        `
         *,
         bootcamp_program:bootcamp_program_id (
           id,
           name
         )
-      `)
+      `,
+      )
       .order("created_at", { ascending: false });
 
     if (error) throw error;
@@ -51,7 +53,7 @@ async function getCohorts(
       data: data || [],
     });
   } catch (error: any) {
-    console.error("Error fetching cohorts:", error);
+    log.error("Error fetching cohorts:", error);
     return res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch cohorts",
@@ -62,7 +64,7 @@ async function getCohorts(
 async function createCohort(
   req: NextApiRequest,
   res: NextApiResponse,
-  supabase: any
+  supabase: any,
 ) {
   const cohort = req.body;
   if (!cohort || !cohort.id || !cohort.name || !cohort.bootcamp_program_id) {
@@ -80,7 +82,7 @@ async function createCohort(
     if (error) throw error;
     return res.status(201).json(data);
   } catch (error: any) {
-    console.error("Error creating cohort:", error);
+    log.error("Error creating cohort:", error);
     return res.status(400).json({ error: error.message });
   }
 }
@@ -88,7 +90,7 @@ async function createCohort(
 async function updateCohort(
   req: NextApiRequest,
   res: NextApiResponse,
-  supabase: any
+  supabase: any,
 ) {
   const { id, bootcamp_program, ...cohort } = req.body;
   if (!id) return res.status(400).json({ error: "Missing cohort ID" });
@@ -103,7 +105,7 @@ async function updateCohort(
     if (error) throw error;
     return res.status(200).json(data);
   } catch (error: any) {
-    console.error("Error updating cohort:", error);
+    log.error("Error updating cohort:", error);
     return res.status(400).json({ error: error.message });
   }
 }

@@ -61,8 +61,8 @@ export function Features() {
             Why P2E INFERNO is Different
           </h2>
           <p className="mt-4 text-lg text-faded-grey max-w-3xl mx-auto">
-            We don&apos;t just play games—we make the entire onchain experience feel
-            like one. Here, participation is the ultimate adventure.
+            We don&apos;t just play games—we make the entire onchain experience
+            feel like one. Here, participation is the ultimate adventure.
           </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">

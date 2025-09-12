@@ -12,6 +12,9 @@ import {
   type ProfileStats,
 } from "@/components/profile";
 import { useDashboardData } from "@/hooks/useDashboardData";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("lobby:profile:index");
 
 /**
  * ProfilePage - Main profile management page for users
@@ -20,7 +23,11 @@ import { useDashboardData } from "@/hooks/useDashboardData";
 const ProfilePage = () => {
   const { user, linkEmail, unlinkEmail, linkFarcaster, unlinkFarcaster } =
     usePrivy();
-  const { data: dashboardData, loading: dashboardLoading, refetch } = useDashboardData();
+  const {
+    data: dashboardData,
+    loading: dashboardLoading,
+    refetch,
+  } = useDashboardData();
 
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [linking, setLinking] = useState<string | null>(null);
@@ -87,7 +94,7 @@ const ProfilePage = () => {
       }
       refetch(); // Refresh dashboard data after linking
     } catch (error) {
-      console.error("Error linking account:", error);
+      log.error("Error linking account:", error);
       toast.error("Failed to initiate account linking");
     } finally {
       setLinking(null);
@@ -117,7 +124,7 @@ const ProfilePage = () => {
       }
       refetch(); // Refresh dashboard data after unlinking
     } catch (error) {
-      console.error("Error unlinking account:", error);
+      log.error("Error unlinking account:", error);
       toast.error("Failed to unlink account");
     }
   };
@@ -152,7 +159,7 @@ const ProfilePage = () => {
   // Calculate profile stats using live data
   const linkedCount = linkedAccounts.filter((acc) => acc.linked).length;
   const completionPercentage = Math.round(
-    (linkedCount / linkedAccounts.length) * 100
+    (linkedCount / linkedAccounts.length) * 100,
   );
 
   const profileStats: ProfileStats = {
@@ -179,7 +186,6 @@ const ProfilePage = () => {
             onUnlinkAccount={handleUnlinkAccount}
           />
 
-  
           <CompletionCallToAction completionPercentage={completionPercentage} />
         </div>
       </div>

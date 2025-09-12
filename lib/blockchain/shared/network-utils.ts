@@ -1,3 +1,7 @@
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('blockchain:shared:network-utils');
+
 /**
  * Shared network utilities for blockchain operations
  * Consolidates network switching and transaction utilities
@@ -41,7 +45,7 @@ export const ensureCorrectNetwork = async (
   const targetChainId = config.chain.id;
   const targetChainIdHex = `0x${targetChainId.toString(16)}`;
 
-  console.log(`Ensuring wallet is on chain ${targetChainId} (${config.networkName})`);
+  log.info(`Ensuring wallet is on chain ${targetChainId} (${config.networkName})`);
 
   try {
     await rawProvider.request({
@@ -51,7 +55,7 @@ export const ensureCorrectNetwork = async (
   } catch (switchError: any) {
     // If the chain hasn't been added to wallet, add it
     if (switchError.code === 4902) {
-      console.log(`Adding ${config.chain.name} network to wallet`);
+      log.info(`Adding ${config.chain.name} network to wallet`);
 
       const chainConfig = {
         chainId: targetChainIdHex,

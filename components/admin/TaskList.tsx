@@ -6,6 +6,9 @@ import { Eye, Users, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { MilestoneTask } from "@/lib/supabase/types";
 import { NetworkError } from "@/components/ui/network-error";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:TaskList");
 
 interface TaskWithSubmissions extends MilestoneTask {
   submission_count: number;
@@ -19,7 +22,10 @@ interface TaskListProps {
   milestoneName: string;
 }
 
-export default function TaskList({ milestoneId, milestoneName }: TaskListProps) {
+export default function TaskList({
+  milestoneId,
+  milestoneName,
+}: TaskListProps) {
   const [tasks, setTasks] = useState<TaskWithSubmissions[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,19 +40,20 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
       setIsLoading(true);
       setError(null);
 
-      console.log("Fetching tasks for milestone ID:", milestoneId);
+      log.info("Fetching tasks for milestone ID:", milestoneId);
 
       // Use API endpoint instead of direct Supabase to avoid RLS issues
       // API expects snake_case: milestone_id
-      const response = await fetch(`/api/admin/milestone-tasks?milestone_id=${milestoneId}`);
-      
+      const response = await fetch(
+        `/api/admin/milestone-tasks?milestone_id=${milestoneId}`,
+      );
+
       if (!response.ok) {
         throw new Error("Failed to fetch tasks");
       }
 
       const result = await response.json();
       const tasksData = result.data || [];
-
 
       if (!tasksData || tasksData.length === 0) {
         setTasks([]);
@@ -57,14 +64,24 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
       const tasksWithSubmissions = await Promise.all(
         tasksData.map(async (task: any) => {
           try {
-            const submissionsResponse = await fetch(`/api/admin/task-submissions?taskId=${task.id}`);
-            const submissionsResult = submissionsResponse.ok ? await submissionsResponse.json() : { data: [] };
+            const submissionsResponse = await fetch(
+              `/api/admin/task-submissions?taskId=${task.id}`,
+            );
+            const submissionsResult = submissionsResponse.ok
+              ? await submissionsResponse.json()
+              : { data: [] };
             const submissions = submissionsResult.data || [];
 
             const submission_count = submissions.length;
-            const pending_count = submissions.filter((s: any) => s.status === "pending").length;
-            const completed_count = submissions.filter((s: any) => s.status === "completed").length;
-            const failed_count = submissions.filter((s: any) => s.status === "failed").length;
+            const pending_count = submissions.filter(
+              (s: any) => s.status === "pending",
+            ).length;
+            const completed_count = submissions.filter(
+              (s: any) => s.status === "completed",
+            ).length;
+            const failed_count = submissions.filter(
+              (s: any) => s.status === "failed",
+            ).length;
 
             return {
               ...task,
@@ -74,7 +91,11 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
               failed_count,
             };
           } catch (submissionsError) {
-            console.error("Error fetching submissions for task:", task.id, submissionsError);
+            log.error(
+              "Error fetching submissions for task:",
+              task.id,
+              submissionsError,
+            );
             return {
               ...task,
               submission_count: 0,
@@ -83,12 +104,12 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
               failed_count: 0,
             };
           }
-        })
+        }),
       );
 
       setTasks(tasksWithSubmissions);
     } catch (err: any) {
-      console.error("Error fetching tasks:", err);
+      log.error("Error fetching tasks:", err);
       setError(err.message || "Failed to fetch tasks");
     } finally {
       setIsLoading(false);
@@ -126,7 +147,13 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
   }
 
   if (error) {
-    return <NetworkError error={error} onRetry={handleRetry} isRetrying={isRetrying} />;
+    return (
+      <NetworkError
+        error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
+      />
+    );
   }
 
   if (tasks.length === 0) {
@@ -146,7 +173,10 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
         <h3 className="text-lg font-semibold text-white">
           Tasks for {milestoneName}
         </h3>
-        <Badge variant="outline" className="text-flame-yellow border-flame-yellow">
+        <Badge
+          variant="outline"
+          className="text-flame-yellow border-flame-yellow"
+        >
           {tasks.length} Task{tasks.length !== 1 ? "s" : ""}
         </Badge>
       </div>
@@ -185,31 +215,32 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
                   <div className="flex items-center gap-2 text-gray-400">
                     <Users className="w-4 h-4" />
                     <span className="text-sm">
-                      {task.submission_count} submission{task.submission_count !== 1 ? "s" : ""}
+                      {task.submission_count} submission
+                      {task.submission_count !== 1 ? "s" : ""}
                     </span>
                   </div>
-                  
+
                   {task.submission_count > 0 && (
                     <div className="flex items-center gap-2">
                       {task.pending_count > 0 && (
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`text-xs ${getStatusColor("pending")}`}
                         >
                           {task.pending_count} pending
                         </Badge>
                       )}
                       {task.completed_count > 0 && (
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`text-xs ${getStatusColor("completed")}`}
                         >
                           {task.completed_count} completed
                         </Badge>
                       )}
                       {task.failed_count > 0 && (
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`text-xs ${getStatusColor("failed")}`}
                         >
                           {task.failed_count} failed
@@ -218,7 +249,7 @@ export default function TaskList({ milestoneId, milestoneName }: TaskListProps) 
                     </div>
                   )}
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <Link href={`/admin/cohorts/tasks/${task.id}/submissions`}>
                     <Button

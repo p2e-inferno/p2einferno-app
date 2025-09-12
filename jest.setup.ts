@@ -85,15 +85,15 @@ jest.mock('jose', () => {
   }
   return {
     SignJWT: SignJWTMock,
-    jwtVerify: jest.fn(async (token: string) => ({ payload: { sub: 'did:privy:test', roles: ['admin'] } })),
+    jwtVerify: jest.fn(async (_token: string) => ({ payload: { sub: 'did:privy:test', roles: ['admin'] } })),
   };
 });
 
 jest.mock('@privy-io/server-auth', () => {
   class PrivyClientMock {
-    constructor(appId: string, secret: string) {}
-    async getUser(userId: string) { return { linkedAccounts: [] }; }
-    async verifyAuthToken(token: string) { return { userId: 'did:privy:test', sessionId: 'sess' }; }
+    constructor(_appId: string, _secret: string) {}
+    async getUser(_userId: string) { return { linkedAccounts: [] }; }
+    async verifyAuthToken(_token: string) { return { userId: 'did:privy:test', sessionId: 'sess' }; }
   }
   return { PrivyClient: PrivyClientMock };
 });

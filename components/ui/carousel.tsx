@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
-import useEmblaCarousel, { type UseEmblaCarouselType } from "embla-carousel-react";
+import useEmblaCarousel, {
+  type UseEmblaCarouselType,
+} from "embla-carousel-react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "./button";
 import { cn } from "@/lib/utils";
@@ -30,10 +32,10 @@ export function Carousel({
 }: CarouselProps) {
   const childrenArray = React.Children.toArray(children);
   const childCount = childrenArray.length;
-  
+
   // Determine if we should loop based on content count
-  const shouldLoop = childCount > 3 && (options.loop !== false);
-  
+  const shouldLoop = childCount > 3 && options.loop !== false;
+
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: shouldLoop,
     align: options.align ?? (childCount === 1 ? "center" : "start"),
@@ -56,17 +58,17 @@ export function Carousel({
 
   const scrollPrev = useCallback(
     () => emblaApi && emblaApi.scrollPrev(),
-    [emblaApi]
+    [emblaApi],
   );
 
   const scrollNext = useCallback(
     () => emblaApi && emblaApi.scrollNext(),
-    [emblaApi]
+    [emblaApi],
   );
 
   const scrollTo = useCallback(
     (index: number) => emblaApi && emblaApi.scrollTo(index),
-    [emblaApi]
+    [emblaApi],
   );
 
   const onInit = useCallback((emblaApi: UseEmblaCarouselType[1]) => {
@@ -99,7 +101,7 @@ export function Carousel({
           {React.Children.map(children, (child, index) => {
             // Dynamic classes based on child count
             let flexClasses = "min-w-0 pl-4";
-            
+
             if (childCount === 1) {
               // Single item: take full width and center
               flexClasses += " flex-[0_0_100%]";
@@ -108,9 +110,10 @@ export function Carousel({
               flexClasses += " flex-[0_0_100%] md:flex-[0_0_50%]";
             } else {
               // Three or more items: normal responsive behavior
-              flexClasses += " flex-[0_0_100%] md:flex-[0_0_50%] lg:flex-[0_0_33.333%]";
+              flexClasses +=
+                " flex-[0_0_100%] md:flex-[0_0_50%] lg:flex-[0_0_33.333%]";
             }
-            
+
             return (
               <div key={index} className={`${flexClasses} py-2`}>
                 {child}
@@ -154,7 +157,7 @@ export function Carousel({
                 "w-2 h-2 rounded-full transition-colors duration-300",
                 index === selectedIndex
                   ? "bg-flame-yellow"
-                  : "bg-faded-grey/40 hover:bg-faded-grey/60"
+                  : "bg-faded-grey/40 hover:bg-faded-grey/60",
               )}
               onClick={() => scrollTo(index)}
               aria-label={`Go to slide ${index + 1}`}

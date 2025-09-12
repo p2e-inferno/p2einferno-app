@@ -1,13 +1,16 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
-import type { 
-  BootcampProgram, 
-  Cohort, 
-  CohortMilestone, 
+import { getLogger } from "@/lib/utils/logger";
+import type {
+  BootcampProgram,
+  Cohort,
+  CohortMilestone,
   MilestoneTask,
   ProgramHighlight,
-  ProgramRequirement 
+  ProgramRequirement,
 } from "@/lib/supabase/types";
+
+const log = getLogger("api:cohorts:[cohortId]");
 
 interface MilestoneWithTasks extends CohortMilestone {
   milestone_tasks: MilestoneTask[];
@@ -29,12 +32,12 @@ interface ApiResponse<T> {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<CohortDetailsResponse>>
+  res: NextApiResponse<ApiResponse<CohortDetailsResponse>>,
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
@@ -43,7 +46,7 @@ export default async function handler(
   if (!cohortId || typeof cohortId !== "string") {
     return res.status(400).json({
       success: false,
-      error: "Invalid cohort ID"
+      error: "Invalid cohort ID",
     });
   }
 
@@ -62,7 +65,7 @@ export default async function handler(
     if (!cohortData) {
       return res.status(404).json({
         success: false,
-        error: "Cohort not found"
+        error: "Cohort not found",
       });
     }
 
@@ -80,17 +83,19 @@ export default async function handler(
     if (!bootcampData) {
       return res.status(404).json({
         success: false,
-        error: "Bootcamp not found"
+        error: "Bootcamp not found",
       });
     }
 
     // Fetch milestones with tasks
     const { data: milestonesData, error: milestonesError } = await supabase
       .from("cohort_milestones")
-      .select(`
+      .select(
+        `
         *,
         milestone_tasks (*)
-      `)
+      `,
+      )
       .eq("cohort_id", cohortId)
       .order("order_index", { ascending: true });
 
@@ -117,7 +122,9 @@ export default async function handler(
       .order("order_index", { ascending: true });
 
     if (requirementsError) {
-      throw new Error(`Failed to fetch requirements: ${requirementsError.message}`);
+      throw new Error(
+        `Failed to fetch requirements: ${requirementsError.message}`,
+      );
     }
 
     const response: CohortDetailsResponse = {
@@ -133,7 +140,7 @@ export default async function handler(
       data: response,
     });
   } catch (error: any) {
-    console.error("Error fetching cohort details:", error);
+    log.error("Error fetching cohort details:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch cohort details",

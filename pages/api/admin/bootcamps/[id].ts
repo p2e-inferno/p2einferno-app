@@ -1,11 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
 
-async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+const log = getLogger("api:admin:bootcamps:[id]");
+
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const supabase = createAdminClient();
 
@@ -23,7 +23,7 @@ async function handler(
         return res.status(405).json({ error: "Method not allowed" });
     }
   } catch (error: any) {
-    console.error("Bootcamp API error:", error);
+    log.error("Bootcamp API error:", error);
     return res.status(500).json({ error: error.message || "Server error" });
   }
 }
@@ -31,7 +31,7 @@ async function handler(
 async function getBootcamp(
   res: NextApiResponse,
   supabase: any,
-  bootcampId: string
+  bootcampId: string,
 ) {
   try {
     const { data, error } = await supabase
@@ -48,15 +48,17 @@ async function getBootcamp(
 
     return res.status(200).json({ success: true, data });
   } catch (error: any) {
-    console.error("Get bootcamp error:", error);
-    return res.status(400).json({ error: error.message || "Failed to fetch bootcamp" });
+    log.error("Get bootcamp error:", error);
+    return res
+      .status(400)
+      .json({ error: error.message || "Failed to fetch bootcamp" });
   }
 }
 
 async function deleteBootcamp(
   res: NextApiResponse,
   supabase: any,
-  bootcampId: string
+  bootcampId: string,
 ) {
   try {
     const { error } = await supabase
@@ -68,7 +70,7 @@ async function deleteBootcamp(
 
     return res.status(200).json({ success: true });
   } catch (error: any) {
-    console.error("Delete bootcamp error:", error);
+    log.error("Delete bootcamp error:", error);
     return res.status(400).json({ error: error.message || "Failed to delete" });
   }
 }

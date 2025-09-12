@@ -14,30 +14,34 @@ interface NetworkErrorProps {
  * A reusable component for displaying network/fetch errors
  * with retry functionality and graceful degradation
  */
-export function NetworkError({ 
-  error, 
-  onRetry, 
-  onClear, 
+export function NetworkError({
+  error,
+  onRetry,
+  onClear,
   className = "",
   isRetrying = false,
-  showIcon = true
+  showIcon = true,
 }: NetworkErrorProps) {
   if (!error) return null;
 
-  const isNetworkError = 
+  const isNetworkError =
     error.toLowerCase().includes("failed to fetch") ||
     error.toLowerCase().includes("network") ||
     error.toLowerCase().includes("timeout") ||
     error.toLowerCase().includes("connection") ||
     error.toLowerCase().includes("unreachable");
 
-  const isTimeoutError = 
+  const isTimeoutError =
     error.toLowerCase().includes("timeout") ||
     error.toLowerCase().includes("aborted due to timeout");
 
   const getErrorIcon = () => {
     if (isNetworkError) {
-      return isTimeoutError ? <WifiOff className="w-5 h-5" /> : <Wifi className="w-5 h-5" />;
+      return isTimeoutError ? (
+        <WifiOff className="w-5 h-5" />
+      ) : (
+        <Wifi className="w-5 h-5" />
+      );
     }
     return <AlertTriangle className="w-5 h-5" />;
   };
@@ -66,23 +70,23 @@ export function NetworkError({
   };
 
   return (
-    <div className={`bg-steel-red/10 border border-steel-red/20 rounded-lg p-6 ${className}`}>
+    <div
+      className={`bg-steel-red/10 border border-steel-red/20 rounded-lg p-6 ${className}`}
+    >
       <div className="flex items-start space-x-4">
         {showIcon && (
           <div className="flex-shrink-0 text-steel-red mt-1">
             {getErrorIcon()}
           </div>
         )}
-        
+
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-semibold text-steel-red mb-2">
             {getErrorTitle()}
           </h3>
-          
-          <p className="text-faded-grey text-sm mb-4">
-            {getErrorMessage()}
-          </p>
-          
+
+          <p className="text-faded-grey text-sm mb-4">{getErrorMessage()}</p>
+
           <div className="flex items-center gap-3">
             {onRetry && (
               <button
@@ -91,13 +95,13 @@ export function NetworkError({
                 disabled={isRetrying}
                 className="inline-flex items-center gap-2 bg-flame-yellow hover:bg-flame-yellow/90 disabled:bg-flame-yellow/50 text-black font-medium py-2 px-4 rounded-lg transition-colors disabled:cursor-not-allowed"
               >
-                <RefreshCw 
-                  className={`w-4 h-4 ${isRetrying ? 'animate-spin' : ''}`} 
+                <RefreshCw
+                  className={`w-4 h-4 ${isRetrying ? "animate-spin" : ""}`}
                 />
-                {isRetrying ? 'Retrying...' : 'Try Again'}
+                {isRetrying ? "Retrying..." : "Try Again"}
               </button>
             )}
-            
+
             {onClear && (
               <button
                 type="button"
@@ -109,15 +113,25 @@ export function NetworkError({
             )}
           </div>
         </div>
-        
+
         {onClear && (
           <button
             onClick={onClear}
             className="flex-shrink-0 text-faded-grey hover:text-white ml-2"
             aria-label="Dismiss"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         )}

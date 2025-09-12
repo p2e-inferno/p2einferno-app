@@ -5,6 +5,9 @@ import TaskSubmissions from "@/components/admin/TaskSubmissions";
 import type { MilestoneTask, CohortMilestone } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:tasks:[id]:submissions");
 
 interface TaskWithMilestone extends MilestoneTask {
   milestone: CohortMilestone & {
@@ -30,13 +33,21 @@ function TaskSubmissionsPage() {
   const fetchTask = useCallback(async () => {
     try {
       setIsLoading(true);
-      
+
       // Use consolidated bundle endpoint for task + milestone + cohort
       const detailsUrl = `/api/v2/admin/tasks/details?task_id=${id}&include=milestone,cohort`;
-      const result = await adminFetch<{ success: boolean; data: { task: MilestoneTask; milestone: CohortMilestone; cohort: { id: string; name: string } } }>(detailsUrl);
+      const result = await adminFetch<{
+        success: boolean;
+        data: {
+          task: MilestoneTask;
+          milestone: CohortMilestone;
+          cohort: { id: string; name: string };
+        };
+      }>(detailsUrl);
       if (result.error) throw new Error(result.error);
       const data = result.data?.data as any;
-      if (!data?.task || !data?.milestone || !data?.cohort) throw new Error('Failed to load task details');
+      if (!data?.task || !data?.milestone || !data?.cohort)
+        throw new Error("Failed to load task details");
       const combinedTask: TaskWithMilestone = {
         ...data.task,
         milestone: {
@@ -46,7 +57,7 @@ function TaskSubmissionsPage() {
       } as any;
       setTask(combinedTask);
     } catch (err: any) {
-      console.error("Error fetching task:", err);
+      log.error("Error fetching task:", err);
       setError(err.message || "Failed to load task");
     } finally {
       setIsLoading(false);
@@ -87,7 +98,11 @@ function TaskSubmissionsPage() {
   return (
     <AdminEditPageLayout
       title={task ? `Task Submissions: ${task.title}` : "Task Submissions"}
-      backLinkHref={task ? `/admin/cohorts/${task.milestone?.cohort?.id}/milestones/${task.milestone?.id}` : "/admin/cohorts"}
+      backLinkHref={
+        task
+          ? `/admin/cohorts/${task.milestone?.cohort?.id}/milestones/${task.milestone?.id}`
+          : "/admin/cohorts"
+      }
       backLinkText="Back to milestone"
       isLoading={isLoading}
       error={error}
@@ -110,7 +125,6 @@ function TaskSubmissionsPage() {
   );
 }
 
-export default withAdminAuth(
-  TaskSubmissionsPage,
-  { message: "You need admin access to view task submissions" }
-);
+export default withAdminAuth(TaskSubmissionsPage, {
+  message: "You need admin access to view task submissions",
+});

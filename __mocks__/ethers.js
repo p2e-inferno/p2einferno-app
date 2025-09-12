@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Minimal ethers mock for Jest tests
 // Provides only the APIs our test imports touch indirectly
 
@@ -17,4 +18,3 @@ module.exports = {
     Interface: InterfaceMock,
   },
 };
-

@@ -7,6 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CohortMilestone, Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:[cohortId]:milestones:[milestoneId]");
 
 interface MilestoneWithCohort extends CohortMilestone {
   cohort: Cohort;
@@ -26,26 +29,31 @@ function MilestoneDetailsPage() {
   const fetchMilestone = useCallback(async () => {
     try {
       setIsLoading(true);
-      
+
       // Get milestone data
-      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestones?milestone_id=${milestoneId}`);
-      
+      const milestoneResult = await adminFetch<{
+        success: boolean;
+        data: CohortMilestone;
+      }>(`/api/admin/milestones?milestone_id=${milestoneId}`);
+
       if (milestoneResult.error) {
         throw new Error(milestoneResult.error);
       }
-      
+
       const milestoneData = milestoneResult.data?.data;
       if (!milestoneData) {
         throw new Error("Milestone not found");
       }
 
       // Get cohort data
-      const cohortResult = await adminFetch<{success: boolean, data: Cohort}>(`/api/admin/cohorts/${milestoneData.cohort_id}`);
-      
+      const cohortResult = await adminFetch<{ success: boolean; data: Cohort }>(
+        `/api/admin/cohorts/${milestoneData.cohort_id}`,
+      );
+
       if (cohortResult.error) {
         throw new Error(cohortResult.error);
       }
-      
+
       const cohortData = cohortResult.data?.data;
       if (!cohortData) {
         throw new Error("Cohort not found");
@@ -54,12 +62,12 @@ function MilestoneDetailsPage() {
       // Combine the data
       const combinedMilestone: MilestoneWithCohort = {
         ...milestoneData,
-        cohort: cohortData
+        cohort: cohortData,
       };
 
       setMilestone(combinedMilestone);
     } catch (err: any) {
-      console.error("Error fetching milestone:", err);
+      log.error("Error fetching milestone:", err);
       setError(err.message || "Failed to load milestone");
     } finally {
       setIsLoading(false);
@@ -102,9 +110,7 @@ function MilestoneDetailsPage() {
       {milestone && (
         <div className="space-y-6">
           <div className="mb-6">
-            <p className="text-gray-400">
-              {milestone.cohort?.name}
-            </p>
+            <p className="text-gray-400">{milestone.cohort?.name}</p>
           </div>
 
           {/* Milestone Overview */}
@@ -116,7 +122,7 @@ function MilestoneDetailsPage() {
               <p className="text-gray-300 leading-relaxed">
                 {milestone.description}
               </p>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
                   <Clock className="w-5 h-5 text-flame-yellow" />
@@ -143,7 +149,9 @@ function MilestoneDetailsPage() {
                   <div>
                     <p className="text-sm text-gray-400">Start Date</p>
                     <p className="text-white font-semibold">
-                      {milestone.start_date ? formatDate(milestone.start_date) : "Not set"}
+                      {milestone.start_date
+                        ? formatDate(milestone.start_date)
+                        : "Not set"}
                     </p>
                   </div>
                 </div>
@@ -153,7 +161,9 @@ function MilestoneDetailsPage() {
                   <div>
                     <p className="text-sm text-gray-400">End Date</p>
                     <p className="text-white font-semibold">
-                      {milestone.end_date ? formatDate(milestone.end_date) : "Not set"}
+                      {milestone.end_date
+                        ? formatDate(milestone.end_date)
+                        : "Not set"}
                     </p>
                   </div>
                 </div>
@@ -162,7 +172,8 @@ function MilestoneDetailsPage() {
               {milestone.prerequisite_milestone_id && (
                 <div className="p-3 bg-blue-900/20 border border-blue-700 rounded-lg">
                   <p className="text-blue-300 text-sm">
-                    <strong>Prerequisite:</strong> This milestone requires completion of a previous milestone.
+                    <strong>Prerequisite:</strong> This milestone requires
+                    completion of a previous milestone.
                   </p>
                 </div>
               )}
@@ -180,8 +191,8 @@ function MilestoneDetailsPage() {
           {/* Tasks Section */}
           <Card className="bg-card border-gray-800">
             <CardContent className="p-6">
-              <TaskList 
-                milestoneId={milestone.id} 
+              <TaskList
+                milestoneId={milestone.id}
                 milestoneName={milestone.name}
               />
             </CardContent>
@@ -192,7 +203,6 @@ function MilestoneDetailsPage() {
   );
 }
 
-export default withAdminAuth(
-  MilestoneDetailsPage,
-  { message: "You need admin access to view milestone details" }
-);
+export default withAdminAuth(MilestoneDetailsPage, {
+  message: "You need admin access to view milestone details",
+});

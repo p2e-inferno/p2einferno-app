@@ -5,40 +5,48 @@ import QuestForm from "@/components/admin/QuestForm";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:quests:[id]:edit");
 
 function EditQuestPage() {
   const router = useRouter();
   const { id } = router.query;
   const { adminFetch } = useAdminApi({ suppressToasts: true });
-  
+
   const [quest, setQuest] = useState<Quest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Reusable function to fetch quest details by id
-  const fetchQuestDetails = useCallback(async (questId: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
+  const fetchQuestDetails = useCallback(
+    async (questId: string) => {
+      try {
+        setIsLoading(true);
+        setError(null);
 
-      const result = await adminFetch<{quest: Quest}>(`/api/admin/quests/${questId}`);
-      
-      if (result.error) {
-        throw new Error(result.error);
+        const result = await adminFetch<{ quest: Quest }>(
+          `/api/admin/quests/${questId}`,
+        );
+
+        if (result.error) {
+          throw new Error(result.error);
+        }
+
+        if (!result.data?.quest) {
+          throw new Error("Quest not found");
+        }
+
+        setQuest(result.data.quest);
+      } catch (err: any) {
+        log.error("Error fetching quest:", err);
+        setError(err.message || "Failed to load quest details");
+      } finally {
+        setIsLoading(false);
       }
-
-      if (!result.data?.quest) {
-        throw new Error("Quest not found");
-      }
-
-      setQuest(result.data.quest);
-    } catch (err: any) {
-      console.error("Error fetching quest:", err);
-      setError(err.message || "Failed to load quest details");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [adminFetch]);
+    },
+    [adminFetch],
+  );
 
   // Initial fetch on mount / id change
   useEffect(() => {
@@ -70,19 +78,16 @@ function EditQuestPage() {
     >
       {quest ? (
         <QuestForm quest={quest} isEditing={true} />
-      ) : (
-        !isLoading && !error && !quest ? (
-          <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
-            Quest not found. It may have been deleted or the ID is incorrect.
-          </div>
-        ) : null
-      )}
+      ) : !isLoading && !error && !quest ? (
+        <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
+          Quest not found. It may have been deleted or the ID is incorrect.
+        </div>
+      ) : null}
     </AdminEditPageLayout>
   );
 }
 
 // Export the page wrapped in admin authentication
-export default withAdminAuth(
-  EditQuestPage,
-  { message: "You need admin access to manage quests" }
-);
+export default withAdminAuth(EditQuestPage, {
+  message: "You need admin access to manage quests",
+});

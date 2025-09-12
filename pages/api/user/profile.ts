@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:user:profile");
 
 // Use admin client (service role) to bypass RLS for profile CRUD
 const supabase = createAdminClient();
@@ -38,16 +41,19 @@ interface UserDashboardData {
 
 async function createOrUpdateUserProfile(
   privyUserId: string,
-  userData: any
+  userData: any,
 ): Promise<UserProfile> {
   // Extract data from multiple possible sources
   const email = userData.email?.address || userData.email || null;
-  const walletAddress = userData.wallet?.address || userData.walletAddress || null;
-  const linkedWallets = userData.linkedWallets || 
-    (userData.linkedAccounts
+  const walletAddress =
+    userData.wallet?.address || userData.walletAddress || null;
+  const linkedWallets =
+    userData.linkedWallets ||
+    userData.linkedAccounts
       ?.filter((acc: any) => acc.type === "wallet")
-      ?.map((w: any) => w.address)) || [];
-  
+      ?.map((w: any) => w.address) ||
+    [];
+
   const profileData = {
     privy_user_id: privyUserId,
     email: email,
@@ -66,9 +72,9 @@ async function createOrUpdateUserProfile(
     .eq("privy_user_id", privyUserId)
     .single();
 
-  if (profileError && profileError.code !== 'PGRST116') {
+  if (profileError && profileError.code !== "PGRST116") {
     // PGRST116 is "not found", which is expected for new users
-    console.error("Error checking existing profile:", profileError);
+    log.error("Error checking existing profile:", profileError);
     throw new Error(`Database error: ${profileError.message}`);
   }
 
@@ -82,7 +88,7 @@ async function createOrUpdateUserProfile(
       .single();
 
     if (error) {
-      console.error("Error updating profile:", error);
+      log.error("Error updating profile:", error);
       throw new Error(`Failed to update profile: ${error.message}`);
     }
     return data;
@@ -95,7 +101,7 @@ async function createOrUpdateUserProfile(
       .single();
 
     if (error) {
-      console.error("Error creating profile:", error);
+      log.error("Error creating profile:", error);
       throw new Error(`Failed to create profile: ${error.message}`);
     }
 
@@ -110,7 +116,7 @@ async function createOrUpdateUserProfile(
         },
       ]);
     } catch (activityError) {
-      console.error("Error logging registration activity:", activityError);
+      log.error("Error logging registration activity:", activityError);
       // Don't fail the entire operation for logging errors
     }
 
@@ -119,7 +125,7 @@ async function createOrUpdateUserProfile(
 }
 
 async function getUserDashboardData(
-  userProfileId: string
+  userProfileId: string,
 ): Promise<UserDashboardData> {
   // Get user profile
   const { data: profile, error: profileError } = await supabase
@@ -129,7 +135,7 @@ async function getUserDashboardData(
     .single();
 
   if (profileError) {
-    console.error("Error fetching user profile:", profileError);
+    log.error("Error fetching user profile:", profileError);
     throw new Error(`Failed to fetch profile: ${profileError.message}`);
   }
 
@@ -148,13 +154,13 @@ async function getUserDashboardData(
         application_status,
         created_at
       )
-    `
+    `,
     )
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
-  
+
   if (applicationsError) {
-    console.error("Error fetching applications:", applicationsError);
+    log.error("Error fetching applications:", applicationsError);
   }
 
   // Get bootcamp enrollments (non-blocking)
@@ -163,9 +169,9 @@ async function getUserDashboardData(
     .select("*")
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
-  
+
   if (enrollmentsError) {
-    console.error("Error fetching enrollments:", enrollmentsError);
+    log.error("Error fetching enrollments:", enrollmentsError);
   }
 
   // Get recent activities (non-blocking)
@@ -175,9 +181,9 @@ async function getUserDashboardData(
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false })
     .limit(10);
-  
+
   if (activitiesError) {
-    console.error("Error fetching activities:", activitiesError);
+    log.error("Error fetching activities:", activitiesError);
   }
 
   // Get quest completion statistics (non-blocking)
@@ -186,9 +192,9 @@ async function getUserDashboardData(
     .select("*")
     .eq("user_id", profile.privy_user_id)
     .eq("is_completed", true);
-  
+
   if (questError) {
-    console.error("Error fetching quest progress:", questError);
+    log.error("Error fetching quest progress:", questError);
   }
 
   // Calculate stats
@@ -200,7 +206,9 @@ async function getUserDashboardData(
     totalPoints: profile.experience_points || 0,
     pendingPayments:
       applications?.filter((_a: any) => {
-        const application = Array.isArray(_a.applications) ? _a.applications[0] : _a.applications;
+        const application = Array.isArray(_a.applications)
+          ? _a.applications[0]
+          : _a.applications;
         return application?.payment_status === "pending";
       }).length || 0,
     questsCompleted: questProgress?.length || 0,
@@ -217,7 +225,7 @@ async function getUserDashboardData(
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   try {
     // Get Privy user from request
@@ -236,7 +244,7 @@ export default async function handler(
 
       const profile = await createOrUpdateUserProfile(
         privyUserId,
-        userDataForProfile
+        userDataForProfile,
       );
 
       // Get dashboard data
@@ -268,7 +276,7 @@ export default async function handler(
       res.status(405).json({ error: "Method not allowed" });
     }
   } catch (error: any) {
-    console.error("User profile API error:", {
+    log.error("User profile API error:", {
       message: error.message,
       stack: error.stack,
       name: error.name,

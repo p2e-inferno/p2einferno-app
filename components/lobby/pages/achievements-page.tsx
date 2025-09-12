@@ -28,8 +28,8 @@ export const AchievementsPage = () => {
             Achievement System Coming Soon
           </h2>
           <p className="text-gray-400 mb-6">
-            We&apos;re crafting a comprehensive achievement system to recognize and
-            reward your dedication and skills in the Web3 space.
+            We&apos;re crafting a comprehensive achievement system to recognize
+            and reward your dedication and skills in the Web3 space.
           </p>
 
           {/* Feature Preview */}

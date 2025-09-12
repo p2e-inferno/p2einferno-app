@@ -28,12 +28,19 @@ import PersonalInfoStep from "@/components/apply/steps/PersonalInfoStep";
 import ExperienceStep from "@/components/apply/steps/ExperienceStep";
 import MotivationStep from "@/components/apply/steps/MotivationStep";
 import ReviewStep from "@/components/apply/steps/ReviewStep";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("apply:[cohortId]");
 
 interface ApplicationPageProps {
   cohortId: string;
   cohort: Cohort;
   bootcamp: BootcampProgram;
-  registrationStatus: { isOpen: boolean; reason?: string | null; timeRemaining?: string };
+  registrationStatus: {
+    isOpen: boolean;
+    reason?: string | null;
+    timeRemaining?: string;
+  };
 }
 
 // FormData remains the single source of truth for the form
@@ -120,7 +127,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
       },
     };
   } catch (error) {
-    console.error("Error fetching cohort/bootcamp data:", error);
+    log.error("Error fetching cohort/bootcamp data:", error);
     return {
       notFound: true,
     };
@@ -155,7 +162,7 @@ export default function ApplicationPage({
   let pendingApplication = null;
   if (dashboardData && dashboardData.applications) {
     pendingApplication = dashboardData.applications.find(
-      (app) => app?.cohort_id === cohortId && app?.payment_status === "pending"
+      (app) => app?.cohort_id === cohortId && app?.payment_status === "pending",
     );
   }
 
@@ -250,7 +257,7 @@ export default function ApplicationPage({
       router.push(`/payment/${data.applicationId}`);
     },
     onError: (error) => {
-      console.error("Application submission failed:", error);
+      log.error("Application submission failed:", error);
       // Error toast is handled by useApiCall by default if showErrorToast is true
       setIsLoading(false);
     },
@@ -279,7 +286,7 @@ export default function ApplicationPage({
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       toast.error(
-        "Please fix the errors in your application before submitting."
+        "Please fix the errors in your application before submitting.",
       );
       // Try to navigate to the first step with an error
       if (errors.user_name || errors.user_email || errors.phone_number)
@@ -307,14 +314,14 @@ export default function ApplicationPage({
         accessToken = await getAccessToken();
       } catch (err) {
         // If unable to fetch token (e.g., user not logged-in), proceed without it
-        console.warn("Unable to fetch Privy access token", err);
+        log.warn("Unable to fetch Privy access token", err);
       }
 
       await submitApplication(() =>
-        applicationApi.submit(applicationData, accessToken ?? undefined)
+        applicationApi.submit(applicationData, accessToken ?? undefined),
       );
     } catch (error) {
-      console.error("Application submission failed (catch block):", error);
+      log.error("Application submission failed (catch block):", error);
     }
   };
 
@@ -368,31 +375,41 @@ export default function ApplicationPage({
                 {bootcamp.name} - {cohort.name}
               </h2>
             </div>
-            
+
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
               <p className="text-red-400 font-medium mb-2">
                 {registrationStatus.reason}
               </p>
               <div className="text-sm text-faded-grey space-y-1">
-                <p>Registration Deadline: {new Date(cohort.registration_deadline).toLocaleDateString()} at {new Date(cohort.registration_deadline).toLocaleTimeString()}</p>
-                <p>Available Spots: {cohort.max_participants - cohort.current_participants} of {cohort.max_participants}</p>
+                <p>
+                  Registration Deadline:{" "}
+                  {new Date(cohort.registration_deadline).toLocaleDateString()}{" "}
+                  at{" "}
+                  {new Date(cohort.registration_deadline).toLocaleTimeString()}
+                </p>
+                <p>
+                  Available Spots:{" "}
+                  {cohort.max_participants - cohort.current_participants} of{" "}
+                  {cohort.max_participants}
+                </p>
                 <p>Cohort Status: {cohort.status}</p>
               </div>
             </div>
 
             <p className="text-faded-grey mb-8">
-              Unfortunately, registration for this cohort is no longer available. 
-              You can browse other available bootcamps or check back for future cohorts.
+              Unfortunately, registration for this cohort is no longer
+              available. You can browse other available bootcamps or check back
+              for future cohorts.
             </p>
 
             <div className="space-y-4">
-              <Button 
-                onClick={() => router.push('/apply')}
+              <Button
+                onClick={() => router.push("/apply")}
                 className="w-full bg-flame-yellow text-black hover:bg-flame-orange font-medium text-lg py-3 rounded-xl"
               >
                 Browse Available Bootcamps
               </Button>
-              <Button 
+              <Button
                 onClick={() => router.back()}
                 variant="outline"
                 className="w-full border-faded-grey/30 text-white hover:border-faded-grey/60 font-medium text-lg py-3 rounded-xl"
@@ -457,17 +474,18 @@ export default function ApplicationPage({
                   Apply for {bootcamp.name}
                 </h1>
                 <p className="text-faded-grey mb-2">{cohort.name}</p>
-                
+
                 {/* Registration Status Banner */}
-                {registrationStatus.isOpen && registrationStatus.timeRemaining && (
-                  <div className="inline-flex items-center space-x-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-2 mb-4">
-                    <span className="text-green-400 text-sm">🟢</span>
-                    <span className="text-green-400 text-sm font-medium">
-                      Registration Open - {registrationStatus.timeRemaining}
-                    </span>
-                  </div>
-                )}
-                
+                {registrationStatus.isOpen &&
+                  registrationStatus.timeRemaining && (
+                    <div className="inline-flex items-center space-x-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-2 mb-4">
+                      <span className="text-green-400 text-sm">🟢</span>
+                      <span className="text-green-400 text-sm font-medium">
+                        Registration Open - {registrationStatus.timeRemaining}
+                      </span>
+                    </div>
+                  )}
+
                 <p className="text-faded-grey">
                   Join the next generation of Web3 enthusiasts
                 </p>

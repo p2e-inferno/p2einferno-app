@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, ReactNode, useLayoutEffect } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  ReactNode,
+  useLayoutEffect,
+} from "react";
 import { createPortal } from "react-dom";
 
 interface CustomDropdownProps {
@@ -19,7 +25,7 @@ export function CustomDropdown({
   const triggerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const [coords, setCoords] = useState<{ top: number; left: number } | null>(
-    null
+    null,
   );
   const [isPositioned, setIsPositioned] = useState(false);
 
@@ -67,7 +73,10 @@ export function CustomDropdown({
     left = Math.min(Math.max(left, pad), vw - contentWidth - pad);
 
     // If it overflows bottom, try placing above
-    if (top + contentHeight + pad > vh && rect.top - contentHeight - pad >= pad) {
+    if (
+      top + contentHeight + pad > vh &&
+      rect.top - contentHeight - pad >= pad
+    ) {
       top = rect.top - contentHeight - pad;
     }
 
@@ -129,11 +138,15 @@ export function CustomDropdown({
               aria-orientation="vertical"
               aria-labelledby="menu-button"
             >
-              <div className="py-1" role="none" onClick={() => setIsOpen(false)}>
+              <div
+                className="py-1"
+                role="none"
+                onClick={() => setIsOpen(false)}
+              >
                 {children}
               </div>
             </div>,
-            document.body
+            document.body,
           )
         : null}
     </div>
@@ -152,7 +165,7 @@ export const CustomDropdownItem = ({
   disabled = false,
 }: CustomDropdownItemProps) => {
   const handleClick = (
-    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>
+    event: React.MouseEvent<HTMLAnchorElement, MouseEvent>,
   ) => {
     event.preventDefault();
     if (!disabled && onClick) {

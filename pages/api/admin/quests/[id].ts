@@ -3,11 +3,11 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
 import type { QuestTask } from "@/lib/supabase/types";
 import { randomUUID } from "crypto";
+import { getLogger } from "@/lib/utils/logger";
 
-async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+const log = getLogger("api:admin:quests:[id]");
+
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const { id } = req.query;
     if (!id || typeof id !== "string") {
@@ -29,7 +29,7 @@ async function handler(
         return res.status(405).json({ error: "Method not allowed" });
     }
   } catch (error: any) {
-    console.error("API error:", error);
+    log.error("API error:", error);
     return res
       .status(500)
       .json({ error: error.message || "Internal server error" });
@@ -40,7 +40,7 @@ async function getQuest(
   _req: NextApiRequest,
   res: NextApiResponse,
   supabase: any,
-  questId: string
+  questId: string,
 ) {
   try {
     // Fetch quest with tasks
@@ -50,7 +50,7 @@ async function getQuest(
         `
         *,
         quest_tasks (*)
-      `
+      `,
       )
       .eq("id", questId)
       .single();
@@ -87,7 +87,7 @@ async function getQuest(
           display_name,
           privy_user_id
         )
-      `
+      `,
       )
       .eq("quest_id", questId)
       .eq("submission_status", "pending")
@@ -101,7 +101,7 @@ async function getQuest(
       },
     });
   } catch (error: any) {
-    console.error("Error fetching quest:", error);
+    log.error("Error fetching quest:", error);
     return res.status(500).json({ error: "Failed to fetch quest" });
   }
 }
@@ -110,7 +110,7 @@ async function updateQuest(
   req: NextApiRequest,
   res: NextApiResponse,
   supabase: any,
-  questId: string
+  questId: string,
 ) {
   const { quest, tasks } = req.body;
 
@@ -171,7 +171,7 @@ async function updateQuest(
             }
 
             return base;
-          }
+          },
         );
 
         const { data: tasksData, error: tasksError } = await supabase
@@ -196,7 +196,7 @@ async function updateQuest(
       quest: questData,
     });
   } catch (error: any) {
-    console.error("Error updating quest:", error);
+    log.error("Error updating quest:", error);
     return res.status(500).json({ error: "Failed to update quest" });
   }
 }
@@ -205,11 +205,11 @@ async function patchQuest(
   req: NextApiRequest,
   res: NextApiResponse,
   supabase: any,
-  questId: string
+  questId: string,
 ) {
   const updates = req.body;
 
-  if (!updates || typeof updates !== 'object') {
+  if (!updates || typeof updates !== "object") {
     return res.status(400).json({ error: "Update data is required" });
   }
 
@@ -234,7 +234,7 @@ async function patchQuest(
       data: questData,
     });
   } catch (error: any) {
-    console.error("Error patching quest:", error);
+    log.error("Error patching quest:", error);
     return res.status(500).json({ error: "Failed to update quest" });
   }
 }
@@ -243,7 +243,7 @@ async function deleteQuest(
   _req: NextApiRequest,
   res: NextApiResponse,
   supabase: any,
-  questId: string
+  questId: string,
 ) {
   try {
     // Check if quest has any completions
@@ -265,7 +265,7 @@ async function deleteQuest(
 
     return res.status(200).json({ success: true });
   } catch (error: any) {
-    console.error("Error deleting quest:", error);
+    log.error("Error deleting quest:", error);
     return res.status(500).json({ error: "Failed to delete quest" });
   }
 }

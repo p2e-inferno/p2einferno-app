@@ -2,7 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { Gamepad2 } from "lucide-react";
 import { PrivyConnectButton } from "../PrivyConnectButton";
-import { NotificationBell } from './NotificationBell'; // Import the new component
+import { NotificationBell } from "./NotificationBell"; // Import the new component
 
 /**
  * Navigation component for the infernal lobby

@@ -1,7 +1,14 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { HomeIcon, BookOpen, Users, Award, FileText, CreditCard } from "lucide-react";
+import {
+  HomeIcon,
+  BookOpen,
+  Users,
+  Award,
+  FileText,
+  CreditCard,
+} from "lucide-react";
 
 interface AdminNavigationProps {
   onClick?: () => void;

@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { unlockUtils } from "../../../../lib/unlock/lockUtils";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:payment:blockchain:reconcile");
 
 const supabase = createAdminClient();
 
@@ -17,7 +20,7 @@ interface ReconcileRequest {
  */
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -47,13 +50,15 @@ export default async function handler(
           user_profiles (
             wallet_address
           )
-        `
+        `,
         )
         .eq("id", applicationId)
         .single();
 
-      const userProfile = Array.isArray(userProfileData?.user_profiles) ? userProfileData.user_profiles[0] : userProfileData?.user_profiles;
-      
+      const userProfile = Array.isArray(userProfileData?.user_profiles)
+        ? userProfileData.user_profiles[0]
+        : userProfileData?.user_profiles;
+
       if (profileError || !userProfile?.wallet_address) {
         return res.status(400).json({
           error:
@@ -72,10 +77,10 @@ export default async function handler(
       });
     }
 
-    console.log(
+    log.info(
       `Reconciling payment for application ${applicationId} and wallet ${userWalletAddress}${
         admin ? " (admin call)" : ""
-      }`
+      }`,
     );
 
     // 1. Get application and cohort details to find the lock address
@@ -89,17 +94,19 @@ export default async function handler(
           id,
           lock_address
         )
-      `
+      `,
       )
       .eq("id", applicationId)
       .single();
 
     if (appError || !appData) {
-      console.error("Error fetching application for reconciliation:", appError);
+      log.error("Error fetching application for reconciliation:", appError);
       return res.status(404).json({ error: "Application not found" });
     }
 
-    const cohort = Array.isArray(appData.cohorts) ? appData.cohorts[0] : appData.cohorts;
+    const cohort = Array.isArray(appData.cohorts)
+      ? appData.cohorts[0]
+      : appData.cohorts;
     const lockAddress = cohort?.lock_address;
     if (!lockAddress) {
       return res
@@ -110,7 +117,7 @@ export default async function handler(
     // 2. Verify key ownership on-chain
     const hasKey = await unlockUtils.checkKeyOwnership(
       lockAddress,
-      userWalletAddress
+      userWalletAddress,
     );
 
     if (!hasKey) {
@@ -119,8 +126,8 @@ export default async function handler(
         .json({ error: "No valid key found on-chain for this user." });
     }
 
-    console.log(
-      `On-chain key ownership confirmed for wallet ${userWalletAddress} on lock ${lockAddress}`
+    log.info(
+      `On-chain key ownership confirmed for wallet ${userWalletAddress} on lock ${lockAddress}`,
     );
 
     // 3. Update database records
@@ -150,13 +157,13 @@ export default async function handler(
       throw appUpdateError;
     }
 
-    console.log(`Successfully reconciled application ${applicationId}`);
+    log.info(`Successfully reconciled application ${applicationId}`);
 
     res
       .status(200)
       .json({ success: true, message: "Reconciliation successful" });
   } catch (error) {
-    console.error("Reconciliation error:", error);
+    log.error("Reconciliation error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

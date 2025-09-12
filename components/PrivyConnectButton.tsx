@@ -8,6 +8,7 @@ import {
 } from "./CustomDropdown";
 import { WalletDetailsModal } from "./WalletDetailsModal";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
+import { getLogger } from "@/lib/utils/logger";
 import {
   User,
   LogOut,
@@ -19,6 +20,8 @@ import {
   RefreshCcw,
   Eye,
 } from "lucide-react";
+
+const log = getLogger("PrivyConnectButton");
 
 const Avatar = ({
   children,
@@ -48,7 +51,7 @@ export function PrivyConnectButton() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [showWalletModal, setShowWalletModal] = useState(false);
-  
+
   // Use the wallet balances hook
   const { balances, loading: balancesLoading } = useWalletBalances();
 
@@ -75,7 +78,7 @@ export function PrivyConnectButton() {
             setConnectedAddress(addr ?? null);
           }
         } catch (err) {
-          console.warn("Unable to fetch accounts from provider", err);
+          log.warn("Unable to fetch accounts from provider", err);
         }
       }
     };
@@ -105,7 +108,7 @@ export function PrivyConnectButton() {
 
   const walletAddress = connectedAddress || user?.wallet?.address || null;
   const shortAddress = walletAddress ? shorten(walletAddress) : "No wallet";
-  
+
   const handleViewWalletDetails = () => {
     setShowWalletModal(true);
   };
@@ -127,7 +130,7 @@ export function PrivyConnectButton() {
     try {
       await linkWallet();
     } catch (error) {
-      console.error("Failed to link wallet:", error);
+      log.error("Failed to link wallet:", error);
     }
   };
 
@@ -136,7 +139,7 @@ export function PrivyConnectButton() {
       try {
         await unlinkWallet(walletAddress);
       } catch (error) {
-        console.error("Failed to unlink wallet:", error);
+        log.error("Failed to unlink wallet:", error);
       }
     }
   };
@@ -147,7 +150,7 @@ export function PrivyConnectButton() {
       // Re-login to refresh the wallet connection
       await login();
     } catch (error) {
-      console.error("Failed to refresh user:", error);
+      log.error("Failed to refresh user:", error);
     } finally {
       setIsRefreshing(false);
     }
@@ -173,7 +176,7 @@ export function PrivyConnectButton() {
             </p>
           </div>
         </CustomDropdownLabel>
-        
+
         {/* Balance Display */}
         {walletAddress && (
           <div className="px-4 py-2 border-b border-border/50">
@@ -189,7 +192,9 @@ export function PrivyConnectButton() {
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-muted-foreground">{balances.usdc.symbol}:</span>
+                <span className="text-muted-foreground">
+                  {balances.usdc.symbol}:
+                </span>
                 <span className="font-medium">
                   {balancesLoading ? (
                     <div className="w-12 h-3 bg-muted animate-pulse rounded" />
@@ -201,7 +206,7 @@ export function PrivyConnectButton() {
             </div>
           </div>
         )}
-        
+
         {/* Wallet Details */}
         {walletAddress && (
           <CustomDropdownItem onClick={handleViewWalletDetails}>
@@ -209,59 +214,59 @@ export function PrivyConnectButton() {
             <span>View Wallet Details</span>
           </CustomDropdownItem>
         )}
-      <CustomDropdownItem onClick={copyAddress}>
-        <Copy className="mr-2 h-4 w-4" />
-        <span>{copied ? "Copied!" : "Copy Address"}</span>
-      </CustomDropdownItem>
-      <CustomDropdownItem
-        onClick={handleRefreshConnection}
-        disabled={isRefreshing}
-      >
-        <RefreshCcw
-          className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
-        />
-        <span>{isRefreshing ? "Refreshing..." : "Refresh Connection"}</span>
-      </CustomDropdownItem>
-      <CustomDropdownSeparator />
-
-      {/* Wallet Management Section */}
-      <CustomDropdownItem onClick={handleLinkWallet}>
-        <Plus className="mr-2 h-4 w-4" />
-        <span>Link New Wallet</span>
-      </CustomDropdownItem>
-
-      {walletAddress && (
+        <CustomDropdownItem onClick={copyAddress}>
+          <Copy className="mr-2 h-4 w-4" />
+          <span>{copied ? "Copied!" : "Copy Address"}</span>
+        </CustomDropdownItem>
         <CustomDropdownItem
-          onClick={handleUnlinkWallet}
-          disabled={!canRemoveAccount}
+          onClick={handleRefreshConnection}
+          disabled={isRefreshing}
         >
-          <Unlink className="mr-2 h-4 w-4" />
-          <span>Unlink Wallet</span>
+          <RefreshCcw
+            className={`mr-2 h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`}
+          />
+          <span>{isRefreshing ? "Refreshing..." : "Refresh Connection"}</span>
         </CustomDropdownItem>
-      )}
+        <CustomDropdownSeparator />
 
-      <CustomDropdownSeparator />
+        {/* Wallet Management Section */}
+        <CustomDropdownItem onClick={handleLinkWallet}>
+          <Plus className="mr-2 h-4 w-4" />
+          <span>Link New Wallet</span>
+        </CustomDropdownItem>
 
-      {/* Account Linking Section */}
-      {!user.email && (
-        <CustomDropdownItem onClick={linkEmail}>
-          <Mail className="mr-2 h-4 w-4" />
-          <span>Link Email</span>
-        </CustomDropdownItem>
-      )}
-      {!user.farcaster && (
-        <CustomDropdownItem onClick={linkFarcaster}>
-          <ExternalLink className="mr-2 h-4 w-4" />
-          <span>Link Farcaster</span>
-        </CustomDropdownItem>
-      )}
-      <CustomDropdownSeparator />
+        {walletAddress && (
+          <CustomDropdownItem
+            onClick={handleUnlinkWallet}
+            disabled={!canRemoveAccount}
+          >
+            <Unlink className="mr-2 h-4 w-4" />
+            <span>Unlink Wallet</span>
+          </CustomDropdownItem>
+        )}
+
+        <CustomDropdownSeparator />
+
+        {/* Account Linking Section */}
+        {!user.email && (
+          <CustomDropdownItem onClick={linkEmail}>
+            <Mail className="mr-2 h-4 w-4" />
+            <span>Link Email</span>
+          </CustomDropdownItem>
+        )}
+        {!user.farcaster && (
+          <CustomDropdownItem onClick={linkFarcaster}>
+            <ExternalLink className="mr-2 h-4 w-4" />
+            <span>Link Farcaster</span>
+          </CustomDropdownItem>
+        )}
+        <CustomDropdownSeparator />
         <CustomDropdownItem onClick={logout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </CustomDropdownItem>
       </CustomDropdown>
-      
+
       {/* Wallet Details Modal */}
       {walletAddress && (
         <WalletDetailsModal

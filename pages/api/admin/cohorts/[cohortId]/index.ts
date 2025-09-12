@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:admin:cohorts:[cohortId]:index");
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -19,12 +22,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let retryCount = 0;
     const maxRetries = 3;
     let cohort, cohortError;
-    
+
     while (retryCount < maxRetries) {
       try {
         const result = await supabase
           .from("cohorts")
-          .select(`
+          .select(
+            `
             id,
             name,
             start_date,
@@ -47,38 +51,48 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
               duration_weeks,
               max_reward_dgt
             )
-          `)
+          `,
+          )
           .eq("id", cohortId)
           .single();
-          
+
         cohort = result.data;
         cohortError = result.error;
         break; // Success, exit retry loop
       } catch (networkError) {
         retryCount++;
-        console.warn(`[COHORT_API] Database connection attempt ${retryCount}/${maxRetries} failed:`, networkError);
-        
+        log.warn(
+          `[COHORT_API] Database connection attempt ${retryCount}/${maxRetries} failed:`,
+          networkError,
+        );
+
         if (retryCount >= maxRetries) {
           cohortError = {
-            message: 'Database connection failed after retries',
-            details: networkError instanceof Error ? networkError.message : 'Network error'
+            message: "Database connection failed after retries",
+            details:
+              networkError instanceof Error
+                ? networkError.message
+                : "Network error",
           };
           cohort = null;
         } else {
           // Wait before retry
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * retryCount),
+          );
         }
       }
     }
 
-
     if (cohortError) {
-      console.error("Error fetching cohort:", cohortError);
-      return res.status(500).json({ error: "Database error", details: cohortError.message });
+      log.error("Error fetching cohort:", cohortError);
+      return res
+        .status(500)
+        .json({ error: "Database error", details: cohortError.message });
     }
-    
+
     if (!cohort) {
-      console.error("Cohort not found:", cohortId);
+      log.error("Cohort not found:", cohortId);
       return res.status(404).json({ error: "Cohort not found", cohortId });
     }
 
@@ -99,21 +113,20 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       naira_amount: cohort.naira_amount,
       created_at: cohort.created_at,
       updated_at: cohort.updated_at,
-      bootcamp_program: Array.isArray(cohort.bootcamp_programs) 
-        ? cohort.bootcamp_programs[0] 
-        : cohort.bootcamp_programs
+      bootcamp_program: Array.isArray(cohort.bootcamp_programs)
+        ? cohort.bootcamp_programs[0]
+        : cohort.bootcamp_programs,
     };
 
     res.status(200).json({
       success: true,
-      data: response
+      data: response,
     });
-
   } catch (error) {
-    console.error("Admin cohort details error:", error);
+    log.error("Admin cohort details error:", error);
     res.status(500).json({
       error: "Internal server error",
-      details: error instanceof Error ? error.message : "Unknown error"
+      details: error instanceof Error ? error.message : "Unknown error",
     });
   }
 }

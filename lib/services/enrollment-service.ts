@@ -4,6 +4,10 @@
  */
 
 import { createAdminClient } from '../supabase/server';
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('services:enrollment-service');
+
 
 interface EnrollmentResult {
   success: boolean;
@@ -118,7 +122,7 @@ export const enrollmentService = {
       };
 
     } catch (error) {
-      console.error('Enrollment service error:', error);
+      log.error('Enrollment service error:', error);
       return { 
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown error occurred' 

@@ -1,11 +1,17 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:payment:blockchain:status:[reference]");
 
 // Returns current status for a blockchain payment by payment_reference.
 // success -> { success: true, status: 'success', applicationId }
 // pending -> { success: false, status: 'pending' }
 // failed  -> { success: false, status: 'failed' }
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -33,7 +39,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const status = tx.status as string;
 
     if (status === "success") {
-      return res.status(200).json({ success: true, status: "success", applicationId: tx.application_id });
+      return res.status(200).json({
+        success: true,
+        status: "success",
+        applicationId: tx.application_id,
+      });
     }
 
     if (status === "failed" || status === "abandoned") {
@@ -43,8 +53,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     // pending | processing (still underway)
     return res.status(200).json({ success: false, status: "pending" });
   } catch (e) {
-    console.error("Blockchain status check error:", e);
+    log.error("Blockchain status check error:", e);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
-

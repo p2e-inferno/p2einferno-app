@@ -3,6 +3,10 @@ import { lockManagerService, KeyInfo } from "@/lib/blockchain/lock-manager";
 import { getUserWalletAddresses } from "@/lib/auth/privy";
 import { GrantKeyService, GrantKeyResponse } from "@/lib/blockchain/grant-key-service";
 import { getLockManagerAddress } from "@/lib/blockchain/server-config";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('services:user-key-service');
+
 
 export interface UserKeyCheckResult {
   hasValidKey: boolean;
@@ -76,7 +80,7 @@ export class UserKeyService {
     // Before granting, quickly check if they already have a key to prevent wasted transactions.
     const keyCheck = await this.checkUserKeyOwnership(userId, lockAddress);
     if (keyCheck.hasValidKey) {
-      console.log(`User ${userId} already has a key for lock ${lockAddress}. Skipping grant.`);
+      log.info(`User ${userId} already has a key for lock ${lockAddress}. Skipping grant.`);
       return { success: true };
     }
 
@@ -85,7 +89,7 @@ export class UserKeyService {
     if (!adminAddress) {
       return { success: false, error: "Admin wallet not configured" };
     }
-    console.log(`Using admin address ${adminAddress} as key manager for lock ${lockAddress}`);
+    log.info(`Using admin address ${adminAddress} as key manager for lock ${lockAddress}`);
 
     const grantKeyService = new GrantKeyService();
     return grantKeyService.grantKeyToUser({

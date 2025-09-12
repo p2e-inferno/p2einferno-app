@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
 
 import type { QuestTask, Quest } from "@/lib/supabase/types";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:admin:quests:index");
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -17,7 +20,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(405).json({ error: "Method not allowed" });
     }
   } catch (error: any) {
-    console.error("API error:", error);
+    log.error("API error:", error);
     return res
       .status(500)
       .json({ error: error.message || "Internal server error" });
@@ -27,10 +30,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
 // Wrap the handler with admin authentication middleware
 export default withAdminAuth(handler);
 
-async function getQuests(
-  res: NextApiResponse,
-  supabase: any
-) {
+async function getQuests(res: NextApiResponse, supabase: any) {
   try {
     // Fetch quests
     const { data: questsData, error: questsError } = await supabase
@@ -52,12 +52,14 @@ async function getQuests(
       const stats = statsData?.find((s: any) => s.quest_id === quest.id);
       return {
         ...quest,
-        stats: stats ? {
-          total_users: stats.total_users || 0,
-          completed_users: stats.completed_users || 0,
-          pending_submissions: stats.pending_submissions || 0,
-          completion_rate: stats.completion_rate || 0
-        } : undefined
+        stats: stats
+          ? {
+              total_users: stats.total_users || 0,
+              completed_users: stats.completed_users || 0,
+              pending_submissions: stats.pending_submissions || 0,
+              completion_rate: stats.completion_rate || 0,
+            }
+          : undefined,
       };
     });
 
@@ -66,7 +68,7 @@ async function getQuests(
       data: questsWithStats,
     });
   } catch (error: any) {
-    console.error("Error fetching quests:", error);
+    log.error("Error fetching quests:", error);
     return res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch quests",
@@ -77,7 +79,7 @@ async function getQuests(
 async function createQuest(
   req: NextApiRequest,
   res: NextApiResponse,
-  supabase: any
+  supabase: any,
 ) {
   const { title, description, image_url, tasks, xp_reward, status } = req.body;
 
@@ -113,8 +115,11 @@ async function createQuest(
           reward_amount: (task as any).xp_reward || 0,
           submission_type: (task as any).submission_type || "text",
           verification_type: (task as any).verification_type || "manual",
-          required: (task as any).required !== undefined ? (task as any).required : true,
-        })
+          required:
+            (task as any).required !== undefined
+              ? (task as any).required
+              : true,
+        }),
       );
 
       const { error: tasksError } = await supabase
@@ -135,7 +140,7 @@ async function createQuest(
 
     return res.status(201).json(fullQuest);
   } catch (error: any) {
-    console.error("Error creating quest:", error);
+    log.error("Error creating quest:", error);
     return res
       .status(500)
       .json({ error: error.message || "Failed to create quest" });

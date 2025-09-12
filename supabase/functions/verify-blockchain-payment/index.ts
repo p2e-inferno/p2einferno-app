@@ -1,6 +1,10 @@
 // Path: supabase/functions/verify-blockchain-payment/index.ts
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { ethers } from 'https://esm.sh/ethers@6.11.1';
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('supabase:functions:verify-blockchain-payment:index');
+
 
 // Helper function to sleep
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -34,7 +38,7 @@ Deno.serve(async (req) => {
     .single();
 
   if (txError || !txRecord || !txRecord.network_chain_id) {
-    console.error('Edge Function Error: Could not find transaction or chainId for reference:', paymentReference);
+    log.error('Edge Function Error: Could not find transaction or chainId for reference:', paymentReference);
     return new Response(JSON.stringify({ error: 'Transaction record not found or missing chainId' }), { status: 404, headers: { 'Content-Type': 'application/json' } });
   }
 
@@ -42,7 +46,7 @@ Deno.serve(async (req) => {
   const rpcUrl = RPC_URLS[chainId];
 
   if (!rpcUrl) {
-    console.error('Edge Function Error: Unsupported chainId:', chainId);
+    log.error('Edge Function Error: Unsupported chainId:', chainId);
     return new Response(JSON.stringify({ error: `Unsupported chainId: ${chainId}` }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
   
@@ -55,7 +59,7 @@ Deno.serve(async (req) => {
       receipt = await provider.getTransactionReceipt(transactionHash);
       if (receipt) break;
     } catch (e) {
-      console.warn(`Attempt ${i + 1}: Error fetching receipt for tx ${transactionHash} on chain ${chainId}`, e.message);
+      log.warn(`Attempt ${i + 1}: Error fetching receipt for tx ${transactionHash} on chain ${chainId}`, e.message);
     }
     await sleep(5000);
   }
@@ -97,7 +101,7 @@ Deno.serve(async (req) => {
   });
 
   if (rpcError) {
-    console.error(`Edge Function: Failed to process successful payment for application ${applicationId}`, rpcError);
+    log.error(`Edge Function: Failed to process successful payment for application ${applicationId}`, rpcError);
     // Log the failure but don't error out the function itself.
     // The payment is valid on-chain; this indicates a DB/logic issue needing admin review.
     await supabaseAdmin.from('payment_transactions').update({

@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:sign-tos");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -48,7 +51,7 @@ export default async function handler(
     });
 
     if (error) {
-      console.error("Error storing TOS signature:", error);
+      log.error("Error storing TOS signature:", error);
       return res.status(500).json({ error: "Failed to store signature" });
     }
 
@@ -56,7 +59,7 @@ export default async function handler(
       .status(200)
       .json({ success: true, message: "Terms of Service signed successfully" });
   } catch (error) {
-    console.error("Error in TOS signing API:", error);
+    log.error("Error in TOS signing API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

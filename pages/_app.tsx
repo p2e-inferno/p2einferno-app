@@ -17,7 +17,7 @@ const DynamicClientSideWrapper = dynamic(
         </div>
       </div>
     ),
-  }
+  },
 );
 
 function MyApp({ Component, pageProps }: AppProps) {

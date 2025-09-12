@@ -1,12 +1,15 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:applications");
 
 const supabase = createAdminClient();
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -31,12 +34,12 @@ export default async function handler(
 
         userProfileId = userProfile?.id || null;
       } catch (error) {
-        console.log(
-          "Auth token verification failed, proceeding without user link"
+        log.info(
+          "Auth token verification failed, proceeding without user link",
         );
       }
     }
-    console.log("privyUserId", userProfileId);
+    log.info("privyUserId", userProfileId);
 
     // Validate required fields
     const requiredFields = [
@@ -81,7 +84,7 @@ export default async function handler(
       .single();
 
     if (error) {
-      console.error("Supabase error:", error);
+      log.error("Supabase error:", error);
       return res.status(500).json({
         error: "Failed to save application. Please try again.",
       });
@@ -106,7 +109,7 @@ export default async function handler(
       message: "Application saved successfully",
     });
   } catch (error) {
-    console.error("Unexpected error:", error);
+    log.error("Unexpected error:", error);
     res.status(500).json({
       error: "An unexpected error occurred. Please try again.",
     });

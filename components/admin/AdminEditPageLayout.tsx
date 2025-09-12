@@ -45,7 +45,11 @@ const AdminEditPageLayout: React.FC<AdminEditPageLayoutProps> = ({
           </div>
         ) : error ? (
           <div className="mb-6">
-            <NetworkError error={error} onRetry={onRetry} isRetrying={isRetrying} />
+            <NetworkError
+              error={error}
+              onRetry={onRetry}
+              isRetrying={isRetrying}
+            />
           </div>
         ) : (
           <div className="bg-card border border-gray-800 rounded-lg p-6">

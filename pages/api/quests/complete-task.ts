@@ -2,16 +2,25 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/privyUtils";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:complete-task");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId: _ignoreUserId, questId, taskId, verificationData: clientVerificationData, inputData } = req.body;
+  const {
+    userId: _ignoreUserId,
+    questId,
+    taskId,
+    verificationData: clientVerificationData,
+    inputData,
+  } = req.body;
 
   if (!questId || !taskId) {
     return res.status(400).json({ error: "Missing required fields" });
@@ -47,7 +56,7 @@ export default async function handler(
       .single();
 
     if (taskError) {
-      console.error("Error fetching task:", taskError);
+      log.error("Error fetching task:", taskError);
       return res.status(500).json({ error: "Failed to fetch task details" });
     }
 
@@ -61,7 +70,7 @@ export default async function handler(
       const privy = createPrivyClient();
       const profile: any = await privy.getUserById(effectiveUserId);
       const farcasterAccount = profile?.linkedAccounts?.find(
-        (a: any) => a?.type === "farcaster" && a?.fid
+        (a: any) => a?.type === "farcaster" && a?.fid,
       );
       if (!farcasterAccount) {
         return res
@@ -88,7 +97,7 @@ export default async function handler(
       });
 
     if (completionError) {
-      console.error("Error completing task:", completionError);
+      log.error("Error completing task:", completionError);
       return res.status(500).json({ error: "Failed to complete task" });
     }
 
@@ -101,7 +110,7 @@ export default async function handler(
           p_quest_id: questId,
         });
       } catch (progressError) {
-        console.error("Error recalculating progress:", progressError);
+        log.error("Error recalculating progress:", progressError);
         // Don't fail the main operation if progress update fails
       }
     }
@@ -110,7 +119,7 @@ export default async function handler(
       .status(200)
       .json({ success: true, message: "Task completed successfully" });
   } catch (error) {
-    console.error("Error in complete task API:", error);
+    log.error("Error in complete task API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

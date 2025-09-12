@@ -1,13 +1,19 @@
-import React from 'react';
-import { Bell, Check, X } from 'lucide-react';
-import { CustomDropdown, CustomDropdownItem, CustomDropdownLabel, CustomDropdownSeparator } from '../CustomDropdown';
-import { useNotifications } from '@/hooks/useNotifications';
-import { Button } from '../ui/button';
-import { useRouter } from 'next/router';
-import { formatDate } from '@/lib/dateUtils';
+import React from "react";
+import { Bell, Check, X } from "lucide-react";
+import {
+  CustomDropdown,
+  CustomDropdownItem,
+  CustomDropdownLabel,
+  CustomDropdownSeparator,
+} from "../CustomDropdown";
+import { useNotifications } from "@/hooks/useNotifications";
+import { Button } from "../ui/button";
+import { useRouter } from "next/router";
+import { formatDate } from "@/lib/dateUtils";
 
 export const NotificationBell = () => {
-  const { notifications, unreadCount, markAsRead, deleteNotification } = useNotifications();
+  const { notifications, unreadCount, markAsRead, deleteNotification } =
+    useNotifications();
   const router = useRouter();
 
   const handleNotificationClick = (notification: any) => {
@@ -18,17 +24,20 @@ export const NotificationBell = () => {
       router.push(notification.link);
     }
   };
-  
+
   const handleMarkAllAsRead = () => {
-      const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
-      if (unreadIds.length > 0) {
-          markAsRead(unreadIds);
-      }
+    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id);
+    if (unreadIds.length > 0) {
+      markAsRead(unreadIds);
+    }
   };
 
-  const handleDeleteNotification = (e: React.MouseEvent, notificationId: string) => {
-      e.stopPropagation();
-      deleteNotification(notificationId);
+  const handleDeleteNotification = (
+    e: React.MouseEvent,
+    notificationId: string,
+  ) => {
+    e.stopPropagation();
+    deleteNotification(notificationId);
   };
 
   const trigger = (
@@ -44,27 +53,49 @@ export const NotificationBell = () => {
 
   return (
     <CustomDropdown trigger={trigger} align="end" contentClassName="w-80">
-        <div className="flex justify-between items-center px-4 py-2">
-            <CustomDropdownLabel>Notifications</CustomDropdownLabel>
-            {unreadCount > 0 && (
-                <Button variant="ghost" size="sm" className="h-auto px-2 py-1 text-xs" onClick={handleMarkAllAsRead}>
-                    <Check className="w-3 h-3 mr-1"/>
-                    Mark all as read
-                </Button>
-            )}
-        </div>
+      <div className="flex justify-between items-center px-4 py-2">
+        <CustomDropdownLabel>Notifications</CustomDropdownLabel>
+        {unreadCount > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-auto px-2 py-1 text-xs"
+            onClick={handleMarkAllAsRead}
+          >
+            <Check className="w-3 h-3 mr-1" />
+            Mark all as read
+          </Button>
+        )}
+      </div>
       <CustomDropdownSeparator />
       <div className="max-h-96 overflow-y-auto scrollbar-hide">
         {notifications.length > 0 ? (
-          notifications.map(notification => (
+          notifications.map((notification) => (
             <div key={notification.id} className="relative group">
-              <CustomDropdownItem onClick={() => handleNotificationClick(notification)}>
-                <div className={`w-full pr-8 ${!notification.read ? 'font-bold' : ''}`}>
+              <CustomDropdownItem
+                onClick={() => handleNotificationClick(notification)}
+              >
+                <div
+                  className={`w-full pr-8 ${!notification.read ? "font-bold" : ""}`}
+                >
                   <p className="text-sm">{notification.title}</p>
-                  <p className={`text-xs ${!notification.read ? 'text-gray-400' : 'text-gray-500'}`}>{notification.message}</p>
-                  <p className="text-xs text-gray-600 mt-1">{formatDate(notification.created_at, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                  <p
+                    className={`text-xs ${!notification.read ? "text-gray-400" : "text-gray-500"}`}
+                  >
+                    {notification.message}
+                  </p>
+                  <p className="text-xs text-gray-600 mt-1">
+                    {formatDate(notification.created_at, {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
                 </div>
-                {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 flex-shrink-0"></div>}
+                {!notification.read && (
+                  <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 flex-shrink-0"></div>
+                )}
               </CustomDropdownItem>
               <button
                 onClick={(e) => handleDeleteNotification(e, notification.id)}
@@ -76,9 +107,11 @@ export const NotificationBell = () => {
             </div>
           ))
         ) : (
-          <div className="px-4 py-3 text-sm text-gray-500 text-center">No new notifications</div>
+          <div className="px-4 py-3 text-sm text-gray-500 text-center">
+            No new notifications
+          </div>
         )}
       </div>
     </CustomDropdown>
   );
-}; 
+};

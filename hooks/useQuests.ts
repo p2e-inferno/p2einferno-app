@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('hooks:useQuests');
+
 
 // Types
 export interface Quest {
@@ -67,7 +71,7 @@ export const useQuests = () => {
 
       setQuests(data.quests || []);
     } catch (err) {
-      console.error("Error fetching quests:", err);
+      log.error("Error fetching quests:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch quests");
     }
   }, []);
@@ -89,7 +93,7 @@ export const useQuests = () => {
       setUserProgress(data.progress || []);
       setCompletedTasks(data.completedTasks || []);
     } catch (err) {
-      console.error("Error fetching user progress:", err);
+      log.error("Error fetching user progress:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch progress");
     }
   }, [user?.id, authenticated]);
@@ -139,7 +143,7 @@ export const useQuests = () => {
         await fetchUserProgress();
         return true;
       } catch (err) {
-        console.error("Error completing task:", err);
+        log.error("Error completing task:", err);
         toast.error(
           err instanceof Error ? err.message : "Failed to complete task"
         );
@@ -183,7 +187,7 @@ export const useQuests = () => {
         await fetchUserProgress();
         return true;
       } catch (err) {
-        console.error("Error claiming rewards:", err);
+        log.error("Error claiming rewards:", err);
         toast.error(
           err instanceof Error ? err.message : "Failed to claim rewards"
         );

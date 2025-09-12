@@ -10,15 +10,18 @@ import { CopyBadge } from "@/components/ui/badge";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "@/lib/unlock/lockUtils";
-import { generateBootcampLockConfig, createLockConfigWithManagers } from "@/lib/blockchain/admin-lock-config";
+import {
+  generateBootcampLockConfig,
+  createLockConfigWithManagers,
+} from "@/lib/blockchain/admin-lock-config";
 import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
-import { 
-  saveDraft, 
-  removeDraft, 
-  getDraft, 
+import {
+  saveDraft,
+  removeDraft,
+  getDraft,
   savePendingDeployment,
   removePendingDeployment,
-  hasPendingDeployments
+  hasPendingDeployments,
 } from "@/lib/utils/lock-deployment-state";
 import { getRecordId } from "@/lib/utils/id-generation";
 
@@ -26,6 +29,9 @@ import ImageUpload from "@/components/ui/image-upload";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { AuthError } from "@/components/ui/auth-error";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:BootcampForm");
 
 interface BootcampFormProps {
   bootcamp?: BootcampProgram;
@@ -45,17 +51,20 @@ export default function BootcampForm({
     redirectOnAuthError: false,
     showAuthErrorModal: true,
   });
-  
+
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState<string>("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
-  const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(null);
-  const [hasPendingBootcampDeployments, setHasPendingBootcampDeployments] = useState(false);
+  const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(
+    null,
+  );
+  const [hasPendingBootcampDeployments, setHasPendingBootcampDeployments] =
+    useState(false);
 
   // Keep track of the original bootcamp ID for updates
   const [originalBootcampId, setOriginalBootcampId] = useState<string | null>(
-    null
+    null,
   );
 
   // Initialize form data and original ID
@@ -63,7 +72,7 @@ export default function BootcampForm({
     if (bootcamp) {
       setFormData(bootcamp);
       setOriginalBootcampId(bootcamp.id);
-      console.log("Initialized with bootcamp ID:", bootcamp.id);
+      log.info("Initialized with bootcamp ID:", bootcamp.id);
     }
   }, [bootcamp]);
 
@@ -75,20 +84,20 @@ export default function BootcampForm({
       max_reward_dgt: 0,
       lock_address: "", // Using existing lock_address field from DB
       image_url: "",
-    }
+    },
   );
 
   // Load draft data on mount and check for pending deployments
   useEffect(() => {
     if (!isEditing) {
-      const draft = getDraft('bootcamp');
+      const draft = getDraft("bootcamp");
       if (draft) {
-        setFormData(prev => ({ ...prev, ...draft.formData }));
+        setFormData((prev) => ({ ...prev, ...draft.formData }));
         toast.success("Restored draft data");
       }
-      
+
       // Check for pending deployments
-      const hasPending = hasPendingDeployments('bootcamp');
+      const hasPending = hasPendingDeployments("bootcamp");
       setHasPendingBootcampDeployments(hasPending);
     }
   }, [isEditing]);
@@ -100,10 +109,8 @@ export default function BootcampForm({
     }
   }, [adminApi.error]);
 
-
-
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     let parsedValue: string | number = value;
@@ -145,11 +152,15 @@ export default function BootcampForm({
       setDeploymentStep("Preparing lock configuration...");
 
       // Generate lock config from bootcamp data
-      const lockConfig = generateBootcampLockConfig(formData as BootcampProgram);
+      const lockConfig = generateBootcampLockConfig(
+        formData as BootcampProgram,
+      );
       const deployConfig = createLockConfigWithManagers(lockConfig);
-      
+
       setDeploymentStep("Deploying lock on blockchain...");
-      toast.loading("Deploying bootcamp certificate lock...", { id: "lock-deploy" });
+      toast.loading("Deploying bootcamp certificate lock...", {
+        id: "lock-deploy",
+      });
 
       // Deploy the lock
       const result = await unlockUtils.deployLock(deployConfig, wallet);
@@ -160,7 +171,9 @@ export default function BootcampForm({
 
       // Get lock address from deployment result
       if (!result.lockAddress) {
-        throw new Error("Lock deployment succeeded but no lock address returned");
+        throw new Error(
+          "Lock deployment succeeded but no lock address returned",
+        );
       }
 
       const lockAddress = result.lockAddress;
@@ -169,10 +182,12 @@ export default function BootcampForm({
       // Save deployment state before database operation
       const deploymentId = savePendingDeployment({
         lockAddress,
-        entityType: 'bootcamp',
+        entityType: "bootcamp",
         entityData: formData,
         transactionHash: result.transactionHash,
-        blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
+        blockExplorerUrl: result.transactionHash
+          ? getBlockExplorerUrl(result.transactionHash)
+          : undefined,
       });
 
       // Store deployment ID for cleanup on success
@@ -183,9 +198,9 @@ export default function BootcampForm({
           Lock deployed successfully!
           <br />
           {result.transactionHash && (
-            <a 
-              href={getBlockExplorerUrl(result.transactionHash)} 
-              target="_blank" 
+            <a
+              href={getBlockExplorerUrl(result.transactionHash)}
+              target="_blank"
               rel="noopener noreferrer"
               className="underline"
             >
@@ -193,23 +208,24 @@ export default function BootcampForm({
             </a>
           )}
         </>,
-        { 
+        {
           id: "lock-deploy",
-          duration: 5000 
-        }
+          duration: 5000,
+        },
       );
 
-      console.log("Lock deployed:", {
+      log.info("Lock deployed:", {
         lockAddress,
         transactionHash: result.transactionHash,
         deploymentId,
       });
 
       return lockAddress;
-
     } catch (error: any) {
-      console.error("Lock deployment failed:", error);
-      toast.error(error.message || "Failed to deploy lock", { id: "lock-deploy" });
+      log.error("Lock deployment failed:", error);
+      toast.error(error.message || "Failed to deploy lock", {
+        id: "lock-deploy",
+      });
       setDeploymentStep("");
       throw error;
     } finally {
@@ -234,7 +250,7 @@ export default function BootcampForm({
 
       // Save draft before starting deployment (for new bootcamps)
       if (!isEditing) {
-        saveDraft('bootcamp', formData);
+        saveDraft("bootcamp", formData);
       }
 
       let lockAddress: string | undefined = formData.lock_address || undefined;
@@ -242,9 +258,9 @@ export default function BootcampForm({
       // Deploy lock if not editing and auto-creation is enabled and no lock address provided
       if (!isEditing && showAutoLockCreation && !lockAddress) {
         try {
-          console.log("Auto-deploying lock for bootcamp...");
+          log.info("Auto-deploying lock for bootcamp...");
           lockAddress = await deployLockForBootcamp();
-          
+
           if (!lockAddress) {
             throw new Error("Lock deployment failed");
           }
@@ -255,7 +271,10 @@ export default function BootcampForm({
       }
 
       // Generate ID for new bootcamps
-      const bootcampId = getRecordId(isEditing, originalBootcampId || undefined);
+      const bootcampId = getRecordId(
+        isEditing,
+        originalBootcampId || undefined,
+      );
 
       // Prepare submission data for API
       const apiData: any = {
@@ -289,22 +308,26 @@ export default function BootcampForm({
       if (response.data) {
         // Clean up drafts and pending deployments on success
         if (!isEditing) {
-          removeDraft('bootcamp');
-          
+          removeDraft("bootcamp");
+
           // Clean up pending deployment if we deployed a lock
           if (currentDeploymentId) {
             removePendingDeployment(currentDeploymentId);
-            console.log(`Cleaned up pending deployment: ${currentDeploymentId}`);
+            log.info(`Cleaned up pending deployment: ${currentDeploymentId}`);
           }
         }
-        
-        toast.success(isEditing ? "Bootcamp updated successfully!" : "Bootcamp created successfully!");
-        
+
+        toast.success(
+          isEditing
+            ? "Bootcamp updated successfully!"
+            : "Bootcamp created successfully!",
+        );
+
         // Redirect back to bootcamp list
         router.push("/admin/bootcamps");
       }
     } catch (error: any) {
-      console.error("Error saving bootcamp:", error);
+      log.error("Error saving bootcamp:", error);
       setError(error.message || "Failed to save bootcamp");
     } finally {
       setIsSubmitting(false);
@@ -329,10 +352,15 @@ export default function BootcampForm({
           <div className="flex items-center space-x-2">
             <AlertTriangle className="h-5 w-5 flex-shrink-0" />
             <div>
-              <p className="font-medium">Pending bootcamp deployments detected</p>
+              <p className="font-medium">
+                Pending bootcamp deployments detected
+              </p>
               <p className="text-sm mt-1">
-                There are unfinished bootcamp deployments with orphaned locks. 
-                <Link href="/admin/draft-recovery" className="underline ml-1 hover:text-yellow-200">
+                There are unfinished bootcamp deployments with orphaned locks.
+                <Link
+                  href="/admin/draft-recovery"
+                  className="underline ml-1 hover:text-yellow-200"
+                >
                   Visit Draft Recovery →
                 </Link>
               </p>
@@ -434,35 +462,44 @@ export default function BootcampForm({
                   onChange={(e) => setShowAutoLockCreation(e.target.checked)}
                   className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
                 />
-                <Label htmlFor="auto_lock_creation" className="text-sm text-gray-300 cursor-pointer">
+                <Label
+                  htmlFor="auto_lock_creation"
+                  className="text-sm text-gray-300 cursor-pointer"
+                >
                   Auto-create lock
                 </Label>
               </div>
             )}
           </div>
-          
+
           <Input
             id="lock_address"
             name="lock_address"
             value={formData.lock_address}
             onChange={handleChange}
-            placeholder={showAutoLockCreation && !isEditing ? "Will be auto-generated..." : "e.g., 0x1234..."}
+            placeholder={
+              showAutoLockCreation && !isEditing
+                ? "Will be auto-generated..."
+                : "e.g., 0x1234..."
+            }
             className={inputClass}
             disabled={showAutoLockCreation && !isEditing}
           />
-          
+
           {showAutoLockCreation && !isEditing && !formData.lock_address && (
             <p className="text-sm text-blue-400 mt-1">
-              ✨ A new certificate lock will be automatically deployed for this bootcamp using your connected wallet
+              ✨ A new certificate lock will be automatically deployed for this
+              bootcamp using your connected wallet
             </p>
           )}
-          
+
           {!showAutoLockCreation && (
             <p className="text-sm text-gray-400 mt-1">
-              Optional: Unlock Protocol lock address for bootcamp completion certificates
+              Optional: Unlock Protocol lock address for bootcamp completion
+              certificates
             </p>
           )}
-          
+
           {isDeployingLock && (
             <div className="bg-blue-900/20 border border-blue-700 text-blue-300 px-3 py-2 rounded mt-2">
               <div className="flex items-center space-x-2">

@@ -1,11 +1,14 @@
 import { ethers } from "ethers";
 import { type Address } from "viem";
 import { getClientConfig } from "./config/unified-config";
+import { getLogger } from '@/lib/utils/logger';
 import { 
   ensureCorrectNetwork as ensureCorrectNetworkShared,
   getBlockExplorerUrl as getBlockExplorerUrlShared,
   type NetworkConfig 
 } from "./shared/network-utils";
+
+const log = getLogger('blockchain:transaction-helpers');
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -70,16 +73,16 @@ export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deplo
       ]);
 
       // Parse all logs to find the NewLock event
-      for (const log of receipt.logs) {
-        try {
-          const parsedLog = unlockInterface.parseLog({
-            topics: log.topics,
-            data: log.data,
-          });
+  for (const entry of receipt.logs) {
+    try {
+      const parsedLog = unlockInterface.parseLog({
+        topics: entry.topics,
+        data: entry.data,
+      });
 
           if (parsedLog && parsedLog.name === "NewLock") {
             lockAddress = parsedLog.args.newLockAddress;
-            console.log("Found lock address from NewLock event:", lockAddress);
+            log.info("Found lock address from NewLock event:", lockAddress);
             break;
           }
         } catch (e) {
@@ -90,13 +93,13 @@ export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deplo
     }
 
     // If we still don't have a valid address, try alternative extraction
-    if (lockAddress === "Unknown" && receipt.logs && receipt.logs.length > 0) {
+  if (lockAddress === "Unknown" && receipt.logs && receipt.logs.length > 0) {
       // Look for any log that might contain an address
       const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-      for (const log of receipt.logs) {
-        if (log.topics && log.topics.length > 1) {
-          for (let i = 1; i < log.topics.length; i++) {
-            const topic = log.topics[i];
+    for (const entry of receipt.logs) {
+      if (entry.topics && entry.topics.length > 1) {
+        for (let i = 1; i < entry.topics.length; i++) {
+          const topic = entry.topics[i];
             if (topic) {
               const potentialAddress = `0x${topic.slice(-40)}`;
               if (
@@ -104,7 +107,7 @@ export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deplo
                 (!deployerAddress || potentialAddress !== deployerAddress)
               ) {
                 lockAddress = potentialAddress;
-                console.log(
+                log.info(
                   "Found potential lock address from log topics:",
                   lockAddress
                 );
@@ -129,7 +132,7 @@ export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deplo
       lockAddress,
     };
   } catch (error) {
-    console.error("Error extracting lock address:", error);
+    log.error("Error extracting lock address:", error);
     return {
       success: false,
       error: error instanceof Error ? error.message : "Unknown error",
@@ -169,7 +172,7 @@ export const extractTokenIdsFromReceipt = (receipt: TransactionReceipt): TokenEx
       tokenIds,
     };
   } catch (error) {
-    console.warn("Could not extract token IDs from receipt");
+    log.warn("Could not extract token IDs from receipt");
     return {
       success: false,
       tokenIds: [],
@@ -196,9 +199,9 @@ export const getAdminLockManagerAddresses = (): Address[] => {
       // Extract address from private key using ethers
       const wallet = new ethers.Wallet(lockManagerPrivateKey);
       addresses.push(wallet.address as Address);
-      console.log("Added lock manager address:", wallet.address);
+      log.info("Added lock manager address:", wallet.address);
     } catch (error) {
-      console.warn("Could not derive address from LOCK_MANAGER_PRIVATE_KEY:", error);
+      log.warn("Could not derive address from LOCK_MANAGER_PRIVATE_KEY:", error);
     }
   }
 
@@ -211,7 +214,7 @@ export const getAdminLockManagerAddresses = (): Address[] => {
       .filter((addr) => /^0x[a-fA-F0-9]{40}$/.test(addr)) as Address[];
     
     addresses.push(...adminAddrs);
-    console.log("Added admin addresses:", adminAddrs);
+    log.info("Added admin addresses:", adminAddrs);
   }
 
   // Remove duplicates while preserving order
@@ -219,7 +222,7 @@ export const getAdminLockManagerAddresses = (): Address[] => {
     addresses.indexOf(addr) === index
   );
 
-  console.log("Final lock manager addresses:", uniqueAddresses);
+  log.info("Final lock manager addresses:", uniqueAddresses);
   return uniqueAddresses;
 };
 

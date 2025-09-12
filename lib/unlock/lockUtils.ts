@@ -10,6 +10,10 @@ import {
   type NetworkConfig 
 } from "../blockchain/shared/network-utils";
 import { PUBLIC_LOCK_CONTRACT } from "../../constants";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('unlock:lockUtils');
+
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -229,7 +233,7 @@ const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
     const decimals = await tokenContract.decimals();
     return Number(decimals);
   } catch (error) {
-    console.error(`Error fetching decimals for token ${tokenAddress}:`, error);
+    log.error(`Error fetching decimals for token ${tokenAddress}:`, error);
     return 18; // Default to 18 if we can't determine
   }
 };
@@ -245,7 +249,7 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
     throw new Error("No wallet provided or not connected.");
   }
 
-  console.log("🔧 [LOCK_UTILS] Creating ethers from wallet:", {
+  log.info("🔧 [LOCK_UTILS] Creating ethers from wallet:", {
     address: wallet.address,
     walletClientType: wallet.walletClientType,
     connectorType: wallet.connectorType,
@@ -257,20 +261,20 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
 
   if (typeof wallet.getEthereumProvider === "function") {
     // This is from useWallets() - has getEthereumProvider method
-    console.log("🔧 [LOCK_UTILS] Using getEthereumProvider method");
+    log.info("🔧 [LOCK_UTILS] Using getEthereumProvider method");
     try {
       provider = await wallet.getEthereumProvider();
     } catch (error) {
-      console.error("🔧 [LOCK_UTILS] Error getting Ethereum provider:", error);
+      log.error("🔧 [LOCK_UTILS] Error getting Ethereum provider:", error);
       throw new Error("Failed to get Ethereum provider from wallet");
     }
   } else if (wallet.provider) {
     // This might be user.wallet with direct provider access
-    console.log("🔧 [LOCK_UTILS] Using wallet.provider");
+    log.info("🔧 [LOCK_UTILS] Using wallet.provider");
     provider = wallet.provider;
   } else if (wallet.walletClientType === 'injected' || wallet.connectorType === 'injected') {
     // This is an external wallet (MetaMask, etc.) - use window.ethereum
-    console.log("🔧 [LOCK_UTILS] Using window.ethereum for injected wallet");
+    log.info("🔧 [LOCK_UTILS] Using window.ethereum for injected wallet");
     if (typeof window !== "undefined" && (window as any).ethereum) {
       provider = (window as any).ethereum;
     } else {
@@ -278,7 +282,7 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
     }
   } else {
     // Try to use window.ethereum as a fallback for external wallets
-    console.log("🔧 [LOCK_UTILS] Trying window.ethereum as fallback");
+    log.info("🔧 [LOCK_UTILS] Trying window.ethereum as fallback");
     if (typeof window !== "undefined" && (window as any).ethereum) {
       provider = (window as any).ethereum;
     } else {
@@ -292,17 +296,17 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
     throw new Error("No provider available for wallet");
   }
 
-  console.log("🔧 [LOCK_UTILS] Provider obtained:", provider);
+  log.info("🔧 [LOCK_UTILS] Provider obtained:", provider);
 
   try {
     const ethersProvider = new ethers.BrowserProvider(provider);
     const signer = await ethersProvider.getSigner();
 
-    console.log("🔧 [LOCK_UTILS] Ethers provider and signer created successfully");
+    log.info("🔧 [LOCK_UTILS] Ethers provider and signer created successfully");
 
     return { provider: ethersProvider, signer, rawProvider: provider };
   } catch (error) {
-    console.error("🔧 [LOCK_UTILS] Error creating ethers provider:", error);
+    log.error("🔧 [LOCK_UTILS] Error creating ethers provider:", error);
     throw new Error("Failed to create ethers provider from wallet");
   }
 };
@@ -349,7 +353,7 @@ export const getIsLockManager = async (lockAddress: string, wallet: any): Promis
       lockAddress === "Unknown" ||
       !ethers.isAddress(lockAddress)
     ) {
-      console.warn(`Invalid lock address: ${lockAddress}`);
+      log.warn(`Invalid lock address: ${lockAddress}`);
       return false;
     }
 
@@ -362,7 +366,7 @@ export const getIsLockManager = async (lockAddress: string, wallet: any): Promis
     const isManager = await lockContract.isLockManager(wallet.address);
     return isManager;
   } catch (error) {
-    console.error(`Error checking if user is lock manager for ${lockAddress}:`, error);
+    log.error(`Error checking if user is lock manager for ${lockAddress}:`, error);
     return false;
   }
 };
@@ -378,7 +382,7 @@ export const getTotalKeys = async (lockAddress: string): Promise<number> => {
       lockAddress === "Unknown" ||
       !ethers.isAddress(lockAddress)
     ) {
-      console.warn(`Invalid lock address: ${lockAddress}`);
+      log.warn(`Invalid lock address: ${lockAddress}`);
       return 0;
     }
 
@@ -391,7 +395,7 @@ export const getTotalKeys = async (lockAddress: string): Promise<number> => {
     const totalSupply = await lockContract.totalSupply();
     return Number(totalSupply);
   } catch (error) {
-    console.error(`Error fetching total keys for ${lockAddress}:`, error);
+    log.error(`Error fetching total keys for ${lockAddress}:`, error);
     return 0;
   }
 };
@@ -485,7 +489,7 @@ export const getUserKeyBalance = async (
     const balance = await lockContract.balanceOf(userAddress);
     return Number(balance);
   } catch (error) {
-    console.error(`Error fetching user key balance for ${lockAddress}:`, error);
+    log.error(`Error fetching user key balance for ${lockAddress}:`, error);
     return 0;
   }
 };
@@ -535,7 +539,7 @@ export const getKeyPrice = async (
       decimals,
     };
   } catch (error) {
-    console.error(`Error fetching key price for ${lockAddress}:`, error);
+    log.error(`Error fetching key price for ${lockAddress}:`, error);
     return {
       price: 0n,
       priceFormatted: "0",
@@ -558,7 +562,7 @@ export const purchaseKey = async (
   wallet: any
 ): Promise<PurchaseResult> => {
   try {
-    console.log(`Purchasing key for lock: ${lockAddress}`);
+    log.info(`Purchasing key for lock: ${lockAddress}`);
 
     // Validate lock address
     if (
@@ -621,21 +625,21 @@ export const purchaseKey = async (
       }
 
       if (allowance < onChainKeyPrice) {
-        console.log(
+        log.info(
           `Approving spender ${lockAddress} for ${onChainKeyPrice.toString()} tokens`
         );
         try {
           const approveAmount = onChainKeyPrice; // could be maxUint; keep exact to be conservative
           const approveTx = await tokenContract.approve(lockAddress, approveAmount);
-          console.log('[LOCK_UTILS] Sent approve tx:', approveTx?.hash);
+          log.info('[LOCK_UTILS] Sent approve tx:', approveTx?.hash);
           await approveTx.wait();
-          console.log('[LOCK_UTILS] Approve tx mined, verifying allowance...');
+          log.info('[LOCK_UTILS] Approve tx mined, verifying allowance...');
 
           // Poll for the updated allowance (in case of RPC/provider lag)
           const maxChecks = 12; // ~6 seconds @ 500ms
           for (let i = 0; i < maxChecks; i++) {
             const newAllowance = await tokenContract.allowance(effectiveAddress, lockAddress);
-            console.log(`[LOCK_UTILS] Allowance check ${i + 1}/${maxChecks}:`, newAllowance?.toString?.());
+            log.info(`[LOCK_UTILS] Allowance check ${i + 1}/${maxChecks}:`, newAllowance?.toString?.());
             if (newAllowance >= onChainKeyPrice) {
               break;
             }
@@ -677,10 +681,10 @@ export const purchaseKey = async (
         ["0x"] // _data
       );
 
-      console.log("ERC20 purchase transaction sent:", tx.hash);
+      log.info("ERC20 purchase transaction sent:", tx.hash);
 
       const receipt = await tx.wait();
-      console.log("Transaction receipt:", receipt);
+      log.info("Transaction receipt:", receipt);
 
       if (receipt.status !== 1) {
         throw new Error("Transaction failed. Please try again.");
@@ -694,7 +698,7 @@ export const purchaseKey = async (
 
     // Handle ETH payments
     else {
-      console.log(`Calling ETH purchase for recipient: ${effectiveAddress} with value: ${onChainKeyPrice.toString()} wei`);
+      log.info(`Calling ETH purchase for recipient: ${effectiveAddress} with value: ${onChainKeyPrice.toString()} wei`);
 
       const tx = await lockContract.purchase(
         [onChainKeyPrice], // _values
@@ -707,10 +711,10 @@ export const purchaseKey = async (
         }
       );
 
-      console.log("ETH purchase transaction sent:", tx.hash);
+      log.info("ETH purchase transaction sent:", tx.hash);
 
       const receipt = await tx.wait();
-      console.log("Transaction receipt:", receipt);
+      log.info("Transaction receipt:", receipt);
 
       if (receipt.status !== 1) {
         throw new Error("Transaction failed. Please try again.");
@@ -722,7 +726,7 @@ export const purchaseKey = async (
       };
     }
   } catch (error) {
-    console.error("Error purchasing key:", error);
+    log.error("Error purchasing key:", error);
 
     let errorMessage = "Failed to purchase key.";
     if (error instanceof Error) {
@@ -768,7 +772,7 @@ export const deployLock = async (
   wallet: any
 ): Promise<DeploymentResult> => {
   try {
-    console.log("Deploying lock with config:", config);
+    log.info("Deploying lock with config:", config);
 
     if (!wallet || !wallet.address) {
       throw new Error("No wallet provided. Please connect your wallet first.");
@@ -784,7 +788,7 @@ export const deployLock = async (
     await ensureCorrectNetwork(rawProvider);
 
     const factoryAddress = getFactoryAddress();
-    console.log("Using Unlock Factory Address:", factoryAddress);
+    log.info("Using Unlock Factory Address:", factoryAddress);
 
     // Version must match the PublicLock version (using v14 as per successful transaction)
     const version = 14;
@@ -813,7 +817,7 @@ export const deployLock = async (
         ? "0x0000000000000000000000000000000000000000" // Free locks use ETH address
         : usdcTokenAddress;
 
-    console.log(
+    log.info(
       `Deploying lock with token address: ${tokenAddress} (${
         tokenAddress === "0x0000000000000000000000000000000000000000"
           ? "ETH"
@@ -847,15 +851,15 @@ export const deployLock = async (
       config.name, // Name of membership contract
     ]);
 
-    console.log("Creating lock with calldata and version:", version);
+    log.info("Creating lock with calldata and version:", version);
 
     // Create the lock
     const tx = await unlock.createUpgradeableLockAtVersion(calldata, version);
-    console.log("Lock deployment transaction sent:", tx.hash);
+    log.info("Lock deployment transaction sent:", tx.hash);
 
     // Wait for transaction confirmation
     const receipt = await tx.wait();
-    console.log("Transaction receipt:", receipt);
+    log.info("Transaction receipt:", receipt);
 
     if (receipt.status !== 1) {
       throw new Error("Transaction failed. Please try again.");
@@ -881,7 +885,7 @@ export const deployLock = async (
 
           if (parsedLog && parsedLog.name === "NewLock") {
             lockAddress = parsedLog.args.newLockAddress;
-            console.log("Found lock address from NewLock event:", lockAddress);
+            log.info("Found lock address from NewLock event:", lockAddress);
             break;
           }
         } catch (e) {
@@ -904,7 +908,7 @@ export const deployLock = async (
               potentialAddress !== wallet.address
             ) {
               lockAddress = potentialAddress;
-              console.log(
+              log.info(
                 "Found potential lock address from log topics:",
                 lockAddress
               );
@@ -916,7 +920,7 @@ export const deployLock = async (
       }
     }
 
-    console.log("Lock deployed successfully:", {
+    log.info("Lock deployed successfully:", {
       transactionHash: tx.hash,
       lockAddress: lockAddress,
     });
@@ -927,7 +931,7 @@ export const deployLock = async (
       lockAddress: lockAddress,
     };
   } catch (error) {
-    console.error("Error deploying lock:", error);
+    log.error("Error deploying lock:", error);
 
     let errorMessage = "Failed to deploy lock";
 
@@ -969,7 +973,7 @@ export const grantKeys = async (
   tokenIds?: string[];
 }> => {
   try {
-    console.log(`Granting keys to ${recipients.length} recipients`);
+    log.info(`Granting keys to ${recipients.length} recipients`);
 
     // Validate inputs
     if (
@@ -1020,7 +1024,7 @@ export const grantKeys = async (
       keyManagersArray
     );
 
-    console.log("Grant keys transaction sent:", tx.hash);
+    log.info("Grant keys transaction sent:", tx.hash);
 
     const receipt = await tx.wait();
     if (receipt.status !== 1) {
@@ -1048,7 +1052,7 @@ export const grantKeys = async (
       tokenIds,
     };
   } catch (error) {
-    console.error("Error granting keys:", error);
+    log.error("Error granting keys:", error);
 
     let errorMessage = "Failed to grant keys.";
     if (error instanceof Error) {
@@ -1117,7 +1121,7 @@ export const addLockManager = async (
 
     // Add the new lock manager
     const tx = await lockContract.addLockManager(managerAddress);
-    console.log("Add lock manager transaction sent:", tx.hash);
+    log.info("Add lock manager transaction sent:", tx.hash);
 
     const receipt = await tx.wait();
     if (receipt.status !== 1) {
@@ -1129,7 +1133,7 @@ export const addLockManager = async (
       transactionHash: tx.hash,
     };
   } catch (error) {
-    console.error("Error adding lock manager:", error);
+    log.error("Error adding lock manager:", error);
 
     let errorMessage = "Failed to add lock manager.";
     if (error instanceof Error) {

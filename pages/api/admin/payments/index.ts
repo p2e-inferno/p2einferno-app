@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "../../../../lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:admin:payments:index");
 
 /**
  * Fetch payment transactions requiring admin attention
@@ -37,13 +40,13 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             lock_address
           )
         )
-      `
+      `,
       )
       .in("status", ["processing", "failed", "pending"])
       .order("updated_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching payment transactions:", error);
+      log.error("Error fetching payment transactions:", error);
       return res.status(500).json({
         error: "Failed to fetch payment transactions",
       });
@@ -52,7 +55,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Filter out transactions where applications data is missing
     const validTransactions =
       transactions?.filter(
-        (tx: any) => tx.applications && tx.applications.user_email
+        (tx: any) => tx.applications && tx.applications.user_email,
       ) || [];
 
     // For each transaction, fetch user profile data if user_profile_id exists
@@ -64,23 +67,25 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
             .select("wallet_address")
             .eq("id", tx.applications.user_profile_id)
             .single();
-          
+
           return {
             ...tx,
             applications: {
               ...tx.applications,
-              user_profiles: userProfile ? { wallet_address: userProfile.wallet_address } : null
-            }
+              user_profiles: userProfile
+                ? { wallet_address: userProfile.wallet_address }
+                : null,
+            },
           };
         }
         return {
           ...tx,
           applications: {
             ...tx.applications,
-            user_profiles: null
-          }
+            user_profiles: null,
+          },
         };
-      })
+      }),
     );
 
     res.status(200).json({
@@ -89,7 +94,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       count: enrichedTransactions.length,
     });
   } catch (error) {
-    console.error("Admin payments API error:", error);
+    log.error("Admin payments API error:", error);
     res.status(500).json({
       error: "Internal server error",
     });

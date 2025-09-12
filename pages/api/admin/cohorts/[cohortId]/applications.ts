@@ -2,6 +2,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
 import { computeUserApplicationStatus } from "../../../../../lib/types/application-status";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:admin:cohorts:[cohortId]:applications");
 
 interface CohortApplication {
   id: string;
@@ -41,7 +44,8 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Get all applications for this cohort with related data
     const { data: rawApplications, error: applicationsError } = await supabase
       .from("applications")
-      .select(`
+      .select(
+        `
         id,
         user_name,
         user_email,
@@ -67,22 +71,26 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
           currency,
           status
         )
-      `)
+      `,
+      )
       .eq("cohort_id", cohortId)
       .order("created_at", { ascending: false });
 
     if (applicationsError) {
-      console.error("Error fetching applications:", applicationsError);
+      log.error("Error fetching applications:", applicationsError);
       return res.status(500).json({ error: "Failed to fetch applications" });
     }
 
     // Get enrollment data for users in this cohort
-    const userProfileIds = rawApplications
-      ?.map((app: any) => {
-        const userProfile = Array.isArray(app.user_profiles) ? app.user_profiles[0] : app.user_profiles;
-        return userProfile?.id;
-      })
-      .filter(Boolean) || [];
+    const userProfileIds =
+      rawApplications
+        ?.map((app: any) => {
+          const userProfile = Array.isArray(app.user_profiles)
+            ? app.user_profiles[0]
+            : app.user_profiles;
+          return userProfile?.id;
+        })
+        .filter(Boolean) || [];
 
     const { data: enrollments } = await supabase
       .from("bootcamp_enrollments")
@@ -91,93 +99,104 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .in("user_profile_id", userProfileIds);
 
     // Process applications and detect inconsistencies
-    const applications: CohortApplication[] = (rawApplications || []).map((app: any) => {
-      const userStatus = Array.isArray(app.user_application_status) 
-        ? app.user_application_status[0] 
-        : app.user_application_status;
-      
-      const userProfile = Array.isArray(app.user_profiles) ? app.user_profiles[0] : app.user_profiles;
-      const enrollment = enrollments?.find((e: any) => e.user_profile_id === userProfile?.id);
-      const enrollmentStatus = enrollment?.enrollment_status;
-      
-      // Compute what the status should be
-      const expectedStatus = computeUserApplicationStatus(
-        app.payment_status as any,
-        app.application_status as any,
-        enrollmentStatus as any
-      );
-      
-      // Check if there's a mismatch (needs reconciliation)
-      const currentUserStatus = userStatus?.status || 'payment_pending';
-      const needsReconciliation = currentUserStatus !== expectedStatus;
-      
-      // Get payment amount from multiple sources
-      let amountPaid = userStatus?.amount_paid;
-      let currency = userStatus?.currency || app.currency;
-      
-      if (!amountPaid && app.payment_transactions?.length > 0) {
-        const successfulPayment = app.payment_transactions.find((pt: any) => pt.status === 'success');
-        if (successfulPayment) {
-          amountPaid = successfulPayment.amount;
-          currency = successfulPayment.currency;
-        }
-      }
-      
-      if (!amountPaid) {
-        amountPaid = app.total_amount;
-      }
+    const applications: CohortApplication[] = (rawApplications || []).map(
+      (app: any) => {
+        const userStatus = Array.isArray(app.user_application_status)
+          ? app.user_application_status[0]
+          : app.user_application_status;
 
-      return {
-        id: app.id,
-        user_name: app.user_name,
-        user_email: app.user_email,
-        experience_level: app.experience_level,
-        motivation: app.motivation,
-        payment_status: app.payment_status,
-        application_status: app.application_status,
-        user_application_status: currentUserStatus,
-        enrollment_status: enrollmentStatus,
-        created_at: app.created_at,
-        updated_at: app.updated_at,
-        amount_paid: amountPaid,
-        currency,
-        needs_reconciliation: needsReconciliation
-      };
-    });
+        const userProfile = Array.isArray(app.user_profiles)
+          ? app.user_profiles[0]
+          : app.user_profiles;
+        const enrollment = enrollments?.find(
+          (e: any) => e.user_profile_id === userProfile?.id,
+        );
+        const enrollmentStatus = enrollment?.enrollment_status;
+
+        // Compute what the status should be
+        const expectedStatus = computeUserApplicationStatus(
+          app.payment_status as any,
+          app.application_status as any,
+          enrollmentStatus as any,
+        );
+
+        // Check if there's a mismatch (needs reconciliation)
+        const currentUserStatus = userStatus?.status || "payment_pending";
+        const needsReconciliation = currentUserStatus !== expectedStatus;
+
+        // Get payment amount from multiple sources
+        let amountPaid = userStatus?.amount_paid;
+        let currency = userStatus?.currency || app.currency;
+
+        if (!amountPaid && app.payment_transactions?.length > 0) {
+          const successfulPayment = app.payment_transactions.find(
+            (pt: any) => pt.status === "success",
+          );
+          if (successfulPayment) {
+            amountPaid = successfulPayment.amount;
+            currency = successfulPayment.currency;
+          }
+        }
+
+        if (!amountPaid) {
+          amountPaid = app.total_amount;
+        }
+
+        return {
+          id: app.id,
+          user_name: app.user_name,
+          user_email: app.user_email,
+          experience_level: app.experience_level,
+          motivation: app.motivation,
+          payment_status: app.payment_status,
+          application_status: app.application_status,
+          user_application_status: currentUserStatus,
+          enrollment_status: enrollmentStatus,
+          created_at: app.created_at,
+          updated_at: app.updated_at,
+          amount_paid: amountPaid,
+          currency,
+          needs_reconciliation: needsReconciliation,
+        };
+      },
+    );
 
     // Calculate stats
     const stats = {
       total_applications: applications.length,
-      pending_payment: applications.filter(app => 
-        app.user_application_status === 'payment_pending' || 
-        app.user_application_status === 'draft'
+      pending_payment: applications.filter(
+        (app) =>
+          app.user_application_status === "payment_pending" ||
+          app.user_application_status === "draft",
       ).length,
-      payment_completed: applications.filter(app => 
-        app.payment_status === 'completed'
+      payment_completed: applications.filter(
+        (app) => app.payment_status === "completed",
       ).length,
-      enrolled: applications.filter(app => 
-        app.user_application_status === 'enrolled' || 
-        app.enrollment_status === 'active'
+      enrolled: applications.filter(
+        (app) =>
+          app.user_application_status === "enrolled" ||
+          app.enrollment_status === "active",
       ).length,
       revenue: applications
-        .filter(app => app.payment_status === 'completed' && app.amount_paid)
+        .filter((app) => app.payment_status === "completed" && app.amount_paid)
         .reduce((sum, app) => sum + (app.amount_paid || 0), 0),
-      needs_reconciliation: applications.filter(app => app.needs_reconciliation).length
+      needs_reconciliation: applications.filter(
+        (app) => app.needs_reconciliation,
+      ).length,
     };
 
     res.status(200).json({
       success: true,
       data: {
         applications,
-        stats
-      }
+        stats,
+      },
     });
-
   } catch (error) {
-    console.error("Admin cohort applications error:", error);
+    log.error("Admin cohort applications error:", error);
     res.status(500).json({
       error: "Internal server error",
-      details: error instanceof Error ? error.message : "Unknown error"
+      details: error instanceof Error ? error.message : "Unknown error",
     });
   }
 }

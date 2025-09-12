@@ -1,3 +1,7 @@
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('dateUtils');
+
 // lib/dateUtils.ts
 export const formatDate = (dateString?: string | null, options?: Intl.DateTimeFormatOptions): string => {
   if (!dateString) return "Not set";
@@ -9,7 +13,7 @@ export const formatDate = (dateString?: string | null, options?: Intl.DateTimeFo
   try {
     return new Date(dateString).toLocaleDateString(undefined, options || defaultOptions);
   } catch (e) {
-    console.error("Error formatting date:", e);
+    log.error("Error formatting date:", e);
     return "Invalid date";
   }
 };

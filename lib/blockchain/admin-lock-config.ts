@@ -2,6 +2,10 @@ import { type Address } from "viem";
 import { CLIENT_CHAIN_CONFIG } from "./client-config";
 import { getAdminLockManagerAddresses } from "./transaction-helpers";
 import type { Cohort, BootcampProgram, Quest, CohortMilestone } from "../supabase/types";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('blockchain:admin-lock-config');
+
 
 
 // ============================================================================
@@ -169,7 +173,7 @@ export const getTokenAddressForCurrency = (currency: string): Address => {
     }
     
     if (!usdcAddress) {
-      console.warn("USDC token address not configured for current network, using ETH");
+      log.warn("USDC token address not configured for current network, using ETH");
       return "0x0000000000000000000000000000000000000000" as Address;
     }
     return usdcAddress as Address;

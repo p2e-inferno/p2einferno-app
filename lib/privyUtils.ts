@@ -1,5 +1,9 @@
 import { AuthTokenClaims, PrivyClient } from "@privy-io/server-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('privyUtils');
+
 
 export type APIError = {
   error: string;
@@ -39,12 +43,12 @@ let modulePrivyClient: PrivyClient | null = null;
 try {
   if (PRIVY_APP_ID && PRIVY_APP_SECRET) {
     modulePrivyClient = new PrivyClient(PRIVY_APP_ID, PRIVY_APP_SECRET);
-    console.log('[PRIVY_MODULE] PrivyClient initialized successfully at module level');
+    log.info('[PRIVY_MODULE] PrivyClient initialized successfully at module level');
   } else {
-    console.warn('[PRIVY_MODULE] Missing Privy credentials - client not initialized');
+    log.warn('[PRIVY_MODULE] Missing Privy credentials - client not initialized');
   }
 } catch (error) {
-  console.error('[PRIVY_MODULE] Failed to initialize PrivyClient at module level:', error);
+  log.error('[PRIVY_MODULE] Failed to initialize PrivyClient at module level:', error);
   modulePrivyClient = null;
 }
 

@@ -1,10 +1,13 @@
 import { useMemo, useState, useCallback } from "react";
+import { getLogger } from '@/lib/utils/logger';
 import {
   useUser,
   useCreateWallet as useCreateEthereumWallet,
   useSolanaWallets,
   WalletWithMetadata,
 } from "@privy-io/react-auth";
+
+const log = getLogger('hooks:useWalletManagement');
 
 export function useWalletManagement() {
   const { user } = useUser();
@@ -44,7 +47,7 @@ export function useWalletManagement() {
           await createSolanaWallet();
         }
       } catch (error) {
-        console.error("Error creating wallet:", error);
+        log.error("Error creating wallet:", error);
       } finally {
         setIsCreating(false);
       }

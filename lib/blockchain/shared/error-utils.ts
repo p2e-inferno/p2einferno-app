@@ -1,3 +1,7 @@
+import { getLogger } from '@/lib/utils/logger';
+
+const log = getLogger('blockchain:shared:error-utils');
+
 /**
  * Unified error handling system for blockchain operations
  * Provides consistent error classification and user-friendly messages
@@ -182,7 +186,7 @@ export const handleBlockchainError = (
   const classifiedError = classifyBlockchainError(error);
   
   // Log error with context for debugging
-  console.error(`Blockchain operation failed: ${operation}`, {
+  log.error(`Blockchain operation failed: ${operation}`, {
     errorType: classifiedError.type,
     errorMessage: classifiedError.message,
     context,

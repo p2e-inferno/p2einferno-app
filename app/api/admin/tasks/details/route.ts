@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   if (!taskId) {
     return NextResponse.json({ error: 'task_id is required' }, { status: 400 });
   }
-  const include = parseIncludeParam(url.searchParams.get('include'));
+  const include = parseIncludeParam(url.searchParams.get('include'), clampPageSize);
 
   const supabase = createAdminClient();
 
@@ -111,4 +111,3 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to build task details' }, { status: 500 });
   }
 }
-
