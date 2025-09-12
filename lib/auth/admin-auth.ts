@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 
 import { getPrivyUser } from "@/lib/auth/privy";
+import { verifyAdminSession, getAdminTokenFromNextApiRequest } from "@/lib/auth/admin-session";
 import { checkMultipleWalletsForAdminKey, checkDevelopmentAdminAddress } from "./admin-key-checker";
 import { handleAdminAuthError, createErrorResponse } from "./error-handler";
 import { getLogger } from "@/lib/utils/logger";
@@ -21,6 +22,26 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     let user: any = null;
     try {
+      // 0. If a valid admin session exists (JWT cookie/header), trust it and proceed
+      try {
+        const adminToken = getAdminTokenFromNextApiRequest(req);
+        if (adminToken) {
+          const payload: any = await verifyAdminSession(adminToken);
+          const roles: string[] = Array.isArray(payload?.roles) ? payload.roles : [];
+          if (payload?.admin === true || roles.includes('admin')) {
+            log.info('withAdminAuth: admin-session accepted (JWT)');
+            return handler(req, res);
+          } else {
+            log.warn('withAdminAuth: admin-session present but missing admin role');
+          }
+        } else {
+          log.debug('withAdminAuth: no admin-session token found, falling back to Privy');
+        }
+      } catch (e: any) {
+        log.warn('withAdminAuth: admin-session verification failed, falling back to Privy', { error: e?.message });
+        // Fall through to Privy + on-chain checks
+      }
+
       // 1. Get authenticated user and their wallets via getPrivyUser
       user = await getPrivyUser(req, true); // includeWallets = true
 

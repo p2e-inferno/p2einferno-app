@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { NextResponse } from 'next/server';
+import type { NextApiRequest } from 'next';
 import { ADMIN_SESSION_TTL_SECONDS } from '@/lib/config/admin';
 
 const DEFAULT_COOKIE_NAME = 'admin-session';
@@ -37,6 +38,7 @@ export async function verifyAdminSession(token: string) {
   const { payload } = await jwtVerify(token, secret, {
     issuer: 'p2einferno',
     audience: 'admin',
+    algorithms: ['HS256'], // Explicitly specify HS256 algorithm
   });
   return payload as any;
 }
@@ -65,9 +67,21 @@ export function clearAdminCookie(res: NextResponse, cookieName = DEFAULT_COOKIE_
 }
 
 export function getAdminTokenFromRequest(req: Request, cookieName = DEFAULT_COOKIE_NAME) {
-  const token = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '')
-    || getCookieFromHeader(req.headers.get('cookie') || '', cookieName);
-  return token || null;
+  // Prefer cookie over Authorization header to avoid confusing Privy access tokens
+  const cookieToken = getCookieFromHeader(req.headers.get('cookie') || '', cookieName);
+  const headerToken = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+  return cookieToken || headerToken || null;
+}
+
+/**
+ * Like getAdminTokenFromRequest, but also returns which source was used.
+ */
+export function getAdminTokenWithSource(req: Request, cookieName = DEFAULT_COOKIE_NAME): { token: string | null; source: 'cookie' | 'authorization' | 'none' } {
+  const cookieToken = getCookieFromHeader(req.headers.get('cookie') || '', cookieName) || '';
+  const headerToken = req.headers.get('authorization')?.replace(/^Bearer\s+/i, '') || '';
+  if (cookieToken) return { token: cookieToken, source: 'cookie' };
+  if (headerToken) return { token: headerToken, source: 'authorization' };
+  return { token: null, source: 'none' };
 }
 
 function getCookieFromHeader(cookieHeader: string, name: string) {
@@ -77,4 +91,16 @@ function getCookieFromHeader(cookieHeader: string, name: string) {
     if (k === name) return decodeURIComponent(v || '');
   }
   return null;
+}
+
+/**
+ * Helper for NextApiRequest (Pages API) to extract admin-session token
+ */
+export function getAdminTokenFromNextApiRequest(req: NextApiRequest, cookieName = DEFAULT_COOKIE_NAME) {
+  const headerToken = req.headers.authorization?.replace(/^Bearer\s+/i, '') || '';
+  // Prefer cookie (JWT admin session) over Privy Authorization
+  const cookieToken = (req.cookies && typeof req.cookies === 'object')
+    ? (req.cookies as Record<string, any>)[cookieName]
+    : getCookieFromHeader(req.headers.cookie || '', cookieName);
+  return (cookieToken as string) || headerToken || null;
 }

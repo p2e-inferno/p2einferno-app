@@ -126,7 +126,7 @@ export const useDashboardData = (): UseDashboardDataResult => {
     }
   }, [ready, authenticated, user]);
 
-  console.log(data);
+  
   return {
     data,
     loading,

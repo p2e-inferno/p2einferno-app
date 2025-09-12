@@ -1,18 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-// useRouter is not directly used by the page anymore
-import AdminListPageLayout from "@/components/admin/AdminListPageLayout"; // Import the new layout
+import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
-import { Pencil, Calendar, Trash2, Star } from "lucide-react"; // PlusCircle is in AdminListPageLayout, Eye not used
+import { Pencil, Calendar, Trash2, Star } from "lucide-react";
 import Link from "next/link";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
-// useLockManagerAdminAuth is now used by AdminListPageLayout
-import { formatDate } from "@/lib/dateUtils"; // + Import shared function
-import { Badge } from "@/components/ui/badge"; // Keep Badge for status display
+import { formatDate } from "@/lib/dateUtils"; 
+import { Badge } from "@/components/ui/badge"; 
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 
 export default function CohortListPage() {
-  // Auth and client checks are handled by AdminListPageLayout
   const { authenticated, isAdmin, loading: authLoading } = useLockManagerAdminAuth();
   const [cohorts, setCohorts] = useState<
     (Cohort & { bootcamp_program: BootcampProgram })[]
@@ -20,8 +17,6 @@ export default function CohortListPage() {
   const [error, setError] = useState<string | null>(null);
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch, loading } = useAdminApi(apiOptions);
-  console.log("Cohorts loaded:", cohorts.length, "items")
-  // Fetch cohorts - This logic remains in the page
   const fetchCohorts = useCallback(async () => {
     try {
       setError(null);
@@ -43,7 +38,6 @@ export default function CohortListPage() {
 
   const fetchedOnceRef = useRef(false);
   useEffect(() => {
-    // Only fetch after admin auth is confirmed
     if (!authenticated || !isAdmin) return;
     if (fetchedOnceRef.current) return;
     fetchedOnceRef.current = true;
@@ -59,8 +53,6 @@ export default function CohortListPage() {
       setIsRetrying(false);
     }
   };
-
-  // formatDate is now imported
 
   // Function to get status badge
   const getStatusBadge = (status: string) => {
