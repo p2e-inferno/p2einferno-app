@@ -125,3 +125,4 @@ supabase/.branches/
 supabase/.temp/
 supabase/functions/.dist/
 supabase/functions/.env
+/backups/
