@@ -118,14 +118,53 @@ const writeLine = (
   } catch {}
 };
 
+// ANSI colors (basic) for pretty dev logs in Node/TTY
+const ANSI = {
+  reset: "\u001b[0m",
+  bold: "\u001b[1m",
+  dim: "\u001b[2m",
+  red: "\u001b[31m",
+  green: "\u001b[32m",
+  yellow: "\u001b[33m",
+  blue: "\u001b[34m",
+  magenta: "\u001b[35m",
+  cyan: "\u001b[36m",
+  gray: "\u001b[90m",
+};
+
+function colorize(level: Exclude<LogLevelName, 'silent'>, text: string, supportsColor: boolean) {
+  if (!supportsColor) return text;
+  switch (level) {
+    case 'debug': return `${ANSI.gray}${text}${ANSI.reset}`;
+    case 'info':  return `${ANSI.cyan}${text}${ANSI.reset}`;
+    case 'warn':  return `${ANSI.yellow}${text}${ANSI.reset}`;
+    case 'error': return `${ANSI.red}${text}${ANSI.reset}`;
+  }
+}
+
+function formatDevLine(level: Exclude<LogLevelName, 'silent'>, payload: any, supportsColor: boolean) {
+  const ts = new Date(payload.timestamp || Date.now()).toISOString();
+  const levelTag = (level.toUpperCase() as string).padEnd(5);
+  const base = `${supportsColor ? ANSI.dim : ''}${ts}${supportsColor ? ANSI.reset : ''} ${colorize(level, levelTag, supportsColor)} ${supportsColor ? ANSI.bold : ''}[${payload.module}]${supportsColor ? ANSI.reset : ''} ${payload.message}`;
+  const ctx = payload.context || {};
+  const hasCtx = ctx && typeof ctx === 'object' && Object.keys(ctx).length > 0;
+  if (!hasCtx) return base;
+  const prettyCtx = JSON.stringify(ctx, null, 2);
+  // indent each line of context for readability
+  const indented = prettyCtx.split('\n').map((l: string) => `  ${l}`).join('\n');
+  return `${base}\n${indented}`;
+}
+
 const defaultTransport: TransportFn = (level, payload) => {
   if (nodeEnv === "development") {
-    const msg = `[${payload.module}] ${payload.message}`;
-    const ctx = payload.context;
-    if (level === "warn" || level === "error") {
-      writeLine("stderr", msg, ctx);
+    // Pretty, colorized output in Node; buffered in browser
+    const proc: any = (globalThis as any)?.['process'];
+    const supportsColor = !!(proc?.stdout?.isTTY);
+    const line = formatDevLine(level, payload, supportsColor);
+    if (level === 'warn' || level === 'error') {
+      writeLine('stderr', line);
     } else {
-      writeLine("stdout", msg, ctx);
+      writeLine('stdout', line);
     }
   } else {
     // JSON log for production

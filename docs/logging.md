@@ -11,11 +11,18 @@ This project uses a lightweight, structured logger exposed via `getLogger(module
 
 ## Transports and Output
 
-- Server (Node/SSR): Writes to `process.stdout` / `process.stderr`.
+- Server (Node/SSR): Writes to `process.stdout` / `process.stderr` (no `console.*`).
 - Browser: Does not use `console.*`; logs are buffered to `window.__P2E_LOGS__` to avoid console spam and satisfy linting.
 - Production format: JSON object per line. Development format: simple text with a small context object.
 
 Note: Next.js `compiler.removeConsole` only strips `console.*` calls. The logger does not use `console.*`, so its output is unaffected by that setting.
+
+### Developer Experience (Color/Formatting)
+
+- In development on Node with a TTY, logs are colorized and formatted for readability:
+  - Timestamp (dim), Level (colored), Module (bold), Message
+  - Context is pretty-printed on the next lines, indented
+- In production, logs are single-line JSON for easy ingestion.
 
 ## Environment Variables
 
@@ -60,4 +67,3 @@ setLoggerTransport((level, payload) => {
 ```
 
 Edge runtimes may not support `process.stdout`; provide a custom transport if you need logs there.
-
