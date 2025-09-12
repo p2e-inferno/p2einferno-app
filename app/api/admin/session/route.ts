@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { issueAdminSession, setAdminCookie } from '@/lib/auth/admin-session';
-import { getPrivyUser } from '@/lib/auth/privy';
+import { getPrivyUserFromNextRequest, getUserWalletAddresses } from '@/lib/auth/privy';
 import { checkMultipleWalletsForAdminKey, checkDevelopmentAdminAddress } from '@/lib/auth/admin-key-checker';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_SESSION_TTL_SECONDS, ADMIN_RPC_TIMEOUT_MS } from '@/lib/config/admin';
@@ -29,23 +29,13 @@ function checkRateLimit(key: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    // Extract Authorization header for Privy token support
-    const authHeader = req.headers.get('authorization') || undefined;
-    const cookies = Object.fromEntries(req.cookies.getAll().map(c => [c.name, c.value]));
-
-    // Build a mock NextApiRequest-like object for getPrivyUser
-    const mockReq: any = {
-      headers: { authorization: authHeader },
-      cookies,
-    };
-    
-    // Get user with wallets
-    const user = await getPrivyUser(mockReq, true);
+    // Get user with wallets via shared NextRequest adapter
+    const user = await getPrivyUserFromNextRequest(req, false);
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
-    // Rate limit per DID if available, else per forwarded IP
+    // Rate limit per DID or forwarded IP
     const ip = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
     const rlKey = user.id ? `did:${user.id}` : `ip:${ip}`;
     const rl = checkRateLimit(rlKey);
@@ -62,8 +52,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Determine wallets to check
-    const walletAddresses: string[] = user.walletAddresses || [];
+    // Determine wallets to check using shared utility
+    const walletAddresses: string[] = await getUserWalletAddresses(user.id);
     if ((!walletAddresses || walletAddresses.length === 0) && process.env.NODE_ENV === 'development') {
       const devAdminAddresses = process.env.DEV_ADMIN_ADDRESSES;
       if (devAdminAddresses) {

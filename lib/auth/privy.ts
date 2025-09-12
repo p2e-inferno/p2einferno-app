@@ -1,4 +1,5 @@
 import { NextApiRequest } from "next";
+import type { NextRequest } from "next/server";
 import { PrivyClient } from "@privy-io/server-auth";
 import * as jose from "jose";
 import { handleAuthError, handleJwtError, isNetworkError } from "./error-handler";
@@ -30,7 +31,16 @@ export async function getUserWalletAddresses(
 ): Promise<string[]> {
   try {
     const privy = getPrivyClient();
-    const userProfile = await privy.getUser(userId);
+    
+    // Add timeout wrapper to fail faster when Privy API is unavailable
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error('Privy API timeout after 3 seconds')), 3000);
+    });
+    
+    const userProfile = await Promise.race([
+      privy.getUserById(userId),
+      timeoutPromise
+    ]);
 
     const walletAddresses: string[] = [];
 
@@ -44,7 +54,7 @@ export async function getUserWalletAddresses(
 
     return walletAddresses;
   } catch (error) {
-    log.error("Error fetching user wallet addresses", { error });
+    log.warn("Error fetching user wallet addresses from Privy API, falling back to empty array", { error: error instanceof Error ? error.message : error });
     return [];
   }
 }
@@ -167,6 +177,22 @@ export async function getPrivyUser(
     log.error("Error verifying Privy token", { error });
     return null;
   }
+}
+
+/**
+ * Adapter for Next 13/14 Route Handlers to get the Privy user.
+ */
+export async function getPrivyUserFromNextRequest(
+  req: NextRequest,
+  includeWallets = false
+) {
+  const authHeader = req.headers.get('authorization') || undefined;
+  const cookies = Object.fromEntries(req.cookies.getAll().map(c => [c.name, c.value]));
+  const mockReq: any = {
+    headers: { authorization: authHeader },
+    cookies,
+  } as NextApiRequest;
+  return getPrivyUser(mockReq, includeWallets);
 }
 
 /**

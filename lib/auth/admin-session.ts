@@ -43,9 +43,10 @@ export async function verifyAdminSession(token: string) {
 
 export function setAdminCookie(res: NextResponse, token: string, exp: number, cookieName = DEFAULT_COOKIE_NAME) {
   const maxAge = exp - Math.floor(Date.now() / 1000);
+  const secure = process.env.NODE_ENV === 'production';
   res.cookies.set(cookieName, token, {
     httpOnly: true,
-    secure: true,
+    secure,
     sameSite: 'lax',
     path: '/',
     maxAge,
@@ -53,9 +54,10 @@ export function setAdminCookie(res: NextResponse, token: string, exp: number, co
 }
 
 export function clearAdminCookie(res: NextResponse, cookieName = DEFAULT_COOKIE_NAME) {
+  const secure = process.env.NODE_ENV === 'production';
   res.cookies.set(cookieName, '', {
     httpOnly: true,
-    secure: true,
+    secure,
     sameSite: 'lax',
     path: '/',
     expires: new Date(0),
@@ -76,4 +78,3 @@ function getCookieFromHeader(cookieHeader: string, name: string) {
   }
   return null;
 }
-
