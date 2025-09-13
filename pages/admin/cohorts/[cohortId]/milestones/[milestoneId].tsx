@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskList from "@/components/admin/TaskList";
@@ -6,7 +6,7 @@ import { Calendar, Clock, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CohortMilestone, Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:[cohortId]:milestones:[milestoneId]");
@@ -15,7 +15,12 @@ interface MilestoneWithCohort extends CohortMilestone {
   cohort: Cohort;
 }
 
-function MilestoneDetailsPage() {
+export default function MilestoneDetailsPage() {
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id: cohortId, milestoneId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -74,10 +79,14 @@ function MilestoneDetailsPage() {
     }
   }, [milestoneId]); // adminFetch is now stable due to memoized options
 
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
+    if (!authenticated || !isAdmin) return;
     if (!milestoneId) return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
     fetchMilestone();
-  }, [milestoneId, fetchMilestone]);
+  }, [authenticated, isAdmin, milestoneId, fetchMilestone]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -102,7 +111,7 @@ function MilestoneDetailsPage() {
       title={milestone ? milestone.name : "Milestone Details"}
       backLinkHref={`/admin/cohorts/${cohortId}/milestones`}
       backLinkText="Back to cohort milestones"
-      isLoading={isLoading}
+      isLoading={authLoading || isLoading}
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}
@@ -202,7 +211,3 @@ function MilestoneDetailsPage() {
     </AdminEditPageLayout>
   );
 }
-
-export default withAdminAuth(MilestoneDetailsPage, {
-  message: "You need admin access to view milestone details",
-});

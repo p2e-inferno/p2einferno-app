@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskSubmissions from "@/components/admin/TaskSubmissions";
 import type { MilestoneTask, CohortMilestone } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:tasks:[id]:submissions");
@@ -18,7 +18,12 @@ interface TaskWithMilestone extends MilestoneTask {
   };
 }
 
-function TaskSubmissionsPage() {
+export default function TaskSubmissionsPage() {
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -64,10 +69,14 @@ function TaskSubmissionsPage() {
     }
   }, [id]); // adminFetch is now stable due to memoized options
 
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
+    if (!authenticated || !isAdmin) return;
     if (!id) return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
     fetchTask();
-  }, [id, fetchTask]);
+  }, [authenticated, isAdmin, id, fetchTask]);
 
   const handleRetry = async () => {
     setIsRetrying(true);
@@ -85,7 +94,7 @@ function TaskSubmissionsPage() {
         title={"Task Submissions"}
         backLinkHref={"/admin/cohorts"}
         backLinkText="Back to milestone"
-        isLoading={false}
+        isLoading={authLoading || false}
         error={error}
         onRetry={handleRetry}
         isRetrying={isRetrying}
@@ -104,7 +113,7 @@ function TaskSubmissionsPage() {
           : "/admin/cohorts"
       }
       backLinkText="Back to milestone"
-      isLoading={isLoading}
+      isLoading={authLoading || isLoading}
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}
@@ -124,7 +133,3 @@ function TaskSubmissionsPage() {
     </AdminEditPageLayout>
   );
 }
-
-export default withAdminAuth(TaskSubmissionsPage, {
-  message: "You need admin access to view task submissions",
-});

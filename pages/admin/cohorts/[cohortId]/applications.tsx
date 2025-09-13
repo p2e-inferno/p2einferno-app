@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import { NetworkError } from "@/components/ui/network-error";
@@ -13,7 +19,7 @@ import {
   Settings,
 } from "lucide-react";
 import AdminLayout from "../../../../components/layouts/AdminLayout";
-import { withAdminAuth } from "../../../../components/admin/withAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:[cohortId]:applications");
@@ -59,7 +65,12 @@ interface CohortStats {
   needs_reconciliation: number;
 }
 
-const CohortDetailPage: React.FC = () => {
+export default function CohortDetailPage() {
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -154,11 +165,16 @@ const CohortDetailPage: React.FC = () => {
     }
   }, [applications, fetchCohortData]); // Remove adminFetch from dependencies to prevent infinite loop
 
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
+    if (!authenticated || !isAdmin) return;
+    if (!cohortId) return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
     fetchCohortData();
-  }, [fetchCohortData]);
+  }, [authenticated, isAdmin, cohortId, fetchCohortData]);
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
@@ -175,7 +191,7 @@ const CohortDetailPage: React.FC = () => {
           <NetworkError
             error={error || "Cohort not found"}
             onRetry={handleRefresh}
-            isRetrying={refreshing || loading}
+            isRetrying={refreshing || authLoading || loading}
           />
         </div>
       </AdminLayout>
@@ -511,6 +527,4 @@ const CohortDetailPage: React.FC = () => {
       </div>
     </AdminLayout>
   );
-};
-
-export default withAdminAuth(CohortDetailPage);
+}

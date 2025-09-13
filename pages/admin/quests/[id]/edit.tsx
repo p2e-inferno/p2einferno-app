@@ -1,18 +1,24 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import QuestForm from "@/components/admin/QuestForm";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:quests:[id]:edit");
 
-function EditQuestPage() {
+export default function EditQuestPage() {
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(apiOptions);
 
   const [quest, setQuest] = useState<Quest | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,12 +54,15 @@ function EditQuestPage() {
     [adminFetch],
   );
 
-  // Initial fetch on mount / id change
+  // Initial fetch on mount / id change with auth guard
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
-    if (id && typeof id === "string") {
-      fetchQuestDetails(id);
-    }
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!authenticated || !isAdmin) return;
+    if (!id || typeof id !== "string") return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
+    fetchQuestDetails(id);
+  }, [authenticated, isAdmin, id, fetchQuestDetails]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -71,7 +80,7 @@ function EditQuestPage() {
       title="Edit Quest"
       backLinkHref={`/admin/quests/${id}`}
       backLinkText="Back to Quest Details"
-      isLoading={isLoading}
+      isLoading={authLoading || isLoading}
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}
@@ -86,8 +95,3 @@ function EditQuestPage() {
     </AdminEditPageLayout>
   );
 }
-
-// Export the page wrapped in admin authentication
-export default withAdminAuth(EditQuestPage, {
-  message: "You need admin access to manage quests",
-});

@@ -1,15 +1,20 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:[cohortId]:index");
 
-function EditCohortPage() {
+export default function EditCohortPage() {
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -46,13 +51,16 @@ function EditCohortPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [cohortId]); // adminFetch is now stable due to memoized options
+  }, [cohortId, adminFetch]); // adminFetch is now stable due to memoized options
 
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
-    if (cohortId) {
-      fetchCohort();
-    }
-  }, [cohortId]);
+    if (!authenticated || !isAdmin) return;
+    if (!cohortId) return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
+    fetchCohort();
+  }, [authenticated, isAdmin, cohortId, fetchCohort]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -69,7 +77,7 @@ function EditCohortPage() {
       title="Edit Cohort"
       backLinkHref="/admin/cohorts"
       backLinkText="Back to cohorts"
-      isLoading={isLoading} // This is for data loading, auth loading is handled above
+      isLoading={authLoading || isLoading} // This is for data loading, auth loading is handled above
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}
@@ -86,8 +94,3 @@ function EditCohortPage() {
     </AdminEditPageLayout>
   );
 }
-
-// Export the page wrapped in admin authentication
-export default withAdminAuth(EditCohortPage, {
-  message: "You need admin access to manage cohorts",
-});

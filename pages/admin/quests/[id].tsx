@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,7 +17,7 @@ import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { NetworkError } from "@/components/ui/network-error";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -35,10 +35,16 @@ interface QuestDetails extends Quest {
   pending_submissions?: any[];
 }
 
-function QuestDetailsPage() {
+export default function QuestDetailsPage() {
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(apiOptions);
   const [quest, setQuest] = useState<QuestDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,12 +87,15 @@ function QuestDetailsPage() {
     [adminFetch],
   );
 
-  // Initial fetch on mount / id change
+  // Initial fetch on mount / id change with auth guard
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
-    if (id && typeof id === "string") {
-      fetchQuestDetails(id);
-    }
-  }, [id, fetchQuestDetails]);
+    if (!authenticated || !isAdmin) return;
+    if (!id || typeof id !== "string") return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
+    fetchQuestDetails(id);
+  }, [authenticated, isAdmin, id, fetchQuestDetails]);
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {
@@ -107,7 +116,7 @@ function QuestDetailsPage() {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <AdminLayout>
         <div className="flex justify-center items-center min-h-[400px]">
@@ -366,11 +375,6 @@ function QuestDetailsPage() {
     </AdminLayout>
   );
 }
-
-// Export the page wrapped in admin authentication
-export default withAdminAuth(QuestDetailsPage, {
-  message: "You need admin access to manage quests",
-});
 
 // Local helper to display NetworkError with retry
 function QuestErrorWrapper({

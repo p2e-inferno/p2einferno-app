@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import MilestoneList from "@/components/admin/MilestoneList";
@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -19,7 +19,12 @@ interface CohortWithProgram extends Cohort {
   };
 }
 
-function CohortMilestonesPage() {
+export default function CohortMilestonesPage() {
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
 
@@ -60,11 +65,14 @@ function CohortMilestonesPage() {
     }
   }, [cohortId]); // Remove adminFetch from dependencies to prevent infinite loop
 
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
-    if (cohortId) {
-      fetchCohort();
-    }
-  }, [cohortId, fetchCohort]);
+    if (!authenticated || !isAdmin) return;
+    if (!cohortId) return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
+    fetchCohort();
+  }, [authenticated, isAdmin, cohortId, fetchCohort]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -112,7 +120,7 @@ function CohortMilestonesPage() {
           </div>
         )}
 
-        {isLoading && (
+        {(authLoading || isLoading) && (
           <div className="w-full flex justify-center items-center min-h-[400px]">
             <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
           </div>
@@ -121,8 +129,3 @@ function CohortMilestonesPage() {
     </AdminLayout>
   );
 }
-
-// Export the page wrapped in admin authentication
-export default withAdminAuth(CohortMilestonesPage, {
-  message: "You need admin access to manage cohorts",
-});
