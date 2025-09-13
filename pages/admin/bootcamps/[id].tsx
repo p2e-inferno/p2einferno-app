@@ -1,20 +1,18 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:bootcamps:[id]");
 
 export default function EditBootcampPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, loading: authLoading, user } =
+    useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
@@ -53,14 +51,13 @@ export default function EditBootcampPage() {
     }
   }, [adminFetch, id]);
 
-  const fetchedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!authenticated || !isAdmin) return;
-    if (!id) return;
-    if (fetchedOnceRef.current) return;
-    fetchedOnceRef.current = true;
-    fetchBootcamp();
-  }, [authenticated, isAdmin, id, fetchBootcamp]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [id as string | undefined],
+    fetcher: fetchBootcamp,
+  });
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {

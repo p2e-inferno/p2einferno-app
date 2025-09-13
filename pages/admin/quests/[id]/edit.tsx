@@ -1,20 +1,18 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import QuestForm from "@/components/admin/QuestForm";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:quests:[id]:edit");
 
 export default function EditQuestPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, loading: authLoading, user } =
+    useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
@@ -55,14 +53,15 @@ export default function EditQuestPage() {
   );
 
   // Initial fetch on mount / id change with auth guard
-  const fetchedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!authenticated || !isAdmin) return;
-    if (!id || typeof id !== "string") return;
-    if (fetchedOnceRef.current) return;
-    fetchedOnceRef.current = true;
-    fetchQuestDetails(id);
-  }, [authenticated, isAdmin, id, fetchQuestDetails]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [id as string | undefined],
+    fetcher: () => {
+      if (typeof id === "string") return fetchQuestDetails(id);
+    },
+  });
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {

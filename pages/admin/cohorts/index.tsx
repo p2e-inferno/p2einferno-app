@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
 import { Pencil, Calendar, Trash2, Star } from "lucide-react";
@@ -8,16 +8,14 @@ import { formatDate } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:index");
 
 export default function CohortListPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, loading: authLoading, user } =
+    useLockManagerAdminAuth();
   const [cohorts, setCohorts] = useState<
     (Cohort & { bootcamp_program: BootcampProgram })[]
   >([]);
@@ -46,13 +44,12 @@ export default function CohortListPage() {
     }
   }, [adminFetch]);
 
-  const fetchedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!authenticated || !isAdmin) return;
-    if (fetchedOnceRef.current) return;
-    fetchedOnceRef.current = true;
-    fetchCohorts();
-  }, [authenticated, isAdmin, fetchCohorts]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    fetcher: fetchCohorts,
+  });
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {

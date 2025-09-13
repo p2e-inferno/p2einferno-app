@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import { NetworkError } from "@/components/ui/network-error";
@@ -20,6 +14,7 @@ import {
 } from "lucide-react";
 import AdminLayout from "../../../../components/layouts/AdminLayout";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:[cohortId]:applications");
@@ -66,11 +61,8 @@ interface CohortStats {
 }
 
 export default function CohortDetailPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, loading: authLoading, user } =
+    useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -165,14 +157,13 @@ export default function CohortDetailPage() {
     }
   }, [applications, fetchCohortData]); // Remove adminFetch from dependencies to prevent infinite loop
 
-  const fetchedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!authenticated || !isAdmin) return;
-    if (!cohortId) return;
-    if (fetchedOnceRef.current) return;
-    fetchedOnceRef.current = true;
-    fetchCohortData();
-  }, [authenticated, isAdmin, cohortId, fetchCohortData]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [cohortId as string | undefined],
+    fetcher: fetchCohortData,
+  });
 
   if (authLoading || loading) {
     return (

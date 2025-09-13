@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
@@ -9,16 +9,14 @@ import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:bootcamps:index");
 
 export default function BootcampsPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, loading: authLoading, user } =
+    useLockManagerAdminAuth();
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
   const [error, setError] = useState<string | null>(null);
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
@@ -50,13 +48,12 @@ export default function BootcampsPage() {
     }
   }, [adminFetch]);
 
-  const fetchedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!authenticated || !isAdmin) return;
-    if (fetchedOnceRef.current) return;
-    fetchedOnceRef.current = true;
-    fetchBootcamps();
-  }, [authenticated, isAdmin, fetchBootcamps]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    fetcher: fetchBootcamps,
+  });
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {

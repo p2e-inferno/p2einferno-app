@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskSubmissions from "@/components/admin/TaskSubmissions";
 import type { MilestoneTask, CohortMilestone } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:tasks:[id]:submissions");
@@ -19,11 +20,8 @@ interface TaskWithMilestone extends MilestoneTask {
 }
 
 export default function TaskSubmissionsPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, loading: authLoading, user } =
+    useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -69,14 +67,13 @@ export default function TaskSubmissionsPage() {
     }
   }, [id]); // adminFetch is now stable due to memoized options
 
-  const fetchedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!authenticated || !isAdmin) return;
-    if (!id) return;
-    if (fetchedOnceRef.current) return;
-    fetchedOnceRef.current = true;
-    fetchTask();
-  }, [authenticated, isAdmin, id, fetchTask]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [id as string | undefined],
+    fetcher: fetchTask,
+  });
 
   const handleRetry = async () => {
     setIsRetrying(true);

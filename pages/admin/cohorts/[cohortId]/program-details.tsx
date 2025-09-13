@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import ProgramHighlightsForm from "@/components/admin/ProgramHighlightsForm";
@@ -13,16 +13,14 @@ import type {
 } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:[cohortId]:program-details");
 
 export default function ProgramDetailsPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, loading: authLoading, user } =
+    useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -96,14 +94,13 @@ export default function ProgramDetailsPage() {
     }
   };
 
-  const fetchedOnceRef = useRef(false);
-  useEffect(() => {
-    if (!authenticated || !isAdmin) return;
-    if (!cohortId) return;
-    if (fetchedOnceRef.current) return;
-    fetchedOnceRef.current = true;
-    fetchData();
-  }, [authenticated, isAdmin, cohortId, fetchData]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [cohortId as string | undefined],
+    fetcher: fetchData,
+  });
 
   const handleHighlightsSuccess = () => {
     fetchData();
