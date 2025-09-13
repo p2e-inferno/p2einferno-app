@@ -3,6 +3,7 @@ import { revalidateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_CACHE_TAGS } from '@/lib/config/admin';
+import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 
 const log = getLogger('api:task-submissions');
 
@@ -12,6 +13,8 @@ function invalidate(taskId: string | number | null | undefined) {
 }
 
 export async function GET(req: NextRequest) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
   const supabase = createAdminClient();
   try {
     const url = new URL(req.url);
@@ -31,6 +34,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
   const supabase = createAdminClient();
   try {
     const { id, status, feedback, reviewed_by, reviewed_at } = (await req.json().catch(() => ({}))) as any;
@@ -55,6 +60,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
   const supabase = createAdminClient();
   try {
     const { task_id, submission_url } = (await req.json().catch(() => ({}))) as any;
@@ -74,4 +81,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
-

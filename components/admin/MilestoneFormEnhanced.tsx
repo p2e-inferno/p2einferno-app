@@ -144,7 +144,7 @@ export default function MilestoneFormEnhanced({
   const fetchExistingTasks = async () => {
     try {
       const response = await fetch(
-        `/api/admin/milestone-tasks?milestone_id=${milestone?.id}`,
+        `/api/admin/tasks/by-milestone?milestone_id=${milestone?.id}`,
       );
       if (response.ok) {
         const result = await response.json();

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -37,8 +37,12 @@ interface QuestDetails extends Quest {
 }
 
 export default function QuestDetailsPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);

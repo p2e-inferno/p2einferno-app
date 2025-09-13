@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import { NetworkError } from "@/components/ui/network-error";
@@ -61,8 +61,12 @@ interface CohortStats {
 }
 
 export default function CohortDetailPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -101,7 +105,7 @@ export default function CohortDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [cohortId]); // Remove adminFetch from dependencies to prevent infinite loop
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -125,8 +129,8 @@ export default function CohortDetailPage() {
         toast.error("Failed to reconcile application");
       }
     },
-    [fetchCohortData],
-  ); // Remove adminFetch from dependencies to prevent infinite loop
+    [fetchCohortData], // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const handleBulkReconcile = useCallback(async () => {
     const applicationsNeedingReconciliation = applications.filter(
@@ -155,7 +159,7 @@ export default function CohortDetailPage() {
       log.error("Bulk reconciliation error:", error);
       toast.error("Some reconciliations failed");
     }
-  }, [applications, fetchCohortData]); // Remove adminFetch from dependencies to prevent infinite loop
+  }, [applications, fetchCohortData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useAdminFetchOnce({
     authenticated,

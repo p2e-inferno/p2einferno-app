@@ -3,6 +3,7 @@ import { revalidateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_CACHE_TAGS } from '@/lib/config/admin';
+import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 
 const log = getLogger('api:milestone-tasks');
 
@@ -20,6 +21,8 @@ function invalidateForTask(task: any) {
 }
 
 export async function POST(req: NextRequest) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
   const supabase = createAdminClient();
   try {
     const body = await req.json().catch(() => ({}));
@@ -41,6 +44,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
   const supabase = createAdminClient();
   try {
     const body = await req.json().catch(() => ({}));
@@ -66,6 +71,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
   const supabase = createAdminClient();
   try {
     const url = new URL(req.url);
@@ -87,3 +94,11 @@ export async function DELETE(req: NextRequest) {
   }
 }
 
+// Compatibility: temporary redirect for legacy GET callers
+export async function GET(req: NextRequest) {
+  // We intentionally do not guard here; the target endpoint enforces admin
+  const url = new URL(req.url);
+  const qs = url.searchParams.toString();
+  const target = new URL(`/api/admin/tasks/by-milestone${qs ? `?${qs}` : ''}`, url.origin);
+  return NextResponse.redirect(target, 307);
+}

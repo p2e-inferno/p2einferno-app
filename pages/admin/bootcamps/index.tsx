@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
@@ -15,8 +15,12 @@ import { getLogger } from "@/lib/utils/logger";
 const log = getLogger("admin:bootcamps:index");
 
 export default function BootcampsPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
   const [error, setError] = useState<string | null>(null);
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
@@ -46,7 +50,7 @@ export default function BootcampsPage() {
       log.error("Error fetching bootcamps:", err);
       setError(err.message || "Failed to load bootcamps");
     }
-  }, [adminFetch]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useAdminFetchOnce({
     authenticated,

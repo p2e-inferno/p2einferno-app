@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import QuestForm from "@/components/admin/QuestForm";
@@ -11,8 +11,12 @@ import { getLogger } from "@/lib/utils/logger";
 const log = getLogger("admin:quests:[id]:edit");
 
 export default function EditQuestPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);

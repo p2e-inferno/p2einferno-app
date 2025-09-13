@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
 import { Pencil, Calendar, Trash2, Star } from "lucide-react";
@@ -14,8 +14,12 @@ import { getLogger } from "@/lib/utils/logger";
 const log = getLogger("admin:cohorts:index");
 
 export default function CohortListPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const [cohorts, setCohorts] = useState<
     (Cohort & { bootcamp_program: BootcampProgram })[]
   >([]);

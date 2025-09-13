@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskList from "@/components/admin/TaskList";
@@ -17,8 +17,12 @@ interface MilestoneWithCohort extends CohortMilestone {
 }
 
 export default function MilestoneDetailsPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id: cohortId, milestoneId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -75,7 +79,7 @@ export default function MilestoneDetailsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [milestoneId]); // adminFetch is now stable due to memoized options
+  }, [milestoneId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useAdminFetchOnce({
     authenticated,

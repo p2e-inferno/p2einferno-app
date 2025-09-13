@@ -147,7 +147,7 @@ export default function CohortForm({
   // Validate form whenever formData changes
   useEffect(() => {
     validateForm(formData);
-  }, [formData]); // Remove validateForm from dependencies since it's now stable
+  }, [formData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load draft data on mount
   useEffect(() => {
@@ -197,7 +197,7 @@ export default function CohortForm({
     return () => {
       isMounted = false;
     };
-  }, []); // Empty dependency array - only run on mount, no dependencies on unstable functions
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleChange = (
     e: React.ChangeEvent<

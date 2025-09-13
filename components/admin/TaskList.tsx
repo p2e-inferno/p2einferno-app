@@ -45,7 +45,7 @@ export default function TaskList({
       // Use API endpoint instead of direct Supabase to avoid RLS issues
       // API expects snake_case: milestone_id
       const response = await fetch(
-        `/api/admin/milestone-tasks?milestone_id=${milestoneId}`,
+        `/api/admin/tasks/by-milestone?milestone_id=${milestoneId}`,
       );
 
       if (!response.ok) {

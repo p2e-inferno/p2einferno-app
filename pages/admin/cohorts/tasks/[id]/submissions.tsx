@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskSubmissions from "@/components/admin/TaskSubmissions";
@@ -20,10 +20,15 @@ interface TaskWithMilestone extends MilestoneTask {
 }
 
 export default function TaskSubmissionsPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
+  const taskId = typeof id === "string" ? id : undefined;
   // Memoize options to prevent adminFetch from being recreated every render
   const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch } = useAdminApi(adminApiOptions);
@@ -34,11 +39,12 @@ export default function TaskSubmissionsPage() {
   const [isRetrying, setIsRetrying] = useState(false);
 
   const fetchTask = useCallback(async () => {
+    if (!taskId) return;
     try {
       setIsLoading(true);
 
       // Use consolidated bundle endpoint for task + milestone + cohort
-      const detailsUrl = `/api/v2/admin/tasks/details?task_id=${id}&include=milestone,cohort`;
+      const detailsUrl = `/api/admin/tasks/details?task_id=${taskId}&include=milestone,cohort`;
       const result = await adminFetch<{
         success: boolean;
         data: {
@@ -65,13 +71,13 @@ export default function TaskSubmissionsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [id]); // adminFetch is now stable due to memoized options
+  }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useAdminFetchOnce({
     authenticated,
     isAdmin,
     walletKey: user?.wallet?.address || null,
-    keys: [id as string | undefined],
+    keys: [taskId],
     fetcher: fetchTask,
   });
 

@@ -47,7 +47,22 @@
   - TTL: `ADMIN_SESSION_TTL_SECONDS` (single source). Secret: `ADMIN_SESSION_JWT_SECRET`.
 - Consolidated endpoints: prefer Route Handlers under `app/api/` that return bundled data to cut round‑trips.
   - Implemented: `GET /api/admin/tasks/details?task_id=...&include=milestone,cohort,submissions[:status|:limit|:offset]`.
-  - Keep Pages API versions for compatibility; migrate clients progressively.
+  - Keep Pages API versions for compatibility where they still exist; avoid introducing any `pages/api/v2/*`. Remove legacy v2 pages when found and point callers to the canonical App Route or existing Pages API route.
+
+### Route Handlers: Admin Enforcement (Required)
+- All App Route Handlers under `app/api/admin/*` MUST enforce admin auth using `ensureAdminOrRespond` from `lib/auth/route-handlers/admin-guard`.
+- Pattern to apply at the top of each handler (`GET|POST|PUT|DELETE`):
+  - `const guard = await ensureAdminOrRespond(req);`
+  - `if (guard) return guard;`
+- Behavior mirrors Pages API `withAdminAuth`:
+  - Accept valid short‑lived `admin-session` JWT (cookie/Authorization header) as a fast‑path
+  - Else verify Privy token and check on‑chain admin lock for any user wallet
+  - Dev fallback when `NEXT_PUBLIC_ADMIN_LOCK_ADDRESS` is unset (configurable)
+
+### Milestone Tasks: Read vs Mutations
+- Mutations only: `app/api/admin/milestone-tasks/route.ts` (POST/PUT/DELETE). No GET.
+- Reads use the dedicated endpoint: `GET /api/admin/tasks/by-milestone?milestone_id=...` (or `?id=...`).
+- Update any callers to use the read endpoint (e.g., `TaskList`, `MilestoneFormEnhanced`).
 
 ### New Route Handlers (Mutations + Invalidation)
 - `app/api/admin/milestones/route.ts` (GET/POST/PUT/DELETE)
@@ -61,6 +76,14 @@
 3. Read endpoints: switch to `tasks/details` where multiple fetches are chained.
 4. Write endpoints: switch to Route Handlers listed above to benefit from tag invalidation.
 5. Keep old Pages API calls as fallback until stabilized; remove later.
+
+### Client Fetch Lifecycle (Admin)
+- Use `hooks/useAdminFetchOnce` to run data fetches once per `[auth + wallet + keys]` composite key.
+  - Auth‑aware: waits for `authenticated && isAdmin`
+  - Wallet‑aware: resets when active wallet changes
+  - Key‑aware: resets when entity IDs change
+  - TTL: `timeToLive` re‑runs fetcher (default 5 minutes) with optional `throttleMs`
+- Continue using `useAdminApi` with `autoSessionRefresh` enabled for seamless 401 → session issuance → retry.
 
 See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
 

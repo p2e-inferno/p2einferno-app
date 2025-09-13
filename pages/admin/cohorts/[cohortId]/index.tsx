@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
@@ -11,8 +11,12 @@ import { getLogger } from "@/lib/utils/logger";
 const log = getLogger("admin:cohorts:[cohortId]:index");
 
 export default function EditCohortPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render

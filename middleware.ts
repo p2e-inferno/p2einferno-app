@@ -12,10 +12,9 @@ export async function middleware(req: NextRequest) {
   if (!enabled) return NextResponse.next();
 
   const { pathname } = req.nextUrl;
-  const isV1 = pathname.startsWith('/api/admin');
-  const isV2 = pathname.startsWith('/api/v2/admin');
-  if (!isV1 && !isV2) return NextResponse.next();
-  if (pathname.startsWith('/api/admin/session') || pathname.startsWith('/api/v2/admin/session')) return NextResponse.next();
+  const isAdminApi = pathname.startsWith('/api/admin');
+  if (!isAdminApi) return NextResponse.next();
+  if (pathname.startsWith('/api/admin/session')) return NextResponse.next();
 
   log.info('Checking admin session', { path: pathname });
   const rawCookie = req.headers.get('cookie') || '';

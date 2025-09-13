@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import MilestoneList from "@/components/admin/MilestoneList";
@@ -21,8 +21,12 @@ interface CohortWithProgram extends Cohort {
 }
 
 export default function CohortMilestonesPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { cohortId } = router.query;
 
@@ -61,7 +65,7 @@ export default function CohortMilestonesPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [cohortId]); // Remove adminFetch from dependencies to prevent infinite loop
+  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useAdminFetchOnce({
     authenticated,

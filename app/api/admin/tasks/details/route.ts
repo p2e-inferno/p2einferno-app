@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_CACHE_TAGS, clampPageSize } from '@/lib/config/admin';
 import { parseIncludeParam } from '@/lib/api/parsers/admin-task-details';
+import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 
 const log = getLogger('api:task-details');
 
@@ -19,6 +20,8 @@ export type IncludeFlags = {
 // moved parsing to a standalone helper for easier testing
 
 export async function GET(req: NextRequest) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
   const url = new URL(req.url);
   const taskId = url.searchParams.get('task_id');
   if (!taskId) {

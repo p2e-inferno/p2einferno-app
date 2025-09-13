@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
@@ -11,8 +11,12 @@ import { getLogger } from "@/lib/utils/logger";
 const log = getLogger("admin:bootcamps:[id]");
 
 export default function EditBootcampPage() {
-  const { authenticated, isAdmin, loading: authLoading, user } =
-    useLockManagerAdminAuth();
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+    user,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
@@ -49,7 +53,7 @@ export default function EditBootcampPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [adminFetch, id]);
+  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useAdminFetchOnce({
     authenticated,
