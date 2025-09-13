@@ -1,18 +1,24 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:bootcamps:[id]");
 
-function EditBootcampPage() {
+export default function EditBootcampPage() {
+  const {
+    authenticated,
+    isAdmin,
+    loading: authLoading,
+  } = useLockManagerAdminAuth();
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(apiOptions);
 
   const [bootcamp, setBootcamp] = useState<BootcampProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,11 +53,14 @@ function EditBootcampPage() {
     }
   }, [adminFetch, id]);
 
+  const fetchedOnceRef = useRef(false);
   useEffect(() => {
-    if (id) {
-      fetchBootcamp();
-    }
-  }, [id, fetchBootcamp]);
+    if (!authenticated || !isAdmin) return;
+    if (!id) return;
+    if (fetchedOnceRef.current) return;
+    fetchedOnceRef.current = true;
+    fetchBootcamp();
+  }, [authenticated, isAdmin, id, fetchBootcamp]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -68,7 +77,7 @@ function EditBootcampPage() {
       title="Edit Bootcamp"
       backLinkHref="/admin/bootcamps"
       backLinkText="Back to bootcamps"
-      isLoading={isLoading}
+      isLoading={authLoading || isLoading}
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}
@@ -89,7 +98,3 @@ function EditBootcampPage() {
   );
 }
 
-// Export the page wrapped in admin authentication
-export default withAdminAuth(EditBootcampPage, {
-  message: "You need admin access to manage bootcamps",
-});
