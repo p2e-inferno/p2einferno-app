@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { RefreshCw, ExternalLink } from "lucide-react";
 import { NetworkError } from "@/components/ui/network-error";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:payments:index");
@@ -41,6 +42,7 @@ const AdminPaymentsPage: React.FC = () => {
     authenticated,
   } = useLockManagerAdminAuth();
   const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection() as any;
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
@@ -70,6 +72,7 @@ const AdminPaymentsPage: React.FC = () => {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
       });
 
@@ -111,6 +114,7 @@ const AdminPaymentsPage: React.FC = () => {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           applicationId,

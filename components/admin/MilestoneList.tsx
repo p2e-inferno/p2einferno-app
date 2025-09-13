@@ -14,6 +14,7 @@ import type { CohortMilestone } from "@/lib/supabase/types";
 import MilestoneFormEnhanced from "./MilestoneFormEnhanced";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -35,6 +36,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
     useState<CohortMilestone | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection() as any;
   const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   // Fetch milestones
@@ -108,6 +110,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           id: targetMilestone.id,
@@ -122,6 +125,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           id: milestone.id,
@@ -162,6 +166,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            "X-Active-Wallet": selectedWallet?.address || "",
           },
           body: JSON.stringify({ cohort_id: cohortId }),
         },

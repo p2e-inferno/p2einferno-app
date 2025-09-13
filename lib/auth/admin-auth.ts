@@ -22,24 +22,25 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
   return async (req: NextApiRequest, res: NextApiResponse) => {
     let user: any = null;
     try {
-      // 0. If a valid admin session exists (JWT cookie/header), trust it and proceed
+      const method = (req.method || 'GET').toUpperCase();
+
+      // Strict binding mode: do not trust JWT without wallet validation
+      let hasJwt = false;
+      let jwtWallet: string | null = null;
       try {
         const adminToken = getAdminTokenFromNextApiRequest(req);
         if (adminToken) {
           const payload: any = await verifyAdminSession(adminToken);
           const roles: string[] = Array.isArray(payload?.roles) ? payload.roles : [];
           if (payload?.admin === true || roles.includes('admin')) {
-            log.info('withAdminAuth: admin-session accepted (JWT)');
-            return handler(req, res);
+            hasJwt = true;
+            jwtWallet = (payload?.wallet || '').toString().toLowerCase() || null;
           } else {
             log.warn('withAdminAuth: admin-session present but missing admin role');
           }
-        } else {
-          log.debug('withAdminAuth: no admin-session token found, falling back to Privy');
         }
       } catch (e: any) {
-        log.warn('withAdminAuth: admin-session verification failed, falling back to Privy', { error: e?.message });
-        // Fall through to Privy + on-chain checks
+        log.warn('withAdminAuth: admin-session verification failed; continuing with Privy + on-chain checks', { error: e?.message });
       }
 
       // 1. Get authenticated user and their wallets via getPrivyUser
@@ -82,14 +83,39 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
         return res.status(403).json({ error: "No wallet addresses found" });
       }
 
-      // 5. Check all wallets for valid admin key in parallel (performance optimization)
-      const keyCheckResult = await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress);
-      
-      if (keyCheckResult.hasValidKey) {
+      // 5. Determine active wallet header (optional for GET, required for writes)
+      const activeHeader = (req.headers['x-active-wallet'] || req.headers['X-Active-Wallet'] || '') as string;
+      const activeWallet = activeHeader ? activeHeader.toString().toLowerCase() : '';
+
+      if (method !== 'GET') {
+        if (!activeWallet) return res.status(428).json({ error: 'Active wallet required' });
+        if (!walletAddresses.map((w: string) => w.toLowerCase()).includes(activeWallet)) {
+          return res.status(403).json({ error: 'Active wallet not linked to user' });
+        }
+        const keyRes = await checkMultipleWalletsForAdminKey([activeWallet], adminLockAddress);
+        if (!keyRes?.hasValidKey) return res.status(403).json({ error: 'Admin access required' });
+        if (hasJwt && jwtWallet && jwtWallet !== activeWallet) {
+          return res.status(401).json({ error: 'Session wallet mismatch' });
+        }
         return handler(req, res);
       }
 
-      return res.status(403).json({ error: "Admin access required" });
+      // GET: allow with active wallet or any valid key fallback
+      if (activeWallet) {
+        if (!walletAddresses.map((w: string) => w.toLowerCase()).includes(activeWallet)) {
+          return res.status(403).json({ error: 'Active wallet not linked to user' });
+        }
+        const keyRes = await checkMultipleWalletsForAdminKey([activeWallet], adminLockAddress);
+        if (!keyRes?.hasValidKey) return res.status(403).json({ error: 'Admin access required' });
+        if (hasJwt && jwtWallet && jwtWallet !== activeWallet) {
+          return res.status(401).json({ error: 'Session wallet mismatch' });
+        }
+        return handler(req, res);
+      }
+
+      const keyCheckResult = await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress);
+      if (keyCheckResult.hasValidKey) return handler(req, res);
+      return res.status(403).json({ error: 'Admin access required' });
 
     } catch (error: any) {
       const authError = handleAdminAuthError(error, 'key_verification', { userId: user?.id });

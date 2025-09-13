@@ -5,6 +5,7 @@ import { Upload, X, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
 import { usePrivy } from "@privy-io/react-auth";
 import { getLogger } from "@/lib/utils/logger";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("ui:image-upload");
 
@@ -28,6 +29,7 @@ export default function ImageUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection() as any;
 
   const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
@@ -94,6 +96,7 @@ export default function ImageUpload({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           file: base64Data,
@@ -163,6 +166,7 @@ export default function ImageUpload({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           url: value,

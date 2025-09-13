@@ -22,6 +22,7 @@ import {
 import type { MilestoneTask } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -68,6 +69,7 @@ export default function TaskSubmissions({
   >({});
   const { getAccessToken, user } = usePrivy();
   const { adminFetch } = useAdminApi({ suppressToasts: true });
+  const selectedWallet = useSmartWalletSelection() as any;
 
   useEffect(() => {
     fetchSubmissions();
@@ -158,6 +160,7 @@ export default function TaskSubmissions({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           id: submissionId,

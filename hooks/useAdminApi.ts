@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { useVerifyToken } from "./useVerifyToken";
+import { useSmartWalletSelection } from "./useSmartWalletSelection";
 
 interface UseAdminApiOptions {
   redirectOnAuthError?: boolean;
@@ -24,6 +25,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
   const router = useRouter();
   const { getAccessToken, authenticated } = usePrivy();
   const { verifyToken, loading: tokenVerifying } = useVerifyToken();
+  const selectedWallet = useSmartWalletSelection() as any;
 
   const adminFetch = useCallback(
     async <U = T>(
@@ -54,6 +56,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
+            "X-Active-Wallet": selectedWallet?.address || "",
             ...requestOptions.headers,
           },
           credentials: 'include', // Ensure cookies are sent
@@ -67,14 +70,14 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
               // Prefer Route Handler; fallback to Pages API session-fallback
               let sessionResp = await fetch('/api/admin/session', {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${accessToken}` },
+                headers: { 'Authorization': `Bearer ${accessToken}`, 'X-Active-Wallet': selectedWallet?.address || '' },
                 credentials: 'include',
               });
 
               if (!sessionResp.ok) {
                 sessionResp = await fetch('/api/admin/session-fallback', {
                   method: 'POST',
-                  headers: { 'Authorization': `Bearer ${accessToken}` },
+                  headers: { 'Authorization': `Bearer ${accessToken}`, 'X-Active-Wallet': selectedWallet?.address || '' },
                   credentials: 'include',
                 });
               }
@@ -85,6 +88,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
                   headers: {
                     "Content-Type": "application/json",
                     Authorization: `Bearer ${accessToken}`,
+                    "X-Active-Wallet": selectedWallet?.address || "",
                     ...requestOptions.headers,
                   },
                   credentials: 'include',
@@ -138,7 +142,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
         setLoading(false);
       }
     },
-    [getAccessToken, router, options, verifyToken]
+    [getAccessToken, router, options, verifyToken, selectedWallet?.address]
   );
 
   return {

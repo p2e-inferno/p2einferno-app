@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { Eye, Filter } from "lucide-react";
 import SubmissionReviewModal from "./SubmissionReviewModal";
 import type {
@@ -50,6 +51,7 @@ export default function QuestSubmissionsTable({
   onStatusUpdate,
 }: QuestSubmissionsTableProps) {
   const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection() as any;
   const [submissions, setSubmissions] = useState<SubmissionWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +89,7 @@ export default function QuestSubmissionsTable({
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
+            "X-Active-Wallet": selectedWallet?.address || "",
           },
         },
       );
@@ -137,6 +140,7 @@ export default function QuestSubmissionsTable({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           submissionId,

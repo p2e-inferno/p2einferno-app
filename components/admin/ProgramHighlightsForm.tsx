@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { ProgramHighlight } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:ProgramHighlightsForm");
@@ -34,6 +35,7 @@ export default function ProgramHighlightsForm({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection() as any;
 
   useEffect(() => {
     fetchExistingHighlights();
@@ -131,6 +133,7 @@ export default function ProgramHighlightsForm({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({ highlights: highlightsData, cohortId }),
       });

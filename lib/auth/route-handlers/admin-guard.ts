@@ -16,23 +16,30 @@ const log = getLogger('auth:route-guard');
  */
 export async function ensureAdminOrRespond(req: NextRequest): Promise<NextResponse | null> {
   try {
-    // 1) Fast path: verify admin-session JWT if present
+    const method = req.method?.toUpperCase?.() || 'GET';
+
+    // Read any admin-session token (may be used for wallet binding check)
+    let jwtWallet: string | null = null;
+    let hasJwt = false;
     try {
       const token = getAdminTokenFromRequest(req as any);
       if (token) {
         const payload: any = await verifyAdminSession(token);
         const roles: string[] = Array.isArray(payload?.roles) ? payload.roles : [];
         if (payload?.admin === true || roles.includes('admin')) {
-          log.info('route-guard: admin-session accepted (JWT)');
-          return null;
+          hasJwt = true;
+          jwtWallet = (payload?.wallet || '').toString().toLowerCase() || null;
+        } else {
+          log.warn('route-guard: JWT present but missing admin role');
         }
-        log.warn('route-guard: JWT present but missing admin role');
       }
     } catch (e: any) {
-      log.warn('route-guard: JWT verification failed; falling back to Privy', { error: e?.message });
+      log.warn('route-guard: JWT verification failed; continuing with Privy + on-chain checks', { error: e?.message });
+      hasJwt = false;
+      jwtWallet = null;
     }
 
-    // 2) Privy user (auth required)
+    // Privy user (auth required)
     const user = await getPrivyUserFromNextRequest(req, false);
     if (!user) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -65,16 +72,52 @@ export async function ensureAdminOrRespond(req: NextRequest): Promise<NextRespon
       return NextResponse.json({ error: 'No wallet addresses found' }, { status: 403 });
     }
 
-    // 5) On-chain check
+    // 5) Determine active wallet from header (preferred)
+    const activeHeader = req.headers.get('x-active-wallet') || '';
+    const activeWallet = activeHeader ? activeHeader.toLowerCase() : '';
+
+    // For mutating requests, require active wallet and strict binding
+    if (method !== 'GET') {
+      if (!activeWallet) {
+        return NextResponse.json({ error: 'Active wallet required' }, { status: 428 });
+      }
+      if (!walletAddresses.map((w) => w.toLowerCase()).includes(activeWallet)) {
+        return NextResponse.json({ error: 'Active wallet not linked to user' }, { status: 403 });
+      }
+      const keyRes = await checkMultipleWalletsForAdminKey([activeWallet], adminLockAddress);
+      if (!keyRes?.hasValidKey) {
+        return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      }
+      if (hasJwt && jwtWallet && jwtWallet !== activeWallet) {
+        // Force session rotation on the client
+        return NextResponse.json({ error: 'Session wallet mismatch' }, { status: 401 });
+      }
+      return null;
+    }
+
+    // For reads (GET): allow with either active wallet checks or fallback to any valid key
+    if (activeWallet) {
+      if (!walletAddresses.map((w) => w.toLowerCase()).includes(activeWallet)) {
+        return NextResponse.json({ error: 'Active wallet not linked to user' }, { status: 403 });
+      }
+      const keyRes = await checkMultipleWalletsForAdminKey([activeWallet], adminLockAddress);
+      if (!keyRes?.hasValidKey) {
+        return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
+      }
+      if (hasJwt && jwtWallet && jwtWallet !== activeWallet) {
+        return NextResponse.json({ error: 'Session wallet mismatch' }, { status: 401 });
+      }
+      return null;
+    }
+
+    // No active wallet header: permit only if user still holds a valid admin key on any linked wallet
     const keyRes = await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress);
     if (!keyRes?.hasValidKey) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
-
     return null;
   } catch (error: any) {
     log.error('route-guard error', { error });
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
-

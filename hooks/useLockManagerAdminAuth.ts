@@ -197,6 +197,15 @@ export const useLockManagerAdminAuth = () => {
           log.info("Wallet accounts changed, refreshing admin status");
           // Check admin access again with force refresh (no login needed)
           await checkAdminAccess(true);
+          // Rotate or revoke admin session to match active wallet
+          try {
+            const rotate = await fetch('/api/admin/session', { method: 'POST', credentials: 'include' });
+            if (!rotate.ok) {
+              await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+            }
+          } catch (e) {
+            // ignore network errors; UI will reflect isAdmin state
+          }
         } catch (error) {
           log.error("Error handling account change", { error });
         }

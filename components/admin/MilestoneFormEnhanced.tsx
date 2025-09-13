@@ -7,6 +7,7 @@ import { Plus, Trash2, Zap } from "lucide-react";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useWallets } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "@/lib/unlock/lockUtils";
@@ -84,6 +85,7 @@ export default function MilestoneFormEnhanced({
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(!isEditing);
   const [error, setError] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection() as any;
   const { wallets } = useWallets();
   const wallet = wallets[0];
 
@@ -448,6 +450,7 @@ export default function MilestoneFormEnhanced({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify(milestoneData),
       });
@@ -496,6 +499,7 @@ export default function MilestoneFormEnhanced({
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
+            "X-Active-Wallet": selectedWallet?.address || "",
           },
           body: JSON.stringify({ tasks: tasksData, milestoneId }),
         });
