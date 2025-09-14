@@ -3,7 +3,7 @@ import { base, baseSepolia } from "viem/chains";
 import { ethers, formatUnits, parseUnits } from "ethers";
 import { UNIFIED_BLOCKCHAIN_CONFIG, getClientRpcUrls } from "../blockchain/config/unified-config";
 import { blockchainLogger } from "../blockchain/shared/logging-utils";
-import { createEthersReadOnlyProvider as createSharedReadOnlyProvider } from "../blockchain/shared/client-utils";
+import { getReadOnlyProvider as getUnifiedReadOnlyProvider } from "../blockchain/provider";
 import { 
   ensureCorrectNetwork as ensureCorrectNetworkShared,
   getBlockExplorerUrl as getBlockExplorerUrlShared,
@@ -195,7 +195,7 @@ export const getReadOnlyProvider = () => {
       chainId: chain.id,
     });
   } catch {}
-  return createSharedReadOnlyProvider();
+  return getUnifiedReadOnlyProvider();
 };
 
 /**

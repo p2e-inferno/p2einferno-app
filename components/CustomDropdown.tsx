@@ -12,6 +12,7 @@ interface CustomDropdownProps {
   children: ReactNode;
   contentClassName?: string;
   align?: "end" | "start";
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function CustomDropdown({
@@ -19,6 +20,7 @@ export function CustomDropdown({
   children,
   contentClassName = "",
   align = "end",
+  onOpenChange,
 }: CustomDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -49,6 +51,11 @@ export function CustomDropdown({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
+
+  // Notify parent when open state changes
+  useEffect(() => {
+    if (onOpenChange) onOpenChange(isOpen);
+  }, [isOpen, onOpenChange]);
 
   // Compute viewport-aware position for the dropdown content
   const computePosition = () => {

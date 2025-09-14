@@ -50,7 +50,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
   walletAddress,
 }) => {
   const { balances, loading, error, refreshBalances, networkName } =
-    useWalletBalances();
+    useWalletBalances({ enabled: isOpen });
 
   const shortAddress = `${walletAddress.substring(0, 8)}...${walletAddress.substring(walletAddress.length - 6)}`;
 

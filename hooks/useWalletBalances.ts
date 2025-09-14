@@ -2,11 +2,8 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { ethers } from 'ethers';
 import { getLogger } from '@/lib/utils/logger';
-import { 
-  frontendReadOnlyProvider, 
-  CURRENT_NETWORK, 
-  ERC20_ABI 
-} from '@/lib/blockchain/frontend-config';
+import { CURRENT_NETWORK, ERC20_ABI } from '@/lib/blockchain/frontend-config';
+import { getReadOnlyProvider } from '@/lib/blockchain/provider';
 
 const log = getLogger('hooks:useWalletBalances');
 
@@ -24,7 +21,13 @@ export interface WalletBalance {
   };
 }
 
-export const useWalletBalances = () => {
+interface UseWalletBalancesOptions {
+  enabled?: boolean; // gate RPC usage and polling
+  pollIntervalMs?: number; // default 30s
+}
+
+export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
+  const { enabled = true, pollIntervalMs = 30000 } = options;
   const { user } = usePrivy();
   const [balances, setBalances] = useState<WalletBalance>({
     eth: { balance: '0', formatted: '0.0000', loading: true },
@@ -35,6 +38,15 @@ export const useWalletBalances = () => {
 
   // Get the connected wallet address from provider (same logic as PrivyConnectButton)
   useEffect(() => {
+    if (!enabled) {
+      // When disabled, avoid touching provider and present non-loading zeros
+      setConnectedAddress(null);
+      setBalances({
+        eth: { balance: '0', formatted: '0.0000', loading: false },
+        usdc: { balance: '0', formatted: '0.00', loading: false, symbol: 'USDC' },
+      });
+      return;
+    }
     let isMounted = true;
 
     const readProviderAddress = async () => {
@@ -79,13 +91,13 @@ export const useWalletBalances = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [enabled]);
 
   // Use the same address resolution logic as PrivyConnectButton
   const walletAddress = connectedAddress || user?.wallet?.address || null;
 
   useEffect(() => {
-    if (!walletAddress) {
+    if (!enabled || !walletAddress) {
       setBalances({
         eth: { balance: '0', formatted: '0.0000', loading: false },
         usdc: { balance: '0', formatted: '0.00', loading: false, symbol: 'USDC' },
@@ -97,8 +109,8 @@ export const useWalletBalances = () => {
       try {
         setError(null);
 
-        // Use the reusable frontend provider
-        const provider = frontendReadOnlyProvider;
+        // Use the unified read-only provider singleton
+        const provider = getReadOnlyProvider();
 
         // Fetch ETH balance using ethers
         const ethBalance = await provider.getBalance(walletAddress);
@@ -147,12 +159,12 @@ export const useWalletBalances = () => {
     fetchBalances();
 
     // Refresh balances every 30 seconds
-    const interval = setInterval(fetchBalances, 30000);
+    const interval = setInterval(fetchBalances, pollIntervalMs);
     return () => clearInterval(interval);
-  }, [walletAddress]);
+  }, [walletAddress, enabled, pollIntervalMs]);
 
   const refreshBalances = async () => {
-    if (!walletAddress) return;
+    if (!enabled || !walletAddress) return;
     
     setBalances(prev => ({
       eth: { ...prev.eth, loading: true },
@@ -161,7 +173,7 @@ export const useWalletBalances = () => {
 
     // Trigger a fresh balance fetch
     try {
-      const provider = frontendReadOnlyProvider;
+      const provider = getReadOnlyProvider();
 
       const ethBalance = await provider.getBalance(walletAddress);
       let usdcBalance = 0n;

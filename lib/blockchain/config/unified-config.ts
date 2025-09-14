@@ -210,7 +210,21 @@ const resolveRpcUrls = (chainId: number) => {
  */
 export const createPublicClientUnified = (): PublicClient => {
   const { chain } = resolveChain();
-  const { urls, hosts } = resolveRpcUrls(chain.id);
+  let { urls, hosts } = resolveRpcUrls(chain.id);
+  // On the client, if a keyed provider exists, drop public *.base.org to avoid 403 spam
+  if (typeof window !== 'undefined') {
+    const parseHost = (u: string) => { try { return new URL(u).host; } catch { return '[unparseable]'; } };
+    const keyedPred = (h: string) => /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
+    const publicBasePred = (h: string) => /\.base\.org$/i.test(h);
+    const hasKeyed = hosts.some(keyedPred);
+    if (hasKeyed) {
+      const filtered = urls.filter((u) => !publicBasePred(parseHost(u)));
+      if (filtered.length) {
+        urls = filtered;
+        hosts = urls.map(parseHost);
+      }
+    }
+  }
   const { timeoutMs, stallMs, retryCount, retryDelay } = getRpcFallbackSettings();
 
   blockchainLogger.info('RPC fallback configured', {

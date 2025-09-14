@@ -52,12 +52,15 @@ export function PrivyConnectButton() {
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Use the consistent wallet address detection hook
   const { walletAddress } = useDetectConnectedWalletAddress(user);
 
   // Use the wallet balances hook
-  const { balances, loading: balancesLoading } = useWalletBalances();
+  const { balances, loading: balancesLoading } = useWalletBalances({
+    enabled: isMenuOpen || showWalletModal,
+  });
 
   // Format the wallet address consistently
   const shortAddress = formatWalletAddress(walletAddress);
@@ -120,7 +123,7 @@ export function PrivyConnectButton() {
 
   return (
     <>
-      <CustomDropdown trigger={trigger} align="end">
+      <CustomDropdown trigger={trigger} align="end" onOpenChange={setIsMenuOpen}>
         <CustomDropdownLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">My Wallet</p>

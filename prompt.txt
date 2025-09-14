@@ -1,0 +1,482 @@
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  229ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  222ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  226ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  239ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  232ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  224ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  299ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  232ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  236ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  225ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  223ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  226ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  225ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  227ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  223ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  301ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  223ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  223ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  225ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  220ms]
+▌
+▌
+▌
+▌```. which is still happening  at the same frequency by the way when the server logs show the rpc and
+▌blockchain configuration and we have an api key in the env. so how/why is it calling https://sepolia.base.org/
+
+> You’re seeing those browser POSTs to https://sepolia.base.org because the frontend provider is built with a
+  list that always includes the public Base endpoint, and the provider implementation fans out requests.
+
+  Why it happens
+
+  - URL list always includes public Base: getClientRpcUrls in lib/blockchain/config/unified-config.ts
+  unconditionally appends the public endpoint:
+      - Base Sepolia: after adding Alchemy/Infura, it still does urls.push("https://sepolia.base.org").
+  - Frontend uses ethers FallbackProvider: createFrontendReadOnlyProvider in lib/blockchain/frontend-config.ts
+  builds either a JsonRpcProvider or an ethers.FallbackProvider from getClientRpcUrls().
+      - ethers’ FallbackProvider doesn’t behave like a strict “only if the first fails” chain. It fans out/races
+  (with quorum) to multiple backends to improve latency/reliability, so the browser still sends JSON‑RPC POSTs
+  to the last entry (sepolia.base.org) even when Alchemy/Infura are configured and working.
+      - The public Base RPC frequently returns 403 to cross‑origin JSON‑RPC or rate limits aggressively; those
+  are the 403s you’re seeing. Alchemy/Infura still succeed, so your app continues to work.
+
+  Why server logs look fine
+
+  - The server uses viem with a fallback transport configured (lib/blockchain/config/unified-config.ts and lib/
+  blockchain/server-config.ts). Your logs show it prefers Infura → Alchemy → Base public. That’s server-side.
+  The browser traffic you pasted is produced by the frontend ethers provider.
+
+  What we already did
+
+  - Gated the wallet-balance hook so it only runs when the wallet menu or modal is open. That prevents
+  routine balance reads from generating RPCs in the background. However, as long as FallbackProvider includes
+  sepolia.base.org, any balance reads that do occur will still show a POST to the public RPC alongside the keyed
+  one.
+
+  Two clean fixes to stop the public RPC calls from the browser
+
+  - Filter public Base on the frontend when a keyed URL exists
+      - In lib/blockchain/frontend-config.ts, after calling getClientRpcUrls(), drop hosts that match *.base.org
+  if you also have *.alchemy.com or *.infura.io in the list, then construct the provider from the filtered list.
+  - Add a client env switch (optional)
+      - Gate the inclusion of the public endpoint with an env like
+  NEXT_PUBLIC_RPC_INCLUDE_PUBLIC_FALLBACK=false, and respect it in getClientRpcUrls or only on the frontend.
+
+  If you want, I can apply the minimal patch that:
+
+  - Keeps server fallback unchanged, but in createFrontendReadOnlyProvider filters out *.base.org when there’s
+  at least one keyed provider. This will stop those 403 XHRs entirely while preserving robustness (you still
+  have at least one keyed RPC in the array).
+
+▌does this mean that if its configured the continuous logging to the console will stop?
+
+> Short answer: yes. If we exclude the public Base endpoint from the frontend provider, those repeated 403 XHRs
+  to https://sepolia.base.org will stop.
+
+  Why:
+
+  - The browser calls come from the frontend ethers provider, which currently includes the public endpoint
+  alongside your keyed Alchemy/Infura URLs. FallbackProvider fans out, so it still hits sepolia.base.org and you
+  get 403s.
+  - If we filter out *.base.org when a keyed URL (Alchemy/Infura) is present, the browser will only call the
+  keyed hosts. No more 403 spam.
+
+  What you’ll still see:
+
+  - Successful RPCs to Alchemy/Infura when the wallet menu/modal is open (we gated background polling already),
+  but not the noisy 403s.
+  - If DevTools Network is open, you’ll see those requests listed, but they won’t error.
+
+  Want me to implement the filter now? I’d update createFrontendReadOnlyProvider to:
+
+  - Get the URL list from getClientRpcUrls()
+  - If any URL is Alchemy/Infura, drop any *.base.org entries before constructing the provider
+
+  This keeps server‑side fallback unchanged and removes the public endpoint only on the client.
+
+▌yes go ahead
+
+> I’m going to update the frontend provider to drop the public Base RPC (e.g., sepolia.base.org) when a keyed
+  provider (Alchemy/Infura) is available, so the 403 spam stops.
+
+• Edited lib/blockchain/frontend-config.ts (+21 -4)
+    54       const unified = getClientConfig();
+    55    -  const urls = getClientRpcUrls();
+    56    -  const hosts = urls.map((u) => { try { return new URL(u).host; } catch { return '[unparseable]'; } }
+           );
+    57    -  blockchainLogger.debug('Frontend provider configured (fallback)', { operation: 'provider:create:fro
+           ntend', order: hosts, chainId: unified.chain.id });
+    58    -  const providers = urls.map((u) => new ethers.JsonRpcProvider(u));
+    55    +  const allUrls = getClientRpcUrls();
+    56    +
+    57    +  // Determine keyed vs public URLs and filter out public Base endpoints when a keyed one exists
+    58    +  const parseHost = (u: string) => { try { return new URL(u).host; } catch { return '[unparseable]';
+           } };
+    59    +  const keyedPred = (h: string) => /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
+    60    +  const publicBasePred = (h: string) => /\.base\.org$/i.test(h);
+    61    +
+    62    +  const hostsAll = allUrls.map(parseHost);
+    63    +  const hasKeyed = hostsAll.some(keyedPred);
+    64    +  const filteredUrls = hasKeyed ? allUrls.filter((u) => !publicBasePred(parseHost(u))) : allUrls;
+    65    +  const hostsFiltered = filteredUrls.map(parseHost);
+    66    +
+    67    +  // Log configuration including any filtering that occurred
+    68    +  blockchainLogger.debug('Frontend provider configured (fallback)', {
+    69    +    operation: 'provider:create:frontend',
+    70    +    chainId: unified.chain.id,
+    71    +    order: hostsFiltered,
+    72    +    removedPublicBase: hasKeyed ? hostsAll.filter((h) => publicBasePred(h) && !keyedPred(h)) : [],
+    73    +  });
+    74    +
+    75    +  const providers = filteredUrls.map((u) => new ethers.JsonRpcProvider(u));
+    76       if (providers.length === 0) {
+
+> All set. I filtered the public Base endpoint from the frontend provider whenever a keyed RPC (Alchemy/Infura)
+  is present:
+
+  - lib/blockchain/frontend-config.ts
+      - createFrontendReadOnlyProvider now:
+          - Reads the URL list via getClientRpcUrls().
+          - If any host matches alchemy.com or infura.io, removes any *.base.org entries from the list.
+          - Logs the final order and which public endpoints were removed.
+          - Builds the ethers FallbackProvider using only the filtered URLs.
+
+  Result
+
+  - The browser will stop sending JSON-RPC POSTs to https://sepolia.base.org (and thus those 403s stop), while
+  continuing to use your keyed Alchemy/Infura endpoints.
+  - Combined with the wallet balance gating, you should only see RPC calls when the wallet menu or wallet modal
+  is open.
+
+  Want me to also raise the balance poll interval when the menu is open, or make the same filtering available
+  via an env flag if you ever want to include the public endpoint again?
+
+▌i'm still seeing this logged to the browser continuously ```XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  237ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  236ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  228ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  221ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  223ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  226ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  221ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  231ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  235ms]
+▌
+▌
+▌POST
+▌       https://sepolia.base.org/
+▌Status
+▌403
+▌VersionHTTP/2
+▌Transferred1.09 kB (88 B size)
+▌Referrer Policystrict-origin-when-cross-origin
+▌DNS ResolutionDNS over HTTPS
+▌
+▌
+▌access-control-allow-origin
+▌       *
+▌cf-cache-status
+▌       DYNAMIC
+▌cf-ray
+▌       97f13d30df55bee4-LHR
+▌content-encoding
+▌       gzip
+▌content-type
+▌       application/json
+▌date
+▌       Sun, 14 Sep 2025 16:25:13 GMT
+▌nel
+▌       {"success_fraction":0.01,"report_to":"cf-nel","max_age":604800}
+▌report-to
+▌       {"endpoints":[{"url":"https:\/\/a.nel.cloudflare.com\/report\/v4?
+▌s=B7cYr%2FRKJVH1TLVCKaxq80IGYEIbEVK%2FLPSRdgsjFfQFyR%2FyJuuxI%2FIxM2%2BZgvQ6sTTtopVM6PmY0Aw%2FfLpta%2BaFBGl5NMk
+▌6vaWEuKtOg7Zz%2FUcNfrAuYb3UqbFSvIXMvlM%3D"}],"group":"cf-nel","max_age":604800}
+▌server
+▌       cloudflare
+▌set-cookie
+▌       __cf_bm=gtgJrR057nwV3mV.6MIkU5L8CJsz2cZnW7nEVkNf8HY-1757867113-1.0.1.1-
+▌xpGNNBdueOWaNGSGfflIhBbrMTg.buUVi1PlYYoHsQTqJO9OzBFFy4LznXuL.bVxGPtPyM07UeIU0ValRunEcX6tw_C0zNLQaM._O57XRrE;
+▌path=/; expires=Sun, 14-Sep-25 16:55:13 GMT; domain=.base.org; HttpOnly; Secure; SameSite=None
+▌strict-transport-security
+▌       max-age=2592000
+▌vary
+▌       Origin
+▌x-content-type-options
+▌       nosniff
+▌X-Firefox-Spdy
+▌       h2
+▌x-proxyd-cache-status
+▌       MISS
+▌
+▌Accept
+▌       */*
+▌Accept-Encoding
+▌       gzip, deflate, br, zstd
+▌Accept-Language
+▌       en-US,en;q=0.5
+▌Connection
+▌       keep-alive
+▌Content-Length
+▌       50
+▌Content-Type
+▌       application/json
+▌DNT
+▌       1
+▌Host
+▌       sepolia.base.org
+▌Origin
+▌       http://localhost:3000
+▌Priority
+▌       u=4
+▌Referer
+▌       http://localhost:3000/
+▌Sec-Fetch-Dest
+▌       empty
+▌Sec-Fetch-Mode
+▌       cors
+▌Sec-Fetch-Site
+▌       cross-site
+▌Sec-GPC
+▌       1
+▌TE
+▌       trailers
+▌User-Agent
+▌       Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:142.0) Gecko/20100101 Firefox/142.0
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  234ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  243ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  228ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  231ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  225ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  228ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  242ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  225ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  225ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  612ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  226ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  222ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  253ms]
+▌
+▌https://sepolia.base.org/
+▌[HTTP/2 403  230ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  254ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  362ms]
+▌
+▌XHRPOST
+▌https://sepolia.base.org/
+▌[HTTP/2 403  230ms]
+▌
+▌
+▌
+▌```
+
+• Explored
+  └ Read useENSResolution.ts
+    Search useENSResolution\( in !node_modules
+    Search createPublicClientUnified\(|createPublicClientForChain\( in !node_modules
+    Read client-config.ts
+    Search createClientPublicClient\( in !node_modules
+    Search new ethers\.(JsonRpcProvider|FallbackProvider|BrowserProvider)\(|new ethers\.providers\.
+(JsonRpcProvider|
+           FallbackProvider)\( in !node_modules
+    Read client-utils.ts
+    Search createEthersReadOnlyProvider\(|getReadOnlyProvider\( in !node_modules
+    Read lockUtils.ts
+    Search getHasValidKey\(|getUserKeyBalance\(|getKeyPrice\( in !node_modules
+    Read UnlockUtilsDemo.tsx
+
+• Edited lib/blockchain/config/unified-config.ts (+15 -1)
+    212      const { chain } = resolveChain();
+    213   -  const { urls, hosts } = resolveRpcUrls(chain.id);
+    216   +    const parseHost = (u: string) => { try { return new URL(u).host; } catch { return '[unparseable]'
+           ; } };
+    217   +    const keyedPred = (h: string) => /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
+    218   +    const publicBasePred = (h: string) => /\.base\.org$/i.test(h);
+    219   +    const hasKeyed = hosts.some(keyedPred);
+    220   +    if (hasKeyed) {
+    221   +      const filtered = urls.filter((u) => !publicBasePred(parseHost(u)));
+    222   +      if (filtered.length) {
+    223   +        urls = filtered;
+    224   +        hosts = urls.map(parseHost);
+    225   +      }
+    226   +    }
+    227   +  }
+    228      const { timeoutMs, stallMs, retryCount, retryDelay } = getRpcFallbackSettings();
+
+• Edited lib/blockchain/shared/client-utils.ts (+10 -1)
+    35     export const createEthersReadOnlyProvider = (): ethers.JsonRpcProvider | ethers.FallbackProvider => {
+    36    -  const urls = getClientRpcUrls();
+    36    +  const allUrls = getClientRpcUrls();
+    37    +  // Filter out public Base on client when keyed is available
+    38    +  const parseHost = (u: string) => { try { return new URL(u).host; } catch { return '[unparseable]';
+           } };
+    39    +  const hostsAll = allUrls.map(parseHost);
+    40    +  const keyedPred = (h: string) => /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
+    41    +  const publicBasePred = (h: string) => /\.base\.org$/i.test(h);
+    42    +  const hasKeyed = hostsAll.some(keyedPred);
+    43    +  const urls = (typeof window !== 'undefined' && hasKeyed)
+    44    +    ? allUrls.filter((u) => !publicBasePred(parseHost(u)))
+    45    +    : allUrls;
+    46       const providers = urls.map((u) => new ethers.JsonRpcProvider(u));
+
+• Explored
+  └ Search https://sepolia.base.org|sepolia.base.org in !node_modules
+
+> Got it — the remaining 403s were coming from two other client paths that still included the public Base
+  endpoint:
+
+  - viem public client: createPublicClientUnified() used in client code was still building a fallback that
+  included https://sepolia.base.org.
+  - shared ethers read-only: lib/blockchain/shared/client-utils.ts createEthersReadOnlyProvider() also used the
+  unfiltered list.
+
+  What I changed just now
+
+  - Client viem filter
+      - lib/blockchain/config/unified-config.ts: createPublicClientUnified now filters out any *.base.org URL on
+  the client when a keyed RPC (Alchemy/Infura) is present. Server behavior is unchanged.
+  - Shared ethers filter
+      - lib/blockchain/shared/client-utils.ts: createEthersReadOnlyProvider now applies the same client-side
+  filter before building the FallbackProvider.
+
+  What this means
+
+  - In the browser, as long as you have Alchemy/Infura configured, the app will no longer send JSON-RPC to
+  https://sepolia.base.org, so those continuous 403 XHRPOST entries should stop.
+  - Server-side fallback still includes the public endpoint (as before), which is fine and doesn’t show up in
+  the browser’s network panel.
+
+  Next step
+
+  watch the Network tab; you should only see RPCs to your keyed hosts when the wallet menu/modal is open (we
+  gated the balance hook earlier), and no more 403s to sepolia.base.org.
+
+  If you still see sepolia.base.org requests after a hard refresh, tell me which page is open and I’ll trace any
+  remaining caller and apply the same filter there.
