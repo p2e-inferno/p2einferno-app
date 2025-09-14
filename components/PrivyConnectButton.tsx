@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import {
   CustomDropdown,
@@ -123,7 +123,11 @@ export function PrivyConnectButton() {
 
   return (
     <>
-      <CustomDropdown trigger={trigger} align="end" onOpenChange={setIsMenuOpen}>
+      <CustomDropdown
+        trigger={trigger}
+        align="end"
+        onOpenChange={setIsMenuOpen}
+      >
         <CustomDropdownLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">My Wallet</p>

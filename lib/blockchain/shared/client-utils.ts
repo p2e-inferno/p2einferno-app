@@ -6,8 +6,6 @@
 import { ethers } from "ethers";
 import { type PublicClient, type WalletClient } from "viem";
 import { UNIFIED_BLOCKCHAIN_CONFIG } from "../config/unified-config";
-import { blockchainLogger } from "./logging-utils";
-import { getBrowserProvider as getBrowserProviderUnified } from "../provider";
 
 // ============================================================================
 // TYPES

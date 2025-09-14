@@ -1,6 +1,3 @@
-import { getClientConfig } from './config/unified-config';
-import { blockchainLogger } from './shared/logging-utils';
-
 /**
  * Frontend blockchain configuration
  * This file contains hardcoded values for frontend use to avoid 
@@ -47,9 +44,6 @@ export const getCurrentNetworkConfig = (): NetworkConfig => {
   // In the future, this could be made dynamic based on user selection or other factors
   return NETWORK_CONFIGS[DEFAULT_NETWORK];
 };
-
-// Create a read-only provider for frontend use
-// Note: read-only provider is now provided by '@/lib/blockchain/provider'
 
 // Export current network info for convenience
 export const CURRENT_NETWORK = getCurrentNetworkConfig();

@@ -89,10 +89,7 @@ export default function AdminAccessRequired({
   useEffect(() => {
     if (!walletAddress || !adminLockAddress) return;
 
-    log.info(
-      "[ADMIN_ACCESS_DEBUG] Checking access for wallet:",
-      walletAddress,
-    );
+    log.info("[ADMIN_ACCESS_DEBUG] Checking access for wallet:", walletAddress);
 
     // Reset status while checking
     setAccessStatus({
