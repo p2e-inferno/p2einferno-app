@@ -5,6 +5,8 @@ import { Button } from "../ui/button";
 import Link from "next/link";
 import { RefreshCcw, User, Copy, LogOut, Plus, Unlink } from "lucide-react";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
@@ -21,7 +23,10 @@ export default function AdminAccessRequired({
   const { user, authenticated, login, logout, linkWallet, unlinkWallet } =
     usePrivy();
   const { refreshAdminStatus } = useLockManagerAdminAuth();
-  const [providerAddress, setProviderAddress] = useState<string | null>(null);
+
+  // Use the consistent wallet address detection hook
+  const { walletAddress } = useDetectConnectedWalletAddress(user);
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [accessStatus, setAccessStatus] = useState<{
@@ -34,53 +39,6 @@ export default function AdminAccessRequired({
     isChecking: false,
   });
   const adminLockAddress = process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS;
-
-  // Read the active account from window.ethereum on mount and when it changes
-  useEffect(() => {
-    let mounted = true;
-
-    const getAccounts = async () => {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const accounts: string[] | undefined = await (
-            window as any
-          ).ethereum.request({
-            method: "eth_accounts",
-          });
-          if (mounted) {
-            const addr: string | null =
-              Array.isArray(accounts) && accounts.length > 0
-                ? (accounts[0] as string)
-                : null;
-            setProviderAddress(addr);
-          }
-        } catch (err) {
-          log.warn("Unable to fetch accounts from provider", err);
-        }
-      }
-    };
-
-    getAccounts();
-
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const handler = (accounts: string[]) => {
-        const addr: string | null =
-          Array.isArray(accounts) && accounts.length > 0
-            ? (accounts[0] as string)
-            : null;
-        setProviderAddress(addr);
-      };
-      (window as any).ethereum.on("accountsChanged", handler);
-      return () => {
-        (window as any).ethereum.removeListener("accountsChanged", handler);
-        mounted = false;
-      };
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   // Function to check if user has access and get expiration date
   const checkAccessStatus = useCallback(
@@ -127,16 +85,13 @@ export default function AdminAccessRequired({
     [adminLockAddress],
   );
 
-  // Run access check whenever any wallet changes - use same logic as PrivyConnectButton
+  // Run access check whenever wallet address changes
   useEffect(() => {
-    const addressToCheck = providerAddress || user?.wallet?.address || null;
-    if (!addressToCheck || !adminLockAddress) return;
+    if (!walletAddress || !adminLockAddress) return;
 
     log.info(
       "[ADMIN_ACCESS_DEBUG] Checking access for wallet:",
-      addressToCheck,
-      "Type:",
-      "provider",
+      walletAddress,
     );
 
     // Reset status while checking
@@ -146,8 +101,8 @@ export default function AdminAccessRequired({
       isChecking: true,
     });
 
-    checkAccessStatus(addressToCheck, true);
-  }, [providerAddress, user?.wallet?.address, adminLockAddress, checkAccessStatus]);
+    checkAccessStatus(walletAddress, true);
+  }, [walletAddress, adminLockAddress, checkAccessStatus]);
 
   // Handler for refreshing wallet status
   const handleRefreshStatus = async () => {
@@ -159,10 +114,9 @@ export default function AdminAccessRequired({
       // Then manually check admin access status
       await refreshAdminStatus();
 
-      // Also update the local access status display - check any available wallet
-      const addressToCheck = providerAddress || user?.wallet?.address || null;
-      if (addressToCheck) {
-        await checkAccessStatus(addressToCheck, true);
+      // Also update the local access status display
+      if (walletAddress) {
+        await checkAccessStatus(walletAddress, true);
       }
 
       // Add a small delay to ensure UI updates are visible
@@ -174,13 +128,8 @@ export default function AdminAccessRequired({
     }
   };
 
-  // Get wallet information if available - use same logic as PrivyConnectButton
-  const walletAddress = providerAddress || user?.wallet?.address || null;
-  const shortAddress = walletAddress
-    ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(
-        walletAddress.length - 4,
-      )}`
-    : "No wallet";
+  // Format wallet address consistently
+  const shortAddress = formatWalletAddress(walletAddress);
 
   const numAccounts = user?.linkedAccounts?.length || 0;
   const canRemoveAccount = numAccounts > 1;

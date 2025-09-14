@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePrivy, useUser } from "@privy-io/react-auth";
+import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
@@ -13,62 +14,15 @@ const log = getLogger('client:frontend-admin-auth');
 export const useLockManagerAdminAuth = () => {
   const { authenticated, ready, logout } = usePrivy();
   const { user } = useUser(); // This hook provides full user data including linkedAccounts
+
+  // Use the consistent wallet address detection hook
+  const { walletAddress } = useDetectConnectedWalletAddress(user);
+
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const lastCheckRef = useRef(0);
-
-  // Track connected wallet address like PrivyConnectButton does
-  useEffect(() => {
-    let isMounted = true;
-
-    const readProviderAddress = async () => {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const accounts: string[] | undefined = await (
-            window as any
-          ).ethereum.request({
-            method: "eth_accounts",
-          });
-          if (isMounted) {
-            let addr: string | null = null;
-            if (Array.isArray(accounts) && accounts.length > 0) {
-              addr = accounts[0] as string;
-            }
-            setConnectedAddress(addr ?? null);
-            log.debug(`Connected address updated: ${addr}`);
-          }
-        } catch (err) {
-          log.warn("Unable to fetch accounts from provider", err);
-        }
-      }
-    };
-
-    readProviderAddress();
-
-    // Also update whenever accounts change
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const handler = (accounts: string[]) => {
-        let addr: string | null = null;
-        if (Array.isArray(accounts) && accounts.length > 0) {
-          addr = accounts[0] as string;
-        }
-        setConnectedAddress(addr ?? null);
-        log.info(`Wallet account changed to: ${addr}`);
-      };
-      (window as any).ethereum.on("accountsChanged", handler);
-      return () => {
-        (window as any).ethereum.removeListener("accountsChanged", handler);
-        isMounted = false;
-      };
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
 
   // Function to check admin access via admin lock
   const checkAdminAccess = useCallback(
@@ -104,8 +58,8 @@ export const useLockManagerAdminAuth = () => {
       }
 
       try {
-        // SECURITY: Get the currently connected wallet (prioritize provider over Privy user wallet)
-        const currentWalletAddress = connectedAddress || user?.wallet?.address || null;
+        // SECURITY: Get the currently connected wallet using consistent detection
+        const currentWalletAddress = walletAddress;
 
         if (!currentWalletAddress) {
           log.warn("No currently connected wallet found");
@@ -208,7 +162,7 @@ export const useLockManagerAdminAuth = () => {
         inFlightRef.current = false;
       }
     },
-    [authenticated, user?.id, connectedAddress, logout]
+    [authenticated, user?.id, walletAddress, logout]
   );
 
   // Function to manually refresh admin status
@@ -221,7 +175,7 @@ export const useLockManagerAdminAuth = () => {
     // Run when Privy becomes ready or when connected wallet changes
     if (!ready) return;
     if (authenticated && user) {
-      // Always check admin access when wallet changes, even if connectedAddress is null
+      // Always check admin access when wallet changes
       // This ensures we properly handle wallet disconnections and switches
       checkAdminAccess();
     } else {
@@ -230,7 +184,7 @@ export const useLockManagerAdminAuth = () => {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, authenticated, user?.id, connectedAddress]);
+  }, [ready, authenticated, user?.id, walletAddress]);
 
   // Listen for wallet account changes - now handled by connectedAddress state and useEffect above
   useEffect(() => {

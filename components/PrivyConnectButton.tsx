@@ -8,6 +8,8 @@ import {
 } from "./CustomDropdown";
 import { WalletDetailsModal } from "./WalletDetailsModal";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
+import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 import { getLogger } from "@/lib/utils/logger";
 import {
   User,
@@ -49,65 +51,16 @@ export function PrivyConnectButton() {
   } = usePrivy();
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [showWalletModal, setShowWalletModal] = useState(false);
+
+  // Use the consistent wallet address detection hook
+  const { walletAddress } = useDetectConnectedWalletAddress(user);
 
   // Use the wallet balances hook
   const { balances, loading: balancesLoading } = useWalletBalances();
 
-  // Helper to shorten any address for UI
-  const shorten = (addr: string) =>
-    `${addr.substring(0, 6)}...${addr.substring(addr.length - 4)}`;
-
-  useEffect(() => {
-    let isMounted = true;
-
-    const readProviderAddress = async () => {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const accounts: string[] | undefined = await (
-            window as any
-          ).ethereum.request({
-            method: "eth_accounts",
-          });
-          if (isMounted) {
-            let addr: string | null = null;
-            if (Array.isArray(accounts) && accounts.length > 0) {
-              addr = accounts[0] as string;
-            }
-            setConnectedAddress(addr ?? null);
-          }
-        } catch (err) {
-          log.warn("Unable to fetch accounts from provider", err);
-        }
-      }
-    };
-
-    readProviderAddress();
-
-    // Also update whenever accounts change
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const handler = (accounts: string[]) => {
-        let addr: string | null = null;
-        if (Array.isArray(accounts) && accounts.length > 0) {
-          addr = accounts[0] as string;
-        }
-        setConnectedAddress(addr ?? null);
-      };
-      (window as any).ethereum.on("accountsChanged", handler);
-      return () => {
-        (window as any).ethereum.removeListener("accountsChanged", handler);
-        isMounted = false;
-      };
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
-
-  const walletAddress = connectedAddress || user?.wallet?.address || null;
-  const shortAddress = walletAddress ? shorten(walletAddress) : "No wallet";
+  // Format the wallet address consistently
+  const shortAddress = formatWalletAddress(walletAddress);
 
   const handleViewWalletDetails = () => {
     setShowWalletModal(true);
