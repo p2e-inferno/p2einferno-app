@@ -220,8 +220,14 @@ export const useLockManagerAdminAuth = () => {
   useEffect(() => {
     // Run when Privy becomes ready or when connected wallet changes
     if (!ready) return;
-    if (authenticated && user && connectedAddress !== null) {
+    if (authenticated && user) {
+      // Always check admin access when wallet changes, even if connectedAddress is null
+      // This ensures we properly handle wallet disconnections and switches
       checkAdminAccess();
+    } else {
+      // If not authenticated, immediately set admin to false
+      setIsAdmin(false);
+      setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, authenticated, user?.id, connectedAddress]);
@@ -234,6 +240,9 @@ export const useLockManagerAdminAuth = () => {
         log.info("Wallet accounts changed - immediately revoking admin access");
         setIsAdmin(false);
         setLoading(true);
+
+        // Clear any in-flight check to allow immediate re-checking
+        inFlightRef.current = false;
 
         try {
           // Force session logout first to clear any stale admin sessions

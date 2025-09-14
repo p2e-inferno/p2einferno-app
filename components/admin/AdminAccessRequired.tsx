@@ -5,7 +5,6 @@ import { Button } from "../ui/button";
 import Link from "next/link";
 import { RefreshCcw, User, Copy, LogOut, Plus, Unlink } from "lucide-react";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
@@ -22,7 +21,6 @@ export default function AdminAccessRequired({
   const { user, authenticated, login, logout, linkWallet, unlinkWallet } =
     usePrivy();
   const { refreshAdminStatus } = useLockManagerAdminAuth();
-  const selectedWallet = useSmartWalletSelection();
   const [providerAddress, setProviderAddress] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -129,16 +127,16 @@ export default function AdminAccessRequired({
     [adminLockAddress],
   );
 
-  // Run access check whenever any wallet changes - prioritize smart wallet selection
+  // Run access check whenever any wallet changes - use same logic as PrivyConnectButton
   useEffect(() => {
-    const addressToCheck = selectedWallet?.address || providerAddress;
+    const addressToCheck = providerAddress || user?.wallet?.address || null;
     if (!addressToCheck || !adminLockAddress) return;
 
     log.info(
       "[ADMIN_ACCESS_DEBUG] Checking access for wallet:",
       addressToCheck,
       "Type:",
-      selectedWallet?.walletClientType || "provider",
+      "provider",
     );
 
     // Reset status while checking
@@ -149,7 +147,7 @@ export default function AdminAccessRequired({
     });
 
     checkAccessStatus(addressToCheck, true);
-  }, [selectedWallet, providerAddress, adminLockAddress, checkAccessStatus]);
+  }, [providerAddress, user?.wallet?.address, adminLockAddress, checkAccessStatus]);
 
   // Handler for refreshing wallet status
   const handleRefreshStatus = async () => {
@@ -162,7 +160,7 @@ export default function AdminAccessRequired({
       await refreshAdminStatus();
 
       // Also update the local access status display - check any available wallet
-      const addressToCheck = selectedWallet?.address || providerAddress;
+      const addressToCheck = providerAddress || user?.wallet?.address || null;
       if (addressToCheck) {
         await checkAccessStatus(addressToCheck, true);
       }
@@ -176,15 +174,13 @@ export default function AdminAccessRequired({
     }
   };
 
-  // Get wallet information if available - prioritize smart wallet selection over provider address
-  const walletAddress = selectedWallet?.address || providerAddress || null;
+  // Get wallet information if available - use same logic as PrivyConnectButton
+  const walletAddress = providerAddress || user?.wallet?.address || null;
   const shortAddress = walletAddress
     ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(
         walletAddress.length - 4,
       )}`
-    : selectedWallet
-      ? "Embedded Wallet"
-      : "No wallet";
+    : "No wallet";
 
   const numAccounts = user?.linkedAccounts?.length || 0;
   const canRemoveAccount = numAccounts > 1;
