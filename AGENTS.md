@@ -44,6 +44,7 @@
 - Admin session: short‑lived JWT stored in an HttpOnly cookie (`admin-session`).
   - Issue: `POST /api/admin/session` after Privy login; server verifies Privy and admin key once, then sets cookie.
   - Verify: Optional middleware (disabled by default) enforces session on `/api/admin/*`. Enable with `ADMIN_SESSION_ENABLED=true`.
+  - Middleware behavior (cookie‑only): When enabled, middleware accepts only the `admin-session` cookie for `/api/admin/*` and ignores `Authorization` headers. It bypasses `/api/admin/session`, `/api/admin/session-fallback`, and `/api/admin/logout` so the client can mint/rotate/clear the cookie.
   - TTL: `ADMIN_SESSION_TTL_SECONDS` (single source). Secret: `ADMIN_SESSION_JWT_SECRET`.
 - Consolidated endpoints: prefer Route Handlers under `app/api/` that return bundled data to cut round‑trips.
   - Implemented: `GET /api/admin/tasks/details?task_id=...&include=milestone,cohort,submissions[:status|:limit|:offset]`.
@@ -55,8 +56,8 @@
   - `const guard = await ensureAdminOrRespond(req);`
   - `if (guard) return guard;`
 - Behavior mirrors Pages API `withAdminAuth`:
-  - Accept valid short‑lived `admin-session` JWT (cookie/Authorization header) as a fast‑path
-  - Else verify Privy token and check on‑chain admin lock for any user wallet
+  - Accept valid short‑lived `admin-session` JWT (cookie fast‑path)
+  - Else verify Privy token and check on‑chain admin lock for any user wallet (reads) or for the `X-Active-Wallet` (writes)
   - Dev fallback when `NEXT_PUBLIC_ADMIN_LOCK_ADDRESS` is unset (configurable)
 
 ### Milestone Tasks: Read vs Mutations
@@ -83,9 +84,22 @@
   - Wallet‑aware: resets when active wallet changes
   - Key‑aware: resets when entity IDs change
   - TTL: `timeToLive` re‑runs fetcher (default 5 minutes) with optional `throttleMs`
-- Continue using `useAdminApi` with `autoSessionRefresh` enabled for seamless 401 → session issuance → retry.
+- Continue using `useAdminApi` with `autoSessionRefresh` enabled for seamless 401 → `POST /api/admin/session` (with `Authorization: Bearer <Privy>` + `X-Active-Wallet`) → retry.
+- Option: pass `verifyTokenBeforeRequest: true` to `useAdminApi` to ensure a fresh Privy token before issuing requests.
 
 See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
+
+## Blockchain Clients (Frontend)
+- Unified ethers read‑only provider: `lib/blockchain/provider.ts#getReadOnlyProvider()` is the single source for browser read calls. It filters public Base RPC (`*.base.org`) when a keyed RPC (Alchemy/Infura) is configured to avoid 403s/noise, and builds an `ethers.FallbackProvider` when multiple URLs exist.
+- Wallet provider (signing): use `getBrowserProvider()` or existing helpers that construct `ethers.BrowserProvider` from `window.ethereum` when user interaction/signing is required.
+- Viem PublicClient: `createPublicClientUnified()` is available for reads; on the client it also filters public Base RPC when keyed endpoints exist.
+- Balance polling gating: `hooks/useWalletBalances` accepts `{ enabled, pollIntervalMs }` and should be enabled only when the wallet menu/modal is open.
+
+## Middleware Behavior (Admin)
+- When `ADMIN_SESSION_ENABLED=true`:
+  - `/api/admin/*` requires a valid `admin-session` cookie; `Authorization` headers are ignored by middleware.
+  - The following paths are exempted: `/api/admin/session`, `/api/admin/session-fallback`, `/api/admin/logout`.
+  - Route handlers still perform wallet/key checks via `ensureAdminOrRespond`.
 
 ## Retryable Error UX
 - Use `components/ui/network-error` for fetch/DB failures with a Try Again button.
@@ -98,6 +112,10 @@ See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
 - `ADMIN_MAX_PAGE_SIZE` — upper bound for list endpoints (default 200).
 - `ADMIN_SESSION_ENABLED` — enable middleware enforcement on `/api/admin/*` (default false).
 - `ADMIN_SESSION_JWT_SECRET` — HS256 secret for admin session signing. Set a strong random value in prod.
+ - `ADMIN_RPC_FALLBACK_STALL_MS` — viem/ethers fallback ranking stall window (ms) for RPC client.
+ - `ADMIN_RPC_FALLBACK_RETRY_COUNT` — fallback retry count for RPC client.
+ - `ADMIN_RPC_FALLBACK_RETRY_DELAY_MS` — fallback retry delay (ms).
+ - `ADMIN_RPC_WARMUP_DISABLED` — set to `1` to disable server RPC warm‑up in development.
 
 ## Migration Notes
 - Existing Pages API endpoints remain unchanged; new Route Handlers are additive.
