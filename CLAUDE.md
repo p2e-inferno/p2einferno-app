@@ -33,6 +33,7 @@ npm run db:migrate          # Apply Supabase migrations
 - Server auth helpers: `lib/auth/privy.ts` (`getPrivyUser` with JWT fallback), `lib/auth/admin-auth.ts` (middleware), `lib/auth/admin-key-checker.ts` (parallel key checks), `lib/auth/error-handler.ts` (structured errors), `lib/auth/config-validation.ts`.
 - Admin lock address: `NEXT_PUBLIC_ADMIN_LOCK_ADDRESS`. In dev, fallback uses `DEV_ADMIN_ADDRESSES`.
 - Client auth hook: `lib/auth/hooks/useAuth.ts`.
+- **Admin Security**: `hooks/useLockManagerAdminAuth.ts` implements wallet-session validation to prevent session hijacking. Connected wallet must belong to current Privy user; forces logout on mismatch. Tracks provider address via `eth_accounts` for immediate UI protection on wallet changes.
 
 ## Database (Supabase CLI)
 - Preferred: Supabase CLI. If unsure, run `supabase --help`.

@@ -123,7 +123,12 @@ const AdminApplicationsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedStatus, selectedPaymentStatus, getAccessToken]);
+  }, [
+    selectedStatus,
+    selectedPaymentStatus,
+    getAccessToken,
+    selectedWallet?.address,
+  ]);
 
   useEffect(() => {
     if (authenticated && isAdmin && isClient) {

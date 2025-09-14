@@ -58,7 +58,7 @@ export default async function handler(
         const maxAge = exp - Math.floor(Date.now() / 1000);
         setCookie(res, "admin-session", token, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === "production",
+          secure: (process.env.NODE_ENV as string) === "production",
           sameSite: "lax",
           path: "/",
           maxAge,
@@ -94,7 +94,7 @@ export default async function handler(
             const maxAge = exp - Math.floor(Date.now() / 1000);
             setCookie(res, "admin-session", token, {
               httpOnly: true,
-              secure: process.env.NODE_ENV === "production",
+              secure: (process.env.NODE_ENV as string) === "production",
               sameSite: "lax",
               path: "/",
               maxAge,

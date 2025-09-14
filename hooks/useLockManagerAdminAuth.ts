@@ -11,13 +11,64 @@ const log = getLogger('client:frontend-admin-auth');
  * @returns Object with isAdmin status, loading state, and user information
  */
 export const useLockManagerAdminAuth = () => {
-  const { authenticated, ready } = usePrivy();
+  const { authenticated, ready, logout } = usePrivy();
   const { user } = useUser(); // This hook provides full user data including linkedAccounts
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [lastRefreshTime, setLastRefreshTime] = useState(0);
+  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const inFlightRef = useRef(false);
   const lastCheckRef = useRef(0);
+
+  // Track connected wallet address like PrivyConnectButton does
+  useEffect(() => {
+    let isMounted = true;
+
+    const readProviderAddress = async () => {
+      if (typeof window !== "undefined" && (window as any).ethereum) {
+        try {
+          const accounts: string[] | undefined = await (
+            window as any
+          ).ethereum.request({
+            method: "eth_accounts",
+          });
+          if (isMounted) {
+            let addr: string | null = null;
+            if (Array.isArray(accounts) && accounts.length > 0) {
+              addr = accounts[0] as string;
+            }
+            setConnectedAddress(addr ?? null);
+            log.debug(`Connected address updated: ${addr}`);
+          }
+        } catch (err) {
+          log.warn("Unable to fetch accounts from provider", err);
+        }
+      }
+    };
+
+    readProviderAddress();
+
+    // Also update whenever accounts change
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      const handler = (accounts: string[]) => {
+        let addr: string | null = null;
+        if (Array.isArray(accounts) && accounts.length > 0) {
+          addr = accounts[0] as string;
+        }
+        setConnectedAddress(addr ?? null);
+        log.info(`Wallet account changed to: ${addr}`);
+      };
+      (window as any).ethereum.on("accountsChanged", handler);
+      return () => {
+        (window as any).ethereum.removeListener("accountsChanged", handler);
+        isMounted = false;
+      };
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Function to check admin access via admin lock
   const checkAdminAccess = useCallback(
@@ -53,108 +104,93 @@ export const useLockManagerAdminAuth = () => {
       }
 
       try {
-        // Get ALL wallet addresses from user's linked accounts (like backend does)
-        let walletAddresses: string[] = [];
+        // SECURITY: Get the currently connected wallet (prioritize provider over Privy user wallet)
+        const currentWalletAddress = connectedAddress || user?.wallet?.address || null;
 
-        // Add provider address if available (current selection)
-        if (typeof window !== "undefined" && (window as any).ethereum) {
-          try {
-            const accounts: string[] = await (window as any).ethereum.request({
-              method: "eth_accounts",
-            });
-            if (accounts && accounts.length > 0 && accounts[0]) {
-              walletAddresses.push(accounts[0]);
-            }
-          } catch (err) {
-            log.warn("Unable to read accounts from provider", { err });
-          }
-        }
-
-        // Add wallet from Privy user object
-        if (user.wallet?.address) {
-          walletAddresses.push(user.wallet.address);
-        }
-
-        // Get ALL linked wallet addresses from backend (like backend admin-auth does)
-        try {
-          const response = await fetch('/api/user/wallet-addresses', {
-            method: 'GET',
-            credentials: 'include', // Include cookies for authentication
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.walletAddresses) {
-              log.info(`Got ${data.walletAddresses.length} wallet addresses from backend`, { walletAddresses: data.walletAddresses });
-              walletAddresses = [...walletAddresses, ...data.walletAddresses];
-            }
-          } else {
-            log.warn('Failed to fetch wallet addresses from backend, falling back to local data');
-          }
-        } catch (error) {
-          log.error('Error fetching wallet addresses from backend', { error });
-        }
-
-        // Fallback: Add linkedAccounts from frontend (may be incomplete)
-        if (user.linkedAccounts) {
-          log.info(`Processing ${user.linkedAccounts.length} linked accounts as fallback...`);
-          for (const account of user.linkedAccounts) {
-            if (account.type === "wallet" && account.address) {
-              walletAddresses.push(account.address);
-            }
-          }
-        }
-
-        // Remove duplicates
-        const uniqueWalletAddresses = [...new Set(walletAddresses)];
-
-        // If we don't have any wallet addresses, we cannot continue
-        if (uniqueWalletAddresses.length === 0) {
+        if (!currentWalletAddress) {
+          log.warn("No currently connected wallet found");
           setIsAdmin(false);
           setLoading(false);
           inFlightRef.current = false;
           return;
         }
 
-        log.debug(`User object`, { user });
-        log.debug(`User linkedAccounts`, { linkedAccounts: user?.linkedAccounts });
-        log.info(`Checking ${uniqueWalletAddresses.length} wallet(s) for admin access`, { uniqueWalletAddresses });
+        log.info(`Currently connected wallet: ${currentWalletAddress}`);
 
-        // Check ALL wallets for admin access (like backend does)
-        let hasValidKey = false;
+        // SECURITY: Validate that the connected wallet belongs to the current Privy user session
+        let walletBelongsToUser = false;
 
-        for (const walletAddress of uniqueWalletAddresses) {
-          try {
-            const keyInfo = await lockManagerService.checkUserHasValidKey(
-              walletAddress as Address,
-              adminLockAddress as Address,
-              forceRefresh
-            );
+        // Check if connected wallet is the primary Privy wallet
+        if (user.wallet?.address?.toLowerCase() === currentWalletAddress.toLowerCase()) {
+          walletBelongsToUser = true;
+          log.debug("Connected wallet matches primary Privy wallet");
+        }
 
-            if (keyInfo && keyInfo.isValid) {
-              hasValidKey = true;
-              
-              log.info(
-                `✅ Admin access GRANTED for ${walletAddress}, expires: ${
-                  keyInfo.expirationTimestamp > BigInt(Number.MAX_SAFE_INTEGER)
-                    ? "Never (infinite)"
-                    : new Date(
-                        Number(keyInfo.expirationTimestamp) * 1000
-                      ).toLocaleString()
-                }`,
-                { walletAddress }
-              );
-              break; // Stop checking once we find a valid key
-            } else {
-              log.info(`❌ Admin access DENIED for ${walletAddress}`);
+        // Check if connected wallet is in user's linked accounts
+        if (!walletBelongsToUser && user.linkedAccounts) {
+          for (const account of user.linkedAccounts) {
+            if (
+              account.type === "wallet" &&
+              account.address?.toLowerCase() === currentWalletAddress.toLowerCase()
+            ) {
+              walletBelongsToUser = true;
+              log.debug("Connected wallet found in linked accounts");
+              break;
             }
-          } catch (error) {
-            log.error(`Error checking ${walletAddress}`, { error });
           }
         }
 
-        if (!hasValidKey) {
-          log.info(`❌ No valid admin keys found across ${uniqueWalletAddresses.length} wallet(s)`);
+        // SECURITY: If connected wallet doesn't belong to current user, force logout
+        if (!walletBelongsToUser) {
+          log.warn(
+            `🚨 SECURITY: Connected wallet ${currentWalletAddress} does not belong to current user ${user.id}. Forcing logout to prevent session hijacking.`
+          );
+
+          try {
+            // Force session logout to clear any stale admin sessions
+            await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+          } catch (e) {
+            // Ignore network errors, we'll force Privy logout anyway
+          }
+
+          // Force Privy logout
+          await logout();
+
+          setIsAdmin(false);
+          setLoading(false);
+          inFlightRef.current = false;
+          return;
+        }
+
+        log.info(`✅ Wallet validation passed: ${currentWalletAddress} belongs to user ${user.id}`);
+
+        // Now check ONLY the validated connected wallet for admin access
+        let hasValidKey = false;
+
+        try {
+          const keyInfo = await lockManagerService.checkUserHasValidKey(
+            currentWalletAddress as Address,
+            adminLockAddress as Address,
+            forceRefresh
+          );
+
+          if (keyInfo && keyInfo.isValid) {
+            hasValidKey = true;
+
+            log.info(
+              `✅ Admin access GRANTED for validated wallet ${currentWalletAddress}, expires: ${
+                keyInfo.expirationTimestamp > BigInt(Number.MAX_SAFE_INTEGER)
+                  ? "Never (infinite)"
+                  : new Date(
+                      Number(keyInfo.expirationTimestamp) * 1000
+                    ).toLocaleString()
+              }`
+            );
+          } else {
+            log.info(`❌ Admin access DENIED for validated wallet ${currentWalletAddress}`);
+          }
+        } catch (error) {
+          log.error(`Error checking validated wallet ${currentWalletAddress}`, { error });
         }
 
         setIsAdmin(hasValidKey);
@@ -172,7 +208,7 @@ export const useLockManagerAdminAuth = () => {
         inFlightRef.current = false;
       }
     },
-    [authenticated, user?.id]
+    [authenticated, user?.id, connectedAddress, logout]
   );
 
   // Function to manually refresh admin status
@@ -182,33 +218,32 @@ export const useLockManagerAdminAuth = () => {
   }, [checkAdminAccess]);
 
   useEffect(() => {
-    // Run once when Privy becomes ready
+    // Run when Privy becomes ready or when connected wallet changes
     if (!ready) return;
-    checkAdminAccess();
+    if (authenticated && user && connectedAddress !== null) {
+      checkAdminAccess();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready]);
+  }, [ready, authenticated, user?.id, connectedAddress]);
 
-  // Listen for wallet account changes
+  // Listen for wallet account changes - now handled by connectedAddress state and useEffect above
   useEffect(() => {
     if (typeof window !== "undefined" && window.ethereum) {
       const handleAccountsChanged = async () => {
-        // When accounts change, just re-check admin access without re-login
+        // IMMEDIATE UI PROTECTION: Revoke admin status immediately on wallet change
+        log.info("Wallet accounts changed - immediately revoking admin access");
+        setIsAdmin(false);
+        setLoading(true);
+
         try {
-          log.info("Wallet accounts changed, refreshing admin status");
-          // Check admin access again with force refresh (no login needed)
-          await checkAdminAccess(true);
-          // Rotate or revoke admin session to match active wallet
-          try {
-            const rotate = await fetch('/api/admin/session', { method: 'POST', credentials: 'include' });
-            if (!rotate.ok) {
-              await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
-            }
-          } catch (e) {
-            // ignore network errors; UI will reflect isAdmin state
-          }
-        } catch (error) {
-          log.error("Error handling account change", { error });
+          // Force session logout first to clear any stale admin sessions
+          await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+        } catch (e) {
+          // ignore network errors
         }
+
+        // The checkAdminAccess will be triggered automatically by the connectedAddress useEffect
+        log.info("Admin status will be re-checked automatically for new wallet");
       };
 
       window.ethereum.on("accountsChanged", handleAccountsChanged);
@@ -221,7 +256,7 @@ export const useLockManagerAdminAuth = () => {
         );
       };
     }
-  }, [checkAdminAccess]);
+  }, []);
 
   return {
     isAdmin,

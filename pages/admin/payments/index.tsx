@@ -91,7 +91,7 @@ const AdminPaymentsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [getAccessToken]);
+  }, [getAccessToken, selectedWallet?.address]);
 
   useEffect(() => {
     if (authenticated && isAdmin && isClient) {

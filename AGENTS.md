@@ -123,3 +123,12 @@ See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
 - Validate config on startup (`lib/auth/config-validation.ts`).
 - Review CSP and auth docs in `docs/` before changing security-sensitive code.
 - Database changes must include Supabase migrations in `supabase/migrations/` and be applied with `db:migrate`.
+
+## Admin Security Architecture
+- **Wallet-Session Validation**: `hooks/useLockManagerAdminAuth.ts` implements defense against session hijacking attacks.
+  - Tracks connected wallet via provider `eth_accounts` calls (similar to `PrivyConnectButton` pattern)
+  - Validates connected wallet belongs to current Privy user's linked accounts
+  - Forces immediate logout (both admin session and Privy) when wallet doesn't match user
+  - Only checks admin access for validated connected wallet (prevents privilege escalation via stale sessions)
+  - Provides immediate UI protection on wallet changes with loading states
+- **Security Principle**: Connected wallet must own the session; changing wallets invalidates authentication state to prevent unauthorized access through persistent sessions.
