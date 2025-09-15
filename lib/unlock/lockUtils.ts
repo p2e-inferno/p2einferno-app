@@ -257,7 +257,7 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
   });
 
   // Handle different wallet types:
-  let provider;
+  let provider: any;
 
   if (typeof wallet.getEthereumProvider === "function") {
     // This is from useWallets() - has getEthereumProvider method
@@ -296,15 +296,34 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
     throw new Error("No provider available for wallet");
   }
 
-  log.info("🔧 [LOCK_UTILS] Provider obtained:", provider);
+  // Avoid logging the raw provider object (can be recursive/circular)
+  try {
+    const provDesc = {
+      hasRequest: typeof provider?.request === 'function',
+      hasSend: typeof provider?.send === 'function',
+      hasGetSigner: typeof provider?.getSigner === 'function',
+      isBrowserProvider: provider instanceof ethers.BrowserProvider,
+      ctor: provider?.constructor?.name,
+    };
+    log.info("🔧 [LOCK_UTILS] Provider obtained (summary):", provDesc);
+  } catch {}
 
   try {
-    const ethersProvider = new ethers.BrowserProvider(provider);
+    // If provider is already an ethers BrowserProvider, use it directly to avoid recursive wrapping
+    const ethersProvider = provider instanceof ethers.BrowserProvider
+      ? provider
+      : new ethers.BrowserProvider(provider);
     const signer = await ethersProvider.getSigner();
+
+    // Normalize rawProvider to an EIP-1193 provider for network switching
+    // Prefer a .request-capable object; fall back to underlying provider or window.ethereum
+    const rawProviderNormalized = (provider as any)?.request
+      ? provider
+      : ((provider as any)?.provider ?? (typeof window !== 'undefined' ? (window as any).ethereum : provider));
 
     log.info("🔧 [LOCK_UTILS] Ethers provider and signer created successfully");
 
-    return { provider: ethersProvider, signer, rawProvider: provider };
+    return { provider: ethersProvider, signer, rawProvider: rawProviderNormalized };
   } catch (error) {
     log.error("🔧 [LOCK_UTILS] Error creating ethers provider:", error);
     throw new Error("Failed to create ethers provider from wallet");

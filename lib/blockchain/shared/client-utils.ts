@@ -47,7 +47,7 @@ export const createEthersFromPrivyWallet = async (
   // Handle both wallet types:
   // - wallets[0] from useWallets() has getEthereumProvider()
   // - user.wallet from usePrivy() might have a different structure
-  let provider;
+  let provider: any;
 
   if (typeof wallet.getEthereumProvider === "function") {
     // This is from useWallets() - has getEthereumProvider method
@@ -61,13 +61,21 @@ export const createEthersFromPrivyWallet = async (
     );
   }
 
-  const ethersProvider = new ethers.BrowserProvider(provider);
+  // If provider is already an ethers BrowserProvider, use it directly to avoid recursive wrapping
+  const ethersProvider = provider instanceof ethers.BrowserProvider
+    ? provider
+    : new ethers.BrowserProvider(provider);
   const signer = await ethersProvider.getSigner();
+
+  // Normalize rawProvider to EIP-1193 for network switching
+  const rawProviderNormalized = (provider as any)?.request
+    ? provider
+    : ((provider as any)?.provider ?? (typeof window !== 'undefined' ? (window as any).ethereum : provider));
 
   return { 
     provider: ethersProvider, 
     signer, 
-    rawProvider: provider 
+    rawProvider: rawProviderNormalized 
   };
 };
 

@@ -42,6 +42,13 @@ export const ensureCorrectNetwork = async (
   rawProvider: any,
   config: NetworkConfig
 ): Promise<void> => {
+  // Normalize to an EIP-1193 provider with .request to avoid recursion when passed an ethers BrowserProvider
+  if (typeof rawProvider?.request !== 'function') {
+    const candidate = (rawProvider as any)?.provider ?? (typeof window !== 'undefined' ? (window as any).ethereum : undefined);
+    if (candidate && typeof candidate.request === 'function') {
+      rawProvider = candidate;
+    }
+  }
   const targetChainId = config.chain.id;
   const targetChainIdHex = `0x${targetChainId.toString(16)}`;
 
