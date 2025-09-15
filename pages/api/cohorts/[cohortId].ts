@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { getPrivyUser } from "@/lib/auth/privy";
 import type {
   BootcampProgram,
   Cohort,
@@ -22,6 +23,10 @@ interface CohortDetailsResponse {
   milestones: MilestoneWithTasks[];
   highlights: ProgramHighlight[];
   requirements: ProgramRequirement[];
+  userEnrollment?: {
+    isEnrolledInBootcamp: boolean;
+    enrolledCohortId?: string;
+  };
 }
 
 interface ApiResponse<T> {
@@ -51,6 +56,22 @@ export default async function handler(
   }
 
   try {
+    const supabase = createAdminClient();
+    // Optional user context
+    let userProfileId: string | null = null;
+    try {
+      const user = await getPrivyUser(req);
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("privy_user_id", user.id)
+          .single();
+        userProfileId = profile?.id || null;
+      }
+    } catch {
+      // Proceed unauthenticated
+    }
     // Fetch cohort details first to get bootcamp_program_id
     const { data: cohortData, error: cohortError } = await supabase
       .from("cohorts")
@@ -127,12 +148,34 @@ export default async function handler(
       );
     }
 
+    // User enrollment awareness (is enrolled in this bootcamp at large)
+    let userEnrollment: CohortDetailsResponse["userEnrollment"] | undefined =
+      undefined;
+    if (userProfileId) {
+      const { data: enrollments } = await supabase
+        .from("bootcamp_enrollments")
+        .select("id, cohort:cohort_id ( id, bootcamp_program_id )")
+        .eq("user_profile_id", userProfileId);
+
+      const match = (enrollments || []).find((en: any) => {
+        const c = Array.isArray(en.cohort) ? en.cohort[0] : en.cohort;
+        return c?.bootcamp_program_id === cohortData.bootcamp_program_id;
+      });
+      userEnrollment = {
+        isEnrolledInBootcamp: !!match,
+        enrolledCohortId: match
+          ? (Array.isArray(match.cohort) ? match.cohort[0] : match.cohort)?.id
+          : undefined,
+      };
+    }
+
     const response: CohortDetailsResponse = {
       bootcamp: bootcampData,
       cohort: cohortData,
       milestones: milestonesData || [],
       highlights: highlightsData || [],
       requirements: requirementsData || [],
+      userEnrollment,
     };
 
     res.status(200).json({

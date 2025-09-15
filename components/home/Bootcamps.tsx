@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
 
 import { NetworkError } from "@/components/ui/network-error";
@@ -19,9 +20,12 @@ export function Bootcamps() {
   const [error, setError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
 
+  const { authenticated, getAccessToken } = usePrivy();
+
   useEffect(() => {
     fetchBootcamps();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated]);
 
   const fetchBootcamps = async (isRetry = false) => {
     try {
@@ -33,11 +37,19 @@ export function Bootcamps() {
       }
 
       // Use Next.js API route instead of direct Supabase calls
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      try {
+        if (authenticated) {
+          const token = await getAccessToken();
+          if (token) headers.Authorization = `Bearer ${token}`;
+        }
+      } catch {}
+
       const response = await fetch("/api/bootcamps", {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
 
       if (!response.ok) {

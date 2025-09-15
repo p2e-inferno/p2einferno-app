@@ -9,6 +9,7 @@ import { MainLayout } from "@/components/layouts/MainLayout";
 import { Clock, Users, Trophy, Calendar, ChevronRight } from "lucide-react";
 import { calculateTimeRemaining } from "@/lib/utils/registration-validation";
 import { getLogger } from "@/lib/utils/logger";
+import { usePrivy } from "@privy-io/react-auth";
 
 const log = getLogger("bootcamp:[id]");
 
@@ -21,6 +22,8 @@ interface BootcampData {
   image_url?: string;
   created_at: string;
   updated_at: string;
+  enrolled_in_bootcamp?: boolean;
+  enrolled_cohort_id?: string;
   cohorts: {
     id: string;
     name: string;
@@ -32,6 +35,7 @@ interface BootcampData {
     status: "open" | "closed" | "upcoming";
     usdt_amount?: number;
     naira_amount?: number;
+    is_enrolled?: boolean;
   }[];
 }
 
@@ -57,6 +61,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
 
 export default function BootcampPage({ bootcampId }: BootcampPageProps) {
   const router = useRouter();
+  const { authenticated, getAccessToken } = usePrivy();
   const [bootcamp, setBootcamp] = useState<BootcampData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,7 +71,15 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
     try {
       setLoading(true);
 
-      const response = await fetch(`/api/bootcamps/${bootcampId}`);
+      let headers: Record<string, string> = {};
+      try {
+        if (authenticated) {
+          const token = await getAccessToken();
+          if (token) headers.Authorization = `Bearer ${token}`;
+        }
+      } catch {}
+
+      const response = await fetch(`/api/bootcamps/${bootcampId}`, { headers });
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -86,7 +99,7 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
     } finally {
       setLoading(false);
     }
-  }, [bootcampId]);
+  }, [bootcampId, authenticated, getAccessToken]);
 
   useEffect(() => {
     fetchBootcampData();
@@ -338,43 +351,82 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                           </div>
                         </div>
 
-                        {/* Registration Deadline */}
-                        <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 mb-6 border border-faded-grey/20">
-                          <div className="text-center">
-                            <div className="text-sm font-medium">
-                              Registration Deadline
-                            </div>
-                            <div className="text-xs text-faded-grey">
-                              {new Date(
-                                cohort.registration_deadline,
-                              ).toLocaleDateString("en-US", {
-                                month: "short",
-                                day: "numeric",
-                                year: "numeric",
-                              })}
+                        {/* Registration / Enrollment Status */}
+                        {bootcamp.enrolled_in_bootcamp &&
+                        bootcamp.enrolled_cohort_id === cohort.id ? (
+                          <div className="bg-green-500/10 backdrop-blur-sm rounded-lg p-3 mb-6 border border-green-500/20 text-center">
+                            <div className="text-sm font-medium text-green-400">
+                              Enrolled in Bootcamp
                             </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 mb-6 border border-faded-grey/20">
+                            <div className="text-center">
+                              <div className="text-sm font-medium">
+                                Registration Deadline
+                              </div>
+                              <div className="text-xs text-faded-grey">
+                                {new Date(
+                                  cohort.registration_deadline,
+                                ).toLocaleDateString("en-US", {
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
                         {/* CTA Button */}
-                        <Button
-                          onClick={() => handleJoinCohort(cohort.id)}
-                          disabled={!isOpen || spotsRemaining <= 0}
-                          className={`group w-full font-bold py-3 transition-all transform hover:scale-105 ${
-                            isOpen && spotsRemaining > 0
-                              ? "bg-steel-red hover:bg-steel-red/90 text-white"
-                              : "bg-faded-grey/20 text-faded-grey cursor-not-allowed"
-                          }`}
-                        >
-                          {isOpen && spotsRemaining > 0
-                            ? "Join Cohort"
-                            : spotsRemaining <= 0
-                              ? "Cohort Full"
-                              : "Registration Closed"}
-                          {isOpen && spotsRemaining > 0 && (
+                        {cohort.is_enrolled ? (
+                          <Button
+                            onClick={() =>
+                              router.push(`/lobby/bootcamps/${cohort.id}`)
+                            }
+                            className="group w-full font-bold py-3 bg-green-600 hover:bg-green-700 text-white transition-all"
+                          >
+                            Continue Learning
                             <ChevronRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-                          )}
-                        </Button>
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handleJoinCohort(cohort.id)}
+                            disabled={
+                              !isOpen ||
+                              spotsRemaining <= 0 ||
+                              (bootcamp.enrolled_in_bootcamp &&
+                                bootcamp.enrolled_cohort_id !== cohort.id)
+                            }
+                            className={`group w-full font-bold py-3 transition-all transform hover:scale-105 ${
+                              isOpen &&
+                              spotsRemaining > 0 &&
+                              !(
+                                bootcamp.enrolled_in_bootcamp &&
+                                bootcamp.enrolled_cohort_id !== cohort.id
+                              )
+                                ? "bg-steel-red hover:bg-steel-red/90 text-white"
+                                : "bg-faded-grey/20 text-faded-grey cursor-not-allowed"
+                            }`}
+                          >
+                            {bootcamp.enrolled_in_bootcamp &&
+                            bootcamp.enrolled_cohort_id !== cohort.id
+                              ? "Unavailable"
+                              : isOpen && spotsRemaining > 0
+                                ? "Join Cohort"
+                                : spotsRemaining <= 0
+                                  ? "Cohort Full"
+                                  : "Registration Closed"}
+                            {isOpen &&
+                              spotsRemaining > 0 &&
+                              !(
+                                bootcamp.enrolled_in_bootcamp &&
+                                bootcamp.enrolled_cohort_id !== cohort.id
+                              ) && (
+                                <ChevronRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                              )}
+                          </Button>
+                        )}
                       </CardHeader>
                     </Card>
                   );

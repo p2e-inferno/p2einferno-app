@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -142,6 +142,11 @@ export default function ApplicationPage({
 }: ApplicationPageProps) {
   const router = useRouter();
   const { getAccessToken } = usePrivy();
+  const [isEnrollGuardLoading, setIsEnrollGuardLoading] = useState(true);
+  const [enrolledGuard, setEnrolledGuard] = useState<{
+    enrolled: boolean;
+    enrolledCohortId?: string;
+  } | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
@@ -165,6 +170,48 @@ export default function ApplicationPage({
       (app) => app?.cohort_id === cohortId && app?.payment_status === "pending",
     );
   }
+
+  // Early guard: verify enrollment via API to prevent reaching payment step
+  useEffect(() => {
+    let cancelled = false;
+    async function checkEnrollment() {
+      try {
+        setIsEnrollGuardLoading(true);
+        let headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        try {
+          const token = await getAccessToken();
+          if (token) headers.Authorization = `Bearer ${token}`;
+        } catch {}
+        const resp = await fetch(`/api/cohorts/${cohortId}`, {
+          method: "GET",
+          headers,
+        });
+        if (!resp.ok) throw new Error("Failed to check enrollment");
+        const result = await resp.json();
+        const userEnrollment = result?.data?.userEnrollment;
+        if (!cancelled) {
+          if (userEnrollment?.isEnrolledInBootcamp) {
+            setEnrolledGuard({
+              enrolled: true,
+              enrolledCohortId: userEnrollment.enrolledCohortId,
+            });
+          } else {
+            setEnrolledGuard({ enrolled: false });
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setEnrolledGuard({ enrolled: false });
+      } finally {
+        if (!cancelled) setIsEnrollGuardLoading(false);
+      }
+    }
+    checkEnrollment();
+    return () => {
+      cancelled = true;
+    };
+  }, [cohortId, getAccessToken]);
 
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -448,6 +495,55 @@ export default function ApplicationPage({
                 Complete Application
               </a>
             </Button>
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Guard priority: API-confirmed enrollment; fallback to dashboard data
+  const dashboardEnrolled =
+    dashboardData?.enrollments?.some(
+      (enr) => (enr.cohort as any)?.bootcamp_program?.id === bootcamp.id,
+    ) || false;
+  const dashboardEnrolledCohortId = dashboardData?.enrollments?.find(
+    (enr) => (enr.cohort as any)?.bootcamp_program?.id === bootcamp.id,
+  )?.cohort?.id;
+  const shouldGuard = enrolledGuard?.enrolled === true || dashboardEnrolled;
+  const guardCohortId =
+    enrolledGuard?.enrolledCohortId || dashboardEnrolledCohortId;
+
+  if (shouldGuard && !isEnrollGuardLoading) {
+    return (
+      <MainLayout>
+        <Head>
+          <title>Already Enrolled - {bootcamp.name}</title>
+        </Head>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background py-12">
+          <Card className="max-w-lg w-full p-8 text-center bg-gradient-to-br from-green-900/30 to-emerald-900/20 border border-green-500/20">
+            <CheckCircle size={48} className="mx-auto mb-4 text-green-400" />
+            <h2 className="text-2xl font-bold mb-2 text-green-300">
+              Already Enrolled
+            </h2>
+            <p className="text-faded-grey mb-6">
+              You&apos;re already enrolled in this bootcamp and cannot apply to
+              another cohort at this time.
+            </p>
+            {guardCohortId ? (
+              <Button
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-3 rounded-xl"
+                onClick={() => router.push(`/lobby/bootcamps/${guardCohortId}`)}
+              >
+                Continue Learning
+              </Button>
+            ) : (
+              <Button
+                className="w-full bg-flame-yellow text-black hover:bg-flame-orange font-bold text-lg py-3 rounded-xl"
+                onClick={() => router.push("/lobby")}
+              >
+                Go to Lobby
+              </Button>
+            )}
           </Card>
         </div>
       </MainLayout>

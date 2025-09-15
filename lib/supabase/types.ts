@@ -242,6 +242,9 @@ export interface BootcampWithCohorts {
   image_url?: string;
   created_at: string;
   updated_at: string;
+  // Optional enrollment-aware flags provided by API routes
+  enrolled_in_bootcamp?: boolean;
+  enrolled_cohort_id?: string;
   cohorts: Array<Cohort & {
     is_enrolled?: boolean;
     user_enrollment_id?: string;

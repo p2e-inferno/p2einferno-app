@@ -39,6 +39,7 @@ interface PaymentPageProps {
   application: Application;
   cohort: Cohort;
   bootcamp: BootcampProgram;
+  enrolledCohortId?: string | null;
 }
 
 export const getServerSideProps: GetServerSideProps = async ({ params }) => {
@@ -64,16 +65,6 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
     if (error || !application) {
       return {
         notFound: true,
-      };
-    }
-
-    // Check if payment is already completed
-    if (application.payment_status === "completed") {
-      return {
-        redirect: {
-          destination: "/lobby",
-          permanent: false,
-        },
       };
     }
 
@@ -103,12 +94,30 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
       };
     }
 
+    // Check if user is already enrolled in this bootcamp
+    let enrolledCohortId: string | null = null;
+    if ((application as any).user_profile_id) {
+      const { data: enrollments } = await supabase
+        .from("bootcamp_enrollments")
+        .select("id, cohort:cohort_id ( id, bootcamp_program_id )")
+        .eq("user_profile_id", (application as any).user_profile_id);
+
+      const match = (enrollments || []).find((en: any) => {
+        const c = Array.isArray(en.cohort) ? en.cohort[0] : en.cohort;
+        return c?.bootcamp_program_id === bootcamp.id;
+      });
+      enrolledCohortId = match
+        ? (Array.isArray(match.cohort) ? match.cohort[0] : match.cohort)?.id
+        : null;
+    }
+
     return {
       props: {
         applicationId,
         application,
         cohort,
         bootcamp,
+        enrolledCohortId,
       },
     };
   } catch (error) {
@@ -124,6 +133,7 @@ export default function PaymentPage({
   application,
   cohort,
   bootcamp,
+  enrolledCohortId,
 }: PaymentPageProps) {
   const router = useRouter();
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>("NGN");
@@ -149,6 +159,9 @@ export default function PaymentPage({
     }
   };
 
+  const isPaymentCompleted = application.payment_status === "completed";
+  const isAlreadyEnrolled = !!enrolledCohortId;
+
   return (
     <>
       <Head>
@@ -169,20 +182,79 @@ export default function PaymentPage({
               </h1>
 
               <div className="space-y-6">
-                {/* Application Status */}
-                {application.payment_status === "pending" && (
-                  <Card className="p-4 bg-blue-50 border-blue-200">
+                {/* Application/Enrollment Status */}
+                {isPaymentCompleted ? (
+                  <Card className="p-4 bg-green-50 border-green-200">
                     <div className="flex items-center gap-3">
-                      <AlertCircle className="w-5 h-5 text-blue-600" />
+                      <CheckCircle className="w-5 h-5 text-green-600" />
                       <div>
-                        <h3 className="font-bold text-blue-800">
-                          Payment Required
+                        <h3 className="font-bold text-green-800">
+                          Payment Completed
                         </h3>
-                        <p className="text-sm text-blue-700">
-                          Complete your payment to secure your spot in the
-                          bootcamp
+                        <p className="text-sm text-green-700">
+                          Your payment has been received. You can continue your
+                          learning journey now.
                         </p>
                       </div>
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() =>
+                          router.push(
+                            enrolledCohortId
+                              ? `/lobby/bootcamps/${enrolledCohortId}`
+                              : "/lobby",
+                          )
+                        }
+                      >
+                        Continue Learning
+                      </Button>
+                    </div>
+                  </Card>
+                ) : (
+                  application.payment_status === "pending" && (
+                    <Card className="p-4 bg-blue-50 border-blue-200">
+                      <div className="flex items-center gap-3">
+                        <AlertCircle className="w-5 h-5 text-blue-600" />
+                        <div>
+                          <h3 className="font-bold text-blue-800">
+                            Payment Required
+                          </h3>
+                          <p className="text-sm text-blue-700">
+                            Complete your payment to secure your spot in the
+                            bootcamp
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                )}
+
+                {/* Enrollment guard */}
+                {!isPaymentCompleted && isAlreadyEnrolled && (
+                  <Card className="p-4 bg-green-50 border-green-200">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <div>
+                        <h3 className="font-bold text-green-800">
+                          Already Enrolled
+                        </h3>
+                        <p className="text-sm text-green-700">
+                          You are already enrolled in this bootcamp. No
+                          additional payment is required.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <Button
+                        className="w-full bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() =>
+                          router.push(`/lobby/bootcamps/${enrolledCohortId}`)
+                        }
+                      >
+                        Continue Learning
+                      </Button>
                     </div>
                   </Card>
                 )}
@@ -259,27 +331,29 @@ export default function PaymentPage({
                     />
 
                     {/* Payment Component */}
-                    {paymentMethod === "paystack" ? (
-                      <PaystackPayment
-                        applicationId={applicationId}
-                        cohortId={application.cohort_id}
-                        amount={totalAmount}
-                        currency={selectedCurrency}
-                        email={application.user_email}
-                        walletAddress={dashboardData?.profile?.wallet_address}
-                        onSuccess={handlePaymentSuccess}
-                      />
-                    ) : (
-                      <BlockchainPayment
-                        applicationId={applicationId}
-                        cohortId={application.cohort_id}
-                        amount={totalAmount}
-                        currency={selectedCurrency}
-                        email={application.user_email}
-                        lockAddress={cohort.lock_address || ""}
-                        onSuccess={handlePaymentSuccess}
-                      />
-                    )}
+                    {!isPaymentCompleted &&
+                      !isAlreadyEnrolled &&
+                      (paymentMethod === "paystack" ? (
+                        <PaystackPayment
+                          applicationId={applicationId}
+                          cohortId={application.cohort_id}
+                          amount={totalAmount}
+                          currency={selectedCurrency}
+                          email={application.user_email}
+                          walletAddress={dashboardData?.profile?.wallet_address}
+                          onSuccess={handlePaymentSuccess}
+                        />
+                      ) : (
+                        <BlockchainPayment
+                          applicationId={applicationId}
+                          cohortId={application.cohort_id}
+                          amount={totalAmount}
+                          currency={selectedCurrency}
+                          email={application.user_email}
+                          lockAddress={cohort.lock_address || ""}
+                          onSuccess={handlePaymentSuccess}
+                        />
+                      ))}
 
                     <p className="text-center text-sm text-faded-grey">
                       Your spot will be secured once payment is completed

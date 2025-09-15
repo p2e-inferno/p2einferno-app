@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getPrivyUser } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:bootcamps:[id]");
@@ -13,6 +14,8 @@ interface BootcampWithCohorts {
   image_url?: string;
   created_at: string;
   updated_at: string;
+  enrolled_in_bootcamp?: boolean;
+  enrolled_cohort_id?: string;
   cohorts: {
     id: string;
     name: string;
@@ -54,6 +57,22 @@ export default async function handler(
   }
 
   try {
+    const supabase = createAdminClient();
+    // Resolve user profile (optional)
+    let userProfileId: string | null = null;
+    try {
+      const user = await getPrivyUser(req);
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("privy_user_id", user.id)
+          .single();
+        userProfileId = profile?.id || null;
+      }
+    } catch {
+      // unauthenticated is fine; continue without enrollment flags
+    }
     // Fetch bootcamp details
     const { data: bootcampData, error: bootcampError } = await supabase
       .from("bootcamp_programs")
@@ -96,9 +115,33 @@ export default async function handler(
       throw new Error(`Failed to fetch cohorts: ${cohortsError.message}`);
     }
 
+    let enrolledInBootcamp = false;
+    let enrolledCohortId: string | undefined = undefined;
+
+    if (userProfileId && Array.isArray(cohortsData) && cohortsData.length) {
+      const { data: enrollments } = await supabase
+        .from("bootcamp_enrollments")
+        .select("id, cohort_id")
+        .eq("user_profile_id", userProfileId);
+
+      const ids = new Set((enrollments || []).map((e: any) => e.cohort_id));
+      const match = (cohortsData || []).find((c: any) => ids.has(c.id));
+      enrolledInBootcamp = !!match;
+      enrolledCohortId = match?.id;
+    }
+
+    // Include cohort-level is_enrolled decoration for convenience
+    const decoratedCohorts = (cohortsData || []).map((c: any) => ({
+      ...c,
+      is_enrolled: enrolledCohortId === c.id,
+      user_enrollment_id: undefined as string | undefined,
+    }));
+
     const bootcampWithCohorts: BootcampWithCohorts = {
       ...bootcampData,
-      cohorts: cohortsData || [],
+      enrolled_in_bootcamp: enrolledInBootcamp,
+      enrolled_cohort_id: enrolledCohortId,
+      cohorts: decoratedCohorts,
     };
 
     res.status(200).json({

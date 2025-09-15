@@ -45,6 +45,7 @@
   "exclude": [
     "node_modules",
     "supabase/functions",
-    ".next/types/validator.ts"
+    ".next/types/validator.ts",
+    "coverage"
   ]
 }

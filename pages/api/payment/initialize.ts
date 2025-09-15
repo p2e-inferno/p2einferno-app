@@ -61,7 +61,7 @@ export default async function handler(
     // Check if application exists and fetch cohort data
     const { data: application, error: appError } = await supabase
       .from("applications")
-      .select("id, user_email, payment_status, cohort_id")
+      .select("id, user_email, user_profile_id, payment_status, cohort_id")
       .eq("id", applicationId)
       .single();
 
@@ -74,7 +74,7 @@ export default async function handler(
     // Fetch cohort data for pricing validation
     const { data: cohort, error: cohortError } = await supabase
       .from("cohorts")
-      .select("naira_amount, usdt_amount")
+      .select("naira_amount, usdt_amount, bootcamp_program_id")
       .eq("id", application.cohort_id)
       .single();
 
@@ -98,6 +98,44 @@ export default async function handler(
       return res.status(400).json({
         error: "Payment already completed for this application",
       });
+    }
+
+    // Guard: Prevent payment if user is already enrolled in this bootcamp (any cohort under same bootcamp_program_id)
+    // Resolve user profile id if missing by matching email
+    let userProfileId = application.user_profile_id as string | null;
+    if (!userProfileId && application.user_email) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("email", application.user_email)
+        .maybeSingle();
+      userProfileId = profile?.id || null;
+    }
+
+    if (userProfileId) {
+      const { data: enrollments, error: enrollErr } = await supabase
+        .from("bootcamp_enrollments")
+        .select("id, cohort:cohort_id ( id, bootcamp_program_id )")
+        .eq("user_profile_id", userProfileId);
+
+      if (enrollErr) {
+        log.error("Error checking existing enrollments", enrollErr);
+        return res
+          .status(500)
+          .json({ error: "Failed to validate enrollment status" });
+      }
+
+      const enrolledInBootcamp = (enrollments || []).some((en: any) => {
+        const c = Array.isArray(en.cohort) ? en.cohort[0] : en.cohort;
+        return c?.bootcamp_program_id === cohort.bootcamp_program_id;
+      });
+
+      if (enrolledInBootcamp) {
+        return res.status(409).json({
+          error:
+            "You are already enrolled in this bootcamp. No additional payment is required.",
+        });
+      }
     }
 
     // Generate payment reference

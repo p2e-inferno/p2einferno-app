@@ -1,5 +1,5 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import type { ApiResponse } from "@/lib/api";
 import { getLogger } from "@/lib/utils/logger";
@@ -15,6 +15,9 @@ interface BootcampWithCohorts {
   image_url?: string;
   created_at: string;
   updated_at: string;
+  // Enrollment-aware flags (per bootcamp)
+  enrolled_in_bootcamp?: boolean;
+  enrolled_cohort_id?: string;
   cohorts: {
     id: string;
     name: string;
@@ -43,6 +46,7 @@ export default async function handler(
   }
 
   try {
+    const supabase = createAdminClient();
     // Get user to check enrollment status
     let userProfileId: string | null = null;
     try {
@@ -117,25 +121,32 @@ export default async function handler(
     }
 
     // Combine bootcamps with their cohorts and enrollment status
+    const userEnrolledCohortIds = new Set(
+      (userEnrollments || []).map((e: any) => e.cohort_id),
+    );
+
     const bootcampsWithCohorts: BootcampWithCohorts[] = (bootcamps || []).map(
       (bootcamp) => {
         const bootcampCohorts = (cohorts || [])
           .filter((cohort) => cohort.bootcamp_program_id === bootcamp.id)
           .map((cohort) => {
-            // Check if user is enrolled in this cohort
-            const enrollment = userEnrollments.find(
-              (enrollment) => enrollment.cohort_id === cohort.id,
-            );
-
+            const isEnrolled = userEnrolledCohortIds.has(cohort.id);
+            const enrollment = isEnrolled
+              ? userEnrollments.find((en) => en.cohort_id === cohort.id)
+              : null;
             return {
               ...cohort,
-              is_enrolled: !!enrollment,
+              is_enrolled: isEnrolled,
               user_enrollment_id: enrollment?.id || undefined,
             };
           });
 
+        const enrolledCohort = bootcampCohorts.find((c) => c.is_enrolled);
+
         return {
           ...bootcamp,
+          enrolled_in_bootcamp: !!enrolledCohort,
+          enrolled_cohort_id: enrolledCohort?.id,
           cohorts: bootcampCohorts,
         };
       },

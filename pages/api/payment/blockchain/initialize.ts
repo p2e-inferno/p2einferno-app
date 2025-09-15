@@ -80,7 +80,7 @@ export default async function handler(
     const { data: application, error: appError } = await supabaseAdmin
       .from("applications")
       .select(
-        `id, payment_status, cohorts!inner(id, lock_address, name, usdt_amount)`,
+        `id, user_email, user_profile_id, payment_status, cohort_id, cohorts!inner(id, lock_address, name, usdt_amount, bootcamp_program_id)`,
       )
       .eq("id", applicationId)
       .single();
@@ -104,6 +104,43 @@ export default async function handler(
       return res.status(400).json({
         error: "Cohort lock address not configured. Contact support.",
       });
+    }
+
+    // Guard: Prevent payment if user is already enrolled in this bootcamp
+    let userProfileId = (application as any).user_profile_id as string | null;
+    if (!userProfileId && (application as any).user_email) {
+      const { data: profile } = await supabaseAdmin
+        .from("user_profiles")
+        .select("id")
+        .eq("email", (application as any).user_email)
+        .maybeSingle();
+      userProfileId = profile?.id || null;
+    }
+
+    if (userProfileId) {
+      const { data: enrollments, error: enrollErr } = await supabaseAdmin
+        .from("bootcamp_enrollments")
+        .select("id, cohort:cohort_id ( id, bootcamp_program_id )")
+        .eq("user_profile_id", userProfileId);
+
+      if (enrollErr) {
+        log.error("Error checking existing enrollments", enrollErr);
+        return res
+          .status(500)
+          .json({ error: "Failed to validate enrollment status" });
+      }
+
+      const enrolledInBootcamp = (enrollments || []).some((en: any) => {
+        const c = Array.isArray(en.cohort) ? en.cohort[0] : en.cohort;
+        return c?.bootcamp_program_id === cohort.bootcamp_program_id;
+      });
+
+      if (enrolledInBootcamp) {
+        return res.status(409).json({
+          error:
+            "You are already enrolled in this bootcamp. No additional payment is required.",
+        });
+      }
     }
 
     // Generate payment reference

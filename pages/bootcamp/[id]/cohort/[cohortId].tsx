@@ -14,6 +14,7 @@ import {
   BookOpen,
   Flame,
   ChevronRight,
+  CheckCircle,
 } from "lucide-react";
 import { calculateTimeRemaining } from "@/lib/utils/registration-validation";
 import { useCohortDetails } from "@/hooks/useCohortDetails";
@@ -100,6 +101,9 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
     cohort.status === "open" &&
     spotsRemaining > 0 &&
     timeRemaining !== "Registration Closed";
+
+  const isEnrolledInBootcamp = data?.userEnrollment?.isEnrolledInBootcamp;
+  const enrolledCohortId = data?.userEnrollment?.enrolledCohortId;
 
   return (
     <>
@@ -224,25 +228,44 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
               </div>
             </div>
 
-            {/* Urgency Indicator */}
-            <div className="inline-flex items-center gap-2 bg-steel-red/20 backdrop-blur-sm border border-steel-red/30 rounded-full px-4 py-2 mb-8">
-              <Calendar className="w-4 h-4 text-steel-red" />
-              <span className="text-steel-red font-medium text-sm">
-                Registration closes:{" "}
-                {new Date(cohort.registration_deadline).toLocaleDateString(
-                  "en-US",
-                  {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  },
-                )}{" "}
-                ({timeRemaining})
-              </span>
-            </div>
+            {/* Status Indicator */}
+            {isEnrolledInBootcamp ? (
+              <div className="inline-flex items-center gap-2 bg-green-500/20 backdrop-blur-sm border border-green-500/30 rounded-full px-4 py-2 mb-8">
+                <CheckCircle className="w-4 h-4 text-green-400" />
+                <span className="text-green-400 font-medium text-sm">
+                  Enrolled in Bootcamp
+                </span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-2 bg-steel-red/20 backdrop-blur-sm border border-steel-red/30 rounded-full px-4 py-2 mb-8">
+                <Calendar className="w-4 h-4 text-steel-red" />
+                <span className="text-steel-red font-medium text-sm">
+                  Registration closes:{" "}
+                  {new Date(cohort.registration_deadline).toLocaleDateString(
+                    "en-US",
+                    {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    },
+                  )}{" "}
+                  ({timeRemaining})
+                </span>
+              </div>
+            )}
 
             {/* CTA Button */}
-            {isRegistrationOpen ? (
+            {isEnrolledInBootcamp ? (
+              <Button
+                onClick={() =>
+                  router.push(`/lobby/bootcamps/${enrolledCohortId}`)
+                }
+                className="group bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 shadow-lg"
+              >
+                Continue Learning
+                <ChevronRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+              </Button>
+            ) : isRegistrationOpen ? (
               <Button
                 onClick={handleBeginApplication}
                 className="group bg-flame-yellow hover:bg-flame-yellow/90 text-black font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 shadow-lg"
@@ -404,7 +427,17 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
 
                 {/* Final CTA */}
                 <div className="text-center pt-8">
-                  {isRegistrationOpen ? (
+                  {isEnrolledInBootcamp ? (
+                    <Button
+                      onClick={() =>
+                        router.push(`/lobby/bootcamps/${enrolledCohortId}`)
+                      }
+                      className="group bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 w-full"
+                    >
+                      Continue Learning
+                      <Flame className="ml-2 h-5 w-5 transition-transform group-hover:rotate-12" />
+                    </Button>
+                  ) : isRegistrationOpen ? (
                     <Button
                       onClick={handleBeginApplication}
                       className="group bg-steel-red hover:bg-steel-red/90 text-white font-bold py-4 px-8 rounded-full text-lg transition-all transform hover:scale-105 w-full"

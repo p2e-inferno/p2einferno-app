@@ -68,6 +68,87 @@ export default async function handler(
       });
     }
 
+    // Guard: Prevent duplicate/invalid applications before insert
+    // 1) Fetch cohort to determine bootcamp_program_id
+    const { data: targetCohort, error: cohortFetchError } = await supabase
+      .from("cohorts")
+      .select("id, bootcamp_program_id")
+      .eq("id", applicationData.cohort_id)
+      .single();
+
+    if (cohortFetchError || !targetCohort) {
+      log.error(
+        "Failed to fetch target cohort for application",
+        cohortFetchError,
+      );
+      return res.status(400).json({
+        error: "Invalid cohort specified",
+      });
+    }
+
+    // 2) If we have a linked user profile, block applications when already enrolled in any cohort of the same bootcamp
+    if (userProfileId) {
+      // Fetch user's enrollments with cohort relationship to get bootcamp_program_id
+      const { data: userEnrollments, error: enrollErr } = await supabase
+        .from("bootcamp_enrollments")
+        .select("id, cohort:cohort_id ( id, bootcamp_program_id )")
+        .eq("user_profile_id", userProfileId);
+
+      if (enrollErr) {
+        log.error("Error checking existing enrollments", enrollErr);
+        return res
+          .status(500)
+          .json({ error: "Failed to validate enrollment status" });
+      }
+
+      const enrolledInBootcamp = (userEnrollments || []).some((en) => {
+        const cohort = Array.isArray((en as any).cohort)
+          ? (en as any).cohort[0]
+          : (en as any).cohort;
+        return cohort?.bootcamp_program_id === targetCohort.bootcamp_program_id;
+      });
+
+      if (enrolledInBootcamp) {
+        return res.status(409).json({
+          error:
+            "You are already enrolled in this bootcamp and cannot apply to another cohort at this time.",
+        });
+      }
+    }
+
+    // 3) Prevent duplicate applications for the same cohort by the same user (profile_id preferred, fallback to email)
+    if (userProfileId) {
+      const { data: existingByProfile } = await supabase
+        .from("applications")
+        .select("id")
+        .eq("cohort_id", applicationData.cohort_id)
+        .eq("user_profile_id", userProfileId)
+        .in("payment_status", ["pending", "completed"])
+        .limit(1)
+        .maybeSingle();
+
+      if (existingByProfile) {
+        return res.status(409).json({
+          error: "You already have an application for this cohort.",
+        });
+      }
+    } else {
+      const { data: existingByEmail } = await supabase
+        .from("applications")
+        .select("id")
+        .eq("cohort_id", applicationData.cohort_id)
+        .eq("user_email", applicationData.user_email)
+        .in("payment_status", ["pending", "completed"])
+        .limit(1)
+        .maybeSingle();
+
+      if (existingByEmail) {
+        return res.status(409).json({
+          error: "You already have an application for this cohort.",
+        });
+      }
+    }
+
     // Set default values for application
     const completeApplicationData = {
       ...applicationData,

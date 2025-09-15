@@ -23,6 +23,10 @@ interface CohortDetailsData {
   milestones: MilestoneWithTasks[];
   highlights: ProgramHighlight[];
   requirements: ProgramRequirement[];
+  userEnrollment?: {
+    isEnrolledInBootcamp: boolean;
+    enrolledCohortId?: string;
+  };
 }
 
 interface UseCohortDetailsResult {
