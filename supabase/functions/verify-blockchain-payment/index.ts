@@ -1,19 +1,54 @@
 // Path: supabase/functions/verify-blockchain-payment/index.ts
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { ethers } from 'https://esm.sh/ethers@6.11.1';
-import { getLogger } from '@/lib/utils/logger';
-
-const log = getLogger('supabase:functions:verify-blockchain-payment:index');
+// Lightweight logger for Edge Functions (avoid importing app logger in Deno)
+const log = {
+  info: (...args: any[]) => console.log('[verify-blockchain-payment]', ...args),
+  warn: (...args: any[]) => console.warn('[verify-blockchain-payment]', ...args),
+  error: (...args: any[]) => console.error('[verify-blockchain-payment]', ...args),
+};
 
 
 // Helper function to sleep
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Define RPC URLs for supported networks
-const RPC_URLS: Record<number, string> = {
-  8453: Deno.env.get('NEXT_PUBLIC_BASE_MAINNET_RPC_URL')!,
-  84532: Deno.env.get('NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL')!,
-};
+// Resolve an RPC URL for the specified Base chain with sensible fallbacks.
+function resolveRpcUrl(chainId: number): string | null {
+  const primary = (Deno.env.get('ADMIN_RPC_PRIMARY') || '').toLowerCase();
+  const alchemyKey = Deno.env.get('NEXT_PUBLIC_ALCHEMY_API_KEY');
+
+  const alchemy = (id: number) => {
+    const base = id === 84532
+      ? Deno.env.get('NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL')
+      : Deno.env.get('NEXT_PUBLIC_BASE_MAINNET_RPC_URL');
+    if (!base) return null;
+    // If the URL ends with /v2/ and a key exists, append the key
+    if (/\/v2\/?$/.test(base) && alchemyKey) return base.replace(/\/?$/, '/') + alchemyKey;
+    return base;
+  };
+
+  const infura = (id: number) => {
+    const url = id === 84532
+      ? Deno.env.get('NEXT_PUBLIC_INFURA_BASE_SEPOLIA_RPC_URL')
+      : Deno.env.get('NEXT_PUBLIC_INFURA_BASE_MAINNET_RPC_URL');
+    return url || null;
+  };
+
+  const publicRpc = (id: number) => (id === 84532 ? 'https://sepolia.base.org' : 'https://mainnet.base.org');
+
+  // Selection order respects ADMIN_RPC_PRIMARY when provided
+  const tryOrder = primary === 'infura'
+    ? [infura, alchemy]
+    : primary === 'alchemy'
+      ? [alchemy, infura]
+      : [infura, alchemy];
+
+  for (const pick of tryOrder) {
+    const url = pick(chainId);
+    if (url) return url;
+  }
+  return publicRpc(chainId);
+}
 
 Deno.serve(async (req) => {
   const { transactionHash, applicationId, paymentReference } = await req.json();
@@ -43,12 +78,13 @@ Deno.serve(async (req) => {
   }
 
   const chainId = txRecord.network_chain_id;
-  const rpcUrl = RPC_URLS[chainId];
+  const rpcUrl = resolveRpcUrl(chainId);
 
   if (!rpcUrl) {
     log.error('Edge Function Error: Unsupported chainId:', chainId);
     return new Response(JSON.stringify({ error: `Unsupported chainId: ${chainId}` }), { status: 400, headers: { 'Content-Type': 'application/json' } });
   }
+  log.info('Using RPC URL for chain', chainId, rpcUrl.replace(/(https:\/\/[^/]+\/v2\/)([^/?#]+)/, '$1[redacted]'));
   
   const provider = new ethers.JsonRpcProvider(rpcUrl);
 

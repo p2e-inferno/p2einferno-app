@@ -42,8 +42,11 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       message:
         "Verification is processing in the background. You will be notified upon completion.",
     });
-  } catch (error) {
-    log.error("Error invoking blockchain verification Edge Function:", error);
+  } catch (error: any) {
+    log.error("Error invoking blockchain verification Edge Function:", {
+      message: error?.message,
+      stack: error?.stack,
+    });
     res.status(500).json({ error: "Internal server error" });
   }
 }
