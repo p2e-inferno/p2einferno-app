@@ -219,9 +219,17 @@ export default async function handler(
   // Process the event based on its type
   switch (event.event) {
     case "charge.success":
+      log.info("Webhook received: charge.success", {
+        hasReference: Boolean(event?.data?.reference),
+        hasMetadata: Boolean(event?.data?.metadata),
+      });
       await handleSuccessfulCharge(supabase, event.data);
       break;
     case "charge.failed":
+      log.info("Webhook received: charge.failed", {
+        hasReference: Boolean(event?.data?.reference),
+        hasMetadata: Boolean(event?.data?.metadata),
+      });
       await handleFailedCharge(supabase, event.data);
       break;
     default:

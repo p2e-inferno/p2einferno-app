@@ -1,6 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { fetchAndVerifyAuthorization, createPrivyClient } from "@/lib/privyUtils";
+import { assertApplicationOwnership } from "@/lib/auth/ownership";
 import {
   generatePaymentReference,
   validatePaymentAmount,
@@ -30,6 +32,11 @@ export default async function handler(
   const supabaseAdmin = createAdminClient();
 
   try {
+    // Require user authentication (header or cookie) and ownership of application
+    const privy = createPrivyClient();
+    const claims = await fetchAndVerifyAuthorization(req, res, privy);
+    if (!claims) return; // response already sent
+
     const {
       applicationId,
       cohortId,
@@ -37,7 +44,7 @@ export default async function handler(
       currency,
       email,
       walletAddress,
-      chainId, // NEW: Destructure chainId
+      chainId,
     }: BlockchainPaymentRequest = req.body;
 
     // Validate required fields
@@ -53,6 +60,16 @@ export default async function handler(
       return res.status(400).json({
         error: "Missing required fields, including chainId.",
       });
+    }
+
+    // Ensure the authenticated user owns this application
+    const ownership = await assertApplicationOwnership(
+      supabaseAdmin,
+      applicationId,
+      claims,
+    );
+    if (!ownership.ok) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     // Blockchain only handles USD payments
@@ -191,3 +208,4 @@ export default async function handler(
     });
   }
 }
+ 

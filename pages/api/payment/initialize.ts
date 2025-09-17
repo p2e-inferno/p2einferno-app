@@ -1,8 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
-// Use the admin Supabase client – this API route runs on the server and
-// needs elevated privileges to bypass RLS when inserting payment records.
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { fetchAndVerifyAuthorization, createPrivyClient } from "@/lib/privyUtils";
+import { assertApplicationOwnership } from "@/lib/auth/ownership";
 import {
   generatePaymentReference,
   convertToSmallestUnit,
@@ -10,7 +10,6 @@ import {
   type Currency,
 } from "../../../lib/payment-utils";
 
-// Create a fresh instance for this request
 const supabase = createAdminClient();
 const log = getLogger("api:payment:initialize");
 
@@ -30,6 +29,11 @@ export default async function handler(
   }
 
   try {
+    // Require user authentication (header or cookie) and ownership of application
+    const privy = createPrivyClient();
+    const claims = await fetchAndVerifyAuthorization(req, res, privy);
+    if (!claims) return; // response already sent
+
     const { applicationId, amount, currency, email }: InitializePaymentRequest =
       req.body;
 
@@ -39,6 +43,16 @@ export default async function handler(
         error:
           "Missing required fields: applicationId, amount, currency, email",
       });
+    }
+  
+    // Ensure the authenticated user owns this application
+    const ownership = await assertApplicationOwnership(
+      supabase,
+      applicationId,
+      claims,
+    );
+    if (!ownership.ok) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     // Paystack only handles NGN payments
@@ -100,7 +114,7 @@ export default async function handler(
       });
     }
 
-    // Guard: Prevent payment if user is already enrolled in this bootcamp (any cohort under same bootcamp_program_id)
+    // Prevent payment if user is already enrolled in this bootcamp (any cohort under same bootcamp_program_id)
     // Resolve user profile id if missing by matching email
     let userProfileId = application.user_profile_id as string | null;
     if (!userProfileId && application.user_email) {
@@ -174,7 +188,13 @@ export default async function handler(
     );
 
     const paystackData = await paystackResponse.json();
-    log.info("paystackData from initialize:: ", paystackData);
+
+    log.info("Paystack initialize response (sanitized)", {
+      status: paystackData?.status,
+      hasData: Boolean(paystackData?.data),
+      hasAuthUrl: Boolean(paystackData?.data?.authorization_url),
+      hasReference: Boolean(paystackData?.data?.reference),
+    });
 
     if (!paystackData.status) {
       log.error("Paystack initialization failed:", paystackData);
@@ -232,3 +252,4 @@ export default async function handler(
     });
   }
 }
+ 

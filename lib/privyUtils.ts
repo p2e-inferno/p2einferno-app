@@ -21,15 +21,19 @@ export const fetchAndVerifyAuthorization = async (
   res: NextApiResponse,
   client: PrivyClient
 ): Promise<AuthTokenClaims | void> => {
-  const header = req.headers.authorization;
-  if (!header) {
+  // Prefer Authorization: Bearer header, fall back to privy-token cookie.
+  const header = req.headers.authorization || null;
+  const cookieToken = (req as any)?.cookies?.["privy-token"] || null;
+
+  const rawToken = header ? header.replace(/^Bearer /, "") : cookieToken;
+
+  if (!rawToken) {
     return res.status(401).json({ error: "Missing auth token." });
   }
-  const authToken = header.replace(/^Bearer /, "");
 
   try {
-    return client.verifyAuthToken(authToken);
-  } catch {
+    return await client.verifyAuthToken(rawToken);
+  } catch (e) {
     return res.status(401).json({ error: "Invalid auth token." });
   }
 };

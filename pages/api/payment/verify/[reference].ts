@@ -505,20 +505,14 @@ export default async function handler(
       });
     }
 
-    // Debug: Log what Paystack returned to understand the metadata issue
-    log.info(
-      "Paystack response data:",
-      JSON.stringify(
-        {
-          status: paystackData.data.status,
-          amount: paystackData.data.amount,
-          metadata: paystackData.data.metadata,
-          customer: paystackData.data.customer,
-        },
-        null,
-        2,
-      ),
-    );
+    // Sanitize logging: avoid logging full Paystack payload/PII
+    log.info("Paystack verify (sanitized)", {
+      status: paystackData?.data?.status,
+      amount: paystackData?.data?.amount,
+      hasMetadata: Boolean(paystackData?.data?.metadata),
+      hasReferrer: Boolean(paystackData?.data?.metadata?.referrer),
+      hasCustomer: Boolean(paystackData?.data?.customer),
+    });
 
     const paystackStatus = paystackData.data.status;
     const paystackAmount = paystackData.data.amount;
