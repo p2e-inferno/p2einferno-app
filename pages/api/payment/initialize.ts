@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
-import { fetchAndVerifyAuthorization, createPrivyClient } from "@/lib/privyUtils";
+import {
+  fetchAndVerifyAuthorization,
+  createPrivyClient,
+} from "@/lib/privyUtils";
 import { assertApplicationOwnership } from "@/lib/auth/ownership";
 import {
   generatePaymentReference,
@@ -44,7 +47,7 @@ export default async function handler(
           "Missing required fields: applicationId, amount, currency, email",
       });
     }
-  
+
     // Ensure the authenticated user owns this application
     const ownership = await assertApplicationOwnership(
       supabase,
@@ -252,4 +255,3 @@ export default async function handler(
     });
   }
 }
- 

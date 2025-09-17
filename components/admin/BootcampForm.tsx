@@ -19,6 +19,7 @@ import {
   saveDraft,
   removeDraft,
   getDraft,
+  updateDraftWithLockAddress,
   savePendingDeployment,
   removePendingDeployment,
   hasPendingDeployments,
@@ -93,7 +94,14 @@ export default function BootcampForm({
       const draft = getDraft("bootcamp");
       if (draft) {
         setFormData((prev) => ({ ...prev, ...draft.formData }));
-        toast.success("Restored draft data");
+
+        // If draft contains a lock address, disable auto-creation
+        if (draft.formData.lock_address) {
+          setShowAutoLockCreation(false);
+          toast.success("Restored draft data with deployed lock");
+        } else {
+          toast.success("Restored draft data");
+        }
       }
 
       // Check for pending deployments
@@ -178,6 +186,9 @@ export default function BootcampForm({
 
       const lockAddress = result.lockAddress;
       setDeploymentStep("Lock deployed successfully!");
+
+      // Update draft with lock address to preserve it in case of database failure
+      updateDraftWithLockAddress("bootcamp", lockAddress);
 
       // Save deployment state before database operation
       const deploymentId = savePendingDeployment({

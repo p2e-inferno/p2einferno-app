@@ -22,6 +22,7 @@ import {
   getDraft,
   saveDraft,
   removeDraft,
+  updateDraftWithLockAddress,
 } from "@/lib/utils/lock-deployment-state";
 
 const log = getLogger("admin:MilestoneFormEnhanced");
@@ -138,7 +139,14 @@ export default function MilestoneFormEnhanced({
         if (draft.formData.tasks) {
           setTasks(draft.formData.tasks);
         }
-        toast.success("Restored draft data");
+
+        // If draft contains a lock address, disable auto-creation
+        if (draft.formData.lock_address) {
+          setShowAutoLockCreation(false);
+          toast.success("Restored draft data with deployed lock");
+        } else {
+          toast.success("Restored draft data");
+        }
       }
     }
   }, [isEditing]);
@@ -262,6 +270,9 @@ export default function MilestoneFormEnhanced({
 
       const lockAddress = result.lockAddress;
       setDeploymentStep("Lock deployed successfully!");
+
+      // Update draft with lock address to preserve it in case of database failure
+      updateDraftWithLockAddress("milestone", lockAddress);
 
       // Save deployment state before database operation
       const deploymentId = savePendingDeployment({

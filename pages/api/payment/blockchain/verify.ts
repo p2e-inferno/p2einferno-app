@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
-import { fetchAndVerifyAuthorization, createPrivyClient } from "@/lib/privyUtils";
+import {
+  fetchAndVerifyAuthorization,
+  createPrivyClient,
+} from "@/lib/privyUtils";
 import { assertApplicationOwnership } from "@/lib/auth/ownership";
 
 const log = getLogger("api:payment:blockchain:verify");
@@ -47,11 +50,16 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       .maybeSingle();
 
     if (txErr) {
-      log.error("DB error looking up payment reference before verification", txErr);
+      log.error(
+        "DB error looking up payment reference before verification",
+        txErr,
+      );
       return res.status(500).json({ error: "Database error" });
     }
     if (!tx) {
-      return res.status(404).json({ error: "Payment reference not found for application" });
+      return res
+        .status(404)
+        .json({ error: "Payment reference not found for application" });
     }
 
     // Invoke the Edge Function asynchronously. We don't wait for it to complete.

@@ -214,6 +214,51 @@ export const getDraft = (entityType: EntityType): DeploymentDraft | null => {
 };
 
 /**
+ * Update existing draft with deployed lock address after successful lock deployment
+ * This ensures the lock address is preserved even if database save fails
+ */
+export const updateDraftWithLockAddress = (entityType: EntityType, lockAddress: string): void => {
+  try {
+    if (typeof window === 'undefined') return;
+
+    const existing = getDrafts();
+    const draftIndex = existing.findIndex(d => d.entityType === entityType);
+
+    if (draftIndex === -1) {
+      log.warn('No existing draft found to update with lock address:', { entityType, lockAddress });
+      return;
+    }
+
+    // Update the existing draft with lock address and disable auto-creation
+    const currentDraft = existing[draftIndex];
+    if (!currentDraft) {
+      log.error('Draft at index is undefined', { entityType, draftIndex });
+      return;
+    }
+
+    const updatedDraft: DeploymentDraft = {
+      id: currentDraft.id,
+      entityType: currentDraft.entityType,
+      formData: {
+        ...currentDraft.formData,
+        lock_address: lockAddress,
+        // Disable auto-creation since lock is now deployed
+        auto_lock_creation: false,
+      },
+      timestamp: Date.now(), // Update timestamp to reflect latest change
+    };
+
+    const updated = [...existing];
+    updated[draftIndex] = updatedDraft;
+
+    localStorage.setItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS, JSON.stringify(updated));
+    log.info('Updated draft with lock address:', { entityType, lockAddress });
+  } catch (error) {
+    log.error('Error updating draft with lock address:', error);
+  }
+};
+
+/**
  * Remove draft after successful deployment or cancellation
  */
 export const removeDraft = (entityType: EntityType): void => {
@@ -222,7 +267,7 @@ export const removeDraft = (entityType: EntityType): void => {
 
     const existing = getDrafts();
     const updated = existing.filter(d => d.entityType !== entityType);
-    
+
     localStorage.setItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS, JSON.stringify(updated));
     log.info('Removed draft for:', entityType);
   } catch (error) {

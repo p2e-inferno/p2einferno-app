@@ -5,7 +5,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CopyBadge } from "@/components/ui/badge";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { toast } from "react-hot-toast";
@@ -19,6 +18,7 @@ import {
   saveDraft,
   removeDraft,
   getDraft,
+  updateDraftWithLockAddress,
   savePendingDeployment,
   removePendingDeployment,
 } from "@/lib/utils/lock-deployment-state";
@@ -55,7 +55,6 @@ export default function CohortForm({
     [],
   );
   const [isLoadingPrograms, setIsLoadingPrograms] = useState(false);
-  const { getAccessToken } = usePrivy();
   // Memoize options to prevent adminFetch from being recreated every render
   const adminApiOptions = useMemo(() => ({}), []);
   const { adminFetch } = useAdminApi(adminApiOptions);
@@ -155,7 +154,14 @@ export default function CohortForm({
       const draft = getDraft("cohort");
       if (draft) {
         setFormData((prev) => ({ ...prev, ...draft.formData }));
-        toast.success("Restored draft data");
+
+        // If draft contains a lock address, disable auto-creation
+        if (draft.formData.lock_address) {
+          setShowAutoLockCreation(false);
+          toast.success("Restored draft data with deployed lock");
+        } else {
+          toast.success("Restored draft data");
+        }
       }
     }
   }, [isEditing]);
@@ -264,6 +270,9 @@ export default function CohortForm({
 
       const lockAddress = result.lockAddress;
       setDeploymentStep("Lock deployed successfully!");
+
+      // Update draft with lock address to preserve it in case of database failure
+      updateDraftWithLockAddress("cohort", lockAddress);
 
       // Save deployment state before database operation
       const deploymentId = savePendingDeployment({
@@ -375,15 +384,8 @@ export default function CohortForm({
       const apiUrl = "/api/admin/cohorts";
       const method = isEditing ? "PUT" : "POST";
 
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
-      const response = await fetch(apiUrl, {
+      const result = await adminFetch(apiUrl, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify(
           isEditing
             ? { ...dataToSave, id: cohort!.id }
@@ -391,8 +393,8 @@ export default function CohortForm({
         ),
       });
 
-      if (!response.ok) {
-        const err = await response.json();
+      if (result.error) {
+        const err = { error: result.error };
 
         // Handle specific error cases with better UX
         if (err.error === "Forbidden: User profile not found") {
