@@ -66,7 +66,9 @@ const AdminPaymentsPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      const result = await adminFetch<{ transactions: PaymentTransaction[] }>("/api/admin/payments");
+      const result = await adminFetch<{ transactions: PaymentTransaction[] }>(
+        "/api/admin/payments",
+      );
 
       if (result.error) {
         throw new Error(result.error);
@@ -111,7 +113,9 @@ const AdminPaymentsPage: React.FC = () => {
       }
 
       if (result.data?.success) {
-        toast.success(result.data.message || "Payment reconciled successfully!");
+        toast.success(
+          result.data.message || "Payment reconciled successfully!",
+        );
         // Refresh the list
         await fetchTransactions();
       } else {

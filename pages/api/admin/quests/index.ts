@@ -81,7 +81,8 @@ async function createQuest(
   res: NextApiResponse,
   supabase: any,
 ) {
-  const { title, description, image_url, tasks, xp_reward, is_active } = req.body;
+  const { title, description, image_url, tasks, xp_reward, is_active } =
+    req.body;
 
   if (!title) {
     return res.status(400).json({ error: "Title is required" });

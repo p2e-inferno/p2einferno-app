@@ -320,7 +320,7 @@ export default function QuestForm({
       if (!isEditing) {
         saveDraft("quest", {
           questData: { ...formData, total_reward: totalReward },
-          tasks: tasks
+          tasks: tasks,
         });
       }
 
