@@ -12,7 +12,6 @@ import {
   Award,
   FileText,
   CreditCard,
-  Settings,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -28,7 +27,6 @@ const adminNavItems = [
   { name: "Quests", href: "/admin/quests", icon: Award },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "Applications", href: "/admin/applications", icon: FileText },
-  { name: "Backend Admin", href: "/admin/backend-admin", icon: Settings },
   { name: "Draft Recovery", href: "/admin/draft-recovery", icon: FileText },
 ];
 

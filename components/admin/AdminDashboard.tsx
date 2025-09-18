@@ -7,7 +7,6 @@ import {
   FileText,
   Award,
   CreditCard,
-  Settings,
   Key,
   Play,
 } from "lucide-react";
@@ -69,14 +68,6 @@ const adminModules = [
     href: "/admin/blockchain",
     color: "from-indigo-600 to-indigo-700",
     buttonText: "Blockchain Tools",
-  },
-  {
-    title: "Backend Admin",
-    description: "Manage backend admin roles using Supabase authentication",
-    icon: Settings,
-    href: "/admin/backend-admin",
-    color: "from-gray-600 to-gray-700",
-    buttonText: "Manage Backend Admins",
   },
 ];
 
