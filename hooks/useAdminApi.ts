@@ -4,6 +4,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { useVerifyToken } from "./useVerifyToken";
 import { useSmartWalletSelection } from "./useSmartWalletSelection";
+import { normalizeAdminApiError, logAdminApiError, type AdminApiErrorContext } from "@/lib/utils/error-utils";
 
 interface UseAdminApiOptions {
   redirectOnAuthError?: boolean;
@@ -64,6 +65,17 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
 
 
         if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+
+          // Create error context for logging
+          const errorContext: AdminApiErrorContext = {
+            operation: `${requestOptions.method || 'GET'} ${url}`,
+            url,
+            method: requestOptions.method || 'GET',
+            attempt: 'original',
+            walletAddress: selectedWallet?.address
+          };
+
           // If unauthorized and auto refresh enabled, attempt session issuance then retry once
           if (response.status === 401 && options.autoSessionRefresh !== false) {
             try {
@@ -93,48 +105,68 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
                   },
                   credentials: 'include',
                 });
+
                 if (retry.ok) {
                   const data = await retry.json();
                   return { data } as any;
                 }
-                // fallthrough to normal error handling if retry failed
-              } else {
+
+                // Handle retry failure with separate error context
+                const retryErrorData = await retry.json().catch(() => ({}));
+                const retryErrorContext: AdminApiErrorContext = {
+                  ...errorContext,
+                  attempt: 'retry'
+                };
+
+                logAdminApiError(retry.status, retryErrorData, retryErrorContext);
+                const retryErrorMessage = normalizeAdminApiError(retry.status, retryErrorData, 'admin_api_retry');
+                setError(retryErrorMessage);
+                if (!options.suppressToasts) toast.error(retryErrorMessage);
+                return { error: retryErrorMessage };
               }
-            } catch (_) {
-              // ignore and continue to normal error handling
+            } catch (retryError: any) {
+              // Log retry attempt failure but continue to handle original error
+              logAdminApiError(0, { error: retryError.message }, { ...errorContext, attempt: 'retry' }, retryError);
             }
           }
-          if (response.status === 401) {
-            const errorMessage = "Authentication required";
-            setError(errorMessage);
 
-            if (options.redirectOnAuthError) {
-              router.push(options.redirectPath || "/admin/login");
-            } else {
-              if (!options.suppressToasts) toast.error(errorMessage);
-            }
+          // Log the original error
+          logAdminApiError(response.status, errorData, errorContext);
 
-            return { error: errorMessage };
-          }
-
-          if (response.status === 403) {
-            const errorMessage = "Admin access required";
-            setError(errorMessage);
-            if (!options.suppressToasts) toast.error(errorMessage);
-            return { error: errorMessage };
-          }
-
-          const errorData = await response.json().catch(() => ({}));
-          const errorMessage = errorData.error || `HTTP ${response.status}`;
+          // Use centralized error normalization
+          const errorMessage = normalizeAdminApiError(response.status, errorData, 'admin_api');
           setError(errorMessage);
-          if (!options.suppressToasts) toast.error(errorMessage);
+
+          // Handle redirects for authentication errors
+          if (response.status === 401 && options.redirectOnAuthError) {
+            router.push(options.redirectPath || "/admin/login");
+          } else {
+            if (!options.suppressToasts) toast.error(errorMessage);
+          }
+
           return { error: errorMessage };
         }
 
         const data = await response.json();
         return { data };
       } catch (err: any) {
-        const errorMessage = err.message || "Network error";
+        // Create error context for network errors
+        const networkErrorContext: AdminApiErrorContext = {
+          operation: `${requestOptions.method || 'GET'} ${url}`,
+          url,
+          method: requestOptions.method || 'GET',
+          attempt: 'original',
+          walletAddress: selectedWallet?.address
+        };
+
+        // Log network error
+        logAdminApiError(0, { error: err.message }, networkErrorContext, err);
+
+        // Use network-aware error message
+        const errorMessage = err.message?.includes('fetch') || err.message?.includes('network')
+          ? "Network error. Please check your connection and try again."
+          : err.message || "Network error";
+
         setError(errorMessage);
         if (!options.suppressToasts) toast.error(errorMessage);
         return { error: errorMessage };

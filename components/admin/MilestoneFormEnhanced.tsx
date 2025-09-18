@@ -6,9 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Zap } from "lucide-react";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
-import { useWallets } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "@/lib/unlock/lockUtils";
 import {
@@ -85,10 +84,8 @@ export default function MilestoneFormEnhanced({
   const [deploymentStep, setDeploymentStep] = useState("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(!isEditing);
   const [error, setError] = useState<string | null>(null);
-  const { getAccessToken } = usePrivy();
-  const selectedWallet = useSmartWalletSelection() as any;
-  const { wallets } = useWallets();
-  const wallet = wallets[0];
+  const { adminFetch } = useAdminApi();
+  const wallet = useSmartWalletSelection();
 
   const [formData, setFormData] = useState<Partial<CohortMilestone>>(
     milestone || {
@@ -153,25 +150,22 @@ export default function MilestoneFormEnhanced({
 
   const fetchExistingTasks = async () => {
     try {
-      const response = await fetch(
+      const result = await adminFetch(
         `/api/admin/tasks/by-milestone?milestone_id=${milestone?.id}`,
       );
-      if (response.ok) {
-        const result = await response.json();
-        if (result.data && result.data.length > 0) {
-          const existingTasks = result.data.map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description || "",
-            reward_amount: task.reward_amount,
-            order_index: task.order_index,
-            task_type: task.task_type || "file_upload",
-            contract_network: task.contract_network || "",
-            contract_address: task.contract_address || "",
-            contract_method: task.contract_method || "",
-          }));
-          setTasks(existingTasks);
-        }
+      if (result.data && result.data.length > 0) {
+        const existingTasks = result.data.map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description || "",
+          reward_amount: task.reward_amount,
+          order_index: task.order_index,
+          task_type: task.task_type || "file_upload",
+          contract_network: task.contract_network || "",
+          contract_address: task.contract_address || "",
+          contract_method: task.contract_method || "",
+        }));
+        setTasks(existingTasks);
       }
     } catch (err) {
       log.error("Error fetching existing tasks:", err);
@@ -446,34 +440,21 @@ export default function MilestoneFormEnhanced({
         updated_at: now,
       };
 
-      // Get Privy access token for authorization header
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
       // Include created_at when creating new milestone
       if (!isEditing) {
         (milestoneData as any).created_at = now;
       }
 
       // Submit milestone
-      const milestoneResponse = await fetch("/api/admin/milestones", {
+      const milestoneResult = await adminFetch("/api/admin/milestones", {
         method: isEditing ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
-        },
         body: JSON.stringify(milestoneData),
       });
 
-      if (!milestoneResponse.ok) {
-        const errorData = await milestoneResponse.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to save milestone");
+      if (milestoneResult.error) {
+        throw new Error(milestoneResult.error);
       }
-
-      const milestoneResult = await milestoneResponse.json();
-      const milestoneId =
-        milestoneResult.id || milestoneResult.data?.id || formData.id;
+      const milestoneId = milestoneResult.data?.id || formData.id;
 
       // Submit tasks
       const tasksData = validTasks.map((task, index) => ({
@@ -505,19 +486,13 @@ export default function MilestoneFormEnhanced({
 
       // Only submit tasks if there are valid tasks and a milestone ID
       if (validTasks.length > 0 && milestoneId) {
-        const tasksResponse = await fetch("/api/admin/milestone-tasks", {
+        const tasksResult = await adminFetch("/api/admin/milestone-tasks", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            "X-Active-Wallet": selectedWallet?.address || "",
-          },
           body: JSON.stringify({ tasks: tasksData, milestoneId }),
         });
 
-        if (!tasksResponse.ok) {
-          const errorData = await tasksResponse.json().catch(() => null);
-          throw new Error(errorData?.error || "Failed to save tasks");
+        if (tasksResult.error) {
+          throw new Error(tasksResult.error);
         }
       }
 

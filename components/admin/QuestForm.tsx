@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import ImageUpload from "@/components/ui/image-upload";
 import QuestTaskForm from "@/components/admin/QuestTaskForm";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import { PlusCircle, Coins, Save, X } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -41,7 +41,7 @@ export default function QuestForm({
   isEditing = false,
 }: QuestFormProps) {
   const router = useRouter();
-  const { getAccessToken } = usePrivy();
+  const { adminFetch } = useAdminApi();
   const wallet = useSmartWalletSelection();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -328,11 +328,6 @@ export default function QuestForm({
         }
       }
 
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
       const endpoint = isEditing
         ? `/api/admin/quests/${quest?.id}`
         : "/api/admin/quests";
@@ -355,24 +350,19 @@ export default function QuestForm({
         };
       });
 
-      const response = await fetch(endpoint, {
+      const result = await adminFetch(endpoint, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
-          quest: questData,
+          ...questData,
           tasks: tasksData,
+          xp_reward: questData.total_reward, // Map field name for API
+          status: "active", // Default status
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to save quest");
+      if (result.error) {
+        throw new Error(result.error);
       }
-
-      const result = await response.json();
 
       // Clean up drafts and pending deployments on success
       if (!isEditing) {
@@ -387,7 +377,11 @@ export default function QuestForm({
       );
 
       // Redirect to quest details page
-      router.push(`/admin/quests/${result.quest.id}`);
+      if (result.data?.quest?.id) {
+        router.push(`/admin/quests/${result.data.quest.id}`);
+      } else {
+        router.push("/admin/quests");
+      }
     } catch (err: any) {
       log.error("Error saving quest:", err);
       setError(err.message || "Failed to save quest");
