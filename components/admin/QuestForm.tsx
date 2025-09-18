@@ -64,14 +64,29 @@ export default function QuestForm({
     if (!isEditing) {
       const draft = getDraft("quest");
       if (draft) {
-        setFormData((prev) => ({ ...prev, ...draft.formData }));
+        // Handle new structured format with questData and tasks
+        if (draft.formData.questData && draft.formData.tasks) {
+          setFormData((prev) => ({ ...prev, ...draft.formData.questData }));
+          setTasks(draft.formData.tasks);
 
-        // If draft contains a lock address, disable auto-creation
-        if (draft.formData.lock_address) {
-          setShowAutoLockCreation(false);
-          toast.success("Restored draft data with deployed lock");
+          // If draft contains a lock address, disable auto-creation
+          if (draft.formData.questData.lock_address) {
+            setShowAutoLockCreation(false);
+            toast.success("Restored draft data with deployed lock and tasks");
+          } else {
+            toast.success("Restored draft data with tasks");
+          }
         } else {
-          toast.success("Restored draft data");
+          // Backward compatibility with old format
+          setFormData((prev) => ({ ...prev, ...draft.formData }));
+
+          // If draft contains a lock address, disable auto-creation
+          if (draft.formData.lock_address) {
+            setShowAutoLockCreation(false);
+            toast.success("Restored draft data with deployed lock");
+          } else {
+            toast.success("Restored draft data");
+          }
         }
       }
     }
@@ -303,7 +318,10 @@ export default function QuestForm({
     try {
       // Save draft before starting deployment (for new quests)
       if (!isEditing) {
-        saveDraft("quest", { ...formData, total_reward: totalReward });
+        saveDraft("quest", {
+          questData: { ...formData, total_reward: totalReward },
+          tasks: tasks
+        });
       }
 
       let lockAddress: string | undefined = formData.lock_address || undefined;
@@ -356,7 +374,6 @@ export default function QuestForm({
           ...questData,
           tasks: tasksData,
           xp_reward: questData.total_reward, // Map field name for API
-          status: "active", // Default status
         }),
       });
 

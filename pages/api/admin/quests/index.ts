@@ -81,7 +81,7 @@ async function createQuest(
   res: NextApiResponse,
   supabase: any,
 ) {
-  const { title, description, image_url, tasks, xp_reward, status } = req.body;
+  const { title, description, image_url, tasks, xp_reward, is_active } = req.body;
 
   if (!title) {
     return res.status(400).json({ error: "Title is required" });
@@ -96,8 +96,8 @@ async function createQuest(
         title,
         description,
         image_url,
-        xp_reward: xp_reward || 0,
-        status: status || "draft",
+        total_reward: xp_reward || 0,
+        is_active,
       })
       .select()
       .single();
@@ -111,14 +111,16 @@ async function createQuest(
           quest_id: quest.id,
           title: task.title,
           description: task.description,
-          order_index: index,
-          reward_amount: (task as any).xp_reward || 0,
-          submission_type: (task as any).submission_type || "text",
-          verification_type: (task as any).verification_type || "manual",
-          required:
-            (task as any).required !== undefined
-              ? (task as any).required
-              : true,
+          task_type: task.task_type,
+          verification_method: task.verification_method,
+          reward_amount: task.reward_amount || 0,
+          order_index: task.order_index ?? index,
+          // Optional fields if provided
+          input_required: task.input_required,
+          input_label: task.input_label,
+          input_placeholder: task.input_placeholder,
+          input_validation: task.input_validation,
+          requires_admin_review: task.requires_admin_review,
         }),
       );
 

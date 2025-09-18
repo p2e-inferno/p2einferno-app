@@ -236,15 +236,31 @@ export const updateDraftWithLockAddress = (entityType: EntityType, lockAddress: 
       return;
     }
 
+    // Handle quest's nested structure vs other entities' flat structure
+    let updatedFormData;
+    if (entityType === 'quest' && currentDraft.formData.questData) {
+      // Quest with new nested structure
+      updatedFormData = {
+        ...currentDraft.formData,
+        questData: {
+          ...currentDraft.formData.questData,
+          lock_address: lockAddress,
+          auto_lock_creation: false,
+        }
+      };
+    } else {
+      // Other entities with flat structure (bootcamp, cohort, milestone) or old quest format
+      updatedFormData = {
+        ...currentDraft.formData,
+        lock_address: lockAddress,
+        auto_lock_creation: false,
+      };
+    }
+
     const updatedDraft: DeploymentDraft = {
       id: currentDraft.id,
       entityType: currentDraft.entityType,
-      formData: {
-        ...currentDraft.formData,
-        lock_address: lockAddress,
-        // Disable auto-creation since lock is now deployed
-        auto_lock_creation: false,
-      },
+      formData: updatedFormData,
       timestamp: Date.now(), // Update timestamp to reflect latest change
     };
 
