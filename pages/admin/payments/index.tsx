@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/layouts/AdminLayout";
@@ -7,8 +7,7 @@ import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, ExternalLink } from "lucide-react";
 import { NetworkError } from "@/components/ui/network-error";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:payments:index");
@@ -41,14 +40,15 @@ const AdminPaymentsPage: React.FC = () => {
     loading: authLoading,
     authenticated,
   } = useLockManagerAdminAuth();
-  const { getAccessToken } = usePrivy();
-  const selectedWallet = useSmartWalletSelection() as any;
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reconcilingIds, setReconcilingIds] = useState<Set<string>>(new Set());
+
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(apiOptions);
 
   useEffect(() => {
     setIsClient(true);
@@ -66,23 +66,13 @@ const AdminPaymentsPage: React.FC = () => {
       setIsLoading(true);
       setError(null);
 
-      const accessToken = await getAccessToken();
-      const response = await fetch("/api/admin/payments", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
-        },
-      });
+      const result = await adminFetch<{ transactions: PaymentTransaction[] }>("/api/admin/payments");
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch transactions");
+      if (result.error) {
+        throw new Error(result.error);
       }
 
-      const data = await response.json();
-      setTransactions(data.transactions || []);
+      setTransactions(result.data?.transactions || []);
     } catch (err) {
       log.error("Error fetching transactions:", err);
       setError(
@@ -91,7 +81,7 @@ const AdminPaymentsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [getAccessToken, selectedWallet?.address]);
+  }, [adminFetch]);
 
   useEffect(() => {
     if (authenticated && isAdmin && isClient) {
@@ -103,19 +93,9 @@ const AdminPaymentsPage: React.FC = () => {
     try {
       setReconcilingIds((prev) => new Set(prev).add(applicationId));
 
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("Failed to get access token");
-      }
-
       // Use the comprehensive reconcile endpoint that handles all scenarios
-      const response = await fetch("/api/admin/applications/reconcile", {
+      const result = await adminFetch("/api/admin/applications/reconcile", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
-        },
         body: JSON.stringify({
           applicationId,
           // Let the service determine what actions are needed
@@ -123,20 +103,19 @@ const AdminPaymentsPage: React.FC = () => {
         }),
       });
 
-      const result = await response.json();
-      log.info("Reconcile response:", { status: response.status, result });
+      log.info("Reconcile response:", result);
 
-      if (!response.ok) {
+      if (result.error) {
         log.error("Reconcile failed:", result);
         throw new Error(result.error || "Reconciliation failed");
       }
 
-      if (result.success) {
-        toast.success(result.message || "Payment reconciled successfully!");
+      if (result.data?.success) {
+        toast.success(result.data.message || "Payment reconciled successfully!");
         // Refresh the list
         await fetchTransactions();
       } else {
-        toast.error(result.message || "Reconciliation failed");
+        toast.error(result.data?.message || "Reconciliation failed");
       }
     } catch (err) {
       log.error("Reconciliation error:", err);
