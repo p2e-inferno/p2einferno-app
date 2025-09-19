@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyBadge } from "@/components/ui/badge";
-import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "@/lib/unlock/lockUtils";
 import {
