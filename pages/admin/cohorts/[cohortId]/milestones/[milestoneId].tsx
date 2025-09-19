@@ -110,8 +110,10 @@ export default function MilestoneDetailsPage() {
   return (
     <AdminEditPageLayout
       title={milestone ? milestone.name : "Milestone Details"}
-      backLinkHref={`/admin/cohorts/${cohortId}/milestones`}
-      backLinkText="Back to cohort milestones"
+      backLinkHref={
+        cohortId ? `/admin/cohorts/${cohortId}/milestones` : "/admin/cohorts"
+      }
+      backLinkText="Back to milestones"
       isLoading={authLoading || isLoading}
       error={error}
       onRetry={handleRetry}

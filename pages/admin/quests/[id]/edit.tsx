@@ -81,7 +81,7 @@ export default function EditQuestPage() {
   return (
     <AdminEditPageLayout
       title="Edit Quest"
-      backLinkHref={`/admin/quests/${id}`}
+      backLinkHref={id ? `/admin/quests/${id}` : "/admin/quests"}
       backLinkText="Back to Quest Details"
       isLoading={authLoading || isLoading}
       error={error}
