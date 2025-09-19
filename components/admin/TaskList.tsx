@@ -40,19 +40,16 @@ export default function TaskList({
       setIsLoading(true);
       setError(null);
 
-      log.info("Fetching tasks for milestone ID:", milestoneId);
+      const apiUrl = `/api/admin/tasks/by-milestone?milestone_id=${milestoneId}`;
 
-      // Use API endpoint instead of direct Supabase to avoid RLS issues
-      // API expects snake_case: milestone_id
-      const response = await fetch(
-        `/api/admin/tasks/by-milestone?milestone_id=${milestoneId}`,
-      );
+      const response = await fetch(apiUrl);
 
       if (!response.ok) {
         throw new Error("Failed to fetch tasks");
       }
 
       const result = await response.json();
+
       const tasksData = result.data || [];
 
       if (!tasksData || tasksData.length === 0) {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,8 @@ import type { CohortMilestone } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "@/lib/unlock/lockUtils";
 import {
@@ -86,6 +88,7 @@ export default function MilestoneFormEnhanced({
   const [error, setError] = useState<string | null>(null);
   const { adminFetch } = useAdminApi();
   const wallet = useSmartWalletSelection();
+  const { authenticated, isAdmin, user } = useLockManagerAdminAuth();
 
   const [formData, setFormData] = useState<Partial<CohortMilestone>>(
     milestone || {
@@ -120,13 +123,6 @@ export default function MilestoneFormEnhanced({
     },
   ]);
 
-  // Load existing tasks when editing a milestone
-  useEffect(() => {
-    if (isEditing && milestone?.id) {
-      fetchExistingTasks();
-    }
-  }, [isEditing, milestone?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Load draft data on mount for new milestones
   useEffect(() => {
     if (!isEditing) {
@@ -148,13 +144,26 @@ export default function MilestoneFormEnhanced({
     }
   }, [isEditing]);
 
-  const fetchExistingTasks = async () => {
+  const fetchExistingTasks = useCallback(async () => {
+    if (!milestone?.id) {
+      log.debug("[DEBUG] fetchExistingTasks: No milestone ID, returning early");
+      return;
+    }
+
+    const apiUrl = `/api/admin/tasks/by-milestone?milestone_id=${milestone.id}`;
+
     try {
-      const result = await adminFetch(
-        `/api/admin/tasks/by-milestone?milestone_id=${milestone?.id}`,
-      );
-      if (result.data && result.data.length > 0) {
-        const existingTasks = result.data.map((task: any) => ({
+      const result = await adminFetch(apiUrl);
+
+      if (result.error) {
+        return;
+      }
+
+      // Access the nested data structure: result.data.data contains the actual task array
+      const tasksData = result.data?.data || [];
+
+      if (tasksData && tasksData.length > 0) {
+        const existingTasks = tasksData.map((task: any) => ({
           id: task.id,
           title: task.title,
           description: task.description || "",
@@ -166,11 +175,22 @@ export default function MilestoneFormEnhanced({
           contract_method: task.contract_method || "",
         }));
         setTasks(existingTasks);
+      } else {
+        // No existing tasks, ensure we have at least one empty task
       }
     } catch (err) {
       log.error("Error fetching existing tasks:", err);
     }
-  };
+  }, [milestone?.id, adminFetch]);
+
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [milestone?.id],
+    fetcher: fetchExistingTasks,
+    enabled: isEditing && !!milestone?.id,
+  });
 
   const handleChange = (
     e: React.ChangeEvent<
