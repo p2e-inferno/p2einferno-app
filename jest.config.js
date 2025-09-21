@@ -24,6 +24,11 @@ const customJestConfig = {
   testTimeout: 30000,
   // Transform ESM packages used in tests
   transformIgnorePatterns: ['/node_modules/(?!viem|jose|@privy-io/server-auth)'],
+  // Enable manual mocks from __mocks__ directory
+  moduleDirectories: ['node_modules', '<rootDir>'],
+  // Clear mocks between tests for isolation
+  clearMocks: true,
+  restoreMocks: true,
 };
 
 module.exports = createJestConfig(customJestConfig);

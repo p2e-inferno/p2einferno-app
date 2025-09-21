@@ -1,6 +1,11 @@
 import "@testing-library/jest-dom";
 import React from "react";
 
+// Set test environment variables before any imports
+process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test-project.supabase.co';
+process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-anon-key';
+process.env.SUPABASE_SERVICE_ROLE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test-service-role-key';
+
 // Add polyfills for TextEncoder/TextDecoder (needed for viem)
 const { TextEncoder, TextDecoder } = require("util");
 global.TextEncoder = TextEncoder;
@@ -97,3 +102,8 @@ jest.mock('@privy-io/server-auth', () => {
   }
   return { PrivyClient: PrivyClientMock };
 });
+
+// Auto-mock all Supabase modules using manual mocks
+jest.mock('@/lib/supabase');
+jest.mock('@/lib/supabase/client');
+jest.mock('@/lib/supabase/server');
