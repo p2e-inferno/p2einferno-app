@@ -19,6 +19,7 @@
     "functions:serve:verify": "supabase functions serve verify-blockchain-payment --no-verify-jwt --env-file .env.local"
   },
   "dependencies": {
+    "@ethereum-attestation-service/eas-sdk": "^2.7.0",
     "@ensdomains/ensjs": "^4.0.2",
     "@headlessui/react": "^1.7.3",
     "@heroicons/react": "^2.0.12",
