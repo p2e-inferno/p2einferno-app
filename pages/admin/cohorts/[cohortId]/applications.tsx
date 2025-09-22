@@ -92,20 +92,39 @@ export default function CohortDetailPage() {
 
       // Fetch cohort details and applications in parallel using unified auth
       const [cohortRes, applicationsRes] = await Promise.all([
-        adminFetch(`/api/admin/cohorts/${cohortId}`),
-        adminFetch(`/api/admin/cohorts/${cohortId}/applications`),
+        adminFetch<{ success: boolean; data: CohortDetails }>(
+          `/api/admin/cohorts/${cohortId}`,
+        ),
+        adminFetch<{
+          success: boolean;
+          data: { applications: CohortApplication[]; stats: CohortStats };
+        }>(`/api/admin/cohorts/${cohortId}/applications`),
       ]);
 
-      setCohort(cohortRes.data);
-      setApplications(applicationsRes.data?.applications || []);
-      setStats(applicationsRes.data?.stats);
+      if (cohortRes.error) {
+        throw new Error(cohortRes.error);
+      }
+
+      const cohortPayload = cohortRes.data?.data;
+      if (!cohortPayload) {
+        throw new Error("Cohort not found");
+      }
+      setCohort(cohortPayload);
+
+      if (applicationsRes.error) {
+        throw new Error(applicationsRes.error);
+      }
+
+      const applicationsPayload = applicationsRes.data?.data;
+      setApplications(applicationsPayload?.applications || []);
+      setStats(applicationsPayload?.stats || null);
     } catch (err: any) {
       log.error("Error fetching cohort data:", err);
       setError(err?.message || "Failed to load cohort data");
     } finally {
       setLoading(false);
     }
-  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [adminFetch, cohortId]);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -243,23 +262,29 @@ export default function CohortDetailPage() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                {cohort.name}
+                {cohort?.name ?? "Cohort"}
               </h1>
-              <p className="text-gray-600 mt-1">
-                {cohort.bootcamp_program.name}
-              </p>
-              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                <span>
-                  Start: {new Date(cohort.start_date).toLocaleDateString()}
-                </span>
-                <span>
-                  End: {new Date(cohort.end_date).toLocaleDateString()}
-                </span>
-                <span>
-                  Capacity: {cohort.current_participants}/
-                  {cohort.max_participants}
-                </span>
-              </div>
+              {cohort ? (
+                <>
+                  <p className="text-gray-600 mt-1">
+                    {cohort.bootcamp_program.name}
+                  </p>
+                  <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                    <span>
+                      Start: {new Date(cohort.start_date).toLocaleDateString()}
+                    </span>
+                    <span>
+                      End: {new Date(cohort.end_date).toLocaleDateString()}
+                    </span>
+                    <span>
+                      Capacity: {cohort.current_participants}/
+                      {cohort.max_participants}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-500 mt-1">Loading cohort details…</p>
+              )}
             </div>
             <div className="flex items-center space-x-3">
               <button

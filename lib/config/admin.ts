@@ -28,6 +28,8 @@ export const ADMIN_CACHE_TAGS = {
   task: (id: string) => `admin:task:${id}`,
   milestone: (id: string) => `admin:milestone:${id}`,
   cohort: (id: string) => `admin:cohort:${id}`,
+  cohortList: 'admin:cohort:list',
+  cohortApplications: (id: string) => `admin:cohort:applications:${id}`,
   submissions: (taskId: string) => `admin:submissions:${taskId}`,
   bootcamp: (id: string) => `admin:bootcamp:${id}`,
   bootcampList: 'admin:bootcamp:list',

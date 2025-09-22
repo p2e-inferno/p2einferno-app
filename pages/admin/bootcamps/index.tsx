@@ -44,7 +44,7 @@ export default function BootcampsPage() {
       }
 
       if (!result.data?.success) {
-        throw new Error(result.data?.error || "Failed to load bootcamps");
+        throw new Error("Failed to load bootcamps");
       }
 
       const bootcampData = result.data.data ?? [];
@@ -91,7 +91,7 @@ export default function BootcampsPage() {
       }
 
       if (!result.data?.success) {
-        throw new Error(result.data?.error || "Failed to delete bootcamp");
+        throw new Error("Failed to delete bootcamp");
       }
 
       // Remove from UI

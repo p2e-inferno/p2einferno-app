@@ -3,9 +3,11 @@ import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
 import { Pencil, Calendar, Trash2, Star } from "lucide-react";
 import Link from "next/link";
+import { toast } from "react-hot-toast";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { formatDate } from "@/lib/dateUtils";
 import { Badge } from "@/components/ui/badge";
+import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
@@ -26,6 +28,11 @@ export default function CohortListPage() {
   const [error, setError] = useState<string | null>(null);
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch, loading } = useAdminApi(apiOptions);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [cohortToDelete, setCohortToDelete] = useState<
+    (Cohort & { bootcamp_program: BootcampProgram }) | null
+  >(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const fetchCohorts = useCallback(async () => {
     try {
       setError(null);
@@ -180,10 +187,10 @@ export default function CohortListPage() {
                       variant="outline"
                       className="border-gray-700 hover:border-red-500 hover:text-red-500"
                       title="Delete cohort"
-                      // TODO: Implement delete functionality
-                      onClick={() =>
-                        alert("Delete functionality not yet implemented.")
-                      }
+                      onClick={() => {
+                        setCohortToDelete(cohort);
+                        setDeleteDialogOpen(true);
+                      }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -194,6 +201,50 @@ export default function CohortListPage() {
           </tbody>
         </table>
       </div>
+      <ConfirmationDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={async () => {
+          if (!cohortToDelete) return;
+
+          try {
+            setIsDeleting(true);
+            const result = await adminFetch<{ success: boolean }>(
+              `/api/admin/cohorts?id=${cohortToDelete.id}`,
+              { method: "DELETE" },
+            );
+
+            if (result.error) {
+              throw new Error(result.error);
+            }
+
+            if (!result.data?.success) {
+              throw new Error("Failed to delete cohort");
+            }
+
+            setCohorts((prev) =>
+              prev.filter((item) => item.id !== cohortToDelete.id),
+            );
+            toast.success("Cohort deleted successfully");
+          } catch (err: any) {
+            log.error("Error deleting cohort:", err);
+            toast.error(err?.message || "Failed to delete cohort");
+          } finally {
+            setIsDeleting(false);
+            setDeleteDialogOpen(false);
+            setCohortToDelete(null);
+          }
+        }}
+        title="Delete Cohort"
+        description={
+          cohortToDelete
+            ? `Are you sure you want to delete ${cohortToDelete.name}? This action cannot be undone.`
+            : ""
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        isLoading={isDeleting}
+      />
     </AdminListPageLayout>
   );
 }
