@@ -29,6 +29,8 @@ export const ADMIN_CACHE_TAGS = {
   milestone: (id: string) => `admin:milestone:${id}`,
   cohort: (id: string) => `admin:cohort:${id}`,
   submissions: (taskId: string) => `admin:submissions:${taskId}`,
+  bootcamp: (id: string) => `admin:bootcamp:${id}`,
+  bootcampList: 'admin:bootcamp:list',
 } as const;
 
 // Small utility exposed for consistent pagination clamping
@@ -36,4 +38,3 @@ export function clampPageSize(size: number | undefined, max = ADMIN_MAX_PAGE_SIZ
   if (!size || size <= 0) return Math.min(50, max);
   return Math.min(size, max);
 }
-

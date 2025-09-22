@@ -3,35 +3,49 @@
  * Complete daily check-in card with streak display and check-in functionality
  */
 
-import React, { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { 
-  CalendarDays, 
-  TrendingUp, 
-  Zap, 
+import React, { useState } from "react";
+import { cn } from "@/lib/utils";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  CalendarDays,
+  TrendingUp,
+  Zap,
   RotateCcw,
   Info,
-  ChevronRight
-} from 'lucide-react';
-import { CheckinCardProps, CheckinResult } from '@/lib/checkin/core/types';
-import { useDailyCheckin, useStreakData } from '@/hooks/checkin';
-import { StreakDisplay, StreakBadge, StreakDisplaySkeleton } from './StreakDisplay';
-import { DailyCheckinButton, CheckinButtonSkeleton, CheckinButtonError } from './DailyCheckinButton';
-import { formatXP, formatMultiplier } from '@/lib/checkin';
-import { getLogger } from '@/lib/utils/logger';
+  ChevronRight,
+} from "lucide-react";
+import { CheckinCardProps, CheckinResult } from "@/lib/checkin/core/types";
+import { useDailyCheckin, useStreakData } from "@/hooks/checkin";
+import {
+  StreakDisplay,
+  StreakBadge,
+  StreakDisplaySkeleton,
+} from "./StreakDisplay";
+import {
+  DailyCheckinButton,
+  CheckinButtonSkeleton,
+  CheckinButtonError,
+} from "./DailyCheckinButton";
+import { formatXP, formatMultiplier } from "@/lib/checkin";
+import { getLogger } from "@/lib/utils/logger";
 
 interface ExtendedCheckinCardProps extends CheckinCardProps {
-  variant?: 'default' | 'minimal' | 'detailed';
+  variant?: "default" | "minimal" | "detailed";
   showTabs?: boolean;
-  defaultTab?: 'checkin' | 'streak' | 'stats';
+  defaultTab?: "checkin" | "streak" | "stats";
 }
 
-const log = getLogger('components:checkin-card');
+const log = getLogger("components:checkin-card");
 
 export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
   userAddress,
@@ -39,12 +53,12 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
   showStreak = true,
   showPreview = true,
   compact = false,
-  variant = 'default',
+  variant = "default",
   showTabs = false,
-  defaultTab = 'checkin',
+  defaultTab = "checkin",
   onCheckinSuccess,
   onCheckinError,
-  className
+  className,
 }) => {
   const [activeTab, setActiveTab] = useState(defaultTab);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -61,7 +75,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
     onCheckinSuccess: (result: CheckinResult) => {
       onCheckinSuccess?.(result);
     },
-    onCheckinError
+    onCheckinError,
   });
 
   const {
@@ -72,7 +86,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
     status: streakStatus,
     isLoading: isStreakLoading,
     error: streakError,
-    refetch: refetchStreak
+    refetch: refetchStreak,
   } = useStreakData(userAddress);
 
   // Combined loading and error states
@@ -85,7 +99,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
     try {
       await Promise.all([refreshStatus(), refetchStreak()]);
     } catch (err) {
-      log.error('Failed to refresh checkin card state', { err, userAddress });
+      log.error("Failed to refresh checkin card state", { err, userAddress });
     } finally {
       setIsRefreshing(false);
     }
@@ -94,7 +108,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
   // Render error state
   if (error && !isLoading) {
     return (
-      <Card className={cn('max-w-md', className)}>
+      <Card className={cn("max-w-md", className)}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <span className="text-lg">🌅</span>
@@ -103,10 +117,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
           <CardDescription>Something went wrong</CardDescription>
         </CardHeader>
         <CardContent>
-          <CheckinButtonError 
-            error={error}
-            onRetry={handleRefresh}
-          />
+          <CheckinButtonError error={error} onRetry={handleRefresh} />
         </CardContent>
       </Card>
     );
@@ -115,7 +126,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
   // Render loading state
   if (isLoading) {
     return (
-      <Card className={cn('max-w-md', className)}>
+      <Card className={cn("max-w-md", className)}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <span className="text-lg">🌅</span>
@@ -132,9 +143,9 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
   }
 
   // Minimal variant
-  if (variant === 'minimal') {
+  if (variant === "minimal") {
     return (
-      <Card className={cn('max-w-sm', className)}>
+      <Card className={cn("max-w-sm", className)}>
         <CardContent className="p-4 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -142,14 +153,14 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
               <span className="font-semibold">Daily Check-in</span>
             </div>
             {showStreak && streakInfo && (
-              <StreakBadge 
+              <StreakBadge
                 streak={streakInfo.currentStreak}
                 multiplier={multiplier}
                 status={streakStatus}
               />
             )}
           </div>
-          
+
           <DailyCheckinButton
             userAddress={userAddress}
             userProfileId={userProfileId}
@@ -165,7 +176,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
   // Tabbed variant
   if (showTabs) {
     return (
-      <Card className={cn('max-w-lg', className)}>
+      <Card className={cn("max-w-lg", className)}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -174,7 +185,9 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
                 Daily Check-in
               </CardTitle>
               <CardDescription>
-                {hasCheckedInToday ? 'Great job today!' : 'Keep your streak alive!'}
+                {hasCheckedInToday
+                  ? "Great job today!"
+                  : "Keep your streak alive!"}
               </CardDescription>
             </div>
             <Button
@@ -183,11 +196,13 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
               onClick={handleRefresh}
               disabled={isRefreshing}
             >
-              <RotateCcw className={cn('w-4 h-4', isRefreshing && 'animate-spin')} />
+              <RotateCcw
+                className={cn("w-4 h-4", isRefreshing && "animate-spin")}
+              />
             </Button>
           </div>
         </CardHeader>
-        
+
         <CardContent>
           <Tabs
             value={activeTab}
@@ -217,7 +232,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
                 className="w-full"
                 size="lg"
               />
-              
+
               {showPreview && checkinPreview && (
                 <div className="p-3 rounded-lg bg-muted/30 space-y-2">
                   <h4 className="font-medium text-sm flex items-center gap-2">
@@ -227,11 +242,15 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-muted-foreground">XP Reward</p>
-                      <p className="font-semibold">{formatXP(checkinPreview.previewXP)}</p>
+                      <p className="font-semibold">
+                        {formatXP(checkinPreview.previewXP)}
+                      </p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">New Streak</p>
-                      <p className="font-semibold">{checkinPreview.nextStreak} days</p>
+                      <p className="font-semibold">
+                        {checkinPreview.nextStreak} days
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -255,17 +274,23 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="p-3 rounded-lg bg-muted/30">
-                    <p className="text-sm text-muted-foreground">Current Streak</p>
-                    <p className="text-2xl font-bold">{streakInfo?.currentStreak || 0}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Current Streak
+                    </p>
+                    <p className="text-2xl font-bold">
+                      {streakInfo?.currentStreak || 0}
+                    </p>
                     <p className="text-xs text-muted-foreground">days</p>
                   </div>
                   <div className="p-3 rounded-lg bg-muted/30">
                     <p className="text-sm text-muted-foreground">Multiplier</p>
-                    <p className="text-2xl font-bold">{formatMultiplier(multiplier)}</p>
+                    <p className="text-2xl font-bold">
+                      {formatMultiplier(multiplier)}
+                    </p>
                     <p className="text-xs text-muted-foreground">XP bonus</p>
                   </div>
                 </div>
-                
+
                 {currentTier && (
                   <div className="p-3 rounded-lg border">
                     <div className="flex items-center justify-between">
@@ -276,7 +301,10 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="text-lg font-bold" style={{ color: currentTier.color }}>
+                        <p
+                          className="text-lg font-bold"
+                          style={{ color: currentTier.color }}
+                        >
                           {currentTier.icon}
                         </p>
                       </div>
@@ -293,7 +321,7 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
 
   // Default variant
   return (
-    <Card className={cn('max-w-md', className)}>
+    <Card className={cn("max-w-md", className)}>
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
@@ -302,16 +330,15 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
               Daily Check-in
             </CardTitle>
             <CardDescription>
-              {hasCheckedInToday 
-                ? 'You\'ve checked in today!' 
-                : 'Start your day right'
-              }
+              {hasCheckedInToday
+                ? "You've checked in today!"
+                : "Start your day right"}
             </CardDescription>
           </div>
-          
+
           {/* Status badge */}
-          <Badge variant={hasCheckedInToday ? 'default' : 'secondary'}>
-            {hasCheckedInToday ? 'Complete' : 'Available'}
+          <Badge variant={hasCheckedInToday ? "default" : "secondary"}>
+            {hasCheckedInToday ? "Complete" : "Available"}
           </Badge>
         </div>
       </CardHeader>
@@ -364,7 +391,9 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
             disabled={isRefreshing}
             className="text-xs"
           >
-            <RotateCcw className={cn('w-3 h-3 mr-1', isRefreshing && 'animate-spin')} />
+            <RotateCcw
+              className={cn("w-3 h-3 mr-1", isRefreshing && "animate-spin")}
+            />
             Refresh
           </Button>
         </div>
@@ -379,22 +408,16 @@ export const MinimalCheckinCard: React.FC<CheckinCardProps> = (props) => {
 };
 
 export const DetailedCheckinCard: React.FC<CheckinCardProps> = (props) => {
-  return (
-    <CheckinCard 
-      {...props} 
-      variant="detailed" 
-      showTabs={true}
-    />
-  );
+  return <CheckinCard {...props} variant="detailed" showTabs={true} />;
 };
 
 // Card skeleton
-export const CheckinCardSkeleton: React.FC<{ 
-  variant?: 'default' | 'minimal' | 'detailed';
+export const CheckinCardSkeleton: React.FC<{
+  variant?: "default" | "minimal" | "detailed";
   className?: string;
-}> = ({ variant = 'default', className }) => {
+}> = ({ variant = "default", className }) => {
   return (
-    <Card className={cn('max-w-md', className)}>
+    <Card className={cn("max-w-md", className)}>
       <CardHeader>
         <div className="space-y-2">
           <div className="w-32 h-5 bg-muted rounded animate-pulse" />
@@ -403,7 +426,7 @@ export const CheckinCardSkeleton: React.FC<{
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="w-full h-10 bg-muted rounded animate-pulse" />
-        {variant !== 'minimal' && (
+        {variant !== "minimal" && (
           <>
             <div className="w-full h-px bg-muted" />
             <div className="space-y-3">

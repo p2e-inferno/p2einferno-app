@@ -4,34 +4,38 @@
  */
 
 // Main components
-export { StreakDisplay, StreakBadge, StreakDisplaySkeleton } from './StreakDisplay';
-export { 
-  DailyCheckinButton, 
-  CompactCheckinButton, 
+export {
+  StreakDisplay,
+  StreakBadge,
+  StreakDisplaySkeleton,
+} from "./StreakDisplay";
+export {
+  DailyCheckinButton,
+  CompactCheckinButton,
   LargeCheckinButton,
   CheckinButtonSkeleton,
-  CheckinButtonError 
-} from './DailyCheckinButton';
-export { 
-  CheckinCard, 
-  MinimalCheckinCard, 
+  CheckinButtonError,
+} from "./DailyCheckinButton";
+export {
+  CheckinCard,
+  MinimalCheckinCard,
   DetailedCheckinCard,
-  CheckinCardSkeleton 
-} from './CheckinCard';
+  CheckinCardSkeleton,
+} from "./CheckinCard";
 
 // Re-export component prop types
-export type { 
+export type {
   StreakDisplayProps,
   DailyCheckinButtonProps,
-  CheckinCardProps 
-} from '@/lib/checkin/core/types';
+  CheckinCardProps,
+} from "@/lib/checkin/core/types";
 
 // Component composition utilities
-import React from 'react';
-import { CheckinCard } from './CheckinCard';
-import { StreakDisplay } from './StreakDisplay';
-import { DailyCheckinButton } from './DailyCheckinButton';
-import { useStreakData } from '@/hooks/checkin';
+import React from "react";
+import { CheckinCard } from "./CheckinCard";
+import { StreakDisplay } from "./StreakDisplay";
+import { DailyCheckinButton } from "./DailyCheckinButton";
+import { useStreakData } from "@/hooks/checkin";
 
 /**
  * Complete check-in experience with all features
@@ -83,7 +87,8 @@ export const ProfileStreakDisplay: React.FC<{
   compact?: boolean;
   className?: string;
 }> = ({ userAddress, showProgress = true, compact = false, className }) => {
-  const { streakInfo, multiplier, currentTier, nextTier, status } = useStreakData(userAddress);
+  const { streakInfo, multiplier, currentTier, nextTier, status } =
+    useStreakData(userAddress);
 
   return (
     <StreakDisplay
@@ -105,14 +110,14 @@ export const ProfileStreakDisplay: React.FC<{
 export const QuickCheckinButton: React.FC<{
   userAddress: string;
   userProfileId: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: "sm" | "md" | "lg";
   className?: string;
-}> = ({ size = 'md', ...props }) => {
+}> = ({ size = "md", ...props }) => {
   return (
     <DailyCheckinButton
       {...props}
       size={size}
-      showPreview={size !== 'sm'}
+      showPreview={size !== "sm"}
       animate={true}
     />
   );

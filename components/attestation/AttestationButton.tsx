@@ -82,7 +82,9 @@ export const AttestationButton: React.FC<AttestationButtonProps> = ({
 
       if (result.success) {
         setHasExistingAttestation(true);
-        toast.success("Attestation Created! 🎉\nYour attestation has been successfully recorded on-chain.");
+        toast.success(
+          "Attestation Created! 🎉\nYour attestation has been successfully recorded on-chain.",
+        );
         onSuccess?.(result);
       } else {
         throw new Error(result.error || "Failed to create attestation");

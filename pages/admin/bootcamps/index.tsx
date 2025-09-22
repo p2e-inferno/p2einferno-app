@@ -43,8 +43,11 @@ export default function BootcampsPage() {
         throw new Error(result.error);
       }
 
-      // Extract the data from the nested response structure
-      const bootcampData = result.data?.data || [];
+      if (!result.data?.success) {
+        throw new Error(result.data?.error || "Failed to load bootcamps");
+      }
+
+      const bootcampData = result.data.data ?? [];
       setBootcamps(Array.isArray(bootcampData) ? bootcampData : []);
     } catch (err: any) {
       log.error("Error fetching bootcamps:", err);
@@ -76,7 +79,7 @@ export default function BootcampsPage() {
       setIsDeleting(true);
 
       // Call API to delete the bootcamp using adminFetch
-      const result = await adminFetch(
+      const result = await adminFetch<{ success: boolean }>(
         `/api/admin/bootcamps/${bootcampToDelete.id}`,
         {
           method: "DELETE",
@@ -85,6 +88,10 @@ export default function BootcampsPage() {
 
       if (result.error) {
         throw new Error(result.error);
+      }
+
+      if (!result.data?.success) {
+        throw new Error(result.data?.error || "Failed to delete bootcamp");
       }
 
       // Remove from UI

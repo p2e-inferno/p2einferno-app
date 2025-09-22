@@ -3,6 +3,14 @@
 ## Overview
 Convert 8 admin components from direct `fetch` calls to `useAdminApi` hook, following established patterns to avoid infinite loops and ensure consistent authentication.
 
+## Migration Log
+
+- ✅ **Bootcamp Admin APIs** (Feb 2025)
+  - App Router route handlers now live under `app/api/admin/bootcamps/`.
+  - Clients updated: `pages/admin/bootcamps/index.tsx`, `/[id].tsx`, `components/admin/BootcampForm.tsx`, `components/admin/CohortForm.tsx`, `pages/admin/draft-recovery.tsx`.
+  - Legacy Pages API (`pages/api/admin/bootcamps*.ts`) removed; cache tagging added via `ADMIN_CACHE_TAGS.bootcamp(*)`.
+  - Verified lock deployment flow after fixing recursive receipt logging.
+
 ## Components to Convert
 
 ### 1. **TaskList.tsx** (HIGH PRIORITY)

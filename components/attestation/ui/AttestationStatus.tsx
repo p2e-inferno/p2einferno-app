@@ -20,7 +20,10 @@ export const AttestationStatus: React.FC<AttestationStatusProps> = ({
 }) => {
   if (isRevoked) {
     return (
-      <Badge variant="secondary" className={`${className} text-red-600 bg-red-100 dark:bg-red-900/20`}>
+      <Badge
+        variant="secondary"
+        className={`${className} text-red-600 bg-red-100 dark:bg-red-900/20`}
+      >
         <XCircle className="w-3 h-3 mr-1" />
         Revoked
       </Badge>

@@ -3,19 +3,19 @@
  * Interactive button for performing daily check-ins with visual feedback
  */
 
-import React, { useState } from 'react';
-import { cn } from '@/lib/utils';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Loader2, CheckCircle, Clock, Zap } from 'lucide-react';
-import { 
+import React, { useState } from "react";
+import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, CheckCircle, Clock, Zap } from "lucide-react";
+import {
   DailyCheckinButtonProps,
-  CheckinResult 
-} from '@/lib/checkin/core/types';
-import { useDailyCheckin } from '@/hooks/checkin';
-import { formatXP } from '@/lib/checkin';
+  CheckinResult,
+} from "@/lib/checkin/core/types";
+import { useDailyCheckin } from "@/hooks/checkin";
+import { formatXP } from "@/lib/checkin";
 
-type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonSize = "sm" | "md" | "lg";
 
 interface ExtendedDailyCheckinButtonProps extends DailyCheckinButtonProps {
   showPreview?: boolean;
@@ -28,32 +28,32 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
   userAddress,
   userProfileId,
   disabled = false,
-  variant = 'default',
-  size = 'md',
-  greeting = 'GM',
+  variant = "default",
+  size = "md",
+  greeting = "GM",
   showPreview = true,
   showCountdown = true,
   animate = true,
   customGreeting,
   onSuccess,
   onError,
-  className
+  className,
 }) => {
   const [isAnimating, setIsAnimating] = useState(false);
 
-  const buttonSizeMap: Record<ButtonSize, 'default' | 'sm' | 'lg'> = {
-    sm: 'sm',
-    md: 'default',
-    lg: 'lg'
+  const buttonSizeMap: Record<ButtonSize, "default" | "sm" | "lg"> = {
+    sm: "sm",
+    md: "default",
+    lg: "lg",
   };
-  
+
   const {
     canCheckinToday,
     hasCheckedInToday,
     previewXP,
     nextCheckinTime,
     isPerformingCheckin,
-    performCheckin
+    performCheckin,
   } = useDailyCheckin(userAddress, userProfileId, {
     onCheckinSuccess: (result: CheckinResult) => {
       if (animate) {
@@ -62,19 +62,19 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
       }
       onSuccess?.(result);
     },
-    onCheckinError: onError
+    onCheckinError: onError,
   });
 
   // Format countdown timer
   const formatCountdown = (date: Date): string => {
     const now = new Date();
     const diff = date.getTime() - now.getTime();
-    
-    if (diff <= 0) return 'Available now';
-    
+
+    if (diff <= 0) return "Available now";
+
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
     }
@@ -84,7 +84,7 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
   // Handle click
   const handleClick = async () => {
     if (!canCheckinToday || isPerformingCheckin || disabled) return;
-    
+
     await performCheckin(customGreeting || greeting);
   };
 
@@ -112,7 +112,9 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
       return (
         <>
           <Clock className="w-4 h-4" />
-          {showCountdown ? formatCountdown(nextCheckinTime) : 'Come back tomorrow'}
+          {showCountdown
+            ? formatCountdown(nextCheckinTime)
+            : "Come back tomorrow"}
         </>
       );
     }
@@ -127,8 +129,8 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
 
   // Button variant based on state
   const getButtonVariant = () => {
-    if (hasCheckedInToday) return 'outline';
-    if (!canCheckinToday) return 'ghost';
+    if (hasCheckedInToday) return "outline";
+    if (!canCheckinToday) return "ghost";
     return variant;
   };
 
@@ -138,32 +140,32 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
   // Tooltip content
   const getTooltipContent = () => {
     if (hasCheckedInToday) {
-      return 'You\'ve already checked in today! Come back tomorrow.';
+      return "You've already checked in today! Come back tomorrow.";
     }
-    
+
     if (!canCheckinToday && nextCheckinTime) {
       return `Next check-in available at ${nextCheckinTime.toLocaleTimeString()}`;
     }
-    
+
     if (previewXP > 0) {
       return `Check in to earn ${formatXP(previewXP)}!`;
     }
-    
-    return 'Click to perform your daily check-in';
+
+    return "Click to perform your daily check-in";
   };
 
   const tooltipContent = getTooltipContent();
 
   const buttonClasses = cn(
-    'relative transition-all duration-300',
-    animate && isAnimating && 'scale-105 shadow-lg',
-    hasCheckedInToday && 'cursor-default',
-    canCheckinToday && !hasCheckedInToday && 'hover:scale-105',
-    className
+    "relative transition-all duration-300",
+    animate && isAnimating && "scale-105 shadow-lg",
+    hasCheckedInToday && "cursor-default",
+    canCheckinToday && !hasCheckedInToday && "hover:scale-105",
+    className,
   );
 
   return (
-    <div className={cn('relative', className)}>
+    <div className={cn("relative", className)}>
       <Button
         variant={getButtonVariant()}
         size={buttonSizeMap[size]}
@@ -183,20 +185,22 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
       </Button>
 
       {/* XP Preview Badge */}
-      {showPreview && canCheckinToday && !hasCheckedInToday && previewXP > 0 && (
-        <Badge 
-          variant="secondary" 
-          className="absolute -top-2 -right-2 bg-green-100 text-green-700 border-green-200"
-        >
-          <Zap className="w-3 h-3 mr-1" />
-          +{previewXP}
-        </Badge>
-      )}
+      {showPreview &&
+        canCheckinToday &&
+        !hasCheckedInToday &&
+        previewXP > 0 && (
+          <Badge
+            variant="secondary"
+            className="absolute -top-2 -right-2 bg-green-100 text-green-700 border-green-200"
+          >
+            <Zap className="w-3 h-3 mr-1" />+{previewXP}
+          </Badge>
+        )}
 
       {/* Success badge */}
       {hasCheckedInToday && (
-        <Badge 
-          variant="secondary" 
+        <Badge
+          variant="secondary"
           className="absolute -top-2 -right-2 bg-blue-100 text-blue-700 border-blue-200"
         >
           <CheckCircle className="w-3 h-3" />
@@ -207,25 +211,29 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
 };
 
 // Compact variant for smaller spaces
-export const CompactCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = (props) => {
+export const CompactCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = (
+  props,
+) => {
   return (
     <DailyCheckinButton
       {...props}
       size="sm"
       showPreview={false}
       showCountdown={false}
-      className={cn('px-3 py-1', props.className)}
+      className={cn("px-3 py-1", props.className)}
     />
   );
 };
 
 // Large variant with enhanced visuals
-export const LargeCheckinButton: React.FC<ExtendedDailyCheckinButtonProps & {
-  showStats?: boolean;
-}> = ({ showStats = true, ...props }) => {
+export const LargeCheckinButton: React.FC<
+  ExtendedDailyCheckinButtonProps & {
+    showStats?: boolean;
+  }
+> = ({ showStats = true, ...props }) => {
   const { previewXP, canCheckinToday, hasCheckedInToday } = useDailyCheckin(
-    props.userAddress, 
-    props.userProfileId
+    props.userAddress,
+    props.userProfileId,
   );
 
   return (
@@ -233,9 +241,9 @@ export const LargeCheckinButton: React.FC<ExtendedDailyCheckinButtonProps & {
       <DailyCheckinButton
         {...props}
         size="lg"
-        className={cn('w-full py-3 text-lg', props.className)}
+        className={cn("w-full py-3 text-lg", props.className)}
       />
-      
+
       {showStats && canCheckinToday && !hasCheckedInToday && previewXP > 0 && (
         <div className="text-center text-sm text-muted-foreground">
           Earn {formatXP(previewXP)} for checking in today
@@ -246,22 +254,24 @@ export const LargeCheckinButton: React.FC<ExtendedDailyCheckinButtonProps & {
 };
 
 // Loading skeleton
-export const CheckinButtonSkeleton: React.FC<{ 
-  size?: 'sm' | 'md' | 'lg';
+export const CheckinButtonSkeleton: React.FC<{
+  size?: "sm" | "md" | "lg";
   className?: string;
-}> = ({ size = 'md', className }) => {
+}> = ({ size = "md", className }) => {
   const sizeClasses = {
-    sm: 'h-8 w-24',
-    md: 'h-10 w-32',
-    lg: 'h-12 w-40'
+    sm: "h-8 w-24",
+    md: "h-10 w-32",
+    lg: "h-12 w-40",
   };
 
   return (
-    <div className={cn(
-      'bg-muted rounded-md animate-pulse',
-      sizeClasses[size],
-      className
-    )} />
+    <div
+      className={cn(
+        "bg-muted rounded-md animate-pulse",
+        sizeClasses[size],
+        className,
+      )}
+    />
   );
 };
 
@@ -272,18 +282,14 @@ export const CheckinButtonError: React.FC<{
   className?: string;
 }> = ({ error, onRetry, className }) => {
   return (
-    <div className={cn('space-y-2', className)}>
-      <Button 
-        variant="destructive" 
-        disabled 
-        className="w-full"
-      >
+    <div className={cn("space-y-2", className)}>
+      <Button variant="destructive" disabled className="w-full">
         Error: {error}
       </Button>
       {onRetry && (
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           onClick={onRetry}
           className="w-full"
         >

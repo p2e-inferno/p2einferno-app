@@ -178,6 +178,7 @@ export default function CohortForm({
         const result = await adminFetch<{
           success: boolean;
           data: BootcampProgram[];
+          error?: string;
         }>("/api/admin/bootcamps");
 
         if (!isMounted) return;
@@ -186,7 +187,13 @@ export default function CohortForm({
           throw new Error(result.error);
         }
 
-        setBootcampPrograms(result.data?.data || []);
+        if (!result.data?.success) {
+          throw new Error(
+            result.data?.error || "Failed to load bootcamp programs",
+          );
+        }
+
+        setBootcampPrograms(result.data.data || []);
       } catch (err: any) {
         if (!isMounted) return;
         log.error("Error fetching bootcamp programs:", err);

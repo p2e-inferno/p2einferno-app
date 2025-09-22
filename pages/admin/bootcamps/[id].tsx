@@ -36,14 +36,15 @@ export default function EditBootcampPage() {
       const result = await adminFetch<{
         success: boolean;
         data: BootcampProgram;
+        error?: string;
       }>(`/api/admin/bootcamps/${id}`);
 
       if (result.error) {
         throw new Error(result.error);
       }
 
-      if (!result.data?.data) {
-        throw new Error("Bootcamp not found");
+      if (!result.data?.success || !result.data.data) {
+        throw new Error(result.data?.error || "Bootcamp not found");
       }
 
       setBootcamp(result.data.data);

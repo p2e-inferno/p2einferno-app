@@ -307,7 +307,11 @@ export default function BootcampForm({
       const endpoint = "/api/admin/bootcamps";
       const method = isEditing ? "PUT" : "POST";
 
-      const response = await adminApi.adminFetch(endpoint, {
+      const response = await adminApi.adminFetch<{
+        success: boolean;
+        data?: BootcampProgram;
+        error?: string;
+      }>(endpoint, {
         method,
         body: JSON.stringify(apiData),
       });
@@ -316,7 +320,11 @@ export default function BootcampForm({
         throw new Error(response.error);
       }
 
-      if (response.data) {
+      if (!response.data?.success || !response.data.data) {
+        throw new Error(response.data?.error || "Failed to save bootcamp");
+      }
+
+      if (response.data.data) {
         // Clean up drafts and pending deployments on success
         if (!isEditing) {
           removeDraft("bootcamp");

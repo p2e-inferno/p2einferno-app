@@ -3,23 +3,23 @@
  * Displays streak information with tier progress and visual indicators
  */
 
-import React from 'react';
-import { cn } from '@/lib/utils';
-import { Card, CardContent } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Badge } from '@/components/ui/badge';
-import { 
-  StreakDisplayProps, 
-  MultiplierTier, 
-  StreakStatus 
-} from '@/lib/checkin/core/types';
-import { 
-  formatStreakDuration, 
-  getStreakEmoji, 
+import React from "react";
+import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import {
+  StreakDisplayProps,
+  MultiplierTier,
+  StreakStatus,
+} from "@/lib/checkin/core/types";
+import {
+  formatStreakDuration,
+  getStreakEmoji,
   getStreakMessage,
   formatMultiplier,
-  getMultiplierColor
-} from '@/lib/checkin';
+  getMultiplierColor,
+} from "@/lib/checkin";
 
 interface ExtendedStreakDisplayProps extends StreakDisplayProps {
   status?: StreakStatus;
@@ -35,19 +35,19 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
   nextTier,
   showProgress = true,
   compact = false,
-  status = 'active',
+  status = "active",
   timeUntilExpiration,
   showTimeRemaining = false,
   onTierClick,
-  className
+  className,
 }) => {
   // Calculate progress percentage
   const progressPercentage = React.useMemo(() => {
     if (!currentTier || !nextTier) return 100;
-    
+
     const tierRange = nextTier.minStreak - currentTier.minStreak;
     const progressInTier = streak - currentTier.minStreak;
-    
+
     return Math.min((progressInTier / tierRange) * 100, 100);
   }, [streak, currentTier, nextTier]);
 
@@ -55,7 +55,7 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
   const formatTimeRemaining = (ms: number): string => {
     const hours = Math.floor(ms / (1000 * 60 * 60));
     const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    
+
     if (hours > 0) {
       return `${hours}h ${minutes}m`;
     }
@@ -65,14 +65,18 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
   // Get status color and indicator
   const getStatusIndicator = (status: StreakStatus) => {
     switch (status) {
-      case 'active':
-        return { color: 'text-green-600', bg: 'bg-green-100', label: 'Active' };
-      case 'at_risk':
-        return { color: 'text-amber-600', bg: 'bg-amber-100', label: 'At Risk' };
-      case 'broken':
-        return { color: 'text-red-600', bg: 'bg-red-100', label: 'Broken' };
+      case "active":
+        return { color: "text-green-600", bg: "bg-green-100", label: "Active" };
+      case "at_risk":
+        return {
+          color: "text-amber-600",
+          bg: "bg-amber-100",
+          label: "At Risk",
+        };
+      case "broken":
+        return { color: "text-red-600", bg: "bg-red-100", label: "Broken" };
       default:
-        return { color: 'text-gray-600', bg: 'bg-gray-100', label: 'New' };
+        return { color: "text-gray-600", bg: "bg-gray-100", label: "New" };
     }
   };
 
@@ -83,7 +87,7 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
 
   if (compact) {
     return (
-      <div className={cn('flex items-center gap-2', className)}>
+      <div className={cn("flex items-center gap-2", className)}>
         <span className="text-lg">{streakEmoji}</span>
         <div className="flex flex-col">
           <span className="font-semibold text-sm">{streak} days</span>
@@ -96,7 +100,7 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
   }
 
   return (
-    <Card className={cn('relative overflow-hidden', className)}>
+    <Card className={cn("relative overflow-hidden", className)}>
       <CardContent className="p-4">
         <div className="space-y-3">
           {/* Header with streak info */}
@@ -106,9 +110,13 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="font-bold text-lg">{streak} Day Streak</h3>
-                  <Badge 
-                    variant="secondary" 
-                    className={cn('text-xs', statusIndicator.bg, statusIndicator.color)}
+                  <Badge
+                    variant="secondary"
+                    className={cn(
+                      "text-xs",
+                      statusIndicator.bg,
+                      statusIndicator.color,
+                    )}
                   >
                     {statusIndicator.label}
                   </Badge>
@@ -116,10 +124,10 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
                 <p className="text-sm text-muted-foreground">{streakMessage}</p>
               </div>
             </div>
-            
+
             {/* Multiplier display */}
             <div className="text-right">
-              <div 
+              <div
                 className="font-bold text-lg"
                 style={{ color: getMultiplierColor(multiplier) }}
               >
@@ -130,36 +138,45 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
           </div>
 
           {/* Time remaining warning */}
-          {showTimeRemaining && timeUntilExpiration && timeUntilExpiration < 3 * 60 * 60 * 1000 && (
-            <div className="flex items-center gap-2 p-2 rounded-md bg-amber-50 border border-amber-200">
-              <span className="text-amber-600">⚠️</span>
-              <span className="text-sm text-amber-700">
-                Streak expires in {formatTimeRemaining(timeUntilExpiration)}
-              </span>
-            </div>
-          )}
+          {showTimeRemaining &&
+            timeUntilExpiration &&
+            timeUntilExpiration < 3 * 60 * 60 * 1000 && (
+              <div className="flex items-center gap-2 p-2 rounded-md bg-amber-50 border border-amber-200">
+                <span className="text-amber-600">⚠️</span>
+                <span className="text-sm text-amber-700">
+                  Streak expires in {formatTimeRemaining(timeUntilExpiration)}
+                </span>
+              </div>
+            )}
 
           {/* Current tier info */}
           {currentTier && (
-            <div 
+            <div
               className={cn(
-                'flex items-center justify-between p-3 rounded-lg border-2 transition-all',
-                onTierClick ? 'cursor-pointer hover:bg-muted/50' : '',
-                'border-primary/20 bg-primary/5'
+                "flex items-center justify-between p-3 rounded-lg border-2 transition-all",
+                onTierClick ? "cursor-pointer hover:bg-muted/50" : "",
+                "border-primary/20 bg-primary/5",
               )}
               onClick={() => onTierClick?.(currentTier)}
             >
               <div className="flex items-center gap-2">
-                {currentTier.icon && <span className="text-lg">{currentTier.icon}</span>}
+                {currentTier.icon && (
+                  <span className="text-lg">{currentTier.icon}</span>
+                )}
                 <div>
                   <p className="font-medium text-sm">{currentTier.name}</p>
                   {currentTier.description && (
-                    <p className="text-xs text-muted-foreground">{currentTier.description}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {currentTier.description}
+                    </p>
                   )}
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-bold text-sm" style={{ color: currentTier.color }}>
+                <p
+                  className="font-bold text-sm"
+                  style={{ color: currentTier.color }}
+                >
                   {formatMultiplier(currentTier.multiplier)}
                 </p>
                 <p className="text-xs text-muted-foreground">current</p>
@@ -178,23 +195,22 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
                   {streak} / {nextTier.minStreak}
                 </span>
               </div>
-              
-              <Progress 
-                value={progressPercentage} 
-                className="h-2"
-              />
-              
+
+              <Progress value={progressPercentage} className="h-2" />
+
               {/* Next tier preview */}
-              <div 
+              <div
                 className={cn(
-                  'flex items-center justify-between p-2 rounded-md border transition-all',
-                  onTierClick ? 'cursor-pointer hover:bg-muted/30' : '',
-                  'border-muted bg-muted/20'
+                  "flex items-center justify-between p-2 rounded-md border transition-all",
+                  onTierClick ? "cursor-pointer hover:bg-muted/30" : "",
+                  "border-muted bg-muted/20",
                 )}
                 onClick={() => nextTier && onTierClick?.(nextTier)}
               >
                 <div className="flex items-center gap-2">
-                  {nextTier.icon && <span className="text-sm">{nextTier.icon}</span>}
+                  {nextTier.icon && (
+                    <span className="text-sm">{nextTier.icon}</span>
+                  )}
                   <div>
                     <p className="font-medium text-xs">{nextTier.name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -203,7 +219,10 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold text-xs" style={{ color: nextTier.color }}>
+                  <p
+                    className="font-bold text-xs"
+                    style={{ color: nextTier.color }}
+                  >
                     {formatMultiplier(nextTier.multiplier)}
                   </p>
                   <p className="text-xs text-muted-foreground">next</p>
@@ -215,9 +234,7 @@ export const StreakDisplay: React.FC<ExtendedStreakDisplayProps> = ({
           {/* Additional streak details */}
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
             <span>Duration: {streakDuration}</span>
-            {currentTier && (
-              <span>Tier: {currentTier.name}</span>
-            )}
+            {currentTier && <span>Tier: {currentTier.name}</span>}
           </div>
         </div>
       </CardContent>
@@ -231,27 +248,27 @@ export const StreakBadge: React.FC<{
   multiplier: number;
   status?: StreakStatus;
   className?: string;
-}> = ({ streak, multiplier, status = 'active', className }) => {
+}> = ({ streak, multiplier, status = "active", className }) => {
   const statusIndicator = React.useMemo(() => {
     switch (status) {
-      case 'active':
-        return 'bg-green-100 text-green-700 border-green-200';
-      case 'at_risk':
-        return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'broken':
-        return 'bg-red-100 text-red-700 border-red-200';
+      case "active":
+        return "bg-green-100 text-green-700 border-green-200";
+      case "at_risk":
+        return "bg-amber-100 text-amber-700 border-amber-200";
+      case "broken":
+        return "bg-red-100 text-red-700 border-red-200";
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return "bg-gray-100 text-gray-700 border-gray-200";
     }
   }, [status]);
 
   return (
-    <Badge 
-      variant="outline" 
+    <Badge
+      variant="outline"
       className={cn(
-        'flex items-center gap-1 px-2 py-1',
+        "flex items-center gap-1 px-2 py-1",
         statusIndicator,
-        className
+        className,
       )}
     >
       <span>{getStreakEmoji(streak)}</span>
@@ -264,7 +281,9 @@ export const StreakBadge: React.FC<{
 };
 
 // Loading skeleton
-export const StreakDisplaySkeleton: React.FC<{ compact?: boolean }> = ({ compact }) => {
+export const StreakDisplaySkeleton: React.FC<{ compact?: boolean }> = ({
+  compact,
+}) => {
   if (compact) {
     return (
       <div className="flex items-center gap-2">

@@ -878,7 +878,12 @@ export const deployLock = async (
 
     // Wait for transaction confirmation
     const receipt = await tx.wait();
-    log.info("Transaction receipt:", receipt);
+    log.info("Transaction receipt summary", {
+      hash: receipt?.hash ?? tx.hash,
+      status: receipt?.status,
+      confirmations: receipt?.confirmations,
+      logCount: Array.isArray(receipt?.logs) ? receipt.logs.length : 0,
+    });
 
     if (receipt.status !== 1) {
       throw new Error("Transaction failed. Please try again.");
@@ -950,7 +955,11 @@ export const deployLock = async (
       lockAddress: lockAddress,
     };
   } catch (error) {
-    log.error("Error deploying lock:", error);
+    log.error("Error deploying lock", {
+      message: error instanceof Error ? error.message : String(error),
+      name: (error as any)?.name,
+      code: (error as any)?.code,
+    });
 
     let errorMessage = "Failed to deploy lock";
 
