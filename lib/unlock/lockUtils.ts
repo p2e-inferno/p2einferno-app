@@ -898,9 +898,9 @@ export const deployLock = async (
     ]);
 
     const txnCalldatas: Hex[] = [];
-    txnCalldatas.push(lockMgmtIface.encodeFunctionData("addLockManager", [wallet.address]));
-    txnCalldatas.push(lockMgmtIface.encodeFunctionData("addLockManager", [extraManagerAddress ?? DEFAULT_LOCK_MANAGER_ADDRESS]));
-    txnCalldatas.push(lockMgmtIface.encodeFunctionData("renounceLockManager")); // removes factory address as lock manager
+    txnCalldatas.push(lockMgmtIface.encodeFunctionData("addLockManager", [wallet.address]) as Hex);
+    txnCalldatas.push(lockMgmtIface.encodeFunctionData("addLockManager", [extraManagerAddress ?? DEFAULT_LOCK_MANAGER_ADDRESS]) as Hex);
+    txnCalldatas.push(lockMgmtIface.encodeFunctionData("renounceLockManager") as Hex); // removes factory address as lock manager
 
     log.info("Creating lock with calldata and version:", version);
 
