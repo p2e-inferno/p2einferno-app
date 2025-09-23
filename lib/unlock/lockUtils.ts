@@ -1,4 +1,4 @@
-import { type Address } from "viem";
+import type { Address, Hex } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { ethers, formatUnits, parseUnits } from "ethers";
 import { UNIFIED_BLOCKCHAIN_CONFIG, getClientRpcUrls } from "../blockchain/config/unified-config";
@@ -13,7 +13,7 @@ import { PUBLIC_LOCK_CONTRACT } from "../../constants";
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('unlock:lockUtils');
-
+const DEFAULT_LOCK_MANAGER_ADDRESS: Address = "0x7A2BF39919bb7e7bF3C0a96F005A0842CfDAa8ac"
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -66,8 +66,9 @@ const UNLOCK_FACTORY_ADDRESSES = {
 const UNLOCK_FACTORY_ABI = [
   {
     inputs: [
-      { internalType: "bytes", name: "calldata", type: "bytes" },
-      { internalType: "uint16", name: "version", type: "uint16" },
+      { internalType: "bytes",   name: "data",        type: "bytes" },
+      { internalType: "uint16",  name: "lockVersion", type: "uint16" },
+      { internalType: "bytes[]", name: "transactions",type: "bytes[]" },
     ],
     name: "createUpgradeableLockAtVersion",
     outputs: [{ internalType: "address", name: "", type: "address" }],
@@ -131,6 +132,14 @@ const ADDITIONAL_LOCK_ABI = [
     outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
+  },
+  // Renounce lock manager function
+  { 
+    inputs: [], 
+    name: "renounceLockManager", 
+    outputs: [], 
+    stateMutability: "nonpayable", 
+    type: "function" 
   },
 ] as const;
 
@@ -788,7 +797,8 @@ export const purchaseKey = async (
  */
 export const deployLock = async (
   config: LockConfig,
-  wallet: any
+  wallet: any,
+  extraManagerAddress?: string // optional extra manager to add
 ): Promise<DeploymentResult> => {
   try {
     log.info("Deploying lock with config:", config);
@@ -862,7 +872,7 @@ export const deployLock = async (
       }
     ]);
     const calldata = lockInterface.encodeFunctionData("initialize", [
-      wallet.address, // address of the first lock manager
+      factoryAddress, // address of the first lock manager (factory address)
       config.expirationDuration, // expirationDuration (in seconds)
       tokenAddress, // address of an ERC20 contract to use as currency (or 0x0 for native)
       keyPriceWei, // Amount to be paid
@@ -870,10 +880,32 @@ export const deployLock = async (
       config.name, // Name of membership contract
     ]);
 
+    const lockMgmtIface = new ethers.Interface([
+      {
+        inputs: [{ internalType: "address", name: "_account", type: "address" }],
+        name: "addLockManager",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function",
+      },
+      { 
+        inputs: [], 
+        name: "renounceLockManager", 
+        outputs: [], 
+        stateMutability: "nonpayable", 
+        type: "function" 
+      }
+    ]);
+
+    const txnCalldatas: Hex[] = [];
+    txnCalldatas.push(lockMgmtIface.encodeFunctionData("addLockManager", [wallet.address]));
+    txnCalldatas.push(lockMgmtIface.encodeFunctionData("addLockManager", [extraManagerAddress ?? DEFAULT_LOCK_MANAGER_ADDRESS]));
+    txnCalldatas.push(lockMgmtIface.encodeFunctionData("renounceLockManager")); // removes factory address as lock manager
+
     log.info("Creating lock with calldata and version:", version);
 
     // Create the lock
-    const tx = await unlock.createUpgradeableLockAtVersion(calldata, version);
+    const tx = await unlock.createUpgradeableLockAtVersion(calldata, version, txnCalldatas);
     log.info("Lock deployment transaction sent:", tx.hash);
 
     // Wait for transaction confirmation
