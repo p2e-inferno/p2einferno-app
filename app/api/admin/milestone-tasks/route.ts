@@ -33,7 +33,17 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from('milestone_tasks').insert(items).select('*');
     if (error) {
       log.error('insert milestone_tasks failed', { error });
-      return NextResponse.json({ error: 'Failed to create tasks' }, { status: 400 });
+      
+      // Provide more specific error messages
+      if (error.code === '23505') {
+        return NextResponse.json({ 
+          error: 'Duplicate task ID detected. Please refresh and try again.' 
+        }, { status: 400 });
+      }
+      
+      return NextResponse.json({ 
+        error: 'Failed to create tasks: ' + error.message 
+      }, { status: 400 });
     }
     (data || []).forEach(invalidateForTask);
     return NextResponse.json({ success: true, data }, { status: 201 });

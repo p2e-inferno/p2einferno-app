@@ -199,6 +199,15 @@
 - **`tabs.tsx`** - Tab navigation components
 - **`textarea.tsx`** - Textarea components
 
+### Context Providers (`contexts/`)
+- **`AdminAuthContext.tsx`** - Centralized auth context provider for state management for admin components/pages
+  - **Hook**: 
+  `useAdminAuthContext()` - Type-safe context consumption with error boundaries
+  - **Utilities**: 
+  `isFullyAuthenticated()` - Check if auth status indicates full authentication
+  `isAuthLoading()` - Check if auth status indicates loading state
+  `getAuthStatusMessage()` - Get user-friendly message for auth status
+
 ### Layout Components (`components/layouts/`)
 - **`MainLayout.tsx`** - Main application layout
 - **`AdminLayout.tsx`** - Admin-specific layout
@@ -823,6 +832,8 @@
 - **`unit/`** - Unit tests for components, hooks, and utilities
   - `app/` - App-specific tests
   - `components/` - Component tests
+  - `contexts/` - Context provider tests
+    - `AdminAuthContext.test.tsx` - Comprehensive tests for AdminAuthContext provider and hook
   - `hooks/` - Hook tests
   - `lib/` - Library tests
 
@@ -845,6 +856,7 @@
 ## Documentation
 
 ### Architecture Documentation
+- **`ADMIN_AUTH_CONTEXT_MIGRATION_PLAN.md`** - Comprehensive execution plan for migrating admin authentication from individual hook usage to centralized React Context architecture to solve RPC rate limiting issues
 - **`AUTHENTICATION_ARCHITECTURE.md`** - Authentication system design
 - **`AUTHENTICATION_DEVELOPER_GUIDE.md`** - Developer authentication guide
 - **`UNIFIED_AUTH_ARCHITECTURE.md`** - Unified authentication architecture

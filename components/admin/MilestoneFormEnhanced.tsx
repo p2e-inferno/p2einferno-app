@@ -25,6 +25,7 @@ import {
   removeDraft,
   updateDraftWithLockAddress,
 } from "@/lib/utils/lock-deployment-state";
+import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 
 const log = getLogger("admin:MilestoneFormEnhanced");
 
@@ -122,6 +123,11 @@ export default function MilestoneFormEnhanced({
       contract_method: "",
     },
   ]);
+
+  const [deletedTasks, setDeletedTasks] = useState<string[]>([]);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
 
   // Load draft data on mount for new milestones
   useEffect(() => {
@@ -221,20 +227,38 @@ export default function MilestoneFormEnhanced({
     ]);
   };
 
-  const removeTask = (taskId: string) => {
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+  const handleRemoveTask = (taskId: string) => {
+    // Show confirmation dialog before removing
+    setTaskToDelete(taskId);
+    setShowDeleteConfirmation(true);
+  };
+
+  const confirmTaskDeletion = async () => {
+    if (!taskToDelete) return;
+    
+    setIsDeletingTask(true);
+    try {
+      // If it's an existing task (not temporary), add to deleted list
+      if (taskToDelete.length > 10 && !taskToDelete.startsWith("temp_")) {
+        setDeletedTasks(prev => [...prev, taskToDelete]);
+      }
+      
+      // Remove from current tasks
+      setTasks(prev => prev.filter(task => task.id !== taskToDelete));
+      setShowDeleteConfirmation(false);
+      setTaskToDelete(null);
+    } catch (error) {
+      log.error("Error removing task:", error);
+    } finally {
+      setIsDeletingTask(false);
+    }
   };
 
   const updateTask = (taskId: string, field: keyof TaskForm, value: any) => {
     setTasks((prev) =>
       prev.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              [field]: field === "reward_amount" ? parseInt(value) || 0 : value,
-            }
-          : task,
-      ),
+        task.id === taskId ? { ...task, [field]: value } : task
+      )
     );
   };
 
@@ -476,43 +500,96 @@ export default function MilestoneFormEnhanced({
       }
       const milestoneId = milestoneResult.data?.id || formData.id;
 
-      // Submit tasks
-      const tasksData = validTasks.map((task, index) => ({
-        id:
-          task.id.startsWith("temp_") || task.id.length <= 10
-            ? getRecordId(false)
-            : task.id,
-        title: task.title,
-        description: task.description || "",
-        reward_amount: task.reward_amount,
-        task_type: task.task_type,
-        contract_network:
-          task.task_type === "contract_interaction"
-            ? task.contract_network
-            : null,
-        contract_address:
-          task.task_type === "contract_interaction"
-            ? task.contract_address
-            : null,
-        contract_method:
-          task.task_type === "contract_interaction"
-            ? task.contract_method
-            : null,
-        milestone_id: milestoneId,
-        order_index: index,
-        created_at: now,
-        updated_at: now,
-      }));
+      // Delete removed tasks first
+      if (deletedTasks.length > 0) {
+        for (const taskId of deletedTasks) {
+          const deleteResult = await adminFetch(`/api/admin/milestone-tasks?id=${taskId}`, {
+            method: "DELETE",
+          });
+          
+          if (deleteResult.error) {
+            log.error("Failed to delete task:", deleteResult.error);
+            // Continue with other operations but log the error
+          }
+        }
+      }
 
-      // Only submit tasks if there are valid tasks and a milestone ID
-      if (validTasks.length > 0 && milestoneId) {
-        const tasksResult = await adminFetch("/api/admin/milestone-tasks", {
-          method: "POST",
-          body: JSON.stringify({ tasks: tasksData, milestoneId }),
+      // Process tasks: separate existing tasks from new tasks
+      const existingTasks = validTasks.filter(task => 
+        task.id && task.id.length > 10 && !task.id.startsWith("temp_")
+      );
+      const newTasks = validTasks.filter(task => 
+        !task.id || task.id.length <= 10 || task.id.startsWith("temp_")
+      );
+
+      // Update existing tasks using PUT
+      for (const task of existingTasks) {
+        const taskData = {
+          id: task.id,
+          title: task.title,
+          description: task.description || "",
+          reward_amount: task.reward_amount,
+          task_type: task.task_type,
+          contract_network:
+            task.task_type === "contract_interaction"
+              ? task.contract_network
+              : null,
+          contract_address:
+            task.task_type === "contract_interaction"
+              ? task.contract_address
+              : null,
+          contract_method:
+            task.task_type === "contract_interaction"
+              ? task.contract_method
+              : null,
+          milestone_id: milestoneId,
+          order_index: validTasks.indexOf(task),
+          updated_at: now,
+        };
+
+        const updateResult = await adminFetch("/api/admin/milestone-tasks", {
+          method: "PUT",
+          body: JSON.stringify(taskData),
         });
 
-        if (tasksResult.error) {
-          throw new Error(tasksResult.error);
+        if (updateResult.error) {
+          throw new Error(`Failed to update task: ${updateResult.error}`);
+        }
+      }
+
+      // Create new tasks using POST
+      if (newTasks.length > 0) {
+        const newTasksData = newTasks.map((task) => ({
+          id: getRecordId(false),
+          title: task.title,
+          description: task.description || "",
+          reward_amount: task.reward_amount,
+          task_type: task.task_type,
+          contract_network:
+            task.task_type === "contract_interaction"
+              ? task.contract_network
+              : null,
+          contract_address:
+            task.task_type === "contract_interaction"
+              ? task.contract_address
+              : null,
+          contract_method:
+            task.task_type === "contract_interaction"
+              ? task.contract_method
+              : null,
+          milestone_id: milestoneId,
+          order_index: validTasks.indexOf(task),
+          created_at: now,
+          updated_at: now,
+        }));
+
+        const createResult = await adminFetch("/api/admin/milestone-tasks", {
+          method: "POST",
+          body: JSON.stringify({ tasks: newTasksData, milestoneId }),
+        });
+
+        if (createResult.error) {
+          throw new Error(`Failed to create tasks: ${createResult.error}`);
         }
       }
 
@@ -523,6 +600,9 @@ export default function MilestoneFormEnhanced({
       if (!isEditing) {
         removeDraft("milestone");
       }
+
+      // Clean up deleted tasks list after successful submission
+      setDeletedTasks([]);
 
       // Call success handler
       if (onSubmitSuccess) {
@@ -694,7 +774,7 @@ export default function MilestoneFormEnhanced({
                 {tasks.length > 1 && (
                   <Button
                     type="button"
-                    onClick={() => removeTask(task.id)}
+                    onClick={() => handleRemoveTask(task.id)}
                     variant="ghost"
                     size="sm"
                     className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
@@ -984,6 +1064,17 @@ export default function MilestoneFormEnhanced({
           )}
         </Button>
       </div>
+
+      <ConfirmationDialog
+        isOpen={showDeleteConfirmation}
+        onClose={() => setShowDeleteConfirmation(false)}
+        onConfirm={confirmTaskDeletion}
+        isLoading={isDeletingTask}
+        title="Confirm Task Deletion"
+        description="Are you sure you want to delete this task? This action cannot be undone."
+        confirmText="Delete Task"
+        variant="danger"
+      />
     </form>
   );
 }
