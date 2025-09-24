@@ -41,6 +41,7 @@ interface TaskForm {
   contract_network?: string;
   contract_address?: string;
   contract_method?: string;
+  _isFromDatabase?: boolean; // Track if task came from database
 }
 
 const AVAILABLE_NETWORKS = [
@@ -121,6 +122,7 @@ export default function MilestoneFormEnhanced({
       contract_network: "",
       contract_address: "",
       contract_method: "",
+      _isFromDatabase: false, // Mark initial task as new
     },
   ]);
 
@@ -179,6 +181,7 @@ export default function MilestoneFormEnhanced({
           contract_network: task.contract_network || "",
           contract_address: task.contract_address || "",
           contract_method: task.contract_method || "",
+          _isFromDatabase: true, // Mark as from database
         }));
         setTasks(existingTasks);
       } else {
@@ -223,6 +226,7 @@ export default function MilestoneFormEnhanced({
         contract_network: "",
         contract_address: "",
         contract_method: "",
+        _isFromDatabase: false, // Mark as new task
       },
     ]);
   };
@@ -238,8 +242,9 @@ export default function MilestoneFormEnhanced({
 
     setIsDeletingTask(true);
     try {
-      // If it's an existing task (not temporary), add to deleted list
-      if (taskToDelete.length > 10 && !taskToDelete.startsWith("temp_")) {
+      // If it's an existing task from database, add to deleted list
+      const taskToDeleteObj = tasks.find(task => task.id === taskToDelete);
+      if (taskToDeleteObj && taskToDeleteObj._isFromDatabase === true) {
         setDeletedTasks((prev) => [...prev, taskToDelete]);
       }
 
@@ -519,12 +524,10 @@ export default function MilestoneFormEnhanced({
 
       // Process tasks: separate existing tasks from new tasks
       const existingTasks = validTasks.filter(
-        (task) =>
-          task.id && task.id.length > 10 && !task.id.startsWith("temp_"),
+        (task) => task._isFromDatabase === true
       );
       const newTasks = validTasks.filter(
-        (task) =>
-          !task.id || task.id.length <= 10 || task.id.startsWith("temp_"),
+        (task) => task._isFromDatabase !== true
       );
 
       // Update existing tasks using PUT
