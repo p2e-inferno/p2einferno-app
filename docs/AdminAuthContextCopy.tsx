@@ -246,13 +246,6 @@ const deriveAuthStatus = (
 };
 
 /**
- * Check if auth cache is still valid
- */
-const isCacheValid = (cacheValidUntil: number): boolean => {
-  return Date.now() < cacheValidUntil;
-};
-
-/**
  * Create cache expiry timestamp
  */
 const createCacheExpiry = (durationMs: number): number => {

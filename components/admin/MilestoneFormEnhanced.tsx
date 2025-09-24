@@ -235,16 +235,16 @@ export default function MilestoneFormEnhanced({
 
   const confirmTaskDeletion = async () => {
     if (!taskToDelete) return;
-    
+
     setIsDeletingTask(true);
     try {
       // If it's an existing task (not temporary), add to deleted list
       if (taskToDelete.length > 10 && !taskToDelete.startsWith("temp_")) {
-        setDeletedTasks(prev => [...prev, taskToDelete]);
+        setDeletedTasks((prev) => [...prev, taskToDelete]);
       }
-      
+
       // Remove from current tasks
-      setTasks(prev => prev.filter(task => task.id !== taskToDelete));
+      setTasks((prev) => prev.filter((task) => task.id !== taskToDelete));
       setShowDeleteConfirmation(false);
       setTaskToDelete(null);
     } catch (error) {
@@ -257,8 +257,8 @@ export default function MilestoneFormEnhanced({
   const updateTask = (taskId: string, field: keyof TaskForm, value: any) => {
     setTasks((prev) =>
       prev.map((task) =>
-        task.id === taskId ? { ...task, [field]: value } : task
-      )
+        task.id === taskId ? { ...task, [field]: value } : task,
+      ),
     );
   };
 
@@ -503,10 +503,13 @@ export default function MilestoneFormEnhanced({
       // Delete removed tasks first
       if (deletedTasks.length > 0) {
         for (const taskId of deletedTasks) {
-          const deleteResult = await adminFetch(`/api/admin/milestone-tasks?id=${taskId}`, {
-            method: "DELETE",
-          });
-          
+          const deleteResult = await adminFetch(
+            `/api/admin/milestone-tasks?id=${taskId}`,
+            {
+              method: "DELETE",
+            },
+          );
+
           if (deleteResult.error) {
             log.error("Failed to delete task:", deleteResult.error);
             // Continue with other operations but log the error
@@ -515,11 +518,13 @@ export default function MilestoneFormEnhanced({
       }
 
       // Process tasks: separate existing tasks from new tasks
-      const existingTasks = validTasks.filter(task => 
-        task.id && task.id.length > 10 && !task.id.startsWith("temp_")
+      const existingTasks = validTasks.filter(
+        (task) =>
+          task.id && task.id.length > 10 && !task.id.startsWith("temp_"),
       );
-      const newTasks = validTasks.filter(task => 
-        !task.id || task.id.length <= 10 || task.id.startsWith("temp_")
+      const newTasks = validTasks.filter(
+        (task) =>
+          !task.id || task.id.length <= 10 || task.id.startsWith("temp_"),
       );
 
       // Update existing tasks using PUT

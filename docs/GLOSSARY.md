@@ -200,13 +200,33 @@
 - **`textarea.tsx`** - Textarea components
 
 ### Context Providers (`contexts/`)
-- **`AdminAuthContext.tsx`** - Centralized auth context provider for state management for admin components/pages
-  - **Hook**: 
-  `useAdminAuthContext()` - Type-safe context consumption with error boundaries
-  - **Utilities**: 
-  `isFullyAuthenticated()` - Check if auth status indicates full authentication
-  `isAuthLoading()` - Check if auth status indicates loading state
-  `getAuthStatusMessage()` - Get user-friendly message for auth status
+
+#### Admin Authentication Context (`contexts/admin-context/`)
+- **`AdminAuthProvider.tsx`** - Main provider component for centralized admin authentication state management
+- **`index.ts`** - Clean public API with all exports
+- **`types/AdminAuthContextTypes.ts`** - Type definitions for auth status and context value
+- **`constants/AdminAuthContextConstants.ts`** - Configuration constants (cache duration, retry delays)
+- **`utils/adminAuthContextStatusUtils.ts`** - Status derivation utilities
+- **`utils/adminAuthContextCacheUtils.ts`** - Cache management utilities
+- **`hooks/useAdminAuthContextInternal.ts`** - Main composition hook
+- **`hooks/useAdminAuthContextActions.ts`** - Action methods management
+- **`hooks/useAdminAuthContextState.ts`** - Internal state management
+
+**Main Hook**: `useAdminAuthContext()` - Type-safe context consumption with error boundaries
+
+**Utilities**: 
+- `isFullyAuthenticated()` - Check if auth status indicates full authentication
+- `isAuthLoading()` - Check if auth status indicates loading state  
+- `getAuthStatusMessage()` - Get user-friendly message for auth status
+- `deriveAuthStatus()` - Derive unified auth status from multiple states
+- `isCacheValid()` - Check if auth cache is still valid
+- `createCacheExpiry()` - Create cache expiry timestamp
+
+**Constants**:
+- `AUTH_CACHE_DURATION` - Cache duration for authentication checks (default: 2 minutes)
+- `ERROR_RETRY_DELAY` - Delay between error retry attempts (default: 5 seconds)
+- `MAX_ERROR_COUNT` - Maximum consecutive errors before system unhealthy
+- `MAX_BACKOFF_DELAY` - Maximum backoff delay for exponential backoff
 
 ### Layout Components (`components/layouts/`)
 - **`MainLayout.tsx`** - Main application layout
@@ -242,6 +262,11 @@
 - **`useAdminSession.ts`** - Admin session management and validation
 - **`useLockManagerAdminAuth.ts`** - Lock manager admin authentication with wallet validation
 - **`useVerifyToken.ts`** - Token verification hook for authentication
+
+### Admin Context Hooks (`contexts/admin-context/hooks/`)
+- **`useAdminAuthContextInternal.ts`** - Main composition hook combining all AdminAuthContext functionality
+- **`useAdminAuthContextActions.ts`** - Action methods management (refresh, session creation, error handling)
+- **`useAdminAuthContextState.ts`** - Internal state management with error tracking and caching
 
 ### User & Profile Hooks
 - **`useUserEnrollments.ts`** - User enrollment data management and tracking
@@ -314,6 +339,17 @@
   - `levels.ts` - Log level definitions and management
   - `sanitize.ts` - Log sanitization utilities
   - `transport.ts` - Log transport mechanisms
+
+### Admin Context Utilities (`contexts/admin-context/utils/`)
+- **`adminAuthContextStatusUtils.ts`** - Status derivation and validation utilities
+  - `deriveAuthStatus()` - Derive unified auth status from multiple auth states
+  - `isFullyAuthenticated()` - Type guard for full authentication
+  - `isAuthLoading()` - Type guard for loading state
+  - `getAuthStatusMessage()` - User-friendly status messages
+- **`adminAuthContextCacheUtils.ts`** - Cache management and validation utilities
+  - `isCacheValid()` - Check cache validity
+  - `createCacheExpiry()` - Create cache expiry timestamps
+  - `shouldInvalidateCache()` - Determine cache invalidation logic
 
 ### Authentication Utilities (`lib/auth/`)
 - **`admin-auth.ts`** - Admin authentication middleware and validation
@@ -809,12 +845,20 @@
   - **Admin Functions**: Role management and key granting capabilities
   - **ERC-721 Functions**: NFT standard compliance for key management
 
+### Admin Context Constants (`contexts/admin-context/constants/`)
+- **`AdminAuthContextConstants.ts`** - Admin authentication context configuration
+  - `AUTH_CACHE_DURATION` - Cache duration for auth checks (env: NEXT_PUBLIC_AUTH_CACHE_DURATION)
+  - `ERROR_RETRY_DELAY` - Error retry delay (env: NEXT_PUBLIC_ERROR_RETRY_DELAY)
+  - `MAX_ERROR_COUNT` - Maximum consecutive errors threshold
+  - `MAX_BACKOFF_DELAY` - Maximum exponential backoff delay
+
 ### Environment Variables
 - **Authentication**: `NEXT_PUBLIC_PRIVY_APP_ID`, `PRIVY_APP_SECRET`
 - **Database**: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
 - **Blockchain**: `NEXT_PUBLIC_BLOCKCHAIN_NETWORK`, `LOCK_MANAGER_PRIVATE_KEY`
 - **Payments**: `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`
 - **Admin**: `ADMIN_SESSION_TTL_SECONDS`, `ADMIN_SESSION_JWT_SECRET`
+- **Admin Context**: `NEXT_PUBLIC_AUTH_CACHE_DURATION`, `NEXT_PUBLIC_ERROR_RETRY_DELAY`
 
 ### Configuration Files
 - **`next.config.js`** - Next.js configuration
@@ -897,6 +941,7 @@
 
 ### Most Used Hooks
 - **`useAdminApi.ts`** - Admin API calls
+- **`useAdminAuthContext.ts`** - Admin authentication context
 - **`useBootcamps.ts`** - Bootcamp data
 - **`useUserEnrollments.ts`** - User enrollments
 - **`useWalletBalances.ts`** - Wallet balances
