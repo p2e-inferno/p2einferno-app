@@ -1,9 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, ReactNode } from "react";
 import { usePrivy, useUser } from "@privy-io/react-auth";
-import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useAdminSession } from "@/hooks/useAdminSession";
 import { lockManagerService } from "@/lib/blockchain/lock-manager";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
+import { listenForAdminWalletChanges } from "@/lib/utils";
+// Error utilities available for future use
+// import { 
+//   normalizeAdminApiError, 
+//   logAdminApiError, 
+//   type AdminApiErrorContext 
+// } from '@/lib/utils/error-utils';
 
 const log = getLogger('client:admin-auth-context');
 
@@ -128,6 +136,52 @@ interface AdminAuthContextValue {
    * Current session error, if any
    */
   sessionError: string | null;
+
+  /**
+   * Whether there's a network error
+   */
+  networkError: boolean;
+
+  /**
+   * Number of consecutive errors
+   */
+  errorCount: number;
+
+  /**
+   * Timestamp of last error
+   */
+  lastErrorTime: number;
+
+  // ============ RECOVERY METHODS ============
+
+  /**
+   * Retry authentication check
+   */
+  retryAuth: () => Promise<void>;
+
+  /**
+   * Retry session creation
+   */
+  retrySession: () => Promise<boolean>;
+
+  /**
+   * Clear all error states
+   */
+  clearErrors: () => void;
+
+  // ============ DEBUGGING & HEALTH ============
+
+  /**
+   * Get health status for debugging
+   */
+  getHealthStatus: () => {
+    isHealthy: boolean;
+    lastError: string | null;
+    errorCount: number;
+    cacheStatus: 'valid' | 'invalid';
+    sessionStatus: 'valid' | 'invalid';
+    authStatus: AdminAuthStatus;
+  };
 }
 
 // ================================
@@ -230,7 +284,19 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
   // ============ EXTERNAL HOOKS ============
   const { authenticated, ready, logout } = usePrivy();
   const { user } = useUser();
-  const { walletAddress } = useDetectConnectedWalletAddress(user);
+  const selectedWallet = useSmartWalletSelection();
+  const walletAddress = selectedWallet?.address || null;
+
+  // Use existing session hook instead of reimplementing
+  const sessionAuth = useAdminSession();
+  const {
+    hasValidSession,
+    isCheckingSession: sessionLoading,
+    sessionExpiry,
+    createAdminSession,
+    refreshSession,
+    clearSession
+  } = sessionAuth;
 
   // ============ INTERNAL STATE ============
   const [isAdmin, setIsAdmin] = useState(false);
@@ -238,20 +304,84 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
   const [lastAuthCheck, setLastAuthCheck] = useState(0);
   const [cacheValidUntil, setCacheValidUntil] = useState(0);
   const [authError, setAuthError] = useState<string | null>(null);
-
-  // Session state (simplified for now - will integrate with useAdminSession later)
-  const [hasValidSession, setHasValidSession] = useState(false);
-  const [sessionLoading, setSessionLoading] = useState(false);
-  const [sessionExpiry, setSessionExpiry] = useState<number | null>(null);
-  const [sessionError, setSessionError] = useState<string | null>(null);
+  const [networkError, setNetworkError] = useState(false);
+  const [errorCount, setErrorCount] = useState(0);
+  const [lastErrorTime, setLastErrorTime] = useState(0);
 
   // ============ REFS ============
   const inFlightRef = useRef(false);
   const mountedRef = useRef(true);
 
   // ============ CACHE CONSTANTS ============
-  const AUTH_CACHE_DURATION = 10 * 1000; // 10 seconds for blockchain auth
-  const SESSION_CACHE_DURATION = 2 * 60 * 1000; // 2 minutes for session
+  const AUTH_CACHE_DURATION = parseInt(
+    process.env.NEXT_PUBLIC_AUTH_CACHE_DURATION || '120000'
+  ); // 2 minutes default
+  // SESSION_CACHE_DURATION not used in this context (handled by useAdminSession)
+  const ERROR_RETRY_DELAY = parseInt(
+    process.env.NEXT_PUBLIC_ERROR_RETRY_DELAY || '5000'
+  ); // 5 seconds default
+
+  // ============ ERROR HANDLING ============
+  const clearErrors = useCallback(() => {
+    setAuthError(null);
+    setNetworkError(false);
+    setErrorCount(0);
+    setLastErrorTime(0);
+  }, []);
+
+  const recordError = useCallback((error: string, type: 'auth' | 'network') => {
+    setAuthError(type === 'auth' ? error : null);
+    setNetworkError(type === 'network');
+    setLastErrorTime(Date.now());
+    setErrorCount(prev => prev + 1);
+  }, []);
+
+  // handleAdminApiError - available for future use with API calls
+  // const handleAdminApiError = useCallback((error: any, context: AdminApiErrorContext) => {
+  //   const status = error.status || 500;
+  //   const body = error.body || {};
+  //   const normalizedError = normalizeAdminApiError(status, body, context.operation);
+  //   logAdminApiError(status, body, context, error);
+  //   recordError(normalizedError, context.operation === 'session' ? 'auth' : 'auth');
+  // }, [recordError]);
+
+  // ============ CACHE MANAGEMENT ============
+  const shouldInvalidateCache = useCallback((
+    cacheValidUntil: number,
+    errorCount: number,
+    lastErrorTime: number
+  ): boolean => {
+    const now = Date.now();
+    
+    // Always invalidate if cache expired
+    if (now >= cacheValidUntil) return true;
+    
+    // Invalidate if recent errors (exponential backoff)
+    if (errorCount > 0 && lastErrorTime > 0) {
+      const timeSinceError = now - lastErrorTime;
+      const backoffDelay = Math.min(ERROR_RETRY_DELAY * Math.pow(2, errorCount - 1), 60000);
+      return timeSinceError >= backoffDelay;
+    }
+    
+    return false;
+  }, [ERROR_RETRY_DELAY]);
+
+  // Cache management methods - available for future use
+  // const invalidateCache = useCallback(() => {
+  //   setCacheValidUntil(0);
+  //   setLastAuthCheck(0);
+  //   log.debug("Cache invalidated manually");
+  // }, []);
+
+  // const extendCache = useCallback((duration: number) => {
+  //   setCacheValidUntil(createCacheExpiry(duration));
+  //   log.debug(`Cache extended by ${duration}ms`);
+  // }, []);
+
+  // Update cache validity check
+  const isCacheValid = useCallback((cacheValidUntil: number): boolean => {
+    return !shouldInvalidateCache(cacheValidUntil, errorCount, lastErrorTime);
+  }, [shouldInvalidateCache, errorCount, lastErrorTime]);
 
   // ============ CORE AUTH CHECK FUNCTION ============
   const checkAdminAccess = useCallback(
@@ -266,7 +396,7 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
       inFlightRef.current = true;
       setAuthLoading(true);
-      setAuthError(null);
+      clearErrors(); // Clear previous errors
 
       try {
         // Early return if not authenticated
@@ -282,11 +412,12 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
         // Get admin lock address from environment
         const adminLockAddress = process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS;
         if (!adminLockAddress) {
-          log.warn("NEXT_PUBLIC_ADMIN_LOCK_ADDRESS not set, no admin access");
+          const errorMsg = "Admin lock address not configured";
+          log.warn(errorMsg);
+          recordError(errorMsg, 'auth');
           if (mountedRef.current) {
             setIsAdmin(false);
             setAuthLoading(false);
-            setAuthError("Admin lock address not configured");
             setCacheValidUntil(createCacheExpiry(AUTH_CACHE_DURATION));
           }
           return;
@@ -295,7 +426,9 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
         // Get currently connected wallet
         const currentWalletAddress = walletAddress;
         if (!currentWalletAddress) {
-          log.warn("No currently connected wallet found");
+          const errorMsg = "No currently connected wallet found";
+          log.warn(errorMsg);
+          recordError(errorMsg, 'auth');
           if (mountedRef.current) {
             setIsAdmin(false);
             setAuthLoading(false);
@@ -331,14 +464,14 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
         // Security: Force logout if wallet doesn't belong to user
         if (!walletBelongsToUser) {
-          log.warn(
-            `🚨 SECURITY: Connected wallet ${currentWalletAddress} does not belong to current user ${user.id}. Forcing logout.`
-          );
+          const errorMsg = `Connected wallet ${currentWalletAddress} does not belong to current user ${user.id}`;
+          log.warn(`🚨 SECURITY: ${errorMsg}. Forcing logout.`);
+          recordError("Wallet security validation failed", 'auth');
 
           try {
             await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
           } catch (e) {
-            // Ignore network errors
+            recordError("Failed to clear admin session", 'network');
           }
 
           await logout();
@@ -346,7 +479,6 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
           if (mountedRef.current) {
             setIsAdmin(false);
             setAuthLoading(false);
-            setAuthError("Wallet security validation failed");
           }
           return;
         }
@@ -375,10 +507,9 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
             log.info(`❌ Admin access DENIED for ${currentWalletAddress}`);
           }
         } catch (error) {
+          const errorMsg = error instanceof Error ? error.message : 'Unknown admin access error';
           log.error(`Error checking admin access for ${currentWalletAddress}`, { error });
-          if (mountedRef.current) {
-            setAuthError(error instanceof Error ? error.message : 'Unknown admin access error');
-          }
+          recordError(errorMsg, 'auth');
         }
 
         // Update state only if component is still mounted
@@ -389,10 +520,11 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
         }
 
       } catch (error) {
+        const errorMsg = error instanceof Error ? error.message : 'Unknown authentication error';
         log.error("Error in admin access check", { error });
+        recordError(errorMsg, 'auth');
         if (mountedRef.current) {
           setIsAdmin(false);
-          setAuthError(error instanceof Error ? error.message : 'Unknown authentication error');
         }
       } finally {
         if (mountedRef.current) {
@@ -410,49 +542,21 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
     await checkAdminAccess(true);
   }, [checkAdminAccess]);
 
-  const createAdminSession = useCallback(async (): Promise<boolean> => {
-    // TODO: Implement session creation logic
-    // This will integrate with useAdminSession hook logic
-    setSessionLoading(true);
-    try {
-      // Placeholder for session creation
-      log.info("Creating admin session...");
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-      setHasValidSession(true);
-      setSessionExpiry(Date.now() + 60 * 60 * 1000); // 1 hour from now
-      return true;
-    } catch (error) {
-      log.error("Failed to create admin session", { error });
-      setSessionError(error instanceof Error ? error.message : 'Session creation failed');
-      return false;
-    } finally {
-      setSessionLoading(false);
-    }
-  }, []);
+  const retryAuth = useCallback(async () => {
+    clearErrors();
+    await checkAdminAccess(true);
+  }, [clearErrors, checkAdminAccess]);
 
-  const refreshSession = useCallback(async (): Promise<boolean> => {
-    // TODO: Implement session refresh logic
-    setSessionLoading(true);
-    try {
-      log.info("Refreshing admin session...");
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simulate API call
-      setSessionExpiry(Date.now() + 60 * 60 * 1000); // Extend by 1 hour
-      return true;
-    } catch (error) {
-      log.error("Failed to refresh admin session", { error });
-      setSessionError(error instanceof Error ? error.message : 'Session refresh failed');
-      return false;
-    } finally {
-      setSessionLoading(false);
-    }
-  }, []);
+  const retrySession = useCallback(async (): Promise<boolean> => {
+    clearErrors();
+    return await createAdminSession();
+  }, [clearErrors, createAdminSession]);
 
-  const clearSession = useCallback(() => {
-    setHasValidSession(false);
-    setSessionExpiry(null);
-    setSessionError(null);
-    log.info("Admin session cleared");
-  }, []);
+  // ============ HEALTH CHECK & DEBUGGING ============
+  // This will be updated after authStatus is defined
+
+  // Session methods are now provided by useAdminSession hook
+  // No need to reimplement them
 
   // ============ EFFECTS ============
 
@@ -472,35 +576,29 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
   // Effect: Listen for wallet account changes
   useEffect(() => {
-    if (typeof window !== "undefined" && window.ethereum) {
-      const handleAccountsChanged = async () => {
-        log.info("Wallet accounts changed - immediately revoking admin access");
+    const cleanup = listenForAdminWalletChanges(async () => {
+      log.info("Wallet accounts changed - immediately revoking admin access");
 
-        // Immediate UI protection
-        setIsAdmin(false);
-        setAuthLoading(true);
-        clearSession();
+      // Immediate UI protection
+      setIsAdmin(false);
+      setAuthLoading(true);
+      clearSession();
 
-        // Clear in-flight flag to allow re-checking
-        inFlightRef.current = false;
+      // Clear in-flight flag to allow re-checking
+      inFlightRef.current = false;
 
-        try {
-          // Clear admin session
-          await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
-        } catch (e) {
-          // Ignore network errors
-        }
+      try {
+        // Clear admin session
+        await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+      } catch (e) {
+        // Ignore network errors - already handled by utility
+      }
 
-        // Re-check will be triggered by walletAddress change in above useEffect
-        log.info("Admin status will be re-checked for new wallet");
-      };
+      // Re-check will be triggered by walletAddress change in above useEffect
+      log.info("Admin status will be re-checked for new wallet");
+    });
 
-      window.ethereum.on("accountsChanged", handleAccountsChanged);
-
-      return () => {
-        window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
-      };
-    }
+    return cleanup;
   }, [clearSession]);
 
   // Cleanup on unmount
@@ -509,6 +607,8 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
       mountedRef.current = false;
     };
   }, []);
+
+  // Development debugging - moved after authStatus is defined
 
   // ============ DERIVED STATE ============
 
@@ -523,6 +623,33 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
       sessionLoading
     );
   }, [authenticated, ready, walletAddress, isAdmin, authLoading, hasValidSession, sessionLoading]);
+
+  // Development debugging
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      log.debug('AdminAuthContext state update', {
+        authStatus,
+        isAdmin,
+        hasValidSession,
+        authLoading,
+        sessionLoading,
+        errorCount: errorCount,
+        cacheValid: isCacheValid(cacheValidUntil)
+      });
+    }
+  }, [authStatus, isAdmin, hasValidSession, authLoading, sessionLoading, errorCount, cacheValidUntil, isCacheValid]);
+
+  // ============ HEALTH CHECK & DEBUGGING ============
+  const getHealthStatus = useCallback(() => {
+    return {
+      isHealthy: !networkError && errorCount < 5,
+      lastError: authError,
+      errorCount: errorCount,
+      cacheStatus: (isCacheValid(cacheValidUntil) ? 'valid' : 'invalid') as 'valid' | 'invalid',
+      sessionStatus: (hasValidSession ? 'valid' : 'invalid') as 'valid' | 'invalid',
+      authStatus
+    };
+  }, [networkError, errorCount, authError, isCacheValid, cacheValidUntil, hasValidSession, authStatus]);
 
   // ============ CONTEXT VALUE ============
 
@@ -554,7 +681,18 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
 
     // Error states
     authError,
-    sessionError,
+    sessionError: null, // useAdminSession doesn't expose sessionError
+    networkError,
+    errorCount,
+    lastErrorTime,
+
+    // Recovery methods
+    retryAuth,
+    retrySession,
+    clearErrors,
+
+    // Debugging & health
+    getHealthStatus,
   }), [
     authStatus,
     isAdmin,
@@ -572,7 +710,13 @@ export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }
     refreshSession,
     clearSession,
     authError,
-    sessionError,
+    networkError,
+    errorCount,
+    lastErrorTime,
+    retryAuth,
+    retrySession,
+    clearErrors,
+    getHealthStatus,
   ]);
 
   return (

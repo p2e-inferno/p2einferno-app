@@ -9,7 +9,7 @@ import {
   isFullyAuthenticated,
   isAuthLoading,
   getAuthStatusMessage,
-} from '@/contexts/AdminAuthContext';
+} from '@/contexts/admin-context/AdminAuthContext';
 
 // ================================
 // ADDITIONAL MOCKS FOR ADMIN AUTH
