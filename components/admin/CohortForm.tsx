@@ -477,7 +477,7 @@ export default function CohortForm({
               <h3 className="text-sm font-medium text-red-300">
                 Error creating cohort
               </h3>
-              <p className="mt-1 text-sm text-red-200">{error}</p>
+              <p className="mt-1 text-sm text-red-200 break-words">{error}</p>
               {error.includes("admin") && (
                 <div className="mt-2 text-xs text-red-200">
                   <p>If you believe you should have admin access:</p>

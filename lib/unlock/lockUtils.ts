@@ -14,6 +14,7 @@ import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('unlock:lockUtils');
 const DEFAULT_LOCK_MANAGER_ADDRESS: Address = "0x7A2BF39919bb7e7bF3C0a96F005A0842CfDAa8ac"
+import { createEthersFromPrivyWallet } from "../blockchain/shared/client-utils";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -253,91 +254,91 @@ const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
  * Create ethers provider and signer from Privy wallet
  * Handles both user.wallet and wallets[0] wallet types, as well as external wallets
  */
-const createEthersFromPrivyWallet = async (wallet: any) => {
-  if (!wallet || !wallet.address) {
-    throw new Error("No wallet provided or not connected.");
-  }
+// const createEthersFromPrivyWallet = async (wallet: any) => {
+//   if (!wallet || !wallet.address) {
+//     throw new Error("No wallet provided or not connected.");
+//   }
 
-  log.info("🔧 [LOCK_UTILS] Creating ethers from wallet:", {
-    address: wallet.address,
-    walletClientType: wallet.walletClientType,
-    connectorType: wallet.connectorType,
-    type: wallet.type
-  });
+//   log.info("🔧 [LOCK_UTILS] Creating ethers from wallet:", {
+//     address: wallet.address,
+//     walletClientType: wallet.walletClientType,
+//     connectorType: wallet.connectorType,
+//     type: wallet.type
+//   });
 
-  // Handle different wallet types:
-  let provider: any;
+//   // Handle different wallet types:
+//   let provider: any;
 
-  if (typeof wallet.getEthereumProvider === "function") {
-    // This is from useWallets() - has getEthereumProvider method
-    log.info("🔧 [LOCK_UTILS] Using getEthereumProvider method");
-    try {
-      provider = await wallet.getEthereumProvider();
-    } catch (error) {
-      log.error("🔧 [LOCK_UTILS] Error getting Ethereum provider:", error);
-      throw new Error("Failed to get Ethereum provider from wallet");
-    }
-  } else if (wallet.provider) {
-    // This might be user.wallet with direct provider access
-    log.info("🔧 [LOCK_UTILS] Using wallet.provider");
-    provider = wallet.provider;
-  } else if (wallet.walletClientType === 'injected' || wallet.connectorType === 'injected') {
-    // This is an external wallet (MetaMask, etc.) - use window.ethereum
-    log.info("🔧 [LOCK_UTILS] Using window.ethereum for injected wallet");
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      provider = (window as any).ethereum;
-    } else {
-      throw new Error("Window.ethereum not available. Please ensure MetaMask or another injected wallet is connected.");
-    }
-  } else {
-    // Try to use window.ethereum as a fallback for external wallets
-    log.info("🔧 [LOCK_UTILS] Trying window.ethereum as fallback");
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      provider = (window as any).ethereum;
-    } else {
-      throw new Error(
-        "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected."
-      );
-    }
-  }
+//   if (typeof wallet.getEthereumProvider === "function") {
+//     // This is from useWallets() - has getEthereumProvider method
+//     log.info("🔧 [LOCK_UTILS] Using getEthereumProvider method");
+//     try {
+//       provider = await wallet.getEthereumProvider();
+//     } catch (error) {
+//       log.error("🔧 [LOCK_UTILS] Error getting Ethereum provider:", error);
+//       throw new Error("Failed to get Ethereum provider from wallet");
+//     }
+//   } else if (wallet.provider) {
+//     // This might be user.wallet with direct provider access
+//     log.info("🔧 [LOCK_UTILS] Using wallet.provider");
+//     provider = wallet.provider;
+//   } else if (wallet.walletClientType === 'injected' || wallet.connectorType === 'injected') {
+//     // This is an external wallet (MetaMask, etc.) - use window.ethereum
+//     log.info("🔧 [LOCK_UTILS] Using window.ethereum for injected wallet");
+//     if (typeof window !== "undefined" && (window as any).ethereum) {
+//       provider = (window as any).ethereum;
+//     } else {
+//       throw new Error("Window.ethereum not available. Please ensure MetaMask or another injected wallet is connected.");
+//     }
+//   } else {
+//     // Try to use window.ethereum as a fallback for external wallets
+//     log.info("🔧 [LOCK_UTILS] Trying window.ethereum as fallback");
+//     if (typeof window !== "undefined" && (window as any).ethereum) {
+//       provider = (window as any).ethereum;
+//     } else {
+//       throw new Error(
+//         "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected."
+//       );
+//     }
+//   }
 
-  if (!provider) {
-    throw new Error("No provider available for wallet");
-  }
+//   if (!provider) {
+//     throw new Error("No provider available for wallet");
+//   }
 
-  // Avoid logging the raw provider object (can be recursive/circular)
-  try {
-    const provDesc = {
-      hasRequest: typeof provider?.request === 'function',
-      hasSend: typeof provider?.send === 'function',
-      hasGetSigner: typeof provider?.getSigner === 'function',
-      isBrowserProvider: provider instanceof ethers.BrowserProvider,
-      ctor: provider?.constructor?.name,
-    };
-    log.info("🔧 [LOCK_UTILS] Provider obtained (summary):", provDesc);
-  } catch {}
+//   // Avoid logging the raw provider object (can be recursive/circular)
+//   try {
+//     const provDesc = {
+//       hasRequest: typeof provider?.request === 'function',
+//       hasSend: typeof provider?.send === 'function',
+//       hasGetSigner: typeof provider?.getSigner === 'function',
+//       isBrowserProvider: provider instanceof ethers.BrowserProvider,
+//       ctor: provider?.constructor?.name,
+//     };
+//     log.info("🔧 [LOCK_UTILS] Provider obtained (summary):", provDesc);
+//   } catch {}
 
-  try {
-    // If provider is already an ethers BrowserProvider, use it directly to avoid recursive wrapping
-    const ethersProvider = provider instanceof ethers.BrowserProvider
-      ? provider
-      : new ethers.BrowserProvider(provider);
-    const signer = await ethersProvider.getSigner();
+//   try {
+//     // If provider is already an ethers BrowserProvider, use it directly to avoid recursive wrapping
+//     const ethersProvider = provider instanceof ethers.BrowserProvider
+//       ? provider
+//       : new ethers.BrowserProvider(provider);
+//     const signer = await ethersProvider.getSigner();
 
-    // Normalize rawProvider to an EIP-1193 provider for network switching
-    // Prefer a .request-capable object; fall back to underlying provider or window.ethereum
-    const rawProviderNormalized = (provider as any)?.request
-      ? provider
-      : ((provider as any)?.provider ?? (typeof window !== 'undefined' ? (window as any).ethereum : provider));
+//     // Normalize rawProvider to an EIP-1193 provider for network switching
+//     // Prefer a .request-capable object; fall back to underlying provider or window.ethereum
+//     const rawProviderNormalized = (provider as any)?.request
+//       ? provider
+//       : ((provider as any)?.provider ?? (typeof window !== 'undefined' ? (window as any).ethereum : provider));
 
-    log.info("🔧 [LOCK_UTILS] Ethers provider and signer created successfully");
+//     log.info("🔧 [LOCK_UTILS] Ethers provider and signer created successfully");
 
-    return { provider: ethersProvider, signer, rawProvider: rawProviderNormalized };
-  } catch (error) {
-    log.error("🔧 [LOCK_UTILS] Error creating ethers provider:", error);
-    throw new Error("Failed to create ethers provider from wallet");
-  }
-};
+//     return { provider: ethersProvider, signer, rawProvider: rawProviderNormalized };
+//   } catch (error) {
+//     log.error("🔧 [LOCK_UTILS] Error creating ethers provider:", error);
+//     throw new Error("Failed to create ethers provider from wallet");
+//   }
+// };
 
 /**
  * Switch to the correct network for Unlock operations
@@ -618,7 +619,7 @@ export const purchaseKey = async (
     // Resolve signer address to avoid mismatch with provided wallet object
     let signerAddress: string;
     try {
-      signerAddress = await signer.getAddress();
+      signerAddress = await signer?.getAddress() || wallet.address;
     } catch {
       signerAddress = wallet.address;
     }
