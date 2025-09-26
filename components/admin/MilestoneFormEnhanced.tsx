@@ -631,7 +631,7 @@ export default function MilestoneFormEnhanced({
   return (
     <form onSubmit={handleSubmit} className="space-y-8">
       {error && (
-        <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-4 break-words">
+        <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-4">
           {error}
         </div>
       )}

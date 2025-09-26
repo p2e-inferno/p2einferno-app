@@ -31,7 +31,7 @@ export function AuthError({ error, onClear, className = "" }: AuthErrorProps) {
       className={`bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded flex flex-col gap-2 ${className}`}
     >
       <div className="flex justify-between items-start">
-        <p className="break-words flex-1 pr-2">{error}</p>
+        <p>{error}</p>
         {onClear && (
           <button
             onClick={onClear}

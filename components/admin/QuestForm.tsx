@@ -411,7 +411,7 @@ export default function QuestForm({
     <form onSubmit={handleSubmit} className="space-y-8">
       {error && (
         <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-          <div className="break-words">{error}</div>
+          {error}
         </div>
       )}
 

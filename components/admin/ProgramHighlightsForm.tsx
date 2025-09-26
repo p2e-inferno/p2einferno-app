@@ -169,7 +169,7 @@ export default function ProgramHighlightsForm({
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
         <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-4">
-          <div className="break-words">{error}</div>
+          {error}
         </div>
       )}
 
