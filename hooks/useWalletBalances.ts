@@ -3,7 +3,8 @@ import { usePrivy } from '@privy-io/react-auth';
 import { ethers } from 'ethers';
 import { getLogger } from '@/lib/utils/logger';
 import { CURRENT_NETWORK, ERC20_ABI } from '@/lib/blockchain/frontend-config';
-import { getReadOnlyProvider } from '@/lib/blockchain/provider';
+import { createPublicClientUnified } from '@/lib/blockchain/config/unified-config';
+import type { Address } from 'viem';
 
 const log = getLogger('hooks:useWalletBalances');
 
@@ -110,20 +111,32 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
         setError(null);
 
         // Use the unified read-only provider singleton
-        const provider = getReadOnlyProvider();
+        const client = createPublicClientUnified();
 
-        // Fetch ETH balance using ethers
-        const ethBalance = await provider.getBalance(walletAddress);
+        const ethBalance = await client.getBalance({
+          address: walletAddress as Address,
+        });
 
         let usdcBalance = 0n;
         let usdcSymbol = 'USDC';
 
         // Fetch USDC balance
         try {
-          if (provider) {
-            const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
-            usdcBalance = await usdcContract.balanceOf?.(walletAddress) || 0n;
-            usdcSymbol = await usdcContract.symbol?.() || 'USDC';
+          usdcBalance = await client.readContract({
+            address: CURRENT_NETWORK.usdcAddress as Address,
+            abi: ERC20_ABI,
+            functionName: 'balanceOf',
+            args: [walletAddress as Address],
+          }) as bigint;
+
+          const symbol = await client.readContract({
+            address: CURRENT_NETWORK.usdcAddress as Address,
+            abi: ERC20_ABI,
+            functionName: 'symbol',
+          });
+
+          if (typeof symbol === 'string') {
+            usdcSymbol = symbol;
           }
         } catch (usdcError) {
           log.warn('Error fetching USDC balance:', { error: usdcError });
@@ -173,20 +186,30 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
 
     // Trigger a fresh balance fetch
     try {
-      const provider = getReadOnlyProvider();
+      const client = createPublicClientUnified();
 
-      const ethBalance = await provider.getBalance(walletAddress);
+      const ethBalance = await client.getBalance({
+        address: walletAddress as Address,
+      });
       let usdcBalance = 0n;
       let usdcSymbol = 'USDC';
 
       try {
-        if (provider) {
-          const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
-          [usdcBalance, usdcSymbol] = await Promise.all([
-            (usdcContract as any).balanceOf(walletAddress) as Promise<bigint>,
-            (usdcContract as any).symbol() as Promise<string>,
-          ]);
-        }
+        const [balance, symbol] = await Promise.all([
+          client.readContract({
+            address: CURRENT_NETWORK.usdcAddress as Address,
+            abi: ERC20_ABI,
+            functionName: 'balanceOf',
+            args: [walletAddress as Address],
+          }) as Promise<bigint>,
+          client.readContract({
+            address: CURRENT_NETWORK.usdcAddress as Address,
+            abi: ERC20_ABI,
+            functionName: 'symbol',
+          }) as Promise<string>,
+        ]);
+        usdcBalance = balance;
+        usdcSymbol = symbol;
       } catch (usdcError) {
         log.warn('Error fetching USDC balance during refresh:', { error: usdcError });
       }

@@ -14,7 +14,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 // Resolve an RPC URL for the specified Base chain with sensible fallbacks.
 function resolveRpcUrl(chainId: number): string | null {
-  const primary = (Deno.env.get('ADMIN_RPC_PRIMARY') || '').toLowerCase();
+  const primary = (Deno.env.get('NEXT_PUBLIC_PRIMARY_RPC') || '').toLowerCase();
   const alchemyKey = Deno.env.get('NEXT_PUBLIC_ALCHEMY_API_KEY');
 
   const alchemy = (id: number) => {
@@ -36,7 +36,7 @@ function resolveRpcUrl(chainId: number): string | null {
 
   const publicRpc = (id: number) => (id === 84532 ? 'https://sepolia.base.org' : 'https://mainnet.base.org');
 
-  // Selection order respects ADMIN_RPC_PRIMARY when provided
+  // Selection order respects NEXT_PUBLIC_PRIMARY_RPC when provided
   const tryOrder = primary === 'infura'
     ? [infura, alchemy]
     : primary === 'alchemy'

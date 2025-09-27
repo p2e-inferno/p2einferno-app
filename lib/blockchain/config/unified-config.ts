@@ -8,11 +8,13 @@ import { privateKeyToAccount, type Account } from "viem/accounts";
 import {
   createWalletClient,
   createPublicClient,
+  createTransport,
   http,
   fallback,
   type WalletClient,
   type PublicClient,
   type Chain,
+  type Transport,
 } from "viem";
 import { blockchainLogger } from "../shared/logging-utils";
 
@@ -123,8 +125,70 @@ const getRpcFallbackSettings = () => {
   } as const;
 };
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const createBrowserSequentialTransport = (
+  urls: string[],
+  {
+    timeoutMs,
+    retryDelay,
+  }: {
+    timeoutMs: number;
+    retryDelay: number;
+  }
+): Transport => {
+  let lastGoodIndex = 0;
+  const total = urls.length;
+
+  return ({ chain, retryCount: retryCount_ = 0, timeout: timeout_ }) => {
+    const timeout = timeout_ ?? timeoutMs;
+
+    return createTransport({
+      key: 'http-sequential',
+      name: 'HTTP JSON-RPC (sequential)',
+      type: 'http',
+      retryCount: 0,
+      retryDelay,
+      timeout,
+      async request(requestArgs) {
+        if (total === 0) {
+          throw new Error('No RPC URLs configured');
+        }
+
+        let lastError: unknown;
+        const startIndex = lastGoodIndex % total;
+
+        for (let attempt = 0; attempt < total; attempt += 1) {
+          const index = (startIndex + attempt) % total;
+          const url = urls[index];
+
+          const transport = http(url, {
+            timeout,
+            retryDelay,
+            retryCount: retryCount_,
+          })({ chain, retryCount: retryCount_, timeout });
+
+          try {
+            const result = await transport.request(requestArgs as any);
+            lastGoodIndex = index;
+            return result as any;
+          } catch (error) {
+            lastError = error;
+            if (attempt < total - 1) {
+              const backoff = Math.min(retryDelay * (attempt + 1), 1500);
+              await delay(backoff);
+            }
+          }
+        }
+
+        throw lastError ?? new Error('All RPC endpoints failed');
+      },
+    }, { url: urls[lastGoodIndex % total] ?? urls[0]! });
+  };
+};
+
 const getPreferredProvider = () => {
-  const pref = (process.env.ADMIN_RPC_PRIMARY || 'alchemy').toLowerCase();
+  const pref = (process.env.NEXT_PUBLIC_PRIMARY_RPC || 'alchemy').toLowerCase();
   return pref === 'infura' ? 'infura' : 'alchemy';
 };
 
@@ -241,9 +305,14 @@ export const createPublicClientUnified = (): PublicClient => {
   });
 
   if (isBrowser && urls.length > 0) {
+    const sequentialTransport = createBrowserSequentialTransport(urls, {
+      timeoutMs,
+      retryDelay,
+    });
+
     return createPublicClient({
       chain,
-      transport: http(urls[0]!, { timeout: timeoutMs }),
+      transport: sequentialTransport,
     }) as unknown as PublicClient;
   }
 
