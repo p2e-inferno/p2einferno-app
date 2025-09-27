@@ -37,6 +37,7 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
     hasValidSession,
     isCheckingSession: sessionLoading,
     sessionExpiry,
+    sessionError,
     createAdminSession,
     refreshSession,
     clearSession
@@ -44,7 +45,9 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
 
   // ============ INTERNAL STATE & ACTIONS ============
   const state = useAdminAuthContextState();
-  const actions = useAdminAuthContextActions(state);
+  const actions = useAdminAuthContextActions(state, {
+    createAdminSession,
+  });
 
   const {
     // State values
@@ -56,15 +59,14 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
     networkError,
     errorCount,
     lastErrorTime,
-    
+
     // State setters
     setIsAdmin,
     setAuthLoading,
-    
     // Refs
     inFlightRef,
     mountedRef,
-    
+
     // Error handling methods
     clearErrors,
   } = state;
@@ -90,7 +92,19 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
       setAuthLoading(false);
       clearSession();
     }
-  }, [ready, authenticated, user?.id, walletAddress, checkAdminAccess]);
+    // We intentionally include user (not just user?.id) to satisfy exhaustive-deps and
+    // ensure the effect re-runs when the Privy payload itself changes.
+  }, [
+    ready,
+    authenticated,
+    user,
+    user?.id,
+    walletAddress,
+    checkAdminAccess,
+    setIsAdmin,
+    setAuthLoading,
+    clearSession,
+  ]);
 
   // Effect: Listen for wallet account changes
   useEffect(() => {
@@ -119,8 +133,9 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
     return cleanup;
   }, [clearSession, setIsAdmin, setAuthLoading, inFlightRef]);
 
-  // Cleanup on unmount
+  // Track mounted state (needed for React Strict Mode double-invocation)
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
       mountedRef.current = false;
     };
@@ -153,7 +168,15 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
         cacheValid: isCacheValid(cacheValidUntil)
       });
     }
-  }, [authStatus, isAdmin, hasValidSession, authLoading, sessionLoading, errorCount, cacheValidUntil, isCacheValid]);
+  }, [
+    authStatus,
+    isAdmin,
+    hasValidSession,
+    authLoading,
+    sessionLoading,
+    errorCount,
+    cacheValidUntil,
+  ]);
 
   // ============ HEALTH CHECK & DEBUGGING ============
   const getHealthStatus = useCallback(() => {
@@ -197,7 +220,7 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
 
     // Error states
     authError,
-    sessionError: null, // useAdminSession doesn't expose sessionError
+    sessionError,
     networkError,
     errorCount,
     lastErrorTime,
@@ -226,6 +249,7 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
     refreshSession,
     clearSession,
     authError,
+    sessionError,
     networkError,
     errorCount,
     lastErrorTime,

@@ -13,21 +13,40 @@ function buildReadOnlyProvider() {
   const allUrls = getClientRpcUrls();
   const hostsAll = allUrls.map(parseHost);
   const hasKeyed = hostsAll.some(isKeyedHost);
-  const urls = (typeof window !== 'undefined' && hasKeyed)
-    ? allUrls.filter((u) => !isPublicBaseHost(parseHost(u)))
-    : allUrls;
+
+  let urls = allUrls;
+  if (typeof window !== 'undefined' && hasKeyed) {
+    const keyed = allUrls.filter((u) => isKeyedHost(parseHost(u)));
+    const publicBase = allUrls.filter((u) => isPublicBaseHost(parseHost(u)));
+    const others = allUrls.filter(
+      (u) => !keyed.includes(u) && !publicBase.includes(u)
+    );
+    urls = [...keyed, ...others, ...publicBase];
+  }
+
   const hosts = urls.map(parseHost);
 
   blockchainLogger.debug('Provider:init', {
     operation: 'provider:create:frontend:unified',
     chainId: cfg.chain.id,
     order: hosts,
-    removedPublicBase: hasKeyed ? hostsAll.filter((h) => isPublicBaseHost(h)) : [],
+    keptPublicBaseFallback: hasKeyed,
   });
 
-  const providers = urls.map((u) => new ethers.JsonRpcProvider(u));
-  if (providers.length === 0) throw new Error('No RPC URLs configured');
-  return providers.length > 1 ? new ethers.FallbackProvider(providers) : providers[0]!;
+  if (urls.length === 0) throw new Error('No RPC URLs configured');
+
+  if (urls.length === 1) {
+    return new ethers.JsonRpcProvider(urls[0]!);
+  }
+
+  const fallbackProviders = urls.map((u, index) => ({
+    provider: new ethers.JsonRpcProvider(u),
+    priority: index + 1,
+    stallTimeout: index === 0 ? 500 : 1500,
+    weight: 1,
+  }));
+
+  return new ethers.FallbackProvider(fallbackProviders, 1);
 }
 
 export function getReadOnlyProvider(): ethers.JsonRpcProvider | ethers.FallbackProvider {
@@ -43,4 +62,3 @@ export function getBrowserProvider(): ethers.BrowserProvider {
   }
   return new ethers.BrowserProvider((window as any).ethereum);
 }
-

@@ -8,15 +8,18 @@
 import { useCallback } from 'react';
 import { usePrivy, useUser } from '@privy-io/react-auth';
 import { useSmartWalletSelection } from '@/hooks/useSmartWalletSelection';
-import { useAdminSession } from '@/hooks/useAdminSession';
 import { lockManagerService } from '@/lib/blockchain/lock-manager';
 import { type Address } from 'viem';
 import { getLogger } from '@/lib/utils/logger';
-import { isCacheValid, createCacheExpiry } from '../utils/adminAuthContextCacheUtils';
+import { isCacheValid, createCacheExpiry, shouldInvalidateCache } from '../utils/adminAuthContextCacheUtils';
 // Type for the state object returned by useAdminAuthContextState
 type AdminAuthContextState = ReturnType<typeof import('./useAdminAuthContextState').useAdminAuthContextState>;
 
 const log = getLogger('client:admin-auth-context');
+
+interface AdminSessionHandlers {
+  createAdminSession: () => Promise<boolean>;
+}
 
 /**
  * Hook for managing AdminAuthContext action methods
@@ -24,15 +27,20 @@ const log = getLogger('client:admin-auth-context');
  * @param state - State object from useAdminAuthContextState
  * @returns Object containing all action methods
  */
-export const useAdminAuthContextActions = (state: AdminAuthContextState) => {
+export const useAdminAuthContextActions = (
+  state: AdminAuthContextState,
+  sessionHandlers: AdminSessionHandlers
+) => {
   const { authenticated, logout } = usePrivy();
   const { user } = useUser();
   const selectedWallet = useSmartWalletSelection();
   const walletAddress = selectedWallet?.address || null;
-  const { createAdminSession } = useAdminSession();
+  const { createAdminSession } = sessionHandlers;
 
   const {
     cacheValidUntil,
+    errorCount,
+    lastErrorTime,
     // State setters
     setIsAdmin,
     setAuthLoading,
@@ -56,8 +64,12 @@ export const useAdminAuthContextActions = (state: AdminAuthContextState) => {
       // Prevent duplicate calls
       if (inFlightRef.current) return;
 
-      // Check cache validity
-      if (!forceRefresh && isCacheValid(cacheValidUntil)) {
+      // Honor cached result (success or failure) unless forcing or cache expired/invalidated
+      if (
+        !forceRefresh &&
+        isCacheValid(cacheValidUntil) &&
+        !shouldInvalidateCache(cacheValidUntil, errorCount, lastErrorTime)
+      ) {
         return;
       }
 
@@ -71,7 +83,7 @@ export const useAdminAuthContextActions = (state: AdminAuthContextState) => {
           if (mountedRef.current) {
             setIsAdmin(false);
             setAuthLoading(false);
-            setCacheValidUntil(createCacheExpiry(AUTH_CACHE_DURATION));
+            setCacheValidUntil(0);
           }
           return;
         }
@@ -85,7 +97,7 @@ export const useAdminAuthContextActions = (state: AdminAuthContextState) => {
           if (mountedRef.current) {
             setIsAdmin(false);
             setAuthLoading(false);
-            setCacheValidUntil(createCacheExpiry(AUTH_CACHE_DURATION));
+            setCacheValidUntil(0);
           }
           return;
         }
@@ -99,7 +111,7 @@ export const useAdminAuthContextActions = (state: AdminAuthContextState) => {
           if (mountedRef.current) {
             setIsAdmin(false);
             setAuthLoading(false);
-            setCacheValidUntil(createCacheExpiry(AUTH_CACHE_DURATION));
+            setCacheValidUntil(0);
           }
           return;
         }
@@ -146,6 +158,7 @@ export const useAdminAuthContextActions = (state: AdminAuthContextState) => {
           if (mountedRef.current) {
             setIsAdmin(false);
             setAuthLoading(false);
+            setCacheValidUntil(0);
           }
           return;
         }
@@ -192,6 +205,7 @@ export const useAdminAuthContextActions = (state: AdminAuthContextState) => {
         recordError(errorMsg, 'auth');
         if (mountedRef.current) {
           setIsAdmin(false);
+          setCacheValidUntil(0);
         }
       } finally {
         if (mountedRef.current) {
@@ -211,7 +225,12 @@ export const useAdminAuthContextActions = (state: AdminAuthContextState) => {
       setIsAdmin,
       setCacheValidUntil,
       recordError,
-      AUTH_CACHE_DURATION
+      AUTH_CACHE_DURATION,
+      authenticated,
+      user,
+      setLastAuthCheck,
+      errorCount,
+      lastErrorTime
     ]
   );
 

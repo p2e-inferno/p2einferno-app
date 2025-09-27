@@ -10,6 +10,7 @@ interface AdminSessionState {
   isCheckingSession: boolean;
   sessionExpiry: number | null;
   lastChecked: number;
+  sessionError: string | null;
 }
 
 /**
@@ -24,6 +25,7 @@ export const useAdminSession = () => {
     isCheckingSession: true,
     sessionExpiry: null,
     lastChecked: 0,
+    sessionError: null,
   });
 
   const checkInProgress = useRef(false);
@@ -64,6 +66,7 @@ export const useAdminSession = () => {
           isCheckingSession: false,
           sessionExpiry: data.expiresAt || null,
           lastChecked: now,
+          sessionError: null,
         });
 
         log.debug('Session check completed', {
@@ -74,14 +77,18 @@ export const useAdminSession = () => {
         return isValid;
       } else {
         // Session invalid or expired
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `Session verification failed with status ${response.status}`;
+
         setSessionState({
           hasValidSession: false,
           isCheckingSession: false,
           sessionExpiry: null,
           lastChecked: now,
+          sessionError: errorMessage,
         });
 
-        log.debug('Session check failed', { status: response.status });
+        log.debug('Session check failed', { status: response.status, error: errorMessage });
         return false;
       }
     } catch (error: any) {
@@ -91,6 +98,7 @@ export const useAdminSession = () => {
         isCheckingSession: false,
         sessionExpiry: null,
         lastChecked: now,
+        sessionError: error?.message || 'Session verification error',
       });
       return false;
     } finally {
@@ -104,7 +112,7 @@ export const useAdminSession = () => {
   const createAdminSession = useCallback(async (): Promise<boolean> => {
     try {
       log.info('Creating new admin session');
-      setSessionState(prev => ({ ...prev, isCheckingSession: true }));
+      setSessionState(prev => ({ ...prev, isCheckingSession: true, sessionError: null }));
 
       const accessToken = await getAccessToken();
       if (!accessToken) {
@@ -148,12 +156,16 @@ export const useAdminSession = () => {
           error: errorMessage
         });
 
-        setSessionState(prev => ({ ...prev, isCheckingSession: false }));
+        setSessionState(prev => ({ ...prev, isCheckingSession: false, sessionError: errorMessage }));
         throw new Error(errorMessage);
       }
     } catch (error: any) {
       log.error('Error creating admin session:', error);
-      setSessionState(prev => ({ ...prev, isCheckingSession: false }));
+      setSessionState(prev => ({
+        ...prev,
+        isCheckingSession: false,
+        sessionError: error?.message || 'Unable to create admin session',
+      }));
       throw error;
     }
   }, [getAccessToken, selectedWallet?.address, checkSession]);
@@ -175,6 +187,7 @@ export const useAdminSession = () => {
       isCheckingSession: false,
       sessionExpiry: null,
       lastChecked: 0,
+      sessionError: null,
     });
   }, []);
 
@@ -187,6 +200,7 @@ export const useAdminSession = () => {
     hasValidSession: sessionState.hasValidSession,
     isCheckingSession: sessionState.isCheckingSession,
     sessionExpiry: sessionState.sessionExpiry,
+    sessionError: sessionState.sessionError,
     checkSession,
     createAdminSession,
     refreshSession,

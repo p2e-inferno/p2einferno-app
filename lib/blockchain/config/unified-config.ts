@@ -211,18 +211,21 @@ const resolveRpcUrls = (chainId: number) => {
 export const createPublicClientUnified = (): PublicClient => {
   const { chain } = resolveChain();
   let { urls, hosts } = resolveRpcUrls(chain.id);
-  // On the client, if a keyed provider exists, drop public *.base.org to avoid 403 spam
-  if (typeof window !== 'undefined') {
+  const isBrowser = typeof window !== 'undefined';
+
+  if (isBrowser) {
     const parseHost = (u: string) => { try { return new URL(u).host; } catch { return '[unparseable]'; } };
     const keyedPred = (h: string) => /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
     const publicBasePred = (h: string) => /\.base\.org$/i.test(h);
     const hasKeyed = hosts.some(keyedPred);
     if (hasKeyed) {
-      const filtered = urls.filter((u) => !publicBasePred(parseHost(u)));
-      if (filtered.length) {
-        urls = filtered;
-        hosts = urls.map(parseHost);
-      }
+      const keyed = urls.filter((u) => keyedPred(parseHost(u)));
+      const publicBase = urls.filter((u) => publicBasePred(parseHost(u)));
+      const others = urls.filter(
+        (u) => !keyed.includes(u) && !publicBase.includes(u)
+      );
+      urls = [...keyed, ...others, ...publicBase];
+      hosts = urls.map(parseHost);
     }
   }
   const { timeoutMs, stallMs, retryCount, retryDelay } = getRpcFallbackSettings();
@@ -236,6 +239,13 @@ export const createPublicClientUnified = (): PublicClient => {
     retryCount,
     retryDelay,
   });
+
+  if (isBrowser && urls.length > 0) {
+    return createPublicClient({
+      chain,
+      transport: http(urls[0]!, { timeout: timeoutMs }),
+    }) as unknown as PublicClient;
+  }
 
   const transports = urls.map((u) => http(u, { timeout: timeoutMs }));
 

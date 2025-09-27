@@ -243,7 +243,7 @@ export default function MilestoneFormEnhanced({
     setIsDeletingTask(true);
     try {
       // If it's an existing task from database, add to deleted list
-      const taskToDeleteObj = tasks.find(task => task.id === taskToDelete);
+      const taskToDeleteObj = tasks.find((task) => task.id === taskToDelete);
       if (taskToDeleteObj && taskToDeleteObj._isFromDatabase === true) {
         setDeletedTasks((prev) => [...prev, taskToDelete]);
       }
@@ -524,10 +524,10 @@ export default function MilestoneFormEnhanced({
 
       // Process tasks: separate existing tasks from new tasks
       const existingTasks = validTasks.filter(
-        (task) => task._isFromDatabase === true
+        (task) => task._isFromDatabase === true,
       );
       const newTasks = validTasks.filter(
-        (task) => task._isFromDatabase !== true
+        (task) => task._isFromDatabase !== true,
       );
 
       // Update existing tasks using PUT
