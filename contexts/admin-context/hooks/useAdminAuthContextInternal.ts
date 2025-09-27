@@ -92,19 +92,8 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
       setAuthLoading(false);
       clearSession();
     }
-    // We intentionally include user (not just user?.id) to satisfy exhaustive-deps and
-    // ensure the effect re-runs when the Privy payload itself changes.
-  }, [
-    ready,
-    authenticated,
-    user,
-    user?.id,
-    walletAddress,
-    checkAdminAccess,
-    setIsAdmin,
-    setAuthLoading,
-    clearSession,
-  ]);
+
+  }, [ready, authenticated, user?.id, walletAddress, checkAdminAccess]);
 
   // Effect: Listen for wallet account changes
   useEffect(() => {
@@ -168,15 +157,7 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
         cacheValid: isCacheValid(cacheValidUntil)
       });
     }
-  }, [
-    authStatus,
-    isAdmin,
-    hasValidSession,
-    authLoading,
-    sessionLoading,
-    errorCount,
-    cacheValidUntil,
-  ]);
+  },  [authStatus, isAdmin, hasValidSession, authLoading, sessionLoading, errorCount, cacheValidUntil, isCacheValid]);
 
   // ============ HEALTH CHECK & DEBUGGING ============
   const getHealthStatus = useCallback(() => {
