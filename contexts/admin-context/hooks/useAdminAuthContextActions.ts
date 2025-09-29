@@ -1,22 +1,31 @@
 /**
  * Admin Authentication Context Actions Hook
- * 
+ *
  * Manages all action methods for the AdminAuthContext.
  * Extracted from AdminAuthContext.tsx for better organization and reusability.
  */
 
-import { useCallback, useRef } from 'react';
-import { usePrivy, useUser } from '@privy-io/react-auth';
-import { useSmartWalletSelection } from '@/hooks/useSmartWalletSelection';
-import { useLockManagerClient } from '@/hooks/useLockManagerClient';
-import { type Address } from 'viem';
-import { getLogger } from '@/lib/utils/logger';
-import { isCacheValid, createCacheExpiry, shouldInvalidateCache } from '../utils/adminAuthContextCacheUtils';
-import { MAX_BACKOFF_DELAY, MAX_ERROR_COUNT } from '../constants/AdminAuthContextConstants';
+import { useCallback, useRef } from "react";
+import { usePrivy, useUser } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useHasValidKey } from "@/hooks/unlock";
+import { type Address } from "viem";
+import { getLogger } from "@/lib/utils/logger";
+import {
+  isCacheValid,
+  createCacheExpiry,
+  shouldInvalidateCache,
+} from "../utils/adminAuthContextCacheUtils";
+import {
+  MAX_BACKOFF_DELAY,
+  MAX_ERROR_COUNT,
+} from "../constants/AdminAuthContextConstants";
 // Type for the state object returned by useAdminAuthContextState
-type AdminAuthContextState = ReturnType<typeof import('./useAdminAuthContextState').useAdminAuthContextState>;
+type AdminAuthContextState = ReturnType<
+  typeof import("./useAdminAuthContextState").useAdminAuthContextState
+>;
 
-const log = getLogger('client:admin-auth-context');
+const log = getLogger("client:admin-auth-context");
 
 interface AdminSessionHandlers {
   createAdminSession: () => Promise<boolean>;
@@ -24,19 +33,21 @@ interface AdminSessionHandlers {
 
 /**
  * Hook for managing AdminAuthContext action methods
- * 
+ *
  * @param state - State object from useAdminAuthContextState
  * @returns Object containing all action methods
  */
 export const useAdminAuthContextActions = (
   state: AdminAuthContextState,
-  sessionHandlers: AdminSessionHandlers
+  sessionHandlers: AdminSessionHandlers,
 ) => {
   const { authenticated, logout } = usePrivy();
   const { user } = useUser();
   const selectedWallet = useSmartWalletSelection();
   const walletAddress = selectedWallet?.address || null;
-  const { checkUserHasValidKey } = useLockManagerClient();
+  const { checkHasValidKey } = useHasValidKey({
+    enabled: authenticated && !!walletAddress,
+  });
   const { createAdminSession } = sessionHandlers;
 
   const {
@@ -51,7 +62,7 @@ export const useAdminAuthContextActions = (
     // Refs
     inFlightRef,
     mountedRef,
-    
+
     // Error handling methods
     clearErrors,
     recordError,
@@ -74,7 +85,7 @@ export const useAdminAuthContextActions = (
       if (!forceRefresh) {
         const circuitUntil = circuitBreakerRef.current;
         if (circuitUntil && now < circuitUntil) {
-          log.warn('Admin auth circuit breaker active, skipping check', {
+          log.warn("Admin auth circuit breaker active, skipping check", {
             circuitUntil,
           });
           return;
@@ -82,7 +93,7 @@ export const useAdminAuthContextActions = (
 
         const nextRetryAt = retryStateRef.current.nextRetryAt;
         if (nextRetryAt && now < nextRetryAt) {
-          log.debug('Admin auth check throttled by backoff window', {
+          log.debug("Admin auth check throttled by backoff window", {
             nextRetryAt,
           });
           return;
@@ -118,7 +129,7 @@ export const useAdminAuthContextActions = (
         if (mountedRef.current) {
           setCacheValidUntil(nextRetryAt);
         }
-        log.warn('Scheduled admin auth retry', {
+        log.warn("Scheduled admin auth retry", {
           reason,
           attempts,
           delay,
@@ -142,9 +153,9 @@ export const useAdminAuthContextActions = (
 
         const adminLockAddress = process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS;
         if (!adminLockAddress) {
-          const errorMsg = 'Admin lock address not configured';
+          const errorMsg = "Admin lock address not configured";
           log.warn(errorMsg);
-          recordError(errorMsg, 'auth');
+          recordError(errorMsg, "auth");
           scheduleRetry(errorMsg);
           if (mountedRef.current) {
             setIsAdmin(false);
@@ -155,9 +166,9 @@ export const useAdminAuthContextActions = (
 
         const currentWalletAddress = walletAddress;
         if (!currentWalletAddress) {
-          const errorMsg = 'No currently connected wallet found';
+          const errorMsg = "No currently connected wallet found";
           log.warn(errorMsg);
-          recordError(errorMsg, 'auth');
+          recordError(errorMsg, "auth");
           scheduleRetry(errorMsg);
           if (mountedRef.current) {
             setIsAdmin(false);
@@ -169,19 +180,23 @@ export const useAdminAuthContextActions = (
         log.info(`Checking admin access for wallet: ${currentWalletAddress}`);
 
         let walletBelongsToUser = false;
-        if (user.wallet?.address?.toLowerCase() === currentWalletAddress.toLowerCase()) {
+        if (
+          user.wallet?.address?.toLowerCase() ===
+          currentWalletAddress.toLowerCase()
+        ) {
           walletBelongsToUser = true;
-          log.debug('Connected wallet matches primary Privy wallet');
+          log.debug("Connected wallet matches primary Privy wallet");
         }
 
         if (!walletBelongsToUser && user.linkedAccounts) {
           for (const account of user.linkedAccounts) {
             if (
-              account.type === 'wallet' &&
-              account.address?.toLowerCase() === currentWalletAddress.toLowerCase()
+              account.type === "wallet" &&
+              account.address?.toLowerCase() ===
+                currentWalletAddress.toLowerCase()
             ) {
               walletBelongsToUser = true;
-              log.debug('Connected wallet found in linked accounts');
+              log.debug("Connected wallet found in linked accounts");
               break;
             }
           }
@@ -190,19 +205,19 @@ export const useAdminAuthContextActions = (
         if (!walletBelongsToUser) {
           const errorMsg = `Connected wallet ${currentWalletAddress} does not belong to current user ${user.id}`;
           log.warn(`🚨 SECURITY: ${errorMsg}. Forcing logout.`);
-          recordError('Wallet security validation failed', 'auth');
+          recordError("Wallet security validation failed", "auth");
 
           try {
-            await fetch('/api/admin/logout', {
-              method: 'POST',
-              credentials: 'include',
+            await fetch("/api/admin/logout", {
+              method: "POST",
+              credentials: "include",
             });
           } catch (e) {
-            recordError('Failed to clear admin session', 'network');
+            recordError("Failed to clear admin session", "network");
           }
 
           await logout();
-          scheduleRetry('Wallet mismatch');
+          scheduleRetry("Wallet mismatch");
 
           if (mountedRef.current) {
             setIsAdmin(false);
@@ -215,10 +230,9 @@ export const useAdminAuthContextActions = (
 
         let hasValidKey = false;
         try {
-          const keyInfo = await checkUserHasValidKey(
+          const keyInfo = await checkHasValidKey(
             currentWalletAddress as Address,
             adminLockAddress as Address,
-            { forceRefresh },
           );
 
           if (keyInfo && keyInfo.isValid) {
@@ -226,8 +240,10 @@ export const useAdminAuthContextActions = (
             log.info(
               `✅ Admin access GRANTED for ${currentWalletAddress}, expires: ${
                 keyInfo.expirationTimestamp > BigInt(Number.MAX_SAFE_INTEGER)
-                  ? 'Never (infinite)'
-                  : new Date(Number(keyInfo.expirationTimestamp) * 1000).toLocaleString()
+                  ? "Never (infinite)"
+                  : new Date(
+                      Number(keyInfo.expirationTimestamp) * 1000,
+                    ).toLocaleString()
               }`,
             );
           } else {
@@ -244,9 +260,13 @@ export const useAdminAuthContextActions = (
           resetRetryState();
         } catch (error) {
           const errorMsg =
-            error instanceof Error ? error.message : 'Unknown admin access error';
-          log.error(`Error checking admin access for ${currentWalletAddress}`, { error });
-          recordError(errorMsg, 'auth');
+            error instanceof Error
+              ? error.message
+              : "Unknown admin access error";
+          log.error(`Error checking admin access for ${currentWalletAddress}`, {
+            error,
+          });
+          recordError(errorMsg, "auth");
           scheduleRetry(errorMsg);
 
           if (mountedRef.current) {
@@ -255,9 +275,12 @@ export const useAdminAuthContextActions = (
           return;
         }
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : 'Unknown authentication error';
-        log.error('Error in admin access check', { error });
-        recordError(errorMsg, 'auth');
+        const errorMsg =
+          error instanceof Error
+            ? error.message
+            : "Unknown authentication error";
+        log.error("Error in admin access check", { error });
+        recordError(errorMsg, "auth");
         scheduleRetry(errorMsg);
         if (mountedRef.current) {
           setIsAdmin(false);
@@ -274,7 +297,7 @@ export const useAdminAuthContextActions = (
       ERROR_RETRY_DELAY,
       authenticated,
       cacheValidUntil,
-      checkUserHasValidKey,
+      checkHasValidKey,
       clearErrors,
       errorCount,
       lastErrorTime,

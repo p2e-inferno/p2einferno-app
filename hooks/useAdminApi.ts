@@ -4,7 +4,11 @@ import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { useVerifyToken } from "./useVerifyToken";
 import { useSmartWalletSelection } from "./useSmartWalletSelection";
-import { normalizeAdminApiError, logAdminApiError, type AdminApiErrorContext } from "@/lib/utils/error-utils";
+import {
+  normalizeAdminApiError,
+  logAdminApiError,
+  type AdminApiErrorContext,
+} from "@/lib/utils/error-utils";
 
 interface UseAdminApiOptions {
   redirectOnAuthError?: boolean;
@@ -31,7 +35,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
   const adminFetch = useCallback(
     async <U = T>(
       url: string,
-      requestOptions: RequestInit = {}
+      requestOptions: RequestInit = {},
     ): Promise<ApiResponse<U>> => {
       setLoading(true);
       setError(null);
@@ -51,7 +55,6 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
           throw new Error("No access token available");
         }
 
-
         const response = await fetch(url, {
           ...requestOptions,
           headers: {
@@ -60,37 +63,42 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
             "X-Active-Wallet": selectedWallet?.address || "",
             ...requestOptions.headers,
           },
-          credentials: 'include', // Ensure cookies are sent
+          credentials: "include", // Ensure cookies are sent
         });
-
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
 
           // Create error context for logging
           const errorContext: AdminApiErrorContext = {
-            operation: `${requestOptions.method || 'GET'} ${url}`,
+            operation: `${requestOptions.method || "GET"} ${url}`,
             url,
-            method: requestOptions.method || 'GET',
-            attempt: 'original',
-            walletAddress: selectedWallet?.address
+            method: requestOptions.method || "GET",
+            attempt: "original",
+            walletAddress: selectedWallet?.address,
           };
 
           // If unauthorized and auto refresh enabled, attempt session issuance then retry once
           if (response.status === 401 && options.autoSessionRefresh !== false) {
             try {
               // Prefer Route Handler; fallback to Pages API session-fallback
-              let sessionResp = await fetch('/api/admin/session', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${accessToken}`, 'X-Active-Wallet': selectedWallet?.address || '' },
-                credentials: 'include',
+              let sessionResp = await fetch("/api/admin/session", {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${accessToken}`,
+                  "X-Active-Wallet": selectedWallet?.address || "",
+                },
+                credentials: "include",
               });
 
               if (!sessionResp.ok) {
-                sessionResp = await fetch('/api/admin/session-fallback', {
-                  method: 'POST',
-                  headers: { 'Authorization': `Bearer ${accessToken}`, 'X-Active-Wallet': selectedWallet?.address || '' },
-                  credentials: 'include',
+                sessionResp = await fetch("/api/admin/session-fallback", {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${accessToken}`,
+                    "X-Active-Wallet": selectedWallet?.address || "",
+                  },
+                  credentials: "include",
                 });
               }
 
@@ -103,7 +111,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
                     "X-Active-Wallet": selectedWallet?.address || "",
                     ...requestOptions.headers,
                   },
-                  credentials: 'include',
+                  credentials: "include",
                 });
 
                 if (retry.ok) {
@@ -115,18 +123,31 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
                 const retryErrorData = await retry.json().catch(() => ({}));
                 const retryErrorContext: AdminApiErrorContext = {
                   ...errorContext,
-                  attempt: 'retry'
+                  attempt: "retry",
                 };
 
-                logAdminApiError(retry.status, retryErrorData, retryErrorContext);
-                const retryErrorMessage = normalizeAdminApiError(retry.status, retryErrorData, 'admin_api_retry');
+                logAdminApiError(
+                  retry.status,
+                  retryErrorData,
+                  retryErrorContext,
+                );
+                const retryErrorMessage = normalizeAdminApiError(
+                  retry.status,
+                  retryErrorData,
+                  "admin_api_retry",
+                );
                 setError(retryErrorMessage);
                 if (!options.suppressToasts) toast.error(retryErrorMessage);
                 return { error: retryErrorMessage };
               }
             } catch (retryError: any) {
               // Log retry attempt failure but continue to handle original error
-              logAdminApiError(0, { error: retryError.message }, { ...errorContext, attempt: 'retry' }, retryError);
+              logAdminApiError(
+                0,
+                { error: retryError.message },
+                { ...errorContext, attempt: "retry" },
+                retryError,
+              );
             }
           }
 
@@ -134,7 +155,11 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
           logAdminApiError(response.status, errorData, errorContext);
 
           // Use centralized error normalization
-          const errorMessage = normalizeAdminApiError(response.status, errorData, 'admin_api');
+          const errorMessage = normalizeAdminApiError(
+            response.status,
+            errorData,
+            "admin_api",
+          );
           setError(errorMessage);
 
           // Handle redirects for authentication errors
@@ -152,20 +177,21 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
       } catch (err: any) {
         // Create error context for network errors
         const networkErrorContext: AdminApiErrorContext = {
-          operation: `${requestOptions.method || 'GET'} ${url}`,
+          operation: `${requestOptions.method || "GET"} ${url}`,
           url,
-          method: requestOptions.method || 'GET',
-          attempt: 'original',
-          walletAddress: selectedWallet?.address
+          method: requestOptions.method || "GET",
+          attempt: "original",
+          walletAddress: selectedWallet?.address,
         };
 
         // Log network error
         logAdminApiError(0, { error: err.message }, networkErrorContext, err);
 
         // Use network-aware error message
-        const errorMessage = err.message?.includes('fetch') || err.message?.includes('network')
-          ? "Network error. Please check your connection and try again."
-          : err.message || "Network error";
+        const errorMessage =
+          err.message?.includes("fetch") || err.message?.includes("network")
+            ? "Network error. Please check your connection and try again."
+            : err.message || "Network error";
 
         setError(errorMessage);
         if (!options.suppressToasts) toast.error(errorMessage);
@@ -174,7 +200,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
         setLoading(false);
       }
     },
-    [getAccessToken, router, options, verifyToken, selectedWallet?.address]
+    [getAccessToken, router, options, verifyToken, selectedWallet?.address],
   );
 
   return {

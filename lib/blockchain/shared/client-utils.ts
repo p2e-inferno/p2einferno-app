@@ -38,7 +38,7 @@ export interface PrivyWalletInfo {
  * Handles both user.wallet and wallets[0] wallet types
  */
 export const createEthersFromPrivyWallet = async (
-  wallet: PrivyWalletInfo
+  wallet: PrivyWalletInfo,
 ): Promise<EthersClients> => {
   if (!wallet || !wallet.address) {
     throw new Error("No wallet provided or not connected.");
@@ -57,25 +57,27 @@ export const createEthersFromPrivyWallet = async (
     provider = wallet.provider;
   } else {
     throw new Error(
-      "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected."
+      "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected.",
     );
   }
 
   // If provider is already an ethers BrowserProvider, use it directly to avoid recursive wrapping
-  const ethersProvider = provider instanceof ethers.BrowserProvider
-    ? provider
-    : new ethers.BrowserProvider(provider);
+  const ethersProvider =
+    provider instanceof ethers.BrowserProvider
+      ? provider
+      : new ethers.BrowserProvider(provider);
   const signer = await ethersProvider.getSigner();
 
   // Normalize rawProvider to EIP-1193 for network switching
   const rawProviderNormalized = (provider as any)?.request
     ? provider
-    : ((provider as any)?.provider ?? (typeof window !== 'undefined' ? (window as any).ethereum : provider));
+    : ((provider as any)?.provider ??
+      (typeof window !== "undefined" ? (window as any).ethereum : provider));
 
-  return { 
-    provider: ethersProvider, 
-    signer, 
-    rawProvider: rawProviderNormalized 
+  return {
+    provider: ethersProvider,
+    signer,
+    rawProvider: rawProviderNormalized,
   };
 };
 

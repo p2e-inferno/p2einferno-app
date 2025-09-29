@@ -1,27 +1,27 @@
 /**
  * Admin Authentication Context Main Hook
- * 
+ *
  * Main composition hook that combines all AdminAuthContext functionality.
  * Extracted from AdminAuthContext.tsx for better organization and reusability.
  */
 
-import { useEffect, useMemo, useCallback } from 'react';
-import { usePrivy, useUser } from '@privy-io/react-auth';
-import { useSmartWalletSelection } from '@/hooks/useSmartWalletSelection';
-import { useAdminSession } from '@/hooks/useAdminSession';
-import { listenForAdminWalletChanges } from '@/lib/utils/wallet-change';
-import { getLogger } from '@/lib/utils/logger';
-import { deriveAuthStatus } from '../utils/adminAuthContextStatusUtils';
-import { isCacheValid } from '../utils/adminAuthContextCacheUtils';
-import { useAdminAuthContextState } from './useAdminAuthContextState';
-import { useAdminAuthContextActions } from './useAdminAuthContextActions';
-import type { AdminAuthContextValue } from '../types/AdminAuthContextTypes';
+import { useEffect, useMemo, useCallback } from "react";
+import { usePrivy, useUser } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useAdminSession } from "@/hooks/useAdminSession";
+import { listenForAdminWalletChanges } from "@/lib/utils/wallet-change";
+import { getLogger } from "@/lib/utils/logger";
+import { deriveAuthStatus } from "../utils/adminAuthContextStatusUtils";
+import { isCacheValid } from "../utils/adminAuthContextCacheUtils";
+import { useAdminAuthContextState } from "./useAdminAuthContextState";
+import { useAdminAuthContextActions } from "./useAdminAuthContextActions";
+import type { AdminAuthContextValue } from "../types/AdminAuthContextTypes";
 
-const log = getLogger('client:admin-auth-context');
+const log = getLogger("client:admin-auth-context");
 
 /**
  * Main hook for AdminAuthContext functionality
- * 
+ *
  * @returns Complete AdminAuthContextValue with all state and methods
  */
 export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
@@ -40,7 +40,7 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
     sessionError,
     createAdminSession,
     refreshSession,
-    clearSession
+    clearSession,
   } = sessionAuth;
 
   // ============ INTERNAL STATE & ACTIONS ============
@@ -71,12 +71,8 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
     clearErrors,
   } = state;
 
-  const {
-    checkAdminAccess,
-    refreshAdminStatus,
-    retryAuth,
-    retrySession,
-  } = actions;
+  const { checkAdminAccess, refreshAdminStatus, retryAuth, retrySession } =
+    actions;
 
   // ============ EFFECTS ============
 
@@ -92,7 +88,6 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
       setAuthLoading(false);
       clearSession();
     }
-
   }, [ready, authenticated, user?.id, walletAddress, checkAdminAccess]);
 
   // Effect: Listen for wallet account changes
@@ -110,7 +105,10 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
 
       try {
         // Clear admin session
-        await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+        await fetch("/api/admin/logout", {
+          method: "POST",
+          credentials: "include",
+        });
       } catch (e) {
         // Ignore network errors - already handled by utility
       }
@@ -140,24 +138,41 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
       isAdmin,
       authLoading,
       hasValidSession,
-      sessionLoading
+      sessionLoading,
     );
-  }, [authenticated, ready, walletAddress, isAdmin, authLoading, hasValidSession, sessionLoading]);
+  }, [
+    authenticated,
+    ready,
+    walletAddress,
+    isAdmin,
+    authLoading,
+    hasValidSession,
+    sessionLoading,
+  ]);
 
   // Development debugging
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      log.debug('AdminAuthContext state update', {
+    if (process.env.NODE_ENV === "development") {
+      log.debug("AdminAuthContext state update", {
         authStatus,
         isAdmin,
         hasValidSession,
         authLoading,
         sessionLoading,
         errorCount: errorCount,
-        cacheValid: isCacheValid(cacheValidUntil)
+        cacheValid: isCacheValid(cacheValidUntil),
       });
     }
-  },  [authStatus, isAdmin, hasValidSession, authLoading, sessionLoading, errorCount, cacheValidUntil, isCacheValid]);
+  }, [
+    authStatus,
+    isAdmin,
+    hasValidSession,
+    authLoading,
+    sessionLoading,
+    errorCount,
+    cacheValidUntil,
+    isCacheValid,
+  ]);
 
   // ============ HEALTH CHECK & DEBUGGING ============
   const getHealthStatus = useCallback(() => {
@@ -165,80 +180,94 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
       isHealthy: !networkError && errorCount < 5,
       lastError: authError,
       errorCount: errorCount,
-      cacheStatus: (isCacheValid(cacheValidUntil) ? 'valid' : 'invalid') as 'valid' | 'invalid',
-      sessionStatus: (hasValidSession ? 'valid' : 'invalid') as 'valid' | 'invalid',
-      authStatus
+      cacheStatus: (isCacheValid(cacheValidUntil) ? "valid" : "invalid") as
+        | "valid"
+        | "invalid",
+      sessionStatus: (hasValidSession ? "valid" : "invalid") as
+        | "valid"
+        | "invalid",
+      authStatus,
     };
-  }, [networkError, errorCount, authError, cacheValidUntil, hasValidSession, authStatus]);
+  }, [
+    networkError,
+    errorCount,
+    authError,
+    cacheValidUntil,
+    hasValidSession,
+    authStatus,
+  ]);
 
   // ============ CONTEXT VALUE ============
 
-  const contextValue: AdminAuthContextValue = useMemo(() => ({
-    // Unified state
-    authStatus,
-    isAdmin,
-    authenticated,
-    user,
-    walletAddress,
+  const contextValue: AdminAuthContextValue = useMemo(
+    () => ({
+      // Unified state
+      authStatus,
+      isAdmin,
+      authenticated,
+      user,
+      walletAddress,
 
-    // Performance state
-    lastAuthCheck,
-    cacheValidUntil,
+      // Performance state
+      lastAuthCheck,
+      cacheValidUntil,
 
-    // Loading states
-    isLoadingAuth: authLoading,
-    isLoadingSession: sessionLoading,
+      // Loading states
+      isLoadingAuth: authLoading,
+      isLoadingSession: sessionLoading,
 
-    // Session state
-    hasValidSession,
-    sessionExpiry,
+      // Session state
+      hasValidSession,
+      sessionExpiry,
 
-    // Action methods
-    refreshAdminStatus,
-    createAdminSession,
-    refreshSession,
-    clearSession,
+      // Action methods
+      refreshAdminStatus,
+      createAdminSession,
+      refreshSession,
+      clearSession,
 
-    // Error states
-    authError,
-    sessionError,
-    networkError,
-    errorCount,
-    lastErrorTime,
+      // Error states
+      authError,
+      sessionError,
+      networkError,
+      errorCount,
+      lastErrorTime,
 
-    // Recovery methods
-    retryAuth,
-    retrySession,
-    clearErrors,
+      // Recovery methods
+      retryAuth,
+      retrySession,
+      clearErrors,
 
-    // Debugging & health
-    getHealthStatus,
-  }), [
-    authStatus,
-    isAdmin,
-    authenticated,
-    user,
-    walletAddress,
-    lastAuthCheck,
-    cacheValidUntil,
-    authLoading,
-    sessionLoading,
-    hasValidSession,
-    sessionExpiry,
-    refreshAdminStatus,
-    createAdminSession,
-    refreshSession,
-    clearSession,
-    authError,
-    sessionError,
-    networkError,
-    errorCount,
-    lastErrorTime,
-    retryAuth,
-    retrySession,
-    clearErrors,
-    getHealthStatus,
-  ]);
+      // Debugging & health
+      getHealthStatus,
+    }),
+    [
+      authStatus,
+      isAdmin,
+      authenticated,
+      user,
+      walletAddress,
+      lastAuthCheck,
+      cacheValidUntil,
+      authLoading,
+      sessionLoading,
+      hasValidSession,
+      sessionExpiry,
+      refreshAdminStatus,
+      createAdminSession,
+      refreshSession,
+      clearSession,
+      authError,
+      sessionError,
+      networkError,
+      errorCount,
+      lastErrorTime,
+      retryAuth,
+      retrySession,
+      clearErrors,
+      getHealthStatus,
+    ],
+  );
 
   return contextValue;
 };

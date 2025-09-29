@@ -6,7 +6,11 @@
 import { createWalletClient, http, fallback, type WalletClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { validateEnvironment } from "../core/validation";
-import { resolveChain, resolveRpcUrls, getRpcFallbackSettings } from "../core/chain-resolution";
+import {
+  resolveChain,
+  resolveRpcUrls,
+  getRpcFallbackSettings,
+} from "../core/chain-resolution";
 import { blockchainLogger } from "../../shared/logging-utils";
 
 /**
@@ -17,15 +21,19 @@ export const createWalletClientUnified = (): WalletClient | null => {
   const { privateKey, hasValidKey } = validateEnvironment();
 
   if (!hasValidKey || !privateKey) {
-    blockchainLogger.warn("Cannot create wallet client - private key not configured", { operation: 'walletClient:create' });
+    blockchainLogger.warn(
+      "Cannot create wallet client - private key not configured",
+      { operation: "walletClient:create" },
+    );
     return null;
   }
 
   try {
     const { chain } = resolveChain();
     const { urls } = resolveRpcUrls(chain.id);
-    const { timeoutMs, stallMs, retryCount, retryDelay } = getRpcFallbackSettings();
-    
+    const { timeoutMs, stallMs, retryCount, retryDelay } =
+      getRpcFallbackSettings();
+
     const account = privateKeyToAccount(privateKey);
     return createWalletClient({
       account,
@@ -36,8 +44,10 @@ export const createWalletClientUnified = (): WalletClient | null => {
       ),
     }) as unknown as WalletClient;
   } catch (error) {
-    blockchainLogger.error("Failed to create wallet client", { operation: 'walletClient:create', error: (error as any)?.message || String(error) });
+    blockchainLogger.error("Failed to create wallet client", {
+      operation: "walletClient:create",
+      error: (error as any)?.message || String(error),
+    });
     return null;
   }
 };
-

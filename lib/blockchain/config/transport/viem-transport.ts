@@ -1,15 +1,15 @@
 /**
  * Sequential HTTP Transport for Viem
- * 
+ *
  * Provides a robust RPC transport that automatically fails over between multiple
  * blockchain RPC endpoints. Implements sequential retry logic with exponential
  * backoff to ensure high availability for blockchain operations.
- * 
+ *
  **/
 
-import { createTransport, http } from 'viem';
+import { createTransport, http } from "viem";
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Configuration for creating a sequential HTTP transport with failover support
@@ -26,12 +26,14 @@ interface CreateSequentialTransportArgs {
  * Non-retryable errors include malformed requests, method not found, and invalid params
  */
 const isNonRetryableJsonRpcError = (error: unknown) => {
-  if (!error || typeof error !== 'object') {
+  if (!error || typeof error !== "object") {
     return false;
   }
 
   const maybeError = error as Record<string, unknown> & { code?: number };
-  const code = maybeError.code ?? (maybeError.cause as { code?: number } | undefined)?.code;
+  const code =
+    maybeError.code ??
+    (maybeError.cause as { code?: number } | undefined)?.code;
 
   if (code === undefined) {
     return false;
@@ -55,11 +57,11 @@ export const createSequentialHttpTransport = ({
   const deduped = Array.from(new Set(urls.filter(Boolean)));
 
   if (deduped.length === 0) {
-    throw new Error('No RPC URLs configured');
+    throw new Error("No RPC URLs configured");
   }
 
   // Create individual HTTP transports for each endpoint
-  const transports = deduped.map(url =>
+  const transports = deduped.map((url) =>
     http(url, {
       timeout: timeoutMs,
       retryCount: 0, // Disable built-in retries, we handle them manually
@@ -76,9 +78,9 @@ export const createSequentialHttpTransport = ({
 
     return createTransport(
       {
-        key: 'http-sequential',
-        name: 'HTTP JSON-RPC (sequential)',
-        type: 'http',
+        key: "http-sequential",
+        name: "HTTP JSON-RPC (sequential)",
+        type: "http",
         retryCount: 0,
         retryDelay: retryDelayMs,
         timeout,
@@ -118,7 +120,7 @@ export const createSequentialHttpTransport = ({
             }
           }
 
-          throw lastError ?? new Error('All RPC endpoints failed');
+          throw lastError ?? new Error("All RPC endpoints failed");
         },
       },
       { url: deduped[lastGoodIndex % deduped.length] },

@@ -1,12 +1,15 @@
-import { useState, useEffect } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
-import { ethers } from 'ethers';
-import { getLogger } from '@/lib/utils/logger';
-import { CURRENT_NETWORK, ERC20_ABI } from '@/lib/blockchain/legacy/frontend-config';
-import { createPublicClientUnified } from '@/lib/blockchain/config';
-import type { Address } from 'viem';
+import { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { ethers } from "ethers";
+import { getLogger } from "@/lib/utils/logger";
+import {
+  CURRENT_NETWORK,
+  ERC20_ABI,
+} from "@/lib/blockchain/legacy/frontend-config";
+import { createPublicClientUnified } from "@/lib/blockchain/config";
+import type { Address } from "viem";
 
-const log = getLogger('hooks:useWalletBalances');
+const log = getLogger("hooks:useWalletBalances");
 
 export interface WalletBalance {
   eth: {
@@ -31,8 +34,8 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
   const { enabled = true, pollIntervalMs = 30000 } = options;
   const { user } = usePrivy();
   const [balances, setBalances] = useState<WalletBalance>({
-    eth: { balance: '0', formatted: '0.0000', loading: true },
-    usdc: { balance: '0', formatted: '0.00', loading: true, symbol: 'USDC' },
+    eth: { balance: "0", formatted: "0.0000", loading: true },
+    usdc: { balance: "0", formatted: "0.00", loading: true, symbol: "USDC" },
   });
   const [error, setError] = useState<string | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
@@ -43,8 +46,13 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
       // When disabled, avoid touching provider and present non-loading zeros
       setConnectedAddress(null);
       setBalances({
-        eth: { balance: '0', formatted: '0.0000', loading: false },
-        usdc: { balance: '0', formatted: '0.00', loading: false, symbol: 'USDC' },
+        eth: { balance: "0", formatted: "0.0000", loading: false },
+        usdc: {
+          balance: "0",
+          formatted: "0.00",
+          loading: false,
+          symbol: "USDC",
+        },
       });
       return;
     }
@@ -100,8 +108,13 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
   useEffect(() => {
     if (!enabled || !walletAddress) {
       setBalances({
-        eth: { balance: '0', formatted: '0.0000', loading: false },
-        usdc: { balance: '0', formatted: '0.00', loading: false, symbol: 'USDC' },
+        eth: { balance: "0", formatted: "0.0000", loading: false },
+        usdc: {
+          balance: "0",
+          formatted: "0.00",
+          loading: false,
+          symbol: "USDC",
+        },
       });
       return;
     }
@@ -118,28 +131,28 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
         });
 
         let usdcBalance = 0n;
-        let usdcSymbol = 'USDC';
+        let usdcSymbol = "USDC";
 
         // Fetch USDC balance
         try {
-          usdcBalance = await client.readContract({
+          usdcBalance = (await client.readContract({
             address: CURRENT_NETWORK.usdcAddress as Address,
             abi: ERC20_ABI,
-            functionName: 'balanceOf',
+            functionName: "balanceOf",
             args: [walletAddress as Address],
-          }) as bigint;
+          })) as bigint;
 
           const symbol = await client.readContract({
             address: CURRENT_NETWORK.usdcAddress as Address,
             abi: ERC20_ABI,
-            functionName: 'symbol',
+            functionName: "symbol",
           });
 
-          if (typeof symbol === 'string') {
+          if (typeof symbol === "string") {
             usdcSymbol = symbol;
           }
         } catch (usdcError) {
-          log.warn('Error fetching USDC balance:', { error: usdcError });
+          log.warn("Error fetching USDC balance:", { error: usdcError });
         }
 
         // Format balances using ethers
@@ -160,11 +173,16 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
           },
         });
       } catch (err) {
-        log.error('Error fetching wallet balances:', { error: err });
-        setError('Failed to fetch balances');
+        log.error("Error fetching wallet balances:", { error: err });
+        setError("Failed to fetch balances");
         setBalances({
-          eth: { balance: '0', formatted: '0.0000', loading: false },
-          usdc: { balance: '0', formatted: '0.00', loading: false, symbol: 'USDC' },
+          eth: { balance: "0", formatted: "0.0000", loading: false },
+          usdc: {
+            balance: "0",
+            formatted: "0.00",
+            loading: false,
+            symbol: "USDC",
+          },
         });
       }
     };
@@ -178,8 +196,8 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
 
   const refreshBalances = async () => {
     if (!enabled || !walletAddress) return;
-    
-    setBalances(prev => ({
+
+    setBalances((prev) => ({
       eth: { ...prev.eth, loading: true },
       usdc: { ...prev.usdc, loading: true },
     }));
@@ -192,26 +210,28 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
         address: walletAddress as Address,
       });
       let usdcBalance = 0n;
-      let usdcSymbol = 'USDC';
+      let usdcSymbol = "USDC";
 
       try {
         const [balance, symbol] = await Promise.all([
           client.readContract({
             address: CURRENT_NETWORK.usdcAddress as Address,
             abi: ERC20_ABI,
-            functionName: 'balanceOf',
+            functionName: "balanceOf",
             args: [walletAddress as Address],
           }) as Promise<bigint>,
           client.readContract({
             address: CURRENT_NETWORK.usdcAddress as Address,
             abi: ERC20_ABI,
-            functionName: 'symbol',
+            functionName: "symbol",
           }) as Promise<string>,
         ]);
         usdcBalance = balance;
         usdcSymbol = symbol;
       } catch (usdcError) {
-        log.warn('Error fetching USDC balance during refresh:', { error: usdcError });
+        log.warn("Error fetching USDC balance during refresh:", {
+          error: usdcError,
+        });
       }
 
       const ethFormatted = ethers.formatEther(ethBalance);
@@ -231,9 +251,9 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
         },
       });
     } catch (err) {
-      log.error('Error refreshing wallet balances:', { error: err });
-      setError('Failed to refresh balances');
-      setBalances(prev => ({
+      log.error("Error refreshing wallet balances:", { error: err });
+      setError("Failed to refresh balances");
+      setBalances((prev) => ({
         eth: { ...prev.eth, loading: false },
         usdc: { ...prev.usdc, loading: false },
       }));

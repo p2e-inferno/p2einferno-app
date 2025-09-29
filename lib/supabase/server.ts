@@ -15,7 +15,7 @@ export function createAdminClient() {
 
   if (!supabaseUrl || !supabaseServiceKey) {
     throw new Error(
-      "Missing Supabase admin environment variables. Please check that NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in your environment variables."
+      "Missing Supabase admin environment variables. Please check that NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set in your environment variables.",
     );
   }
 

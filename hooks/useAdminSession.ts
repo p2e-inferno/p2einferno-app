@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
-import { useSmartWalletSelection } from './useSmartWalletSelection';
-import { getLogger } from '@/lib/utils/logger';
+import { useState, useEffect, useCallback, useRef } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "./useSmartWalletSelection";
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:useAdminSession');
+const log = getLogger("hooks:useAdminSession");
 
 interface AdminSessionState {
   hasValidSession: boolean;
@@ -33,138 +33,157 @@ export const useAdminSession = () => {
   /**
    * Check if current admin session is valid
    */
-  const checkSession = useCallback(async (forceCheck = false): Promise<boolean> => {
-    const now = Date.now();
+  const checkSession = useCallback(
+    async (forceCheck = false): Promise<boolean> => {
+      const now = Date.now();
 
-    // Throttle checks to avoid rapid requests (unless forced)
-    if (!forceCheck && checkInProgress.current) {
-      return sessionState.hasValidSession;
-    }
+      // Throttle checks to avoid rapid requests (unless forced)
+      if (!forceCheck && checkInProgress.current) {
+        return sessionState.hasValidSession;
+      }
 
-    // Don't check too frequently (unless forced)
-    if (!forceCheck && now - sessionState.lastChecked < 30000) { // 30 seconds
-      return sessionState.hasValidSession;
-    }
+      // Don't check too frequently (unless forced)
+      if (!forceCheck && now - sessionState.lastChecked < 30000) {
+        // 30 seconds
+        return sessionState.hasValidSession;
+      }
 
-    checkInProgress.current = true;
-    setSessionState(prev => ({ ...prev, isCheckingSession: true }));
+      checkInProgress.current = true;
+      setSessionState((prev) => ({ ...prev, isCheckingSession: true }));
 
-    try {
-      log.debug('Checking admin session validity');
+      try {
+        log.debug("Checking admin session validity");
 
-      const response = await fetch('/api/admin/session/verify', {
-        method: 'GET',
-        credentials: 'include', // Include cookies
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        const isValid = data.valid === true;
-
-        setSessionState({
-          hasValidSession: isValid,
-          isCheckingSession: false,
-          sessionExpiry: data.expiresAt || null,
-          lastChecked: now,
-          sessionError: null,
+        const response = await fetch("/api/admin/session/verify", {
+          method: "GET",
+          credentials: "include", // Include cookies
         });
 
-        log.debug('Session check completed', {
-          valid: isValid,
-          expiry: data.expiresAt
-        });
+        if (response.ok) {
+          const data = await response.json();
+          const isValid = data.valid === true;
 
-        return isValid;
-      } else {
-        // Session invalid or expired
-        const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || `Session verification failed with status ${response.status}`;
+          setSessionState({
+            hasValidSession: isValid,
+            isCheckingSession: false,
+            sessionExpiry: data.expiresAt || null,
+            lastChecked: now,
+            sessionError: null,
+          });
 
+          log.debug("Session check completed", {
+            valid: isValid,
+            expiry: data.expiresAt,
+          });
+
+          return isValid;
+        } else {
+          // Session invalid or expired
+          const errorData = await response.json().catch(() => ({}));
+          const errorMessage =
+            errorData.error ||
+            `Session verification failed with status ${response.status}`;
+
+          setSessionState({
+            hasValidSession: false,
+            isCheckingSession: false,
+            sessionExpiry: null,
+            lastChecked: now,
+            sessionError: errorMessage,
+          });
+
+          log.debug("Session check failed", {
+            status: response.status,
+            error: errorMessage,
+          });
+          return false;
+        }
+      } catch (error: any) {
+        log.error("Error checking session:", error);
         setSessionState({
           hasValidSession: false,
           isCheckingSession: false,
           sessionExpiry: null,
           lastChecked: now,
-          sessionError: errorMessage,
+          sessionError: error?.message || "Session verification error",
         });
-
-        log.debug('Session check failed', { status: response.status, error: errorMessage });
         return false;
+      } finally {
+        checkInProgress.current = false;
       }
-    } catch (error: any) {
-      log.error('Error checking session:', error);
-      setSessionState({
-        hasValidSession: false,
-        isCheckingSession: false,
-        sessionExpiry: null,
-        lastChecked: now,
-        sessionError: error?.message || 'Session verification error',
-      });
-      return false;
-    } finally {
-      checkInProgress.current = false;
-    }
-  }, [sessionState.hasValidSession, sessionState.lastChecked]);
+    },
+    [sessionState.hasValidSession, sessionState.lastChecked],
+  );
 
   /**
    * Create a new admin session
    */
   const createAdminSession = useCallback(async (): Promise<boolean> => {
     try {
-      log.info('Creating new admin session');
-      setSessionState(prev => ({ ...prev, isCheckingSession: true, sessionError: null }));
+      log.info("Creating new admin session");
+      setSessionState((prev) => ({
+        ...prev,
+        isCheckingSession: true,
+        sessionError: null,
+      }));
 
       const accessToken = await getAccessToken();
       if (!accessToken) {
-        throw new Error('No access token available');
+        throw new Error("No access token available");
       }
 
       // Try primary session endpoint first
-      let response = await fetch('/api/admin/session', {
-        method: 'POST',
+      let response = await fetch("/api/admin/session", {
+        method: "POST",
         headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Active-Wallet': selectedWallet?.address || '',
+          Authorization: `Bearer ${accessToken}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
-        credentials: 'include',
+        credentials: "include",
       });
 
       // Fallback to session-fallback if primary fails
       if (!response.ok) {
-        log.debug('Primary session endpoint failed, trying fallback');
-        response = await fetch('/api/admin/session-fallback', {
-          method: 'POST',
+        log.debug("Primary session endpoint failed, trying fallback");
+        response = await fetch("/api/admin/session-fallback", {
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'X-Active-Wallet': selectedWallet?.address || '',
+            Authorization: `Bearer ${accessToken}`,
+            "X-Active-Wallet": selectedWallet?.address || "",
           },
-          credentials: 'include',
+          credentials: "include",
         });
       }
 
       if (response.ok) {
-        log.info('Admin session created successfully');
+        log.info("Admin session created successfully");
 
         // Immediately verify the new session
         const isValid = await checkSession(true);
         return isValid;
       } else {
         const errorData = await response.json().catch(() => ({}));
-        const errorMessage = errorData.error || `Session creation failed with status ${response.status}`;
-        log.error('Failed to create admin session', {
+        const errorMessage =
+          errorData.error ||
+          `Session creation failed with status ${response.status}`;
+        log.error("Failed to create admin session", {
           status: response.status,
-          error: errorMessage
+          error: errorMessage,
         });
 
-        setSessionState(prev => ({ ...prev, isCheckingSession: false, sessionError: errorMessage }));
+        setSessionState((prev) => ({
+          ...prev,
+          isCheckingSession: false,
+          sessionError: errorMessage,
+        }));
         throw new Error(errorMessage);
       }
     } catch (error: any) {
-      log.error('Error creating admin session:', error);
-      setSessionState(prev => ({
+      log.error("Error creating admin session:", error);
+      setSessionState((prev) => ({
         ...prev,
         isCheckingSession: false,
-        sessionError: error?.message || 'Unable to create admin session',
+        sessionError: error?.message || "Unable to create admin session",
       }));
       throw error;
     }
@@ -181,7 +200,7 @@ export const useAdminSession = () => {
    * Clear session state (e.g., on logout)
    */
   const clearSession = useCallback(() => {
-    log.debug('Clearing admin session state');
+    log.debug("Clearing admin session state");
     setSessionState({
       hasValidSession: false,
       isCheckingSession: false,

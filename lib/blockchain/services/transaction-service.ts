@@ -1,14 +1,14 @@
 import { ethers } from "ethers";
 import { type Address } from "viem";
 import { getClientConfig } from "../config";
-import { getLogger } from '@/lib/utils/logger';
-import { 
+import { getLogger } from "@/lib/utils/logger";
+import {
   ensureCorrectNetwork as ensureCorrectNetworkShared,
   getBlockExplorerUrl as getBlockExplorerUrlShared,
-  type NetworkConfig 
+  type NetworkConfig,
 } from "../shared/network-utils";
 
-const log = getLogger('blockchain:transaction-helpers');
+const log = getLogger("blockchain:transaction-helpers");
 
 // ============================================================================
 // TYPE DEFINITIONS
@@ -42,14 +42,16 @@ export interface TokenExtractionResult {
  * Switch to the correct network for Unlock operations
  * Uses shared network utilities
  */
-export const ensureSwitchToCorrectNetwork = async (rawProvider: any): Promise<void> => {
+export const ensureSwitchToCorrectNetwork = async (
+  rawProvider: any,
+): Promise<void> => {
   const clientConfig = getClientConfig();
   const networkConfig: NetworkConfig = {
     chain: clientConfig.chain,
     rpcUrl: clientConfig.rpcUrl,
     networkName: clientConfig.networkName,
   };
-  
+
   return ensureCorrectNetworkShared(rawProvider, networkConfig);
 };
 
@@ -61,7 +63,10 @@ export const ensureSwitchToCorrectNetwork = async (rawProvider: any): Promise<vo
  * Extract lock address from transaction receipt using NewLock event
  * Extracted and refactored from lib/unlock/lockUtils.ts:656
  */
-export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deployerAddress?: string): LockExtractionResult => {
+export const extractLockAddressFromReceipt = (
+  receipt: TransactionReceipt,
+  deployerAddress?: string,
+): LockExtractionResult => {
   try {
     let lockAddress = "Unknown";
 
@@ -73,12 +78,12 @@ export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deplo
       ]);
 
       // Parse all logs to find the NewLock event
-  for (const entry of receipt.logs) {
-    try {
-      const parsedLog = unlockInterface.parseLog({
-        topics: entry.topics,
-        data: entry.data,
-      });
+      for (const entry of receipt.logs) {
+        try {
+          const parsedLog = unlockInterface.parseLog({
+            topics: entry.topics,
+            data: entry.data,
+          });
 
           if (parsedLog && parsedLog.name === "NewLock") {
             lockAddress = parsedLog.args.newLockAddress;
@@ -93,13 +98,13 @@ export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deplo
     }
 
     // If we still don't have a valid address, try alternative extraction
-  if (lockAddress === "Unknown" && receipt.logs && receipt.logs.length > 0) {
+    if (lockAddress === "Unknown" && receipt.logs && receipt.logs.length > 0) {
       // Look for any log that might contain an address
       const addressRegex = /^0x[a-fA-F0-9]{40}$/;
-    for (const entry of receipt.logs) {
-      if (entry.topics && entry.topics.length > 1) {
-        for (let i = 1; i < entry.topics.length; i++) {
-          const topic = entry.topics[i];
+      for (const entry of receipt.logs) {
+        if (entry.topics && entry.topics.length > 1) {
+          for (let i = 1; i < entry.topics.length; i++) {
+            const topic = entry.topics[i];
             if (topic) {
               const potentialAddress = `0x${topic.slice(-40)}`;
               if (
@@ -109,7 +114,7 @@ export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deplo
                 lockAddress = potentialAddress;
                 log.info(
                   "Found potential lock address from log topics:",
-                  lockAddress
+                  lockAddress,
                 );
                 break;
               }
@@ -148,7 +153,9 @@ export const extractLockAddressFromReceipt = (receipt: TransactionReceipt, deplo
  * Extract token IDs from transaction receipt using Transfer events
  * Extracted from lib/blockchain/lock-manager.ts:226
  */
-export const extractTokenIdsFromReceipt = (receipt: TransactionReceipt): TokenExtractionResult => {
+export const extractTokenIdsFromReceipt = (
+  receipt: TransactionReceipt,
+): TokenExtractionResult => {
   try {
     const tokenIds: bigint[] = [];
 
@@ -201,7 +208,10 @@ export const getAdminLockManagerAddresses = (): Address[] => {
       addresses.push(wallet.address as Address);
       log.info("Added lock manager address:", wallet.address);
     } catch (error) {
-      log.warn("Could not derive address from LOCK_MANAGER_PRIVATE_KEY:", error);
+      log.warn(
+        "Could not derive address from LOCK_MANAGER_PRIVATE_KEY:",
+        error,
+      );
     }
   }
 
@@ -212,14 +222,14 @@ export const getAdminLockManagerAddresses = (): Address[] => {
       .split(",")
       .map((addr) => addr.trim())
       .filter((addr) => /^0x[a-fA-F0-9]{40}$/.test(addr)) as Address[];
-    
+
     addresses.push(...adminAddrs);
     log.info("Added admin addresses:", adminAddrs);
   }
 
   // Remove duplicates while preserving order
-  const uniqueAddresses = addresses.filter((addr, index) => 
-    addresses.indexOf(addr) === index
+  const uniqueAddresses = addresses.filter(
+    (addr, index) => addresses.indexOf(addr) === index,
   );
 
   log.info("Final lock manager addresses:", uniqueAddresses);
@@ -248,6 +258,6 @@ export const getBlockExplorerUrl = (txHash: string): string => {
     rpcUrl: clientConfig.rpcUrl,
     networkName: clientConfig.networkName,
   };
-  
+
   return getBlockExplorerUrlShared(txHash, networkConfig);
 };

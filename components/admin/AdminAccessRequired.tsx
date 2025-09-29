@@ -7,7 +7,7 @@ import { RefreshCcw, User, Copy, LogOut, Plus, Unlink } from "lucide-react";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { formatWalletAddress } from "@/lib/utils/wallet-address";
-import { useLockManagerClient } from "@/hooks/useLockManagerClient";
+import { useHasValidKey } from "@/hooks/unlock";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -26,7 +26,9 @@ export default function AdminAccessRequired({
 
   // Use the consistent wallet address detection hook
   const { walletAddress } = useDetectConnectedWalletAddress(user);
-  const { checkUserHasValidKey } = useLockManagerClient();
+  const { checkHasValidKey } = useHasValidKey({
+    enabled: authenticated && !!walletAddress,
+  });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -43,16 +45,15 @@ export default function AdminAccessRequired({
 
   // Function to check if user has access and get expiration date
   const checkAccessStatus = useCallback(
-    async (addr: string, forceRefresh = false) => {
+    async (addr: string) => {
       if (!addr || !adminLockAddress) return;
 
       setAccessStatus((prev) => ({ ...prev, isChecking: true }));
 
       try {
-        const keyInfo = await checkUserHasValidKey(
+        const keyInfo = await checkHasValidKey(
           addr as Address,
           adminLockAddress as Address,
-          { forceRefresh },
         );
 
         if (keyInfo && keyInfo.isValid) {
@@ -83,7 +84,7 @@ export default function AdminAccessRequired({
 
       // No further actions here; avoid recursive calls.
     },
-    [adminLockAddress],
+    [adminLockAddress, checkHasValidKey],
   );
 
   // Run access check whenever wallet address changes
@@ -99,7 +100,7 @@ export default function AdminAccessRequired({
       isChecking: true,
     });
 
-    checkAccessStatus(walletAddress, true);
+    checkAccessStatus(walletAddress);
   }, [walletAddress, adminLockAddress, checkAccessStatus]);
 
   // Handler for refreshing wallet status
@@ -114,7 +115,7 @@ export default function AdminAccessRequired({
 
       // Also update the local access status display
       if (walletAddress) {
-        await checkAccessStatus(walletAddress, true);
+        await checkAccessStatus(walletAddress);
       }
 
       // Add a small delay to ensure UI updates are visible

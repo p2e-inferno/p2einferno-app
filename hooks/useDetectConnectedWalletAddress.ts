@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
-import { type User } from '@privy-io/react-auth';
-import { getLogger } from '@/lib/utils/logger';
+import { useState, useEffect } from "react";
+import { type User } from "@privy-io/react-auth";
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:detect-connected-wallet-address');
+const log = getLogger("hooks:detect-connected-wallet-address");
 
 /**
  * Hook that provides consistent wallet address detection across all components.

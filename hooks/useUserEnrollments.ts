@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:useUserEnrollments');
-
+const log = getLogger("hooks:useUserEnrollments");
 
 interface EnrollmentWithDetails {
   id: string;

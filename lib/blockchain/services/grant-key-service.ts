@@ -1,10 +1,9 @@
 import { type Address } from "viem";
 import { lockManagerService } from "./lock-manager";
 import { getLockManagerAddress } from "../legacy/server-config";
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('blockchain:grant-key-service');
-
+const log = getLogger("blockchain:grant-key-service");
 
 export interface GrantKeyOptions {
   walletAddress: string;
@@ -53,7 +52,10 @@ export class GrantKeyService {
 
     // Check if user is a lock manager
     const adminAddress = getLockManagerAddress();
-    const isLockManager = await lockManagerService.checkUserIsLockManager(adminAddress as Address, lockAddress);
+    const isLockManager = await lockManagerService.checkUserIsLockManager(
+      adminAddress as Address,
+      lockAddress,
+    );
     if (!isLockManager) {
       return {
         success: false,
@@ -125,7 +127,7 @@ export class GrantKeyService {
         log.info(
           `Retrying in ${
             retryDelay / 1000
-          } seconds... (Attempt ${retryCount}/${maxRetries})`
+          } seconds... (Attempt ${retryCount}/${maxRetries})`,
         );
         await this.delay(retryDelay);
       }
@@ -144,7 +146,7 @@ export class GrantKeyService {
    */
   async userHasValidKey(
     walletAddress: string,
-    lockAddress: Address
+    lockAddress: Address,
   ): Promise<boolean> {
     if (!this.isValidAddress(walletAddress)) {
       return false;
@@ -153,7 +155,7 @@ export class GrantKeyService {
     try {
       const keyInfo = await lockManagerService.checkUserHasValidKey(
         walletAddress as Address,
-        lockAddress
+        lockAddress,
       );
       return keyInfo !== null && keyInfo.isValid;
     } catch (error) {
@@ -183,7 +185,7 @@ export class GrantKeyService {
     ];
 
     return permanentErrors.some((permError) =>
-      error.toLowerCase().includes(permError.toLowerCase())
+      error.toLowerCase().includes(permError.toLowerCase()),
     );
   }
 

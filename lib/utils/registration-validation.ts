@@ -7,7 +7,7 @@ export interface RegistrationStatus {
   spotsRemaining: number;
   isDeadlinePassed: boolean;
   isFull: boolean;
-  statusColor: 'green' | 'blue' | 'red';
+  statusColor: "green" | "blue" | "red";
   statusIcon: string;
   statusText: string;
 }
@@ -35,60 +35,66 @@ export function calculateTimeRemaining(deadline: string): string {
 /**
  * Get comprehensive registration status for a cohort
  */
-export function getCohortRegistrationStatus(cohort: Cohort, isUserEnrolled = false): RegistrationStatus {
+export function getCohortRegistrationStatus(
+  cohort: Cohort,
+  isUserEnrolled = false,
+): RegistrationStatus {
   const now = new Date();
   const deadlineDate = new Date(cohort.registration_deadline);
   const spotsRemaining = cohort.max_participants - cohort.current_participants;
-  
+
   // Check if registration deadline has passed
   const isDeadlinePassed = deadlineDate.getTime() <= now.getTime();
-  
+
   // Check if spots are full
   const isFull = spotsRemaining <= 0;
-  
+
   // Check if cohort status is open
   const isStatusOpen = cohort.status === "open";
-  
+
   // Registration is only open if: cohort status is open, deadline hasn't passed, and spots available
   const isRegistrationOpen = isStatusOpen && !isDeadlinePassed && !isFull;
-  
+
   const timeRemaining = calculateTimeRemaining(cohort.registration_deadline);
-  
+
   // Determine status color, icon, and text
-  let statusColor: 'green' | 'blue' | 'red' = 'red';
-  let statusIcon = '🔴';
-  let statusText = 'Closed';
-  
+  let statusColor: "green" | "blue" | "red" = "red";
+  let statusIcon = "🔴";
+  let statusText = "Closed";
+
   if (isUserEnrolled) {
-    statusColor = 'green';
-    statusIcon = '✅';
-    statusText = 'Enrolled';
+    statusColor = "green";
+    statusIcon = "✅";
+    statusText = "Enrolled";
   } else if (isRegistrationOpen) {
-    statusColor = 'green';
-    statusIcon = '🟢';
+    statusColor = "green";
+    statusIcon = "🟢";
     statusText = `Open • ${timeRemaining}`;
   } else if (cohort.status === "upcoming") {
-    statusColor = 'blue';
-    statusIcon = '🔵';
-    statusText = 'Coming Soon';
+    statusColor = "blue";
+    statusIcon = "🔵";
+    statusText = "Coming Soon";
   } else if (isDeadlinePassed) {
-    statusText = 'Registration Closed';
+    statusText = "Registration Closed";
   } else if (isFull) {
-    statusText = 'Spots Full';
+    statusText = "Spots Full";
   }
-  
+
   // Determine reason for closure
   let reason: string | undefined;
   if (!isRegistrationOpen && !isUserEnrolled) {
     if (!isStatusOpen) {
-      reason = cohort.status === "upcoming" ? "Registration has not started yet" : "Registration is closed";
+      reason =
+        cohort.status === "upcoming"
+          ? "Registration has not started yet"
+          : "Registration is closed";
     } else if (isDeadlinePassed) {
       reason = "Registration deadline has passed";
     } else if (isFull) {
       reason = "No spots available - cohort is full";
     }
   }
-  
+
   return {
     isOpen: isRegistrationOpen,
     reason,
@@ -105,7 +111,11 @@ export function getCohortRegistrationStatus(cohort: Cohort, isUserEnrolled = fal
 /**
  * Simple check if registration is open for a cohort
  */
-export function isRegistrationOpen(cohort: Cohort): { isOpen: boolean; reason?: string | null; timeRemaining?: string } {
+export function isRegistrationOpen(cohort: Cohort): {
+  isOpen: boolean;
+  reason?: string | null;
+  timeRemaining?: string;
+} {
   const status = getCohortRegistrationStatus(cohort);
   return {
     isOpen: status.isOpen,

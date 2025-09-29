@@ -1,8 +1,8 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('utils:wallet-listener');
+const log = getLogger("utils:wallet-listener");
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -11,7 +11,7 @@ export function cn(...inputs: ClassValue[]) {
 export interface WalletChangeOptions {
   handleErrors?: boolean;
   logErrors?: boolean;
-  logLevel?: 'debug' | 'info' | 'warn' | 'error';
+  logLevel?: "debug" | "info" | "warn" | "error";
 }
 
 /**
@@ -23,13 +23,9 @@ export interface WalletChangeOptions {
  */
 export function listenForWalletChanges(
   callback: () => void | Promise<void>,
-  options: WalletChangeOptions = {}
+  options: WalletChangeOptions = {},
 ): () => void {
-  const {
-    handleErrors = true,
-    logErrors = true,
-    logLevel = 'error'
-  } = options;
+  const { handleErrors = true, logErrors = true, logLevel = "error" } = options;
 
   if (typeof window === "undefined" || !window.ethereum) {
     return () => {}; // Return empty cleanup function
@@ -41,7 +37,7 @@ export function listenForWalletChanges(
     } catch (error) {
       if (handleErrors) {
         if (logErrors) {
-          log[logLevel]('Wallet change callback error:', { error });
+          log[logLevel]("Wallet change callback error:", { error });
         }
         // Could emit error event or call error handler here
       }
@@ -49,7 +45,7 @@ export function listenForWalletChanges(
   };
 
   window.ethereum.on("accountsChanged", handleAccountsChanged);
-  
+
   return () => {
     window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
   };
@@ -61,12 +57,12 @@ export function listenForWalletChanges(
  * @returns A cleanup function to remove the listener
  */
 export function listenForAdminWalletChanges(
-  callback: () => void | Promise<void>
+  callback: () => void | Promise<void>,
 ): () => void {
   return listenForWalletChanges(callback, {
     handleErrors: true,
     logErrors: true,
-    logLevel: 'warn' // Admin changes are security-sensitive
+    logLevel: "warn", // Admin changes are security-sensitive
   });
 }
 
@@ -76,22 +72,28 @@ export function listenForAdminWalletChanges(
  * @returns A cleanup function to remove the listener
  */
 export function listenForWalletAddressChanges(
-  callback: (address: string | null) => void | Promise<void>
+  callback: (address: string | null) => void | Promise<void>,
 ): () => void {
-  return listenForWalletChanges(async () => {
-    if (typeof window !== "undefined" && window.ethereum) {
-      try {
-        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
-        const address = Array.isArray(accounts) && accounts.length > 0 ? accounts[0] : null;
-        await callback(address);
-      } catch (error) {
-        log.warn('Failed to get wallet accounts:', { error });
-        await callback(null);
+  return listenForWalletChanges(
+    async () => {
+      if (typeof window !== "undefined" && window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({
+            method: "eth_accounts",
+          });
+          const address =
+            Array.isArray(accounts) && accounts.length > 0 ? accounts[0] : null;
+          await callback(address);
+        } catch (error) {
+          log.warn("Failed to get wallet accounts:", { error });
+          await callback(null);
+        }
       }
-    }
-  }, {
-    handleErrors: true,
-    logErrors: true,
-    logLevel: 'warn'
-  });
+    },
+    {
+      handleErrors: true,
+      logErrors: true,
+      logLevel: "warn",
+    },
+  );
 }

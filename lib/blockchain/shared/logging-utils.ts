@@ -1,6 +1,6 @@
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('blockchain:shared:logging-utils');
+const log = getLogger("blockchain:shared:logging-utils");
 
 /**
  * Consistent logging strategy for blockchain operations
@@ -12,10 +12,10 @@ const log = getLogger('blockchain:shared:logging-utils');
 // ============================================================================
 
 export enum LogLevel {
-  DEBUG = 'debug',
-  INFO = 'info',
-  WARN = 'warn',
-  ERROR = 'error'
+  DEBUG = "debug",
+  INFO = "info",
+  WARN = "warn",
+  ERROR = "error",
 }
 
 export interface LogContext {
@@ -51,29 +51,31 @@ const sanitizeTransactionHash = (hash: string): string => {
  */
 const sanitizeContext = (context: LogContext): Record<string, any> => {
   const sanitized: Record<string, any> = {};
-  
+
   for (const [key, value] of Object.entries(context)) {
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       // Sanitize known address fields
-      if (key.toLowerCase().includes('address')) {
+      if (key.toLowerCase().includes("address")) {
         sanitized[key] = sanitizeAddress(value);
       }
       // Keep transaction hashes as-is (public information)
-      else if (key.toLowerCase().includes('hash')) {
+      else if (key.toLowerCase().includes("hash")) {
         sanitized[key] = sanitizeTransactionHash(value);
       }
       // Sanitize any private key references
-      else if (key.toLowerCase().includes('private') || key.toLowerCase().includes('key')) {
-        sanitized[key] = '[REDACTED]';
-      }
-      else {
+      else if (
+        key.toLowerCase().includes("private") ||
+        key.toLowerCase().includes("key")
+      ) {
+        sanitized[key] = "[REDACTED]";
+      } else {
         sanitized[key] = value;
       }
     } else {
       sanitized[key] = value;
     }
   }
-  
+
   return sanitized;
 };
 
@@ -84,10 +86,14 @@ const sanitizeContext = (context: LogContext): Record<string, any> => {
 export class BlockchainLogger {
   private static instance: BlockchainLogger;
   private isDevelopment: boolean;
-  private transport?: (level: LogLevel, message: string, context?: LogContext) => void;
+  private transport?: (
+    level: LogLevel,
+    message: string,
+    context?: LogContext,
+  ) => void;
 
   private constructor() {
-    this.isDevelopment = process.env.NODE_ENV === 'development';
+    this.isDevelopment = process.env.NODE_ENV === "development";
   }
 
   static getInstance(): BlockchainLogger {
@@ -100,13 +106,13 @@ export class BlockchainLogger {
   private log(level: LogLevel, message: string, context?: LogContext): void {
     const timestamp = new Date().toISOString();
     const sanitizedContext = context ? sanitizeContext(context) : {};
-    
+
     const logEntry = {
       timestamp,
       level,
       message,
-      module: 'blockchain',
-      ...sanitizedContext
+      module: "blockchain",
+      ...sanitizedContext,
     };
 
     // If an external transport is configured (bridge), delegate to it
@@ -164,41 +170,53 @@ export class BlockchainLogger {
   logTransactionStart(operation: string, context: LogContext): void {
     this.info(`Starting ${operation}`, {
       ...context,
-      phase: 'start'
+      phase: "start",
     });
   }
 
-  logTransactionSuccess(operation: string, transactionHash: string, context?: LogContext): void {
+  logTransactionSuccess(
+    operation: string,
+    transactionHash: string,
+    context?: LogContext,
+  ): void {
     this.info(`${operation} completed successfully`, {
       ...context,
       transactionHash,
-      phase: 'success'
+      phase: "success",
     });
   }
 
-  logTransactionError(operation: string, error: any, context?: LogContext): void {
+  logTransactionError(
+    operation: string,
+    error: any,
+    context?: LogContext,
+  ): void {
     this.error(`${operation} failed`, {
       ...context,
-      error: error?.message || 'Unknown error',
-      phase: 'error'
+      error: error?.message || "Unknown error",
+      phase: "error",
     });
   }
 
-  logNetworkSwitch(fromChainId: number, toChainId: number, userAddress?: string): void {
-    this.info('Network switch requested', {
-      operation: 'networkSwitch',
+  logNetworkSwitch(
+    fromChainId: number,
+    toChainId: number,
+    userAddress?: string,
+  ): void {
+    this.info("Network switch requested", {
+      operation: "networkSwitch",
       fromChainId,
       toChainId,
-      userAddress
+      userAddress,
     });
   }
 
   logKeyCheck(lockAddress: string, userAddress: string, hasKey: boolean): void {
-    this.debug('Key ownership check', {
-      operation: 'keyCheck',
+    this.debug("Key ownership check", {
+      operation: "keyCheck",
       lockAddress,
       userAddress,
-      hasKey
+      hasKey,
     });
   }
 
@@ -207,7 +225,9 @@ export class BlockchainLogger {
   }
 
   // Allow setting an external transport (e.g., app-wide logger)
-  setTransport(transport: (level: LogLevel, message: string, context?: LogContext) => void) {
+  setTransport(
+    transport: (level: LogLevel, message: string, context?: LogContext) => void,
+  ) {
     this.transport = transport;
   }
 }
@@ -220,7 +240,7 @@ export const blockchainLogger = BlockchainLogger.getInstance();
 
 // Helper to set transport from outside without exposing instance directly
 export const setBlockchainLoggerTransport = (
-  transport: (level: LogLevel, message: string, context?: LogContext) => void
+  transport: (level: LogLevel, message: string, context?: LogContext) => void,
 ) => {
   BlockchainLogger.getInstance().setTransport(transport);
 };

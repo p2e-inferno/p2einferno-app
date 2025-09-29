@@ -19,7 +19,7 @@ export function useBootcampPayment() {
   const { verifyToken, verifyResult } = useVerifyToken();
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(
-    null
+    null,
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -69,7 +69,7 @@ export function useBootcampPayment() {
         setIsProcessing(false);
       }
     },
-    [verifyToken, verifyResult]
+    [verifyToken, verifyResult],
   );
 
   const validatePaymentEligibility = useCallback(
@@ -91,7 +91,7 @@ export function useBootcampPayment() {
             headers: {
               Authorization: `Bearer ${accessToken}`,
             },
-          }
+          },
         );
 
         return await response.json();
@@ -102,7 +102,7 @@ export function useBootcampPayment() {
         };
       }
     },
-    [verifyToken, verifyResult]
+    [verifyToken, verifyResult],
   );
 
   return {

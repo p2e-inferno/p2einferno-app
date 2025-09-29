@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
-import { useLockManagerAdminAuth } from './useLockManagerAdminAuth';
-import { useAdminSession } from './useAdminSession';
-import { getLogger } from '@/lib/utils/logger';
+import { useMemo } from "react";
+import { useLockManagerAdminAuth } from "./useLockManagerAdminAuth";
+import { useAdminSession } from "./useAdminSession";
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:useAdminAuthWithSession');
+const log = getLogger("hooks:useAdminAuthWithSession");
 
 /**
  * Enhanced admin authentication that combines blockchain access with session validation
@@ -25,15 +25,12 @@ export const useAdminAuthWithSession = () => {
       user,
     } = blockchainAuth;
 
-    const {
-      hasValidSession,
-      isCheckingSession,
-    } = sessionAuth;
+    const { hasValidSession, isCheckingSession } = sessionAuth;
 
     // User must be authenticated with Privy first
     if (!authenticated || !user) {
       return {
-        authStep: 'privy_login' as const,
+        authStep: "privy_login" as const,
         isFullyAuthenticated: false,
         needsPrivyAuth: true,
         needsBlockchainAuth: false,
@@ -45,7 +42,7 @@ export const useAdminAuthWithSession = () => {
     // User must have blockchain admin access
     if (!hasBlockchainAccess) {
       return {
-        authStep: 'blockchain_access' as const,
+        authStep: "blockchain_access" as const,
         isFullyAuthenticated: false,
         needsPrivyAuth: false,
         needsBlockchainAuth: true,
@@ -57,7 +54,7 @@ export const useAdminAuthWithSession = () => {
     // User must have valid admin session
     if (!hasValidSession) {
       return {
-        authStep: 'admin_session' as const,
+        authStep: "admin_session" as const,
         isFullyAuthenticated: false,
         needsPrivyAuth: false,
         needsBlockchainAuth: false,
@@ -68,7 +65,7 @@ export const useAdminAuthWithSession = () => {
 
     // All authentication requirements met
     return {
-      authStep: 'authenticated' as const,
+      authStep: "authenticated" as const,
       isFullyAuthenticated: true,
       needsPrivyAuth: false,
       needsBlockchainAuth: false,
@@ -85,10 +82,13 @@ export const useAdminAuthWithSession = () => {
   ]);
 
   // Derived convenience flags
-  const isLoading = authState.isLoading || blockchainAuth.loading || sessionAuth.isCheckingSession;
-  const needsSessionRefresh = authState.authStep === 'admin_session';
+  const isLoading =
+    authState.isLoading ||
+    blockchainAuth.loading ||
+    sessionAuth.isCheckingSession;
+  const needsSessionRefresh = authState.authStep === "admin_session";
 
-  log.debug('Admin auth state:', {
+  log.debug("Admin auth state:", {
     authStep: authState.authStep,
     isFullyAuthenticated: authState.isFullyAuthenticated,
     needsSessionRefresh,

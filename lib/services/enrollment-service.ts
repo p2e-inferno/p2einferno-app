@@ -3,11 +3,10 @@
  * Handles creation and management of user enrollments for completed applications
  */
 
-import { createAdminClient } from '../supabase/server';
-import { getLogger } from '@/lib/utils/logger';
+import { createAdminClient } from "../supabase/server";
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('services:enrollment-service');
-
+const log = getLogger("services:enrollment-service");
 
 interface EnrollmentResult {
   success: boolean;
@@ -16,20 +15,21 @@ interface EnrollmentResult {
   message?: string;
 }
 
-
-
 export const enrollmentService = {
   /**
    * Create enrollment for a completed application
    */
-  async createEnrollmentForCompletedApplication(applicationId: string): Promise<EnrollmentResult> {
+  async createEnrollmentForCompletedApplication(
+    applicationId: string,
+  ): Promise<EnrollmentResult> {
     try {
       const supabase = createAdminClient();
-      
+
       // Get application details with related data
       const { data: app, error: appError } = await supabase
-        .from('applications')
-        .select(`
+        .from("applications")
+        .select(
+          `
           id, user_email, cohort_id, payment_status, application_status,
           cohorts (
             id, name, start_date, end_date
@@ -37,95 +37,97 @@ export const enrollmentService = {
           user_profiles!applications_user_email_fkey (
             id, email, privy_user_id
           )
-        `)
-        .eq('id', applicationId)
+        `,
+        )
+        .eq("id", applicationId)
         .single();
 
       if (appError || !app) {
-        return { 
-          success: false, 
-          error: `Application not found: ${appError?.message || 'Unknown error'}` 
+        return {
+          success: false,
+          error: `Application not found: ${appError?.message || "Unknown error"}`,
         };
       }
 
       // Validate application is eligible for enrollment
-      if (app.payment_status !== 'completed') {
-        return { 
-          success: false, 
-          error: `Application payment not completed. Current status: ${app.payment_status}` 
+      if (app.payment_status !== "completed") {
+        return {
+          success: false,
+          error: `Application payment not completed. Current status: ${app.payment_status}`,
         };
       }
 
       if (!app.user_profiles || app.user_profiles.length === 0) {
-        return { 
-          success: false, 
-          error: 'User profile not found for application' 
+        return {
+          success: false,
+          error: "User profile not found for application",
         };
       }
 
       const userProfile = app.user_profiles[0];
       if (!userProfile) {
-        return { 
-          success: false, 
-          error: 'User profile not found for application' 
+        return {
+          success: false,
+          error: "User profile not found for application",
         };
       }
 
       // Check if enrollment already exists
-      const { data: existingEnrollment, error: enrollmentCheckError } = await supabase
-        .from('bootcamp_enrollments')
-        .select('id, enrollment_status')
-        .eq('user_profile_id', userProfile.id)
-        .eq('cohort_id', app.cohort_id)
-        .single();
+      const { data: existingEnrollment, error: enrollmentCheckError } =
+        await supabase
+          .from("bootcamp_enrollments")
+          .select("id, enrollment_status")
+          .eq("user_profile_id", userProfile.id)
+          .eq("cohort_id", app.cohort_id)
+          .single();
 
-      if (enrollmentCheckError && enrollmentCheckError.code !== 'PGRST116') {
+      if (enrollmentCheckError && enrollmentCheckError.code !== "PGRST116") {
         // PGRST116 is "not found", which is expected
-        return { 
-          success: false, 
-          error: `Error checking existing enrollment: ${enrollmentCheckError.message}` 
+        return {
+          success: false,
+          error: `Error checking existing enrollment: ${enrollmentCheckError.message}`,
         };
       }
 
       if (existingEnrollment) {
-        return { 
-          success: true, 
+        return {
+          success: true,
           message: `Enrollment already exists with status: ${existingEnrollment.enrollment_status}`,
-          data: existingEnrollment
+          data: existingEnrollment,
         };
       }
 
       // Create new enrollment
       const { data: newEnrollment, error: createError } = await supabase
-        .from('bootcamp_enrollments')
+        .from("bootcamp_enrollments")
         .insert({
           user_profile_id: userProfile.id,
           cohort_id: app.cohort_id,
-          enrollment_status: 'enrolled',
+          enrollment_status: "enrolled",
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         })
         .select()
         .single();
 
       if (createError) {
-        return { 
-          success: false, 
-          error: `Failed to create enrollment: ${createError.message}` 
+        return {
+          success: false,
+          error: `Failed to create enrollment: ${createError.message}`,
         };
       }
 
-      return { 
-        success: true, 
+      return {
+        success: true,
         data: newEnrollment,
-        message: 'Enrollment created successfully'
+        message: "Enrollment created successfully",
       };
-
     } catch (error) {
-      log.error('Enrollment service error:', error);
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error occurred' 
+      log.error("Enrollment service error:", error);
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     }
   },
@@ -139,26 +141,28 @@ export const enrollmentService = {
     total: number;
   }> {
     const results = await Promise.allSettled(
-      applicationIds.map(id => this.createEnrollmentForCompletedApplication(id))
+      applicationIds.map((id) =>
+        this.createEnrollmentForCompletedApplication(id),
+      ),
     );
 
     const successful: EnrollmentResult[] = [];
     const failed: EnrollmentResult[] = [];
 
     results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
+      if (result.status === "fulfilled") {
         if (result.value.success) {
           successful.push(result.value);
         } else {
           failed.push({
             ...result.value,
-            error: `Application ${applicationIds[index]}: ${result.value.error}`
+            error: `Application ${applicationIds[index]}: ${result.value.error}`,
           });
         }
       } else {
         failed.push({
           success: false,
-          error: `Application ${applicationIds[index]}: ${result.reason}`
+          error: `Application ${applicationIds[index]}: ${result.reason}`,
         });
       }
     });
@@ -166,7 +170,7 @@ export const enrollmentService = {
     return {
       successful,
       failed,
-      total: applicationIds.length
+      total: applicationIds.length,
     };
   },
 
@@ -182,15 +186,17 @@ export const enrollmentService = {
       const supabase = createAdminClient();
 
       const { data: applications, error } = await supabase
-        .from('applications')
-        .select(`
+        .from("applications")
+        .select(
+          `
           id, user_email, cohort_id, payment_status, application_status,
           cohorts (name),
           user_profiles!applications_user_email_fkey (id)
-        `)
-        .eq('payment_status', 'completed')
-        .eq('application_status', 'submitted')
-        .is('enrollments.id', null); // Left join with enrollments would be done in a more complex query
+        `,
+        )
+        .eq("payment_status", "completed")
+        .eq("application_status", "submitted")
+        .is("enrollments.id", null); // Left join with enrollments would be done in a more complex query
 
       if (error) {
         return { success: false, error: error.message };
@@ -199,18 +205,18 @@ export const enrollmentService = {
       // Filter out applications that already have enrollments
       // This is a simpler approach since Supabase doesn't easily support complex LEFT JOINs with IS NULL
       const appsNeedingEnrollments = [];
-      
+
       for (const app of applications || []) {
         if (!app.user_profiles || app.user_profiles.length === 0) continue;
-        
+
         const userProfile = app.user_profiles[0];
         if (!userProfile) continue;
 
         const { data: enrollment } = await supabase
-          .from('bootcamp_enrollments')
-          .select('id')
-          .eq('user_profile_id', userProfile.id)
-          .eq('cohort_id', app.cohort_id)
+          .from("bootcamp_enrollments")
+          .select("id")
+          .eq("user_profile_id", userProfile.id)
+          .eq("cohort_id", app.cohort_id)
           .single();
 
         if (!enrollment) {
@@ -218,16 +224,15 @@ export const enrollmentService = {
         }
       }
 
-      return { 
-        success: true, 
-        applications: appsNeedingEnrollments 
+      return {
+        success: true,
+        applications: appsNeedingEnrollments,
       };
-
     } catch (error) {
-      return { 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
       };
     }
-  }
+  },
 };

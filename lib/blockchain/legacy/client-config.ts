@@ -4,13 +4,10 @@
  */
 
 import { type PublicClient } from "viem";
-import { 
-  getClientConfig,
-  createPublicClientUnified
-} from "../config";
+import { getClientConfig, createPublicClientUnified } from "../config";
 import {
   getBlockExplorerUrl as getBlockExplorerUrlShared,
-  type NetworkConfig
+  type NetworkConfig,
 } from "../shared/network-utils";
 
 // ============================================================================
@@ -38,7 +35,7 @@ export const getClientBlockExplorerUrl = (txHash: string): string => {
     rpcUrl: clientConfig.rpcUrl,
     networkName: clientConfig.networkName,
   };
-  
+
   return getBlockExplorerUrlShared(txHash, networkConfig);
 };
 

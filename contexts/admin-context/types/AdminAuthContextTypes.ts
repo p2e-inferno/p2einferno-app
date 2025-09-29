@@ -1,6 +1,6 @@
 /**
  * Admin Authentication Context Types
- * 
+ *
  * Centralized type definitions for the AdminAuthContext system.
  * Extracted from AdminAuthContext.tsx for better organization and reusability.
  */
@@ -9,12 +9,12 @@
  * Unified authentication status for admin access
  */
 export type AdminAuthStatus =
-  | 'loading'           // Initial loading state
-  | 'privy_required'    // User needs to connect with Privy
-  | 'wallet_required'   // User needs to connect a wallet
-  | 'blockchain_denied' // Wallet connected but no admin access on blockchain
-  | 'session_required'  // Admin access confirmed but session needed
-  | 'authenticated';    // Fully authenticated with admin access
+  | "loading" // Initial loading state
+  | "privy_required" // User needs to connect with Privy
+  | "wallet_required" // User needs to connect a wallet
+  | "blockchain_denied" // Wallet connected but no admin access on blockchain
+  | "session_required" // Admin access confirmed but session needed
+  | "authenticated"; // Fully authenticated with admin access
 
 /**
  * Admin Authentication Context Value Interface
@@ -164,8 +164,8 @@ export interface AdminAuthContextValue {
     isHealthy: boolean;
     lastError: string | null;
     errorCount: number;
-    cacheStatus: 'valid' | 'invalid';
-    sessionStatus: 'valid' | 'invalid';
+    cacheStatus: "valid" | "invalid";
+    sessionStatus: "valid" | "invalid";
     authStatus: AdminAuthStatus;
   };
 }

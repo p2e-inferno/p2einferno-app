@@ -4,40 +4,40 @@
  * Runtime: Server-side only
  */
 import { getLogger } from "@/lib/utils/logger";
-const log = getLogger('auth:error');
+const log = getLogger("auth:error");
 
 /**
  * Standardized authentication error codes
  */
 export enum AuthErrorCode {
   // Configuration errors
-  CONFIG_MISSING = 'AUTH_CONFIG_MISSING',
-  CONFIG_INVALID = 'AUTH_CONFIG_INVALID',
-  
+  CONFIG_MISSING = "AUTH_CONFIG_MISSING",
+  CONFIG_INVALID = "AUTH_CONFIG_INVALID",
+
   // JWT errors
-  JWT_VERIFICATION_FAILED = 'AUTH_JWT_VERIFICATION_FAILED',
-  JWT_TOKEN_MISSING = 'AUTH_JWT_TOKEN_MISSING',
-  JWT_TOKEN_INVALID = 'AUTH_JWT_TOKEN_INVALID',
-  
+  JWT_VERIFICATION_FAILED = "AUTH_JWT_VERIFICATION_FAILED",
+  JWT_TOKEN_MISSING = "AUTH_JWT_TOKEN_MISSING",
+  JWT_TOKEN_INVALID = "AUTH_JWT_TOKEN_INVALID",
+
   // Privy API errors
-  PRIVY_API_UNAVAILABLE = 'AUTH_PRIVY_API_UNAVAILABLE',
-  PRIVY_USER_NOT_FOUND = 'AUTH_PRIVY_USER_NOT_FOUND',
-  PRIVY_NETWORK_ERROR = 'AUTH_PRIVY_NETWORK_ERROR',
-  
+  PRIVY_API_UNAVAILABLE = "AUTH_PRIVY_API_UNAVAILABLE",
+  PRIVY_USER_NOT_FOUND = "AUTH_PRIVY_USER_NOT_FOUND",
+  PRIVY_NETWORK_ERROR = "AUTH_PRIVY_NETWORK_ERROR",
+
   // Admin authentication errors
-  ADMIN_NO_WALLETS = 'AUTH_ADMIN_NO_WALLETS',
-  ADMIN_LOCK_NOT_CONFIGURED = 'AUTH_ADMIN_LOCK_NOT_CONFIGURED',
-  ADMIN_KEY_CHECK_FAILED = 'AUTH_ADMIN_KEY_CHECK_FAILED',
-  ADMIN_ACCESS_DENIED = 'AUTH_ADMIN_ACCESS_DENIED',
-  
+  ADMIN_NO_WALLETS = "AUTH_ADMIN_NO_WALLETS",
+  ADMIN_LOCK_NOT_CONFIGURED = "AUTH_ADMIN_LOCK_NOT_CONFIGURED",
+  ADMIN_KEY_CHECK_FAILED = "AUTH_ADMIN_KEY_CHECK_FAILED",
+  ADMIN_ACCESS_DENIED = "AUTH_ADMIN_ACCESS_DENIED",
+
   // Blockchain errors
-  BLOCKCHAIN_RPC_ERROR = 'AUTH_BLOCKCHAIN_RPC_ERROR',
-  BLOCKCHAIN_CONTRACT_ERROR = 'AUTH_BLOCKCHAIN_CONTRACT_ERROR',
-  BLOCKCHAIN_NETWORK_ERROR = 'AUTH_BLOCKCHAIN_NETWORK_ERROR',
-  
+  BLOCKCHAIN_RPC_ERROR = "AUTH_BLOCKCHAIN_RPC_ERROR",
+  BLOCKCHAIN_CONTRACT_ERROR = "AUTH_BLOCKCHAIN_CONTRACT_ERROR",
+  BLOCKCHAIN_NETWORK_ERROR = "AUTH_BLOCKCHAIN_NETWORK_ERROR",
+
   // Generic errors
-  UNKNOWN_ERROR = 'AUTH_UNKNOWN_ERROR',
-  SYSTEM_ERROR = 'AUTH_SYSTEM_ERROR'
+  UNKNOWN_ERROR = "AUTH_UNKNOWN_ERROR",
+  SYSTEM_ERROR = "AUTH_SYSTEM_ERROR",
 }
 
 /**
@@ -53,10 +53,10 @@ export class AuthError extends Error {
     message: string,
     code: AuthErrorCode,
     operation: string,
-    context: Record<string, any> = {}
+    context: Record<string, any> = {},
   ) {
     super(message);
-    this.name = 'AuthError';
+    this.name = "AuthError";
     this.code = code;
     this.context = context;
     this.timestamp = new Date().toISOString();
@@ -75,8 +75,8 @@ export class AuthError extends Error {
         operation: this.operation,
         timestamp: this.timestamp,
         context: this.context,
-        stack: this.stack
-      }
+        stack: this.stack,
+      },
     };
   }
 
@@ -87,7 +87,7 @@ export class AuthError extends Error {
     return {
       error: this.message,
       code: this.code,
-      timestamp: this.timestamp
+      timestamp: this.timestamp,
     };
   }
 }
@@ -97,22 +97,22 @@ export class AuthError extends Error {
  */
 export const isNetworkError = (error: any): boolean => {
   if (!error) return false;
-  
-  const errorMessage = error.message?.toLowerCase() || '';
+
+  const errorMessage = error.message?.toLowerCase() || "";
   const errorCode = error.code;
-  
+
   return (
-    errorMessage.includes('network') ||
-    errorMessage.includes('timeout') ||
-    errorMessage.includes('connection') ||
-    errorMessage.includes('fetch failed') ||
-    errorMessage.includes('econnrefused') ||
-    errorMessage.includes('enotfound') ||
-    errorCode === 'ECONNREFUSED' ||
-    errorCode === 'ECONNRESET' ||
-    errorCode === 'ENOTFOUND' ||
-    errorCode === 'ETIMEOUT' ||
-    errorCode === 'UND_ERR_CONNECT_TIMEOUT'
+    errorMessage.includes("network") ||
+    errorMessage.includes("timeout") ||
+    errorMessage.includes("connection") ||
+    errorMessage.includes("fetch failed") ||
+    errorMessage.includes("econnrefused") ||
+    errorMessage.includes("enotfound") ||
+    errorCode === "ECONNREFUSED" ||
+    errorCode === "ECONNRESET" ||
+    errorCode === "ENOTFOUND" ||
+    errorCode === "ETIMEOUT" ||
+    errorCode === "UND_ERR_CONNECT_TIMEOUT"
   );
 };
 
@@ -121,14 +121,14 @@ export const isNetworkError = (error: any): boolean => {
  */
 export const isPrivyApiError = (error: any): boolean => {
   if (!error) return false;
-  
-  const errorMessage = error.message?.toLowerCase() || '';
-  
+
+  const errorMessage = error.message?.toLowerCase() || "";
+
   return (
-    errorMessage.includes('privy') ||
-    errorMessage.includes('method') ||
-    errorMessage.includes('unauthorized') ||
-    errorMessage.includes('forbidden') ||
+    errorMessage.includes("privy") ||
+    errorMessage.includes("method") ||
+    errorMessage.includes("unauthorized") ||
+    errorMessage.includes("forbidden") ||
     (error.status >= 400 && error.status < 500)
   );
 };
@@ -139,7 +139,7 @@ export const isPrivyApiError = (error: any): boolean => {
 export const handleAuthError = (
   error: unknown,
   operation: string,
-  context: Record<string, any> = {}
+  context: Record<string, any> = {},
 ): AuthError => {
   // If already an AuthError, just log and return
   if (error instanceof AuthError) {
@@ -154,39 +154,42 @@ export const handleAuthError = (
   if (isNetworkError(baseError)) {
     if (isPrivyApiError(baseError)) {
       authError = new AuthError(
-        'Privy API service temporarily unavailable',
+        "Privy API service temporarily unavailable",
         AuthErrorCode.PRIVY_NETWORK_ERROR,
         operation,
-        { originalError: baseError.message, ...context }
+        { originalError: baseError.message, ...context },
       );
     } else {
       authError = new AuthError(
-        'Network connectivity issue during authentication',
+        "Network connectivity issue during authentication",
         AuthErrorCode.BLOCKCHAIN_NETWORK_ERROR,
         operation,
-        { originalError: baseError.message, ...context }
+        { originalError: baseError.message, ...context },
       );
     }
   } else if (isPrivyApiError(baseError)) {
     authError = new AuthError(
-      'Privy API authentication failed',
+      "Privy API authentication failed",
       AuthErrorCode.PRIVY_API_UNAVAILABLE,
       operation,
-      { originalError: baseError.message, ...context }
+      { originalError: baseError.message, ...context },
     );
-  } else if (baseError.message?.includes('blockchain') || baseError.message?.includes('contract')) {
+  } else if (
+    baseError.message?.includes("blockchain") ||
+    baseError.message?.includes("contract")
+  ) {
     authError = new AuthError(
-      'Blockchain authentication operation failed',
+      "Blockchain authentication operation failed",
       AuthErrorCode.BLOCKCHAIN_CONTRACT_ERROR,
       operation,
-      { originalError: baseError.message, ...context }
+      { originalError: baseError.message, ...context },
     );
   } else {
     authError = new AuthError(
-      baseError.message || 'Unknown authentication error',
+      baseError.message || "Unknown authentication error",
       AuthErrorCode.UNKNOWN_ERROR,
       operation,
-      { originalError: baseError.message, ...context }
+      { originalError: baseError.message, ...context },
     );
   }
 
@@ -201,26 +204,26 @@ export const handleAuthError = (
  */
 export const handleJwtError = (
   error: unknown,
-  context: Record<string, any> = {}
+  context: Record<string, any> = {},
 ): AuthError => {
   const baseError = error instanceof Error ? error : new Error(String(error));
-  
-  if (baseError.message?.includes('JWTExpired')) {
+
+  if (baseError.message?.includes("JWTExpired")) {
     return new AuthError(
-      'Authentication token has expired',
+      "Authentication token has expired",
       AuthErrorCode.JWT_TOKEN_INVALID,
-      'jwt_verification',
-      { reason: 'expired', ...context }
+      "jwt_verification",
+      { reason: "expired", ...context },
     );
-  } else if (baseError.message?.includes('JWTInvalid')) {
+  } else if (baseError.message?.includes("JWTInvalid")) {
     return new AuthError(
-      'Authentication token is invalid',
+      "Authentication token is invalid",
       AuthErrorCode.JWT_TOKEN_INVALID,
-      'jwt_verification',
-      { reason: 'invalid_format', ...context }
+      "jwt_verification",
+      { reason: "invalid_format", ...context },
     );
   } else {
-    return handleAuthError(error, 'jwt_verification', context);
+    return handleAuthError(error, "jwt_verification", context);
   }
 };
 
@@ -229,24 +232,24 @@ export const handleJwtError = (
  */
 export const handleAdminAuthError = (
   error: unknown,
-  operation: 'wallet_check' | 'lock_validation' | 'key_verification',
-  context: Record<string, any> = {}
+  operation: "wallet_check" | "lock_validation" | "key_verification",
+  context: Record<string, any> = {},
 ): AuthError => {
   const baseError = error instanceof Error ? error : new Error(String(error));
-  
-  if (operation === 'wallet_check') {
+
+  if (operation === "wallet_check") {
     return new AuthError(
-      'Failed to validate admin wallet permissions',
+      "Failed to validate admin wallet permissions",
       AuthErrorCode.ADMIN_KEY_CHECK_FAILED,
-      'admin_auth',
-      { operation, originalError: baseError.message, ...context }
+      "admin_auth",
+      { operation, originalError: baseError.message, ...context },
     );
-  } else if (operation === 'lock_validation') {
+  } else if (operation === "lock_validation") {
     return new AuthError(
-      'Admin lock contract validation failed',
+      "Admin lock contract validation failed",
       AuthErrorCode.ADMIN_LOCK_NOT_CONFIGURED,
-      'admin_auth',
-      { operation, originalError: baseError.message, ...context }
+      "admin_auth",
+      { operation, originalError: baseError.message, ...context },
     );
   } else {
     return handleAuthError(error, `admin_${operation}`, context);
@@ -258,20 +261,20 @@ export const handleAdminAuthError = (
  */
 export const logSafeError = (error: AuthError, userId?: string): void => {
   const safeContext = { ...error.context };
-  
+
   // Remove potentially sensitive data
   delete safeContext.token;
   delete safeContext.privateKey;
   delete safeContext.secret;
   delete safeContext.password;
-  
+
   log.error(`[AUTH_ERROR_SAFE] ${error.operation}`, {
     code: error.code,
     message: error.message,
     operation: error.operation,
     timestamp: error.timestamp,
-    userId: userId || 'unknown',
-    context: safeContext
+    userId: userId || "unknown",
+    context: safeContext,
   });
 };
 
@@ -297,13 +300,13 @@ export const createErrorResponse = (error: AuthError) => {
     [AuthErrorCode.BLOCKCHAIN_CONTRACT_ERROR]: 503,
     [AuthErrorCode.BLOCKCHAIN_NETWORK_ERROR]: 503,
     [AuthErrorCode.UNKNOWN_ERROR]: 500,
-    [AuthErrorCode.SYSTEM_ERROR]: 500
+    [AuthErrorCode.SYSTEM_ERROR]: 500,
   };
 
   const statusCode = statusCodeMap[error.code] || 500;
-  
+
   return {
     statusCode,
-    body: error.toClientResponse()
+    body: error.toClientResponse(),
   };
 };

@@ -2,17 +2,17 @@
  * Hook for querying attestations with various filters
  */
 
-import { useState, useEffect } from 'react';
-import { useWallets } from '@privy-io/react-auth';
-import { 
+import { useState, useEffect } from "react";
+import { useWallets } from "@privy-io/react-auth";
+import {
   getUserAttestations,
   getAttestationsBySchema,
   getUserAttestationCount,
   getUserDailyCheckinStreak,
   hasUserAttestation,
   getSchemaStatistics,
-  Attestation 
-} from '@/lib/attestation';
+  Attestation,
+} from "@/lib/attestation";
 
 export const useUserAttestations = (
   userAddress?: string,
@@ -21,7 +21,7 @@ export const useUserAttestations = (
     category?: string;
     limit?: number;
     autoRefresh?: boolean;
-  }
+  },
 ) => {
   const { wallets } = useWallets();
   const [attestations, setAttestations] = useState<Attestation[]>([]);
@@ -43,7 +43,9 @@ export const useUserAttestations = (
       const data = await getUserAttestations(address, options);
       setAttestations(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch attestations');
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch attestations",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -83,7 +85,9 @@ export const useSchemaAttestations = (schemaUid: string, limit?: number) => {
       const data = await getAttestationsBySchema(schemaUid, { limit });
       setAttestations(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch attestations');
+      setError(
+        err instanceof Error ? err.message : "Failed to fetch attestations",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -123,7 +127,7 @@ export const useUserAttestationStats = (userAddress?: string) => {
       const [totalCount, streak, hasCheckedIn] = await Promise.all([
         getUserAttestationCount(address),
         getUserDailyCheckinStreak(address),
-        hasUserAttestation(address, '0xp2e_daily_checkin_001'),
+        hasUserAttestation(address, "0xp2e_daily_checkin_001"),
       ]);
 
       setStats({
@@ -132,7 +136,7 @@ export const useUserAttestationStats = (userAddress?: string) => {
         hasCheckedInToday: hasCheckedIn,
       });
     } catch (error) {
-      console.error('Error fetching user stats:', error);
+      console.error("Error fetching user stats:", error);
     } finally {
       setIsLoading(false);
     }
@@ -166,7 +170,7 @@ export const useSchemaStats = (schemaUid: string) => {
       const data = await getSchemaStatistics(schemaUid);
       setStats(data);
     } catch (error) {
-      console.error('Error fetching schema stats:', error);
+      console.error("Error fetching schema stats:", error);
     } finally {
       setIsLoading(false);
     }

@@ -42,7 +42,7 @@ export interface AttestationSchema {
   name: string;
   description: string;
   schema_definition: string;
-  category: 'attendance' | 'social' | 'verification' | 'review' | 'achievement';
+  category: "attendance" | "social" | "verification" | "review" | "achievement";
   revocable: boolean;
   created_at: string;
   updated_at: string;

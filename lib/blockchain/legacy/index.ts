@@ -4,7 +4,7 @@
  */
 
 // Legacy configuration exports
-export * from './admin-lock-config';
-export * from './client-config';
-export * from './frontend-config';
-export * from './server-config';
+export * from "./admin-lock-config";
+export * from "./client-config";
+export * from "./frontend-config";
+export * from "./server-config";

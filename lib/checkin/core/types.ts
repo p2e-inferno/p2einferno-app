@@ -3,7 +3,7 @@
  * Defines contracts for all modules to ensure modularity and extensibility
  */
 
-import type { AttestationData } from '@/lib/attestation/core/types';
+import type { AttestationData } from "@/lib/attestation/core/types";
 
 // ================================
 // Core Domain Types
@@ -72,21 +72,24 @@ export interface StreakCalculatorStrategy {
    * Calculate the current streak for a user
    */
   calculateStreak(userAddress: string): Promise<number>;
-  
+
   /**
    * Determine if a streak is broken based on timing
    */
   isStreakBroken(lastCheckin: Date, today: Date): boolean;
-  
+
   /**
    * Get comprehensive streak information
    */
   getStreakInfo(userAddress: string): Promise<StreakInfo>;
-  
+
   /**
    * Validate if a new checkin would continue the streak
    */
-  validateStreakContinuity(userAddress: string, checkinDate: Date): Promise<boolean>;
+  validateStreakContinuity(
+    userAddress: string,
+    checkinDate: Date,
+  ): Promise<boolean>;
 }
 
 export interface MultiplierStrategy {
@@ -94,22 +97,22 @@ export interface MultiplierStrategy {
    * Calculate the multiplier for a given streak
    */
   calculateMultiplier(streak: number): number;
-  
+
   /**
    * Get all available multiplier tiers
    */
   getMultiplierTiers(): MultiplierTier[];
-  
+
   /**
    * Get the current tier for a streak
    */
   getCurrentTier(streak: number): MultiplierTier | null;
-  
+
   /**
    * Get the next tier to achieve
    */
   getNextTier(streak: number): MultiplierTier | null;
-  
+
   /**
    * Calculate progress to next tier (0-1)
    */
@@ -121,22 +124,22 @@ export interface XPCalculatorStrategy {
    * Calculate base XP (before bonuses and multipliers)
    */
   calculateBaseXP(): number;
-  
+
   /**
    * Calculate streak-based bonus XP
    */
   calculateStreakBonus(streak: number): number;
-  
+
   /**
    * Calculate final total XP with all bonuses and multipliers
    */
   calculateTotalXP(baseXP: number, bonus: number, multiplier: number): number;
-  
+
   /**
    * Get detailed XP breakdown for transparency
    */
   calculateXPBreakdown?(streak: number, multiplier: number): XPBreakdown;
-  
+
   /**
    * Validate minimum XP requirements
    */
@@ -147,18 +150,26 @@ export interface XPUpdaterStrategy {
   /**
    * Update user's XP in their profile
    */
-  updateUserXP(userProfileId: string, xpAmount: number, metadata: any): Promise<void>;
-  
+  updateUserXP(
+    userProfileId: string,
+    xpAmount: number,
+    metadata: any,
+  ): Promise<void>;
+
   /**
    * Record the activity in user activity log
    */
   recordActivity(userProfileId: string, activityData: any): Promise<void>;
-  
+
   /**
    * Atomic operation to update XP and record activity
    */
-  updateUserXPWithActivity?(userProfileId: string, xpAmount: number, activityData: any): Promise<void>;
-  
+  updateUserXPWithActivity?(
+    userProfileId: string,
+    xpAmount: number,
+    activityData: any,
+  ): Promise<void>;
+
   /**
    * Get user's current XP (for validation)
    */
@@ -205,7 +216,7 @@ export interface CheckinConfig {
 // ================================
 
 export interface CheckinEvent {
-  type: 'checkin_success' | 'checkin_error' | 'streak_milestone' | 'xp_gained';
+  type: "checkin_success" | "checkin_error" | "streak_milestone" | "xp_gained";
   data: any;
   timestamp: Date;
 }
@@ -215,7 +226,7 @@ export interface StreakMilestone {
   title: string;
   description: string;
   reward?: {
-    type: 'xp' | 'badge' | 'multiplier';
+    type: "xp" | "badge" | "multiplier";
     value: number | string;
   };
 }
@@ -228,34 +239,34 @@ export class CheckinError extends Error {
   constructor(
     message: string,
     public code: string,
-    public details?: any
+    public details?: any,
   ) {
     super(message);
-    this.name = 'CheckinError';
+    this.name = "CheckinError";
   }
 }
 
 export class StreakCalculationError extends CheckinError {
   constructor(message: string, details?: any) {
-    super(message, 'STREAK_CALCULATION_ERROR', details);
+    super(message, "STREAK_CALCULATION_ERROR", details);
   }
 }
 
 export class XPCalculationError extends CheckinError {
   constructor(message: string, details?: any) {
-    super(message, 'XP_CALCULATION_ERROR', details);
+    super(message, "XP_CALCULATION_ERROR", details);
   }
 }
 
 export class XPUpdateError extends CheckinError {
   constructor(message: string, details?: any) {
-    super(message, 'XP_UPDATE_ERROR', details);
+    super(message, "XP_UPDATE_ERROR", details);
   }
 }
 
 export class AttestationError extends CheckinError {
   constructor(message: string, details?: any) {
-    super(message, 'ATTESTATION_ERROR', details);
+    super(message, "ATTESTATION_ERROR", details);
   }
 }
 
@@ -263,23 +274,15 @@ export class AttestationError extends CheckinError {
 // Utility Types
 // ================================
 
-export type CheckinActivityType = 
-  | 'daily_checkin' 
-  | 'streak_milestone' 
-  | 'tier_upgrade' 
-  | 'special_event_checkin';
+export type CheckinActivityType =
+  | "daily_checkin"
+  | "streak_milestone"
+  | "tier_upgrade"
+  | "special_event_checkin";
 
-export type StreakStatus = 
-  | 'active' 
-  | 'at_risk' 
-  | 'broken' 
-  | 'new';
+export type StreakStatus = "active" | "at_risk" | "broken" | "new";
 
-export type MultiplierType = 
-  | 'tiered' 
-  | 'linear' 
-  | 'exponential' 
-  | 'custom';
+export type MultiplierType = "tiered" | "linear" | "exponential" | "custom";
 
 // ================================
 // Service Dependencies
@@ -361,8 +364,8 @@ export interface DailyCheckinButtonProps {
   userAddress: string;
   userProfileId: string;
   disabled?: boolean;
-  variant?: 'default' | 'outline' | 'ghost';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: "default" | "outline" | "ghost";
+  size?: "sm" | "md" | "lg";
   greeting?: string;
   onSuccess?: (result: CheckinResult) => void;
   onError?: (error: string) => void;

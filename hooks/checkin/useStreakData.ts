@@ -3,17 +3,17 @@
  * Manages streak information and multiplier tier data
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { 
-  StreakInfo, 
-  MultiplierTier, 
+import { useState, useEffect, useCallback, useMemo } from "react";
+import {
+  StreakInfo,
+  MultiplierTier,
   UseStreakDataReturn,
-  StreakStatus 
-} from '@/lib/checkin/core/types';
-import { getDefaultCheckinService } from '@/lib/checkin';
-import { getLogger } from '@/lib/utils/logger';
+  StreakStatus,
+} from "@/lib/checkin/core/types";
+import { getDefaultCheckinService } from "@/lib/checkin";
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:useStreakData');
+const log = getLogger("hooks:useStreakData");
 
 export interface UseStreakDataOptions {
   userAddress?: string;
@@ -25,13 +25,13 @@ export interface UseStreakDataOptions {
 
 export const useStreakData = (
   userAddress: string,
-  options: UseStreakDataOptions = {}
+  options: UseStreakDataOptions = {},
 ): UseStreakDataReturn => {
   const {
     autoRefresh = false,
     refreshInterval = 60000, // 1 minute
     onStreakUpdate,
-    onError
+    onError,
   } = options;
 
   // State
@@ -45,7 +45,7 @@ export const useStreakData = (
   // Fetch streak data
   const fetchStreakData = useCallback(async () => {
     if (!userAddress) {
-      log.warn('No user address provided for streak data');
+      log.warn("No user address provided for streak data");
       return;
     }
 
@@ -53,18 +53,22 @@ export const useStreakData = (
       setIsLoading(true);
       setError(null);
 
-      log.debug('Fetching streak data', { userAddress });
+      log.debug("Fetching streak data", { userAddress });
 
       const data = await checkinService.getStreakInfo(userAddress);
-      
+
       setStreakInfo(data);
       onStreakUpdate?.(data);
 
-      log.debug('Streak data fetched successfully', { userAddress, streakInfo: data });
+      log.debug("Streak data fetched successfully", {
+        userAddress,
+        streakInfo: data,
+      });
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch streak data';
-      log.error('Error fetching streak data', { userAddress, error: err });
-      
+      const errorMessage =
+        err instanceof Error ? err.message : "Failed to fetch streak data";
+      log.error("Error fetching streak data", { userAddress, error: err });
+
       setError(errorMessage);
       onError?.(errorMessage);
     } finally {
@@ -102,21 +106,22 @@ export const useStreakData = (
 
   // Get streak status
   const getStreakStatus = useCallback((): StreakStatus => {
-    if (!streakInfo) return 'new';
+    if (!streakInfo) return "new";
 
-    if (streakInfo.currentStreak === 0) return 'new';
-    if (!streakInfo.isActive) return 'broken';
+    if (streakInfo.currentStreak === 0) return "new";
+    if (!streakInfo.isActive) return "broken";
 
     // Check if at risk (within last few hours)
     if (streakInfo.lastCheckinDate) {
       const now = new Date();
-      const timeSinceLastCheckin = now.getTime() - streakInfo.lastCheckinDate.getTime();
-      const hoursUntilBreak = 24 - (timeSinceLastCheckin / (1000 * 60 * 60));
-      
-      if (hoursUntilBreak <= 3) return 'at_risk';
+      const timeSinceLastCheckin =
+        now.getTime() - streakInfo.lastCheckinDate.getTime();
+      const hoursUntilBreak = 24 - timeSinceLastCheckin / (1000 * 60 * 60);
+
+      if (hoursUntilBreak <= 3) return "at_risk";
     }
 
-    return 'active';
+    return "active";
   }, [streakInfo]);
 
   // Get time until streak expires
@@ -124,9 +129,11 @@ export const useStreakData = (
     if (!streakInfo?.lastCheckinDate || !streakInfo.isActive) return null;
 
     const now = new Date();
-    const expirationTime = new Date(streakInfo.lastCheckinDate.getTime() + (24 * 60 * 60 * 1000));
+    const expirationTime = new Date(
+      streakInfo.lastCheckinDate.getTime() + 24 * 60 * 60 * 1000,
+    );
     const timeRemaining = expirationTime.getTime() - now.getTime();
-    
+
     return Math.max(0, timeRemaining);
   }, [streakInfo]);
 
@@ -137,10 +144,19 @@ export const useStreakData = (
 
   const currentTier = useMemo(() => getCurrentTier(), [getCurrentTier]);
   const nextTier = useMemo(() => getNextTier(), [getNextTier]);
-  const progress = useMemo(() => getProgressToNextTier(), [getProgressToNextTier]);
-  const multiplier = useMemo(() => getCurrentMultiplier(), [getCurrentMultiplier]);
+  const progress = useMemo(
+    () => getProgressToNextTier(),
+    [getProgressToNextTier],
+  );
+  const multiplier = useMemo(
+    () => getCurrentMultiplier(),
+    [getCurrentMultiplier],
+  );
   const status = useMemo(() => getStreakStatus(), [getStreakStatus]);
-  const timeUntilExpiration = useMemo(() => getTimeUntilExpiration(), [getTimeUntilExpiration]);
+  const timeUntilExpiration = useMemo(
+    () => getTimeUntilExpiration(),
+    [getTimeUntilExpiration],
+  );
 
   // Initial fetch
   useEffect(() => {
@@ -176,6 +192,6 @@ export const useStreakData = (
     progress,
     multiplier,
     status,
-    timeUntilExpiration
+    timeUntilExpiration,
   };
 };

@@ -1,9 +1,12 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { Address } from 'viem';
-import { createBrowserLockManager } from '@/lib/blockchain/providers/lock-manager';
-import type { LockManagerService, KeyInfo } from '@/lib/blockchain/services/lock-manager';
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import type { Address } from "viem";
+import { createBrowserLockManager } from "@/lib/blockchain/providers/lock-manager";
+import type {
+  LockManagerService,
+  KeyInfo,
+} from "@/lib/blockchain/services/lock-manager";
 
 interface CheckOptions {
   forceRefresh?: boolean;
@@ -53,7 +56,11 @@ export const useLockManagerClient = () => {
         return pendingChecksRef.current.get(cacheKey)!;
       }
 
-      const promise = manager.checkUserHasValidKey(userAddress, lockAddress, false);
+      const promise = manager.checkUserHasValidKey(
+        userAddress,
+        lockAddress,
+        false,
+      );
       pendingChecksRef.current.set(cacheKey, promise);
 
       try {

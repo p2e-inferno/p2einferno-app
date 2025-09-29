@@ -1,13 +1,16 @@
 /**
  * Admin Authentication Provider Component
- * 
+ *
  * Refactored provider component that uses the modular hook system.
  * Extracted from AdminAuthContext.tsx for better organization and reusability.
  */
 
-import React, { createContext, useContext } from 'react';
-import { useAdminAuthContextInternal } from './hooks/useAdminAuthContextInternal';
-import type { AdminAuthContextValue, AdminAuthProviderProps } from './types/AdminAuthContextTypes';
+import React, { createContext, useContext } from "react";
+import { useAdminAuthContextInternal } from "./hooks/useAdminAuthContextInternal";
+import type {
+  AdminAuthContextValue,
+  AdminAuthProviderProps,
+} from "./types/AdminAuthContextTypes";
 
 // ================================
 // CONTEXT CREATION
@@ -19,7 +22,9 @@ import type { AdminAuthContextValue, AdminAuthProviderProps } from './types/Admi
  * Provides centralized admin authentication state management to eliminate
  * duplicate RPC calls and provide consistent auth state across components.
  */
-const AdminAuthContext = createContext<AdminAuthContextValue | undefined>(undefined);
+const AdminAuthContext = createContext<AdminAuthContextValue | undefined>(
+  undefined,
+);
 
 // ================================
 // PROVIDER COMPONENT
@@ -38,7 +43,9 @@ const AdminAuthContext = createContext<AdminAuthContextValue | undefined>(undefi
  * - Consistent behavior across the app
  * - Performance optimization with smart caching
  */
-export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({ children }) => {
+export const AdminAuthProvider: React.FC<AdminAuthProviderProps> = ({
+  children,
+}) => {
   const contextValue = useAdminAuthContextInternal();
 
   return (
@@ -65,8 +72,8 @@ export const useAdminAuthContext = (): AdminAuthContextValue => {
 
   if (context === undefined) {
     throw new Error(
-      'useAdminAuthContext must be used within an AdminAuthProvider. ' +
-      'Make sure to wrap your admin components with <AdminAuthProvider>.'
+      "useAdminAuthContext must be used within an AdminAuthProvider. " +
+        "Make sure to wrap your admin components with <AdminAuthProvider>.",
     );
   }
 

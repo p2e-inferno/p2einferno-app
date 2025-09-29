@@ -2,54 +2,70 @@
  * Predefined schema definitions for P2E Inferno
  */
 
-import { AttestationSchema } from '../core/types';
-import { P2E_SCHEMA_UIDS } from '../core/config';
+import { AttestationSchema } from "../core/types";
+import { P2E_SCHEMA_UIDS } from "../core/config";
 
 /**
  * Daily Check-in Schema - Simple daily engagement attestation
  */
-export const DAILY_CHECKIN_SCHEMA: Omit<AttestationSchema, 'id' | 'created_at' | 'updated_at'> = {
+export const DAILY_CHECKIN_SCHEMA: Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> = {
   schema_uid: P2E_SCHEMA_UIDS.DAILY_CHECKIN,
-  name: 'Daily Check-in',
-  description: 'Simple daily check-in attestation for user engagement',
-  schema_definition: 'address walletAddress,string greeting,uint256 timestamp,string userDid,uint256 xpGained',
-  category: 'attendance',
+  name: "Daily Check-in",
+  description: "Simple daily check-in attestation for user engagement",
+  schema_definition:
+    "address walletAddress,string greeting,uint256 timestamp,string userDid,uint256 xpGained",
+  category: "attendance",
   revocable: false, // Daily check-ins should be permanent
 };
 
 /**
  * Quest Completion Schema - For completed learning quests
  */
-export const QUEST_COMPLETION_SCHEMA: Omit<AttestationSchema, 'id' | 'created_at' | 'updated_at'> = {
+export const QUEST_COMPLETION_SCHEMA: Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> = {
   schema_uid: P2E_SCHEMA_UIDS.QUEST_COMPLETION,
-  name: 'Quest Completion',
-  description: 'Attestation for completed learning quests',
-  schema_definition: 'string questId,string questTitle,address userAddress,uint256 completionDate,uint256 xpEarned,string difficulty',
-  category: 'achievement',
+  name: "Quest Completion",
+  description: "Attestation for completed learning quests",
+  schema_definition:
+    "string questId,string questTitle,address userAddress,uint256 completionDate,uint256 xpEarned,string difficulty",
+  category: "achievement",
   revocable: false, // Quest completions should be permanent
 };
 
 /**
  * Bootcamp Completion Schema - For completed bootcamp programs
  */
-export const BOOTCAMP_COMPLETION_SCHEMA: Omit<AttestationSchema, 'id' | 'created_at' | 'updated_at'> = {
+export const BOOTCAMP_COMPLETION_SCHEMA: Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> = {
   schema_uid: P2E_SCHEMA_UIDS.BOOTCAMP_COMPLETION,
-  name: 'Bootcamp Completion',
-  description: 'Attestation for completed bootcamp programs',
-  schema_definition: 'string bootcampId,string bootcampTitle,address userAddress,uint256 completionDate,uint256 totalXpEarned,string certificateHash',
-  category: 'achievement',
+  name: "Bootcamp Completion",
+  description: "Attestation for completed bootcamp programs",
+  schema_definition:
+    "string bootcampId,string bootcampTitle,address userAddress,uint256 completionDate,uint256 totalXpEarned,string certificateHash",
+  category: "achievement",
   revocable: false, // Bootcamp completions should be permanent
 };
 
 /**
  * Milestone Achievement Schema - For individual milestone completions
  */
-export const MILESTONE_ACHIEVEMENT_SCHEMA: Omit<AttestationSchema, 'id' | 'created_at' | 'updated_at'> = {
+export const MILESTONE_ACHIEVEMENT_SCHEMA: Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> = {
   schema_uid: P2E_SCHEMA_UIDS.MILESTONE_ACHIEVEMENT,
-  name: 'Milestone Achievement',
-  description: 'Attestation for milestone achievements in learning journey',
-  schema_definition: 'string milestoneId,string milestoneTitle,address userAddress,uint256 achievementDate,uint256 xpEarned,string skillLevel',
-  category: 'achievement',
+  name: "Milestone Achievement",
+  description: "Attestation for milestone achievements in learning journey",
+  schema_definition:
+    "string milestoneId,string milestoneTitle,address userAddress,uint256 achievementDate,uint256 xpEarned,string skillLevel",
+  category: "achievement",
   revocable: false, // Milestone achievements should be permanent
 };
 
@@ -66,8 +82,12 @@ export const PREDEFINED_SCHEMAS = [
 /**
  * Get schema definition by UID
  */
-export const getSchemaDefinitionByUid = (schemaUid: string): typeof PREDEFINED_SCHEMAS[number] | null => {
-  return PREDEFINED_SCHEMAS.find(schema => schema.schema_uid === schemaUid) || null;
+export const getSchemaDefinitionByUid = (
+  schemaUid: string,
+): (typeof PREDEFINED_SCHEMAS)[number] | null => {
+  return (
+    PREDEFINED_SCHEMAS.find((schema) => schema.schema_uid === schemaUid) || null
+  );
 };
 
 /**

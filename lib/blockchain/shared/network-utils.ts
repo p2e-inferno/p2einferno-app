@@ -1,6 +1,6 @@
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('blockchain:shared:network-utils');
+const log = getLogger("blockchain:shared:network-utils");
 
 /**
  * Shared network utilities for blockchain operations
@@ -40,19 +40,23 @@ export interface NetworkConfig {
  */
 export const ensureCorrectNetwork = async (
   rawProvider: any,
-  config: NetworkConfig
+  config: NetworkConfig,
 ): Promise<void> => {
   // Normalize to an EIP-1193 provider with .request to avoid recursion when passed an ethers BrowserProvider
-  if (typeof rawProvider?.request !== 'function') {
-    const candidate = (rawProvider as any)?.provider ?? (typeof window !== 'undefined' ? (window as any).ethereum : undefined);
-    if (candidate && typeof candidate.request === 'function') {
+  if (typeof rawProvider?.request !== "function") {
+    const candidate =
+      (rawProvider as any)?.provider ??
+      (typeof window !== "undefined" ? (window as any).ethereum : undefined);
+    if (candidate && typeof candidate.request === "function") {
       rawProvider = candidate;
     }
   }
   const targetChainId = config.chain.id;
   const targetChainIdHex = `0x${targetChainId.toString(16)}`;
 
-  log.info(`Ensuring wallet is on chain ${targetChainId} (${config.networkName})`);
+  log.info(
+    `Ensuring wallet is on chain ${targetChainId} (${config.networkName})`,
+  );
 
   try {
     await rawProvider.request({
@@ -92,7 +96,7 @@ export const ensureCorrectNetwork = async (
 
   if (currentChainIdDecimal !== targetChainId) {
     throw new Error(
-      `Failed to switch to ${config.chain.name}. Current network: ${currentChainIdDecimal}, Expected: ${targetChainId}`
+      `Failed to switch to ${config.chain.name}. Current network: ${currentChainIdDecimal}, Expected: ${targetChainId}`,
     );
   }
 };
@@ -105,7 +109,10 @@ export const ensureCorrectNetwork = async (
  * Get block explorer URL for transaction
  * Unified implementation to replace duplicated functions
  */
-export const getBlockExplorerUrl = (txHash: string, config: NetworkConfig): string => {
+export const getBlockExplorerUrl = (
+  txHash: string,
+  config: NetworkConfig,
+): string => {
   const explorer = config.chain.blockExplorers?.default?.url;
   if (!explorer) {
     return `https://etherscan.io/tx/${txHash}`;
@@ -128,7 +135,10 @@ export const isValidEthereumAddress = (address: string): boolean => {
  * Ensure correct network using client-side config
  * Convenience wrapper for client-side operations
  */
-export const ensureCorrectNetworkClient = async (rawProvider: any, clientConfig: NetworkConfig) => {
+export const ensureCorrectNetworkClient = async (
+  rawProvider: any,
+  clientConfig: NetworkConfig,
+) => {
   return ensureCorrectNetwork(rawProvider, clientConfig);
 };
 
@@ -136,6 +146,9 @@ export const ensureCorrectNetworkClient = async (rawProvider: any, clientConfig:
  * Get block explorer URL using client-side config
  * Convenience wrapper for client-side operations
  */
-export const getBlockExplorerUrlClient = (txHash: string, clientConfig: NetworkConfig): string => {
+export const getBlockExplorerUrlClient = (
+  txHash: string,
+  clientConfig: NetworkConfig,
+): string => {
   return getBlockExplorerUrl(txHash, clientConfig);
 };

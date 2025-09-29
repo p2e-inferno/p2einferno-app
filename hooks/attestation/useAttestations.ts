@@ -3,13 +3,13 @@
  * Provides core attestation functionality
  */
 
-import { useState } from 'react';
-import { useWallets } from '@privy-io/react-auth';
+import { useState } from "react";
+import { useWallets } from "@privy-io/react-auth";
 import {
   AttestationService,
   AttestationResult,
-  CreateAttestationParams
-} from '@/lib/attestation';
+  CreateAttestationParams,
+} from "@/lib/attestation";
 
 export const useAttestations = () => {
   const { wallets } = useWallets();
@@ -20,13 +20,13 @@ export const useAttestations = () => {
    * Create a new attestation
    */
   const createAttestation = async (
-    request: Omit<CreateAttestationParams, 'wallet'>
+    request: Omit<CreateAttestationParams, "wallet">,
   ): Promise<AttestationResult> => {
     setIsLoading(true);
     try {
       const wallet = wallets[0];
       if (!wallet) {
-        throw new Error('No wallet connected');
+        throw new Error("No wallet connected");
       }
 
       const result = await attestationService.createAttestation({
@@ -36,10 +36,11 @@ export const useAttestations = () => {
 
       return result;
     } catch (error) {
-      console.error('Error creating attestation:', error);
+      console.error("Error creating attestation:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     } finally {
       setIsLoading(false);
@@ -51,13 +52,13 @@ export const useAttestations = () => {
    */
   const revokeAttestation = async (
     schemaUid: string,
-    attestationUid: string
+    attestationUid: string,
   ): Promise<AttestationResult> => {
     setIsLoading(true);
     try {
       const wallet = wallets[0];
       if (!wallet) {
-        throw new Error('No wallet connected');
+        throw new Error("No wallet connected");
       }
 
       const result = await attestationService.revokeAttestation({
@@ -68,10 +69,11 @@ export const useAttestations = () => {
 
       return result;
     } catch (error) {
-      console.error('Error revoking attestation:', error);
+      console.error("Error revoking attestation:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
       };
     } finally {
       setIsLoading(false);

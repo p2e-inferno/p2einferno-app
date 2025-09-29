@@ -21,8 +21,10 @@ export const createAccountUnified = (): Account | null => {
   try {
     return privateKeyToAccount(privateKey);
   } catch (error) {
-    blockchainLogger.error("Failed to create account", { operation: 'account:create', error: (error as any)?.message || String(error) });
+    blockchainLogger.error("Failed to create account", {
+      operation: "account:create",
+      error: (error as any)?.message || String(error),
+    });
     return null;
   }
 };
-

@@ -1,7 +1,7 @@
 import axios from "axios";
 import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('api:client');
+const log = getLogger("api:client");
 
 // Create axios instance with default config
 const api = axios.create({
@@ -15,19 +15,25 @@ const api = axios.create({
 // Request interceptor for logging
 api.interceptors.request.use(
   (config) => {
-    log.debug("API Request", { method: config.method?.toUpperCase(), url: config.url });
+    log.debug("API Request", {
+      method: config.method?.toUpperCase(),
+      url: config.url,
+    });
     return config;
   },
   (error) => {
     log.error("API Request Error", { error });
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => {
-    log.debug("API Response", { status: response.status, url: response.config.url });
+    log.debug("API Response", {
+      status: response.status,
+      url: response.config.url,
+    });
     return response;
   },
   (error) => {
@@ -36,7 +42,7 @@ api.interceptors.response.use(
       data: error.response?.data,
     });
     return Promise.reject(error);
-  }
+  },
 );
 
 export interface ApplicationData {
@@ -64,7 +70,7 @@ export const applicationApi = {
    */
   async submit(
     applicationData: ApplicationData,
-    accessToken?: string
+    accessToken?: string,
   ): Promise<ApiResponse<{ applicationId: string }>> {
     // Prepare headers only if we have an access token
     const config = accessToken

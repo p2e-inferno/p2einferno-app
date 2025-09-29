@@ -12,15 +12,21 @@ import type { EnvironmentValidation } from "./types";
  */
 export const validateEnvironment = (): EnvironmentValidation => {
   const privateKey = process.env.LOCK_MANAGER_PRIVATE_KEY;
-  
+
   if (!privateKey) {
-    blockchainLogger.warn("Blockchain write operations disabled - missing configuration", { operation: 'env:privateKey' });
+    blockchainLogger.warn(
+      "Blockchain write operations disabled - missing configuration",
+      { operation: "env:privateKey" },
+    );
     return { privateKey: null, hasValidKey: false };
   }
 
   // Validate format without logging the actual key
   if (!privateKey.startsWith("0x") || privateKey.length !== 66) {
-    blockchainLogger.error("Invalid private key format - write operations disabled", { operation: 'env:privateKey' });
+    blockchainLogger.error(
+      "Invalid private key format - write operations disabled",
+      { operation: "env:privateKey" },
+    );
     return { privateKey: null, hasValidKey: false };
   }
 
@@ -59,18 +65,22 @@ export const validateRpcUrl = (url: string): boolean => {
 export const validateUsdcConfiguration = () => {
   const hasMainnetUsdc = !!process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET;
   const hasSepoliaUsdc = !!process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA;
-  const hasEthereumUsdc = !!process.env.NEXT_PUBLIC_USDC_ADDRESS_ETHEREUM_MAINNET;
-  
+  const hasEthereumUsdc =
+    !!process.env.NEXT_PUBLIC_USDC_ADDRESS_ETHEREUM_MAINNET;
+
   if (!hasMainnetUsdc && !hasSepoliaUsdc && !hasEthereumUsdc) {
-    blockchainLogger.warn("USDC token addresses not configured - payments may be limited", {
-      operation: 'config:usdc'
-    });
+    blockchainLogger.warn(
+      "USDC token addresses not configured - payments may be limited",
+      {
+        operation: "config:usdc",
+      },
+    );
   }
 
   return {
     hasMainnetUsdc,
     hasSepoliaUsdc,
     hasEthereumUsdc,
-    isConfigured: hasMainnetUsdc || hasSepoliaUsdc || hasEthereumUsdc
+    isConfigured: hasMainnetUsdc || hasSepoliaUsdc || hasEthereumUsdc,
   };
 };

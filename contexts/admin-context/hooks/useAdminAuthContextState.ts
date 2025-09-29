@@ -1,16 +1,19 @@
 /**
  * Admin Authentication Context State Hook
- * 
+ *
  * Manages all internal state for the AdminAuthContext.
  * Extracted from AdminAuthContext.tsx for better organization and reusability.
  */
 
-import { useState, useRef, useCallback } from 'react';
-import { AUTH_CACHE_DURATION, ERROR_RETRY_DELAY } from '../constants/AdminAuthContextConstants';
+import { useState, useRef, useCallback } from "react";
+import {
+  AUTH_CACHE_DURATION,
+  ERROR_RETRY_DELAY,
+} from "../constants/AdminAuthContextConstants";
 
 /**
  * Hook for managing AdminAuthContext internal state
- * 
+ *
  * @returns Object containing all state values and setters
  */
 export const useAdminAuthContextState = () => {
@@ -36,11 +39,11 @@ export const useAdminAuthContextState = () => {
     setLastErrorTime(0);
   }, []);
 
-  const recordError = useCallback((error: string, type: 'auth' | 'network') => {
-    setAuthError(type === 'auth' ? error : null);
-    setNetworkError(type === 'network');
+  const recordError = useCallback((error: string, type: "auth" | "network") => {
+    setAuthError(type === "auth" ? error : null);
+    setNetworkError(type === "network");
     setLastErrorTime(Date.now());
-    setErrorCount(prev => prev + 1);
+    setErrorCount((prev) => prev + 1);
   }, []);
 
   return {
@@ -53,7 +56,7 @@ export const useAdminAuthContextState = () => {
     networkError,
     errorCount,
     lastErrorTime,
-    
+
     // State setters
     setIsAdmin,
     setAuthLoading,
@@ -63,15 +66,15 @@ export const useAdminAuthContextState = () => {
     setNetworkError,
     setErrorCount,
     setLastErrorTime,
-    
+
     // Refs
     inFlightRef,
     mountedRef,
-    
+
     // Error handling methods
     clearErrors,
     recordError,
-    
+
     // Constants
     AUTH_CACHE_DURATION,
     ERROR_RETRY_DELAY,

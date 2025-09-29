@@ -52,7 +52,10 @@ export class LockManagerService {
   private readonly contractAbi = COMPLETE_LOCK_ABI;
   private disposed = false;
 
-  constructor({ getPublicClient, getWalletClient }: LockManagerDependencies = {}) {
+  constructor({
+    getPublicClient,
+    getWalletClient,
+  }: LockManagerDependencies = {}) {
     const resolvePublicClient = getPublicClient ?? createServerPublicClient;
     const resolveWalletClient = getWalletClient ?? createServerWalletClient;
 
@@ -96,7 +99,7 @@ export class LockManagerService {
     if (!this.walletClient) {
       blockchainLogger.logConfigurationWarning(
         "Grant keys operation not available - No private key configured",
-        { operation: "grantKeys", recipientAddress }
+        { operation: "grantKeys", recipientAddress },
       );
       return {
         success: false,
@@ -110,7 +113,7 @@ export class LockManagerService {
         operation: "grantKeys",
         recipientAddress,
         lockAddress,
-        expirationDuration: expirationDuration?.toString()
+        expirationDuration: expirationDuration?.toString(),
       });
 
       // Get the default expiration duration if not provided
@@ -141,7 +144,7 @@ export class LockManagerService {
         operation: "grantKeys",
         transactionHash: hash,
         recipientAddress,
-        lockAddress
+        lockAddress,
       });
 
       // Wait for transaction confirmation
@@ -155,9 +158,9 @@ export class LockManagerService {
         const tokenIds = extractTokenIdsFromReceipt(receipt);
 
         blockchainLogger.logTransactionSuccess("grantKeys", hash, {
-          tokenIds: tokenIds.map(id => id.toString()),
+          tokenIds: tokenIds.map((id) => id.toString()),
           recipientAddress,
-          lockAddress
+          lockAddress,
         });
 
         return {
@@ -172,7 +175,7 @@ export class LockManagerService {
       blockchainLogger.logTransactionError("grantKeys", error, {
         recipientAddress,
         lockAddress,
-        expirationDuration: expirationDuration?.toString()
+        expirationDuration: expirationDuration?.toString(),
       });
       return {
         success: false,
@@ -191,7 +194,7 @@ export class LockManagerService {
   async checkUserHasValidKey(
     userAddress: Address,
     lockAddress: Address,
-    forceRefresh = false
+    forceRefresh = false,
   ): Promise<KeyInfo | null> {
     this.assertNotDisposed();
     try {
@@ -211,11 +214,19 @@ export class LockManagerService {
         ...cacheOptions,
       })) as boolean;
       const t1d = Date.now() - t1;
-      blockchainLogger.debug('readContract:getHasValidKey complete', { operation: 'keyCheck', lockAddress, userAddress, durationMs: t1d });
+      blockchainLogger.debug("readContract:getHasValidKey complete", {
+        operation: "keyCheck",
+        lockAddress,
+        userAddress,
+        durationMs: t1d,
+      });
 
       if (hasValidKey === false) {
         blockchainLogger.logKeyCheck(lockAddress, userAddress, false);
-        blockchainLogger.info('Key check finished (no key)', { operation: 'keyCheck', totalDurationMs: Date.now() - overallStart });
+        blockchainLogger.info("Key check finished (no key)", {
+          operation: "keyCheck",
+          totalDurationMs: Date.now() - overallStart,
+        });
         return null;
       }
 
@@ -230,7 +241,12 @@ export class LockManagerService {
           ...cacheOptions,
         })) as bigint;
         const t2d = Date.now() - t2;
-        blockchainLogger.debug('readContract:tokenOfOwnerByIndex complete', { operation: 'keyCheck', lockAddress, userAddress, durationMs: t2d });
+        blockchainLogger.debug("readContract:tokenOfOwnerByIndex complete", {
+          operation: "keyCheck",
+          lockAddress,
+          userAddress,
+          durationMs: t2d,
+        });
 
         // Get key expiration
         const t3 = Date.now();
@@ -242,11 +258,17 @@ export class LockManagerService {
           ...cacheOptions,
         })) as bigint;
         const t3d = Date.now() - t3;
-        blockchainLogger.debug('readContract:keyExpirationTimestampFor complete', { operation: 'keyCheck', lockAddress, userAddress, durationMs: t3d });
+        blockchainLogger.debug(
+          "readContract:keyExpirationTimestampFor complete",
+          { operation: "keyCheck", lockAddress, userAddress, durationMs: t3d },
+        );
 
         blockchainLogger.logKeyCheck(lockAddress, userAddress, hasValidKey);
-        blockchainLogger.info('Key check finished (with token details)', { operation: 'keyCheck', totalDurationMs: Date.now() - overallStart });
-        
+        blockchainLogger.info("Key check finished (with token details)", {
+          operation: "keyCheck",
+          totalDurationMs: Date.now() - overallStart,
+        });
+
         return {
           tokenId,
           owner: userAddress,
@@ -258,9 +280,12 @@ export class LockManagerService {
           operation: "checkUserHasValidKey",
           userAddress,
           lockAddress,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : "Unknown error",
         });
-        blockchainLogger.info('Key check finished (fallback details)', { operation: 'keyCheck', totalDurationMs: Date.now() - overallStart });
+        blockchainLogger.info("Key check finished (fallback details)", {
+          operation: "keyCheck",
+          totalDurationMs: Date.now() - overallStart,
+        });
         // Even though getHasValidKey returned true, we couldn't get the token details
         // This might happen if the contract doesn't implement ERC721Enumerable
         return {
@@ -275,7 +300,7 @@ export class LockManagerService {
         operation: "checkUserHasValidKey",
         userAddress,
         lockAddress,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       });
       return null;
     }
@@ -291,8 +316,8 @@ export class LockManagerService {
   async checkUserIsLockManager(
     userAddress: Address,
     lockAddress: Address,
-    forceRefresh = false
-    ): Promise<boolean | null> {
+    forceRefresh = false,
+  ): Promise<boolean | null> {
     this.assertNotDisposed();
     try {
       // Add cache-busting parameter if forceRefresh is true
@@ -315,16 +340,15 @@ export class LockManagerService {
       }
 
       try {
-
         blockchainLogger.logKeyCheck(lockAddress, userAddress, isLockManager);
-        
+
         return isLockManager;
       } catch (error) {
         blockchainLogger.warn("Error checking if user is lock manager", {
           operation: "checkUserIsLockManager",
           userAddress,
           lockAddress,
-          error: error instanceof Error ? error.message : 'Unknown error'
+          error: error instanceof Error ? error.message : "Unknown error",
         });
         return false;
       }
@@ -333,7 +357,7 @@ export class LockManagerService {
         operation: "checkUserIsLockManager",
         userAddress,
         lockAddress,
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       });
       return null;
     }
@@ -347,7 +371,6 @@ export class LockManagerService {
     return BigInt(30 * 24 * 60 * 60);
   }
 
-
   /**
    * Get the balance of the lock manager account
    * NOTE: This operation requires a wallet client with a private key.
@@ -358,7 +381,7 @@ export class LockManagerService {
     if (!this.walletClient || !this.walletClient.account) {
       blockchainLogger.logConfigurationWarning(
         "Get manager balance operation not available - No private key configured",
-        { operation: "getManagerBalance" }
+        { operation: "getManagerBalance" },
       );
       return "0";
     }
@@ -373,7 +396,7 @@ export class LockManagerService {
     } catch (error) {
       blockchainLogger.error("Failed to get manager balance", {
         operation: "getManagerBalance",
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : "Unknown error",
       });
       return "0";
     }

@@ -2,10 +2,9 @@ import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import type { BootcampWithCohorts } from "@/lib/supabase/types";
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:useBootcamps');
-
+const log = getLogger("hooks:useBootcamps");
 
 interface UseBootcampsResult {
   bootcamps: BootcampWithCohorts[];

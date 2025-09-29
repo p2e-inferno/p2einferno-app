@@ -1,6 +1,13 @@
-import { isBrowser, nodeEnv, parseEnvLogLevel, shouldLog, type LogLevelName, type ActiveLevel } from './levels';
-import { sanitizeString, sanitizeValue } from './sanitize';
-import { defaultTransport, writeLine, type TransportFn } from './transport';
+import {
+  isBrowser,
+  nodeEnv,
+  parseEnvLogLevel,
+  shouldLog,
+  type LogLevelName,
+  type ActiveLevel,
+} from "./levels";
+import { sanitizeString, sanitizeValue } from "./sanitize";
+import { defaultTransport, writeLine, type TransportFn } from "./transport";
 
 export interface AppLogger {
   debug: (...args: any[]) => void;
@@ -27,11 +34,19 @@ export function getLogger(moduleName: string): AppLogger {
     if (!shouldLog(level, currentLevel)) return;
 
     const [first, ...rest] = args;
-    const isStringMessage = typeof first === 'string';
-    const message = isStringMessage ? (first as string) : '[log]';
+    const isStringMessage = typeof first === "string";
+    const message = isStringMessage ? (first as string) : "[log]";
     const rawContext = isStringMessage
-      ? (rest.length === 0 ? undefined : (rest.length === 1 ? rest[0] : rest))
-      : (typeof first !== 'undefined' ? (rest.length ? [first, ...rest] : first) : undefined);
+      ? rest.length === 0
+        ? undefined
+        : rest.length === 1
+          ? rest[0]
+          : rest
+      : typeof first !== "undefined"
+        ? rest.length
+          ? [first, ...rest]
+          : first
+        : undefined;
 
     const payload = {
       timestamp: new Date().toISOString(),
@@ -40,23 +55,24 @@ export function getLogger(moduleName: string): AppLogger {
       message: sanitizeString(message),
       context: sanitizeValue(rawContext ?? {}),
       environment: nodeEnv,
-      runtime: isBrowser ? 'browser' : 'server',
+      runtime: isBrowser ? "browser" : "server",
     };
 
     try {
       transport(level, payload);
     } catch (e) {
-      try { writeLine('stderr', '[logger] transport failure', e as any); } catch {}
+      try {
+        writeLine("stderr", "[logger] transport failure", e as any);
+      } catch {}
     }
   };
 
   return {
-    debug: (...args) => emit('debug', ...args),
-    info:  (...args) => emit('info',  ...args),
-    warn:  (...args) => emit('warn',  ...args),
-    error: (...args) => emit('error', ...args),
+    debug: (...args) => emit("debug", ...args),
+    info: (...args) => emit("info", ...args),
+    warn: (...args) => emit("warn", ...args),
+    error: (...args) => emit("error", ...args),
   };
 }
 
-export const appLogger = getLogger('app');
-
+export const appLogger = getLogger("app");

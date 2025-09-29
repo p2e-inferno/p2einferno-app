@@ -3,35 +3,35 @@
  * Provides dependency injection and configuration management
  */
 
-import { DailyCheckinService } from './service';
-import { 
-  StreakCalculatorStrategy, 
-  MultiplierStrategy, 
-  XPCalculatorStrategy, 
+import { DailyCheckinService } from "./service";
+import {
+  StreakCalculatorStrategy,
+  MultiplierStrategy,
+  XPCalculatorStrategy,
   XPUpdaterStrategy,
   StreakConfig,
   XPConfig,
   MultiplierTier,
-  CheckinServiceDependencies
-} from './types';
+  CheckinServiceDependencies,
+} from "./types";
 
 // Import existing EAS service
-import { AttestationService } from '@/lib/attestation/core/service';
+import { AttestationService } from "@/lib/attestation/core/service";
 
 // Import our strategy implementations
 import {
   createStreakCalculator,
   createEnhancedStreakCalculator,
-  createTimezoneAwareStreakCalculator
-} from '../streak/calculator';
+  createTimezoneAwareStreakCalculator,
+} from "../streak/calculator";
 
 import {
   createTieredMultiplier,
   createLinearMultiplier,
   createExponentialMultiplier,
   createSeasonalMultiplier,
-  MULTIPLIER_PRESETS
-} from '../streak/multiplier';
+  MULTIPLIER_PRESETS,
+} from "../streak/multiplier";
 
 import {
   createStandardXPCalculator,
@@ -39,15 +39,15 @@ import {
   createTieredXPCalculator,
   createEventXPCalculator,
   createContextualXPCalculator,
-  XP_PRESETS
-} from '../xp/calculator';
+  XP_PRESETS,
+} from "../xp/calculator";
 
 import {
   createSupabaseXPUpdater,
   createBatchXPUpdater,
   createCachedXPUpdater,
-  createMockXPUpdater
-} from '../xp/updater';
+  createMockXPUpdater,
+} from "../xp/updater";
 
 // ================================
 // Configuration Interfaces
@@ -56,14 +56,14 @@ import {
 export interface CheckinServiceConfig {
   // Streak configuration
   streak?: {
-    strategy?: 'default' | 'enhanced' | 'timezone-aware';
+    strategy?: "default" | "enhanced" | "timezone-aware";
     config?: StreakConfig;
     userTimezone?: string;
   };
-  
+
   // Multiplier configuration
   multiplier?: {
-    strategy?: 'tiered' | 'linear' | 'exponential' | 'seasonal' | 'preset';
+    strategy?: "tiered" | "linear" | "exponential" | "seasonal" | "preset";
     preset?: keyof typeof MULTIPLIER_PRESETS;
     customTiers?: MultiplierTier[];
     linearConfig?: {
@@ -86,10 +86,16 @@ export interface CheckinServiceConfig {
       eventName?: string;
     };
   };
-  
+
   // XP configuration
   xp?: {
-    strategy?: 'standard' | 'progressive' | 'tiered' | 'event' | 'contextual' | 'preset';
+    strategy?:
+      | "standard"
+      | "progressive"
+      | "tiered"
+      | "event"
+      | "contextual"
+      | "preset";
     preset?: keyof typeof XP_PRESETS;
     config?: Partial<XPConfig>;
     progressiveConfig?: {
@@ -110,10 +116,10 @@ export interface CheckinServiceConfig {
       contextMultipliers?: Map<string, number>;
     };
   };
-  
+
   // XP Updater configuration
   updater?: {
-    strategy?: 'supabase' | 'batch' | 'cached' | 'mock';
+    strategy?: "supabase" | "batch" | "cached" | "mock";
     batchConfig?: {
       batchSize?: number;
       autoFlushMs?: number;
@@ -130,89 +136,89 @@ export interface CheckinServiceConfig {
 
 export const DEFAULT_CHECKIN_CONFIG: CheckinServiceConfig = {
   streak: {
-    strategy: 'default',
+    strategy: "default",
     config: {
       maxStreakGap: 24,
-      timezone: 'UTC'
-    }
+      timezone: "UTC",
+    },
   },
   multiplier: {
-    strategy: 'preset',
-    preset: 'balanced'
+    strategy: "preset",
+    preset: "balanced",
   },
   xp: {
-    strategy: 'preset',
-    preset: 'standard'
+    strategy: "preset",
+    preset: "standard",
   },
   updater: {
-    strategy: 'supabase'
-  }
+    strategy: "supabase",
+  },
 };
 
 export const GAMING_FOCUSED_CONFIG: CheckinServiceConfig = {
   streak: {
-    strategy: 'enhanced'
+    strategy: "enhanced",
   },
   multiplier: {
-    strategy: 'preset',
-    preset: 'aggressive'
+    strategy: "preset",
+    preset: "aggressive",
   },
   xp: {
-    strategy: 'preset',
-    preset: 'generous'
+    strategy: "preset",
+    preset: "generous",
   },
   updater: {
-    strategy: 'cached',
+    strategy: "cached",
     cacheConfig: {
-      cacheTimeoutMs: 30000 // 30 seconds
-    }
-  }
+      cacheTimeoutMs: 30000, // 30 seconds
+    },
+  },
 };
 
 export const CONSERVATIVE_CONFIG: CheckinServiceConfig = {
   streak: {
-    strategy: 'default'
+    strategy: "default",
   },
   multiplier: {
-    strategy: 'preset',
-    preset: 'conservative'
+    strategy: "preset",
+    preset: "conservative",
   },
   xp: {
-    strategy: 'preset',
-    preset: 'conservative'
+    strategy: "preset",
+    preset: "conservative",
   },
   updater: {
-    strategy: 'supabase'
-  }
+    strategy: "supabase",
+  },
 };
 
 export const EVENT_CONFIG: CheckinServiceConfig = {
   streak: {
-    strategy: 'enhanced'
+    strategy: "enhanced",
   },
   multiplier: {
-    strategy: 'seasonal',
+    strategy: "seasonal",
     seasonalConfig: {
       baseStrategy: createTieredMultiplier(),
       seasonalMultiplier: 2.0,
-      eventName: 'Holiday Special'
-    }
+      eventName: "Holiday Special",
+    },
   },
   xp: {
-    strategy: 'event',
+    strategy: "event",
     eventConfig: {
       baseCalculator: createStandardXPCalculator(),
       eventMultiplier: 1.5,
-      eventName: 'Holiday XP Boost'
-    }
+      eventName: "Holiday XP Boost",
+    },
   },
   updater: {
-    strategy: 'batch',
+    strategy: "batch",
     batchConfig: {
       batchSize: 5,
-      autoFlushMs: 3000
-    }
-  }
+      autoFlushMs: 3000,
+    },
+  },
 };
 
 // ================================
@@ -223,22 +229,24 @@ export class CheckinServiceFactory {
   /**
    * Create a DailyCheckinService with the specified configuration
    */
-  static createService(config: CheckinServiceConfig = DEFAULT_CHECKIN_CONFIG): DailyCheckinService {
+  static createService(
+    config: CheckinServiceConfig = DEFAULT_CHECKIN_CONFIG,
+  ): DailyCheckinService {
     // Create AttestationService (reusing existing EAS system)
     const attestationService = new AttestationService();
-    
+
     // Create strategy instances based on configuration
     const streakCalculator = this.createStreakCalculator(config.streak);
     const multiplierStrategy = this.createMultiplierStrategy(config.multiplier);
     const xpCalculator = this.createXPCalculator(config.xp);
     const xpUpdater = this.createXPUpdater(config.updater);
-    
+
     return new DailyCheckinService(
       attestationService,
       streakCalculator,
       multiplierStrategy,
       xpCalculator,
-      xpUpdater
+      xpUpdater,
     );
   }
 
@@ -258,11 +266,11 @@ export class CheckinServiceFactory {
   }
 
   static createEventService(
-    eventStartDate?: Date, 
-    eventEndDate?: Date, 
-    eventName?: string
+    eventStartDate?: Date,
+    eventEndDate?: Date,
+    eventName?: string,
   ): DailyCheckinService {
-    const config = { 
+    const config = {
       ...EVENT_CONFIG,
       multiplier: {
         ...EVENT_CONFIG.multiplier,
@@ -270,8 +278,8 @@ export class CheckinServiceFactory {
           ...EVENT_CONFIG.multiplier?.seasonalConfig,
           eventStartDate,
           eventEndDate,
-          eventName: eventName || 'Special Event'
-        }
+          eventName: eventName || "Special Event",
+        },
       },
       xp: {
         ...EVENT_CONFIG.xp,
@@ -279,45 +287,47 @@ export class CheckinServiceFactory {
           ...EVENT_CONFIG.xp?.eventConfig,
           eventStartDate,
           eventEndDate,
-          eventName: eventName || 'Special Event'
-        }
-      }
+          eventName: eventName || "Special Event",
+        },
+      },
     };
-    
+
     return this.createService(config);
   }
 
   /**
    * Create service for testing with mock dependencies
    */
-  static createTestService(overrides: {
-    streakCalculator?: StreakCalculatorStrategy;
-    multiplierStrategy?: MultiplierStrategy;
-    xpCalculator?: XPCalculatorStrategy;
-    xpUpdater?: XPUpdaterStrategy;
-  } = {}): DailyCheckinService {
+  static createTestService(
+    overrides: {
+      streakCalculator?: StreakCalculatorStrategy;
+      multiplierStrategy?: MultiplierStrategy;
+      xpCalculator?: XPCalculatorStrategy;
+      xpUpdater?: XPUpdaterStrategy;
+    } = {},
+  ): DailyCheckinService {
     return new DailyCheckinService(
       new AttestationService(),
       overrides.streakCalculator || createStreakCalculator(),
       overrides.multiplierStrategy || createTieredMultiplier(),
       overrides.xpCalculator || createStandardXPCalculator(),
-      overrides.xpUpdater || createMockXPUpdater()
+      overrides.xpUpdater || createMockXPUpdater(),
     );
   }
 
   // Private factory methods for individual strategies
 
   private static createStreakCalculator(
-    config?: CheckinServiceConfig['streak']
+    config?: CheckinServiceConfig["streak"],
   ): StreakCalculatorStrategy {
     if (!config) {
       return createStreakCalculator();
     }
 
     switch (config.strategy) {
-      case 'enhanced':
+      case "enhanced":
         return createEnhancedStreakCalculator(config.config);
-      case 'timezone-aware': {
+      case "timezone-aware": {
         const baseConfig: Partial<StreakConfig> = config.config ?? {};
         const { timezone, weekStartsOn, maxStreakGap } = baseConfig;
 
@@ -325,7 +335,7 @@ export class CheckinServiceFactory {
           maxStreakGap: maxStreakGap ?? 24,
           timezone,
           weekStartsOn,
-          userTimezone: config.userTimezone
+          userTimezone: config.userTimezone,
         });
       }
       default:
@@ -334,36 +344,36 @@ export class CheckinServiceFactory {
   }
 
   private static createMultiplierStrategy(
-    config?: CheckinServiceConfig['multiplier']
+    config?: CheckinServiceConfig["multiplier"],
   ): MultiplierStrategy {
     if (!config) {
       return createTieredMultiplier();
     }
 
     switch (config.strategy) {
-      case 'preset':
-        return MULTIPLIER_PRESETS[config.preset || 'balanced'];
-      case 'linear':
+      case "preset":
+        return MULTIPLIER_PRESETS[config.preset || "balanced"];
+      case "linear":
         return createLinearMultiplier(
           config.linearConfig?.baseMultiplier,
           config.linearConfig?.incrementPerWeek,
           config.linearConfig?.maxMultiplier,
-          config.linearConfig?.incrementInterval
+          config.linearConfig?.incrementInterval,
         );
-      case 'exponential':
+      case "exponential":
         return createExponentialMultiplier(
           config.exponentialConfig?.baseMultiplier,
           config.exponentialConfig?.exponentBase,
           config.exponentialConfig?.maxMultiplier,
-          config.exponentialConfig?.intervalDays
+          config.exponentialConfig?.intervalDays,
         );
-      case 'seasonal':
+      case "seasonal":
         return createSeasonalMultiplier(
           config.seasonalConfig?.baseStrategy || createTieredMultiplier(),
           config.seasonalConfig?.seasonalMultiplier || 1.5,
           config.seasonalConfig?.eventStartDate,
           config.seasonalConfig?.eventEndDate,
-          config.seasonalConfig?.eventName
+          config.seasonalConfig?.eventName,
         );
       default:
         return createTieredMultiplier(config.customTiers);
@@ -371,37 +381,38 @@ export class CheckinServiceFactory {
   }
 
   private static createXPCalculator(
-    config?: CheckinServiceConfig['xp']
+    config?: CheckinServiceConfig["xp"],
   ): XPCalculatorStrategy {
     if (!config) {
       return createStandardXPCalculator();
     }
 
     switch (config.strategy) {
-      case 'preset':
-        return XP_PRESETS[config.preset || 'standard'];
-      case 'progressive':
+      case "preset":
+        return XP_PRESETS[config.preset || "standard"];
+      case "progressive":
         return createProgressiveXPCalculator(
           config.config,
-          config.progressiveConfig?.progressionRate
+          config.progressiveConfig?.progressionRate,
         );
-      case 'tiered':
+      case "tiered":
         return createTieredXPCalculator(
           config.config,
-          config.tieredConfig?.customTiers
+          config.tieredConfig?.customTiers,
         );
-      case 'event':
+      case "event":
         return createEventXPCalculator(
           config.eventConfig?.baseCalculator || createStandardXPCalculator(),
           config.eventConfig?.eventMultiplier || 2.0,
           config.eventConfig?.eventStartDate,
           config.eventConfig?.eventEndDate,
-          config.eventConfig?.eventName
+          config.eventConfig?.eventName,
         );
-      case 'contextual':
+      case "contextual":
         return createContextualXPCalculator(
-          config.contextualConfig?.baseCalculator || createStandardXPCalculator(),
-          config.contextualConfig?.contextMultipliers
+          config.contextualConfig?.baseCalculator ||
+            createStandardXPCalculator(),
+          config.contextualConfig?.contextMultipliers,
         );
       default:
         return createStandardXPCalculator(config.config);
@@ -409,21 +420,21 @@ export class CheckinServiceFactory {
   }
 
   private static createXPUpdater(
-    config?: CheckinServiceConfig['updater']
+    config?: CheckinServiceConfig["updater"],
   ): XPUpdaterStrategy {
     if (!config) {
       return createSupabaseXPUpdater();
     }
 
     switch (config.strategy) {
-      case 'batch':
+      case "batch":
         return createBatchXPUpdater(
           config.batchConfig?.batchSize,
-          config.batchConfig?.autoFlushMs
+          config.batchConfig?.autoFlushMs,
         );
-      case 'cached':
+      case "cached":
         return createCachedXPUpdater(config.cacheConfig?.cacheTimeoutMs);
-      case 'mock':
+      case "mock":
         return createMockXPUpdater();
       default:
         return createSupabaseXPUpdater();
@@ -436,17 +447,23 @@ export class CheckinServiceFactory {
 // ================================
 
 export const validateCheckinConfig = (
-  config: CheckinServiceConfig
+  config: CheckinServiceConfig,
 ): { isValid: boolean; errors: string[] } => {
   const errors: string[] = [];
 
   // Validate streak configuration
-  if (config.streak?.config?.maxStreakGap && config.streak.config.maxStreakGap <= 0) {
-    errors.push('maxStreakGap must be positive');
+  if (
+    config.streak?.config?.maxStreakGap &&
+    config.streak.config.maxStreakGap <= 0
+  ) {
+    errors.push("maxStreakGap must be positive");
   }
 
   // Validate multiplier configuration
-  if (config.multiplier?.preset && !MULTIPLIER_PRESETS[config.multiplier.preset]) {
+  if (
+    config.multiplier?.preset &&
+    !MULTIPLIER_PRESETS[config.multiplier.preset]
+  ) {
     errors.push(`Invalid multiplier preset: ${config.multiplier.preset}`);
   }
 
@@ -456,21 +473,24 @@ export const validateCheckinConfig = (
   }
 
   if (config.xp?.config?.baseXP && config.xp.config.baseXP <= 0) {
-    errors.push('baseXP must be positive');
+    errors.push("baseXP must be positive");
   }
 
   if (config.xp?.config?.minimumXP && config.xp.config.minimumXP <= 0) {
-    errors.push('minimumXP must be positive');
+    errors.push("minimumXP must be positive");
   }
 
   // Validate updater configuration
-  if (config.updater?.batchConfig?.batchSize && config.updater.batchConfig.batchSize <= 0) {
-    errors.push('batchSize must be positive');
+  if (
+    config.updater?.batchConfig?.batchSize &&
+    config.updater.batchConfig.batchSize <= 0
+  ) {
+    errors.push("batchSize must be positive");
   }
 
   return {
     isValid: errors.length === 0,
-    errors
+    errors,
   };
 };
 
@@ -482,26 +502,28 @@ export const validateCheckinConfig = (
  * Create a service with dependency injection
  */
 export const createDailyCheckinService = (
-  dependencies?: Partial<CheckinServiceDependencies>
+  dependencies?: Partial<CheckinServiceDependencies>,
 ): DailyCheckinService => {
   return new DailyCheckinService(
     dependencies?.attestationService || new AttestationService(),
     dependencies?.streakCalculator || createStreakCalculator(),
     dependencies?.multiplierStrategy || createTieredMultiplier(),
     dependencies?.xpCalculator || createStandardXPCalculator(),
-    dependencies?.xpUpdater || createSupabaseXPUpdater()
+    dependencies?.xpUpdater || createSupabaseXPUpdater(),
   );
 };
 
 /**
  * Create a service for development/testing
  */
-export const createTestCheckinService = (overrides: {
-  streakCalculator?: StreakCalculatorStrategy;
-  multiplierStrategy?: MultiplierStrategy;
-  xpCalculator?: XPCalculatorStrategy;
-  xpUpdater?: XPUpdaterStrategy;
-} = {}): DailyCheckinService => {
+export const createTestCheckinService = (
+  overrides: {
+    streakCalculator?: StreakCalculatorStrategy;
+    multiplierStrategy?: MultiplierStrategy;
+    xpCalculator?: XPCalculatorStrategy;
+    xpUpdater?: XPUpdaterStrategy;
+  } = {},
+): DailyCheckinService => {
   return CheckinServiceFactory.createTestService(overrides);
 };
 
@@ -511,31 +533,31 @@ export const createTestCheckinService = (overrides: {
 
 export const getEnvironmentConfig = (): CheckinServiceConfig => {
   const env = process.env.NODE_ENV;
-  const isProduction = env === 'production';
-  const isDevelopment = env === 'development';
-  const isTest = env === 'test';
+  const isProduction = env === "production";
+  const isDevelopment = env === "development";
+  const isTest = env === "test";
 
   if (isTest) {
     return {
       ...DEFAULT_CHECKIN_CONFIG,
-      updater: { strategy: 'mock' }
+      updater: { strategy: "mock" },
     };
   }
 
   if (isDevelopment) {
     return {
       ...DEFAULT_CHECKIN_CONFIG,
-      updater: { 
-        strategy: 'cached',
-        cacheConfig: { cacheTimeoutMs: 10000 }
-      }
+      updater: {
+        strategy: "cached",
+        cacheConfig: { cacheTimeoutMs: 10000 },
+      },
     };
   }
 
   if (isProduction) {
     return {
       ...DEFAULT_CHECKIN_CONFIG,
-      updater: { strategy: 'supabase' }
+      updater: { strategy: "supabase" },
     };
   }
 
@@ -551,7 +573,9 @@ let defaultServiceInstance: DailyCheckinService | null = null;
 
 export const getDefaultCheckinService = (): DailyCheckinService => {
   if (!defaultServiceInstance) {
-    defaultServiceInstance = CheckinServiceFactory.createService(getEnvironmentConfig());
+    defaultServiceInstance = CheckinServiceFactory.createService(
+      getEnvironmentConfig(),
+    );
   }
   return defaultServiceInstance;
 };

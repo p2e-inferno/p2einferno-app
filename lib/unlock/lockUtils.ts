@@ -1,19 +1,23 @@
 import type { Address, Hex } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { ethers, formatUnits, parseUnits } from "ethers";
-import { UNIFIED_BLOCKCHAIN_CONFIG, getClientRpcUrls } from "../blockchain/config";
+import {
+  UNIFIED_BLOCKCHAIN_CONFIG,
+  getClientRpcUrls,
+} from "../blockchain/config";
 import { blockchainLogger } from "../blockchain/shared/logging-utils";
 import { getReadOnlyProvider as getUnifiedReadOnlyProvider } from "../blockchain/providers/provider";
-import { 
+import {
   ensureCorrectNetwork as ensureCorrectNetworkShared,
   getBlockExplorerUrl as getBlockExplorerUrlShared,
-  type NetworkConfig 
+  type NetworkConfig,
 } from "../blockchain/shared/network-utils";
 import { PUBLIC_LOCK_CONTRACT } from "../../constants";
-import { getLogger } from '@/lib/utils/logger';
-
-const log = getLogger('unlock:lockUtils');
-const DEFAULT_LOCK_MANAGER_ADDRESS: Address = "0x7A2BF39919bb7e7bF3C0a96F005A0842CfDAa8ac"
+import { getLogger } from "@/lib/utils/logger";
+import { ERC20_ABI } from "../blockchain/shared/abi-definitions";
+const log = getLogger("unlock:lockUtils");
+const DEFAULT_LOCK_MANAGER_ADDRESS: Address =
+  "0x7A2BF39919bb7e7bF3C0a96F005A0842CfDAa8ac";
 
 // ============================================================================
 // TYPES & INTERFACES
@@ -66,9 +70,9 @@ const UNLOCK_FACTORY_ADDRESSES = {
 const UNLOCK_FACTORY_ABI = [
   {
     inputs: [
-      { internalType: "bytes",   name: "data",        type: "bytes" },
-      { internalType: "uint16",  name: "lockVersion", type: "uint16" },
-      { internalType: "bytes[]", name: "transactions",type: "bytes[]" },
+      { internalType: "bytes", name: "data", type: "bytes" },
+      { internalType: "uint16", name: "lockVersion", type: "uint16" },
+      { internalType: "bytes[]", name: "transactions", type: "bytes[]" },
     ],
     name: "createUpgradeableLockAtVersion",
     outputs: [{ internalType: "address", name: "", type: "address" }],
@@ -134,50 +138,10 @@ const ADDITIONAL_LOCK_ABI = [
     type: "function",
   },
   // Renounce lock manager function
-  { 
-    inputs: [], 
-    name: "renounceLockManager", 
-    outputs: [], 
-    stateMutability: "nonpayable", 
-    type: "function" 
-  },
-] as const;
-
-// ERC20 ABI for token operations
-const ERC20_ABI = [
   {
     inputs: [],
-    name: "decimals",
-    outputs: [{ internalType: "uint8", name: "", type: "uint8" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { internalType: "address", name: "owner", type: "address" },
-      { internalType: "address", name: "spender", type: "address" },
-    ],
-    name: "allowance",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { internalType: "address", name: "account", type: "address" },
-    ],
-    name: "balanceOf",
-    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      { internalType: "address", name: "spender", type: "address" },
-      { internalType: "uint256", name: "value", type: "uint256" },
-    ],
-    name: "approve",
-    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    name: "renounceLockManager",
+    outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -197,9 +161,15 @@ export const getReadOnlyProvider = () => {
   const { chain } = UNIFIED_BLOCKCHAIN_CONFIG;
   try {
     const urls = getClientRpcUrls();
-    const hosts = urls.map((u) => { try { return new URL(u).host; } catch { return '[unparseable]'; } });
-    blockchainLogger.debug('Creating read-only provider (fallback)', {
-      operation: 'provider:create',
+    const hosts = urls.map((u) => {
+      try {
+        return new URL(u).host;
+      } catch {
+        return "[unparseable]";
+      }
+    });
+    blockchainLogger.debug("Creating read-only provider (fallback)", {
+      operation: "provider:create",
       order: hosts,
       chainId: chain.id,
     });
@@ -213,11 +183,12 @@ export const getReadOnlyProvider = () => {
 const getFactoryAddress = (): Address => {
   const factoryAddress =
     UNLOCK_FACTORY_ADDRESSES[
-      UNIFIED_BLOCKCHAIN_CONFIG.chain.id as keyof typeof UNLOCK_FACTORY_ADDRESSES
+      UNIFIED_BLOCKCHAIN_CONFIG.chain
+        .id as keyof typeof UNLOCK_FACTORY_ADDRESSES
     ];
   if (!factoryAddress) {
     throw new Error(
-      `Unlock factory not supported on chain ${UNIFIED_BLOCKCHAIN_CONFIG.chain.id}`
+      `Unlock factory not supported on chain ${UNIFIED_BLOCKCHAIN_CONFIG.chain.id}`,
     );
   }
   return factoryAddress;
@@ -237,7 +208,7 @@ const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
     const tokenContract = new ethers.Contract(
       tokenAddress,
       ERC20_ABI,
-      provider
+      provider,
     ) as any;
     const decimals = await tokenContract.decimals();
     return Number(decimals);
@@ -246,8 +217,6 @@ const getTokenDecimals = async (tokenAddress: string): Promise<number> => {
     return 18; // Default to 18 if we can't determine
   }
 };
-
-
 
 /**
  * Create ethers provider and signer from Privy wallet
@@ -262,7 +231,7 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
     address: wallet.address,
     walletClientType: wallet.walletClientType,
     connectorType: wallet.connectorType,
-    type: wallet.type
+    type: wallet.type,
   });
 
   // Handle different wallet types:
@@ -281,13 +250,18 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
     // This might be user.wallet with direct provider access
     log.info("🔧 [LOCK_UTILS] Using wallet.provider");
     provider = wallet.provider;
-  } else if (wallet.walletClientType === 'injected' || wallet.connectorType === 'injected') {
+  } else if (
+    wallet.walletClientType === "injected" ||
+    wallet.connectorType === "injected"
+  ) {
     // This is an external wallet (MetaMask, etc.) - use window.ethereum
     log.info("🔧 [LOCK_UTILS] Using window.ethereum for injected wallet");
     if (typeof window !== "undefined" && (window as any).ethereum) {
       provider = (window as any).ethereum;
     } else {
-      throw new Error("Window.ethereum not available. Please ensure MetaMask or another injected wallet is connected.");
+      throw new Error(
+        "Window.ethereum not available. Please ensure MetaMask or another injected wallet is connected.",
+      );
     }
   } else {
     // Try to use window.ethereum as a fallback for external wallets
@@ -296,7 +270,7 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
       provider = (window as any).ethereum;
     } else {
       throw new Error(
-        "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected."
+        "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected.",
       );
     }
   }
@@ -308,9 +282,9 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
   // Avoid logging the raw provider object (can be recursive/circular)
   try {
     const provDesc = {
-      hasRequest: typeof provider?.request === 'function',
-      hasSend: typeof provider?.send === 'function',
-      hasGetSigner: typeof provider?.getSigner === 'function',
+      hasRequest: typeof provider?.request === "function",
+      hasSend: typeof provider?.send === "function",
+      hasGetSigner: typeof provider?.getSigner === "function",
       isBrowserProvider: provider instanceof ethers.BrowserProvider,
       ctor: provider?.constructor?.name,
     };
@@ -319,20 +293,26 @@ const createEthersFromPrivyWallet = async (wallet: any) => {
 
   try {
     // If provider is already an ethers BrowserProvider, use it directly to avoid recursive wrapping
-    const ethersProvider = provider instanceof ethers.BrowserProvider
-      ? provider
-      : new ethers.BrowserProvider(provider);
+    const ethersProvider =
+      provider instanceof ethers.BrowserProvider
+        ? provider
+        : new ethers.BrowserProvider(provider);
     const signer = await ethersProvider.getSigner();
 
     // Normalize rawProvider to an EIP-1193 provider for network switching
     // Prefer a .request-capable object; fall back to underlying provider or window.ethereum
     const rawProviderNormalized = (provider as any)?.request
       ? provider
-      : ((provider as any)?.provider ?? (typeof window !== 'undefined' ? (window as any).ethereum : provider));
+      : ((provider as any)?.provider ??
+        (typeof window !== "undefined" ? (window as any).ethereum : provider));
 
     log.info("🔧 [LOCK_UTILS] Ethers provider and signer created successfully");
 
-    return { provider: ethersProvider, signer, rawProvider: rawProviderNormalized };
+    return {
+      provider: ethersProvider,
+      signer,
+      rawProvider: rawProviderNormalized,
+    };
   } catch (error) {
     log.error("🔧 [LOCK_UTILS] Error creating ethers provider:", error);
     throw new Error("Failed to create ethers provider from wallet");
@@ -349,7 +329,7 @@ const ensureCorrectNetwork = async (rawProvider: any) => {
     rpcUrl: UNIFIED_BLOCKCHAIN_CONFIG.rpcUrl,
     networkName: UNIFIED_BLOCKCHAIN_CONFIG.networkName,
   };
-  
+
   return ensureCorrectNetworkShared(rawProvider, networkConfig);
 };
 
@@ -363,7 +343,7 @@ export const getBlockExplorerUrl = (txHash: string): string => {
     rpcUrl: UNIFIED_BLOCKCHAIN_CONFIG.rpcUrl,
     networkName: UNIFIED_BLOCKCHAIN_CONFIG.networkName,
   };
-  
+
   return getBlockExplorerUrlShared(txHash, networkConfig);
 };
 
@@ -374,7 +354,10 @@ export const getBlockExplorerUrl = (txHash: string): string => {
 /**
  * Checks if a user is a lock manager for a lock
  */
-export const getIsLockManager = async (lockAddress: string, wallet: any): Promise<boolean> => {
+export const getIsLockManager = async (
+  lockAddress: string,
+  wallet: any,
+): Promise<boolean> => {
   try {
     if (
       !lockAddress ||
@@ -389,16 +372,18 @@ export const getIsLockManager = async (lockAddress: string, wallet: any): Promis
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
-      provider
+      provider,
     ) as any;
     const isManager = await lockContract.isLockManager(wallet.address);
     return isManager;
   } catch (error) {
-    log.error(`Error checking if user is lock manager for ${lockAddress}:`, error);
+    log.error(
+      `Error checking if user is lock manager for ${lockAddress}:`,
+      error,
+    );
     return false;
   }
 };
-
 
 /**
  * Gets the total number of keys that have been sold for a lock
@@ -418,7 +403,7 @@ export const getTotalKeys = async (lockAddress: string): Promise<number> => {
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
-      provider
+      provider,
     ) as any;
     const totalSupply = await lockContract.totalSupply();
     return Number(totalSupply);
@@ -433,13 +418,13 @@ export const getTotalKeys = async (lockAddress: string): Promise<number> => {
  */
 export const checkKeyOwnership = async (
   lockAddress: string,
-  userAddress: string
+  userAddress: string,
 ): Promise<boolean> => {
   try {
     const start = Date.now();
     if (!ethers.isAddress(lockAddress) || !ethers.isAddress(userAddress)) {
-      blockchainLogger.warn('Invalid addresses for key ownership check', {
-        operation: 'keyCheck',
+      blockchainLogger.warn("Invalid addresses for key ownership check", {
+        operation: "keyCheck",
         lockAddress,
         userAddress,
       });
@@ -447,8 +432,8 @@ export const checkKeyOwnership = async (
     }
 
     if (lockAddress === "Unknown") {
-      blockchainLogger.warn('Key check skipped for unknown lock address', {
-        operation: 'keyCheck',
+      blockchainLogger.warn("Key check skipped for unknown lock address", {
+        operation: "keyCheck",
         lockAddress,
         userAddress,
       });
@@ -460,22 +445,28 @@ export const checkKeyOwnership = async (
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
-      provider
+      provider,
     ) as any;
 
-    blockchainLogger.debug('Invoking getHasValidKey', {
-      operation: 'keyCheck',
+    blockchainLogger.debug("Invoking getHasValidKey", {
+      operation: "keyCheck",
       lockAddress,
       userAddress,
       chainId: chain.id,
-      rpcHost: (() => { try { return new URL(rpcUrl).host; } catch { return '[unparseable]'; } })(),
+      rpcHost: (() => {
+        try {
+          return new URL(rpcUrl).host;
+        } catch {
+          return "[unparseable]";
+        }
+      })(),
     });
 
     const hasKey = await lockContract.getHasValidKey(userAddress);
     const durationMs = Date.now() - start;
     blockchainLogger.logKeyCheck(lockAddress, userAddress, !!hasKey);
-    blockchainLogger.info('Key ownership check completed', {
-      operation: 'keyCheck',
+    blockchainLogger.info("Key ownership check completed", {
+      operation: "keyCheck",
       durationMs,
       lockAddress,
       userAddress,
@@ -483,7 +474,7 @@ export const checkKeyOwnership = async (
     return hasKey;
   } catch (error) {
     blockchainLogger.error(`Error checking key ownership for ${lockAddress}`, {
-      operation: 'keyCheck',
+      operation: "keyCheck",
       lockAddress,
       userAddress,
       error: (error as any)?.message || String(error),
@@ -497,7 +488,7 @@ export const checkKeyOwnership = async (
  */
 export const getUserKeyBalance = async (
   lockAddress: string,
-  userAddress: string
+  userAddress: string,
 ): Promise<number> => {
   try {
     if (!ethers.isAddress(lockAddress) || !ethers.isAddress(userAddress)) {
@@ -512,7 +503,7 @@ export const getUserKeyBalance = async (
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
-      provider
+      provider,
     ) as any;
     const balance = await lockContract.balanceOf(userAddress);
     return Number(balance);
@@ -526,7 +517,7 @@ export const getUserKeyBalance = async (
  * Gets the current key price for a lock with proper decimal formatting
  */
 export const getKeyPrice = async (
-  lockAddress: string
+  lockAddress: string,
 ): Promise<{
   price: bigint;
   priceFormatted: string;
@@ -547,7 +538,7 @@ export const getKeyPrice = async (
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
-      provider
+      provider,
     ) as any;
 
     // Get both price and token address from the contract
@@ -587,7 +578,7 @@ export const getKeyPrice = async (
  */
 export const purchaseKey = async (
   lockAddress: string,
-  wallet: any
+  wallet: any,
 ): Promise<PurchaseResult> => {
   try {
     log.info(`Purchasing key for lock: ${lockAddress}`);
@@ -599,7 +590,7 @@ export const purchaseKey = async (
       !ethers.isAddress(lockAddress)
     ) {
       throw new Error(
-        "Invalid lock address. The lock may not have been properly deployed."
+        "Invalid lock address. The lock may not have been properly deployed.",
       );
     }
 
@@ -612,7 +603,7 @@ export const purchaseKey = async (
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
-      signer
+      signer,
     ) as any;
 
     // Resolve signer address to avoid mismatch with provided wallet object
@@ -628,8 +619,8 @@ export const purchaseKey = async (
     const onChainKeyPrice = await lockContract.keyPrice();
     const lockTokenAddress = await lockContract.tokenAddress();
 
-  // Determine if this is ETH or ERC20 payment
-  const isETHPayment =
+    // Determine if this is ETH or ERC20 payment
+    const isETHPayment =
       lockTokenAddress === "0x0000000000000000000000000000000000000000";
 
     // Handle ERC20 token payments (USDC, etc.)
@@ -638,7 +629,7 @@ export const purchaseKey = async (
       const tokenContract = new ethers.Contract(
         lockTokenAddress,
         ERC20_ABI,
-        signer
+        signer,
       ) as any;
 
       const [balance, allowance] = await Promise.all([
@@ -648,32 +639,43 @@ export const purchaseKey = async (
 
       if (balance < onChainKeyPrice) {
         throw new Error(
-          "Insufficient token balance to purchase the key. Please fund your wallet with the required stablecoin."
+          "Insufficient token balance to purchase the key. Please fund your wallet with the required stablecoin.",
         );
       }
 
       if (allowance < onChainKeyPrice) {
         log.info(
-          `Approving spender ${lockAddress} for ${onChainKeyPrice.toString()} tokens`
+          `Approving spender ${lockAddress} for ${onChainKeyPrice.toString()} tokens`,
         );
         try {
           const approveAmount = onChainKeyPrice; // could be maxUint; keep exact to be conservative
-          const approveTx = await tokenContract.approve(lockAddress, approveAmount);
-          log.info('[LOCK_UTILS] Sent approve tx:', approveTx?.hash);
+          const approveTx = await tokenContract.approve(
+            lockAddress,
+            approveAmount,
+          );
+          log.info("[LOCK_UTILS] Sent approve tx:", approveTx?.hash);
           await approveTx.wait();
-          log.info('[LOCK_UTILS] Approve tx mined, verifying allowance...');
+          log.info("[LOCK_UTILS] Approve tx mined, verifying allowance...");
 
           // Poll for the updated allowance (in case of RPC/provider lag)
           const maxChecks = 12; // ~6 seconds @ 500ms
           for (let i = 0; i < maxChecks; i++) {
-            const newAllowance = await tokenContract.allowance(effectiveAddress, lockAddress);
-            log.info(`[LOCK_UTILS] Allowance check ${i + 1}/${maxChecks}:`, newAllowance?.toString?.());
+            const newAllowance = await tokenContract.allowance(
+              effectiveAddress,
+              lockAddress,
+            );
+            log.info(
+              `[LOCK_UTILS] Allowance check ${i + 1}/${maxChecks}:`,
+              newAllowance?.toString?.(),
+            );
             if (newAllowance >= onChainKeyPrice) {
               break;
             }
             await new Promise((r) => setTimeout(r, 500));
             if (i === maxChecks - 1) {
-              throw new Error('Approval mined but allowance not updated yet. Please try again in a few seconds.');
+              throw new Error(
+                "Approval mined but allowance not updated yet. Please try again in a few seconds.",
+              );
             }
           }
         } catch (approveErr: any) {
@@ -686,13 +688,18 @@ export const purchaseKey = async (
             await resetTx.wait();
             const approveTx = await tokenContract.approve(
               lockAddress,
-              onChainKeyPrice
+              onChainKeyPrice,
             );
             await approveTx.wait();
             // After reset+approve, verify allowance
-            const verifiedAllowance = await tokenContract.allowance(effectiveAddress, lockAddress);
+            const verifiedAllowance = await tokenContract.allowance(
+              effectiveAddress,
+              lockAddress,
+            );
             if (verifiedAllowance < onChainKeyPrice) {
-              throw new Error('Allowance still insufficient after reset/approve. Please retry.');
+              throw new Error(
+                "Allowance still insufficient after reset/approve. Please retry.",
+              );
             }
           } else {
             throw approveErr;
@@ -706,7 +713,7 @@ export const purchaseKey = async (
         [effectiveAddress], // _recipients
         ["0x0000000000000000000000000000000000000000"], // _referrers
         ["0x0000000000000000000000000000000000000000"], // _keyManagers
-        ["0x"] // _data
+        ["0x"], // _data
       );
 
       log.info("ERC20 purchase transaction sent:", tx.hash);
@@ -726,7 +733,9 @@ export const purchaseKey = async (
 
     // Handle ETH payments
     else {
-      log.info(`Calling ETH purchase for recipient: ${effectiveAddress} with value: ${onChainKeyPrice.toString()} wei`);
+      log.info(
+        `Calling ETH purchase for recipient: ${effectiveAddress} with value: ${onChainKeyPrice.toString()} wei`,
+      );
 
       const tx = await lockContract.purchase(
         [onChainKeyPrice], // _values
@@ -736,7 +745,7 @@ export const purchaseKey = async (
         ["0x"], // _data
         {
           value: onChainKeyPrice, // Send ETH with the transaction
-        }
+        },
       );
 
       log.info("ETH purchase transaction sent:", tx.hash);
@@ -798,7 +807,7 @@ export const purchaseKey = async (
 export const deployLock = async (
   config: LockConfig,
   wallet: any,
-  extraManagerAddress?: string // optional extra manager to add
+  extraManagerAddress?: string, // optional extra manager to add
 ): Promise<DeploymentResult> => {
   try {
     log.info("Deploying lock with config:", config);
@@ -808,7 +817,9 @@ export const deployLock = async (
     }
     const usdcTokenAddress = UNIFIED_BLOCKCHAIN_CONFIG.usdcTokenAddress;
     if (!usdcTokenAddress) {
-      throw new Error(`USDC token address not configured for ${UNIFIED_BLOCKCHAIN_CONFIG.networkName}.`);
+      throw new Error(
+        `USDC token address not configured for ${UNIFIED_BLOCKCHAIN_CONFIG.networkName}.`,
+      );
     }
     // Create ethers provider from Privy wallet
     const { signer, rawProvider } = await createEthersFromPrivyWallet(wallet);
@@ -826,19 +837,21 @@ export const deployLock = async (
     const unlock = new ethers.Contract(
       factoryAddress,
       UNLOCK_FACTORY_ABI,
-      signer
+      signer,
     ) as any;
 
     const usdcContract = new ethers.Contract(
       usdcTokenAddress,
       ERC20_ABI,
-      signer
+      signer,
     ) as any;
     const usdcDecimals = await usdcContract.decimals();
 
     // Convert price to wei (assuming USDC with 6 decimals, but Unlock uses 18 decimal representation)
     const keyPriceWei =
-      config.currency === "FREE" ? 0n : parseUnits(config.price.toString(), usdcDecimals);
+      config.currency === "FREE"
+        ? 0n
+        : parseUnits(config.price.toString(), usdcDecimals);
 
     // Use USDC token address for payments (0x0 for native ETH, but we prefer USDC)
     const tokenAddress =
@@ -851,7 +864,7 @@ export const deployLock = async (
         tokenAddress === "0x0000000000000000000000000000000000000000"
           ? "ETH"
           : "USDC"
-      })`
+      })`,
     );
 
     // Create calldata using PublicLock's ABI to encode the initialize function
@@ -859,17 +872,25 @@ export const deployLock = async (
       {
         inputs: [
           { internalType: "address", name: "_lockCreator", type: "address" },
-          { internalType: "uint256", name: "_expirationDuration", type: "uint256" },
+          {
+            internalType: "uint256",
+            name: "_expirationDuration",
+            type: "uint256",
+          },
           { internalType: "address", name: "_tokenAddress", type: "address" },
           { internalType: "uint256", name: "_keyPrice", type: "uint256" },
-          { internalType: "uint256", name: "_maxNumberOfKeys", type: "uint256" },
+          {
+            internalType: "uint256",
+            name: "_maxNumberOfKeys",
+            type: "uint256",
+          },
           { internalType: "string", name: "_lockName", type: "string" },
         ],
         name: "initialize",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function",
-      }
+      },
     ]);
     const calldata = lockInterface.encodeFunctionData("initialize", [
       factoryAddress, // address of the first lock manager (factory address)
@@ -882,30 +903,46 @@ export const deployLock = async (
 
     const lockMgmtIface = new ethers.Interface([
       {
-        inputs: [{ internalType: "address", name: "_account", type: "address" }],
+        inputs: [
+          { internalType: "address", name: "_account", type: "address" },
+        ],
         name: "addLockManager",
         outputs: [],
         stateMutability: "nonpayable",
         type: "function",
       },
-      { 
-        inputs: [], 
-        name: "renounceLockManager", 
-        outputs: [], 
-        stateMutability: "nonpayable", 
-        type: "function" 
-      }
+      {
+        inputs: [],
+        name: "renounceLockManager",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function",
+      },
     ]);
 
     const txnCalldatas: Hex[] = [];
-    txnCalldatas.push(lockMgmtIface.encodeFunctionData("addLockManager", [wallet.address]) as Hex);
-    txnCalldatas.push(lockMgmtIface.encodeFunctionData("addLockManager", [extraManagerAddress ?? DEFAULT_LOCK_MANAGER_ADDRESS]) as Hex);
-    txnCalldatas.push(lockMgmtIface.encodeFunctionData("renounceLockManager") as Hex); // removes factory address as lock manager
+    txnCalldatas.push(
+      lockMgmtIface.encodeFunctionData("addLockManager", [
+        wallet.address,
+      ]) as Hex,
+    );
+    txnCalldatas.push(
+      lockMgmtIface.encodeFunctionData("addLockManager", [
+        extraManagerAddress ?? DEFAULT_LOCK_MANAGER_ADDRESS,
+      ]) as Hex,
+    );
+    txnCalldatas.push(
+      lockMgmtIface.encodeFunctionData("renounceLockManager") as Hex,
+    ); // removes factory address as lock manager
 
     log.info("Creating lock with calldata and version:", version);
 
     // Create the lock
-    const tx = await unlock.createUpgradeableLockAtVersion(calldata, version, txnCalldatas);
+    const tx = await unlock.createUpgradeableLockAtVersion(
+      calldata,
+      version,
+      txnCalldatas,
+    );
     log.info("Lock deployment transaction sent:", tx.hash);
 
     // Wait for transaction confirmation
@@ -966,7 +1003,7 @@ export const deployLock = async (
               lockAddress = potentialAddress;
               log.info(
                 "Found potential lock address from log topics:",
-                lockAddress
+                lockAddress,
               );
               break;
             }
@@ -1025,7 +1062,7 @@ export const grantKeys = async (
   recipients: string[],
   expirationTimestamps: bigint[],
   wallet: any,
-  keyManagers?: string[]
+  keyManagers?: string[],
 ): Promise<{
   success: boolean;
   error?: string;
@@ -1050,7 +1087,7 @@ export const grantKeys = async (
 
     if (recipients.length !== expirationTimestamps.length) {
       throw new Error(
-        "Recipients and expiration timestamps arrays must have the same length."
+        "Recipients and expiration timestamps arrays must have the same length.",
       );
     }
 
@@ -1063,7 +1100,7 @@ export const grantKeys = async (
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
-      signer
+      signer,
     ) as any;
 
     // Check if user is a lock manager
@@ -1081,7 +1118,7 @@ export const grantKeys = async (
     const tx = await lockContract.grantKeys(
       recipients,
       expirationTimestamps,
-      keyManagersArray
+      keyManagersArray,
     );
 
     log.info("Grant keys transaction sent:", tx.hash);
@@ -1140,7 +1177,7 @@ export const grantKeys = async (
 export const addLockManager = async (
   lockAddress: string,
   managerAddress: string,
-  wallet: any
+  wallet: any,
 ): Promise<{ success: boolean; error?: string; transactionHash?: string }> => {
   try {
     if (
@@ -1168,14 +1205,14 @@ export const addLockManager = async (
     const lockContract = new ethers.Contract(
       lockAddress,
       COMPLETE_LOCK_ABI,
-      signer
+      signer,
     ) as any;
 
     // Check if user is a lock manager
     const isManager = await lockContract.isLockManager(wallet.address);
     if (!isManager) {
       throw new Error(
-        "You must be a lock manager to add another lock manager."
+        "You must be a lock manager to add another lock manager.",
       );
     }
 

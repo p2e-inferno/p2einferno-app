@@ -9,7 +9,12 @@ interface UseRetryableOptions<T> {
   autoRun?: boolean;
 }
 
-export function useRetryable<T>({ fn, onSuccess, onError, autoRun = false }: UseRetryableOptions<T>) {
+export function useRetryable<T>({
+  fn,
+  onSuccess,
+  onError,
+  autoRun = false,
+}: UseRetryableOptions<T>) {
   const fnRef = useRef(fn);
   fnRef.current = fn;
 
@@ -55,7 +60,10 @@ export interface RetryableFetchOptions extends RequestInit {
   timeoutMs?: number;
 }
 
-export function useRetryableFetch<T>(url: string, options: RetryableFetchOptions = {}) {
+export function useRetryableFetch<T>(
+  url: string,
+  options: RetryableFetchOptions = {},
+) {
   const { timeoutMs = 20_000, ...init } = options;
 
   return useRetryable<T>({
@@ -66,7 +74,9 @@ export function useRetryableFetch<T>(url: string, options: RetryableFetchOptions
         const res = await fetch(url, { ...init, signal: controller.signal });
         const json = await res.json().catch(() => ({}));
         if (!res.ok) {
-          throw new Error((json && (json.error || json.message)) || `HTTP ${res.status}`);
+          throw new Error(
+            (json && (json.error || json.message)) || `HTTP ${res.status}`,
+          );
         }
         return json as T;
       } catch (e: any) {
@@ -80,4 +90,3 @@ export function useRetryableFetch<T>(url: string, options: RetryableFetchOptions
     },
   });
 }
-

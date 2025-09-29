@@ -2,13 +2,13 @@ import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import toast from "react-hot-toast";
 import { getLogger } from "@/lib/utils/logger";
-import type { 
-  BootcampProgram, 
-  Cohort, 
-  CohortMilestone, 
+import type {
+  BootcampProgram,
+  Cohort,
+  CohortMilestone,
   MilestoneTask,
   ProgramHighlight,
-  ProgramRequirement 
+  ProgramRequirement,
 } from "@/lib/supabase/types";
 
 const log = getLogger("hooks:useCohortDetails");

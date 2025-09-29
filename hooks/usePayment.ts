@@ -1,12 +1,14 @@
 import { useState, useCallback } from "react";
 import { usePaystackPayment } from "react-paystack";
 import { useApiCall } from "./useApiCall";
-import { convertToSmallestUnit, type Currency } from "../lib/utils/payment-utils";
+import {
+  convertToSmallestUnit,
+  type Currency,
+} from "../lib/utils/payment-utils";
 import api from "../lib/helpers/api";
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:usePayment');
-
+const log = getLogger("hooks:usePayment");
 
 interface PaymentConfig {
   applicationId: string;
@@ -27,7 +29,10 @@ export const usePayment = (paymentData: PaymentConfig) => {
   const [isInitializing, setIsInitializing] = useState(false);
   const [paymentConfig, setPaymentConfig] = useState<any>(null);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-  const [pollingProgress, setPollingProgress] = useState({ current: 0, total: 0 });
+  const [pollingProgress, setPollingProgress] = useState({
+    current: 0,
+    total: 0,
+  });
 
   // Initialize payment with backend
   const { execute: initializePayment } = useApiCall({
@@ -64,7 +69,7 @@ export const usePayment = (paymentData: PaymentConfig) => {
 
     try {
       await initializePayment(() =>
-        api.post("/payment/initialize", paymentData)
+        api.post("/payment/initialize", paymentData),
       );
     } finally {
       setIsInitializing(false);
@@ -84,54 +89,67 @@ export const usePayment = (paymentData: PaymentConfig) => {
       const maxPollingTime = 45000; // 45 seconds total (30s webhook + 15s fallback)
       const pollInterval = 1000; // Poll every 1 second
       const maxAttempts = Math.floor(maxPollingTime / pollInterval);
-      
+
       log.info(`Starting webhook polling for payment ${reference}`);
-      log.info(`Will poll ${maxAttempts} times over ${maxPollingTime/1000} seconds`);
-      
+      log.info(
+        `Will poll ${maxAttempts} times over ${maxPollingTime / 1000} seconds`,
+      );
+
       // Initialize progress
       setPollingProgress({ current: 0, total: maxAttempts });
-      
+
       for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         // Update progress
         setPollingProgress({ current: attempt, total: maxAttempts });
         try {
-          log.info(`Polling attempt ${attempt}/${maxAttempts} - waiting for webhook...`);
-          
-          const response = await api.get(`/payment/verify/${reference}${queryParams}`);
-          
+          log.info(
+            `Polling attempt ${attempt}/${maxAttempts} - waiting for webhook...`,
+          );
+
+          const response = await api.get(
+            `/payment/verify/${reference}${queryParams}`,
+          );
+
           // Check if webhook has updated the status
           if (response.data?.success) {
-            log.info('Webhook processed successfully! Payment verified.');
+            log.info("Webhook processed successfully! Payment verified.");
             await verifyPayment(() => Promise.resolve(response));
             break;
-          } else if (response.data?.data?.status === 'failed') {
-            log.info('Payment failed according to webhook');
-            throw new Error('Payment failed');
+          } else if (response.data?.data?.status === "failed") {
+            log.info("Payment failed according to webhook");
+            throw new Error("Payment failed");
           } else {
             // Still pending, continue polling
-            log.info(`Status: ${response.data?.data?.status || 'pending'} - continuing to poll...`);
+            log.info(
+              `Status: ${response.data?.data?.status || "pending"} - continuing to poll...`,
+            );
           }
-          
+
           if (attempt === maxAttempts) {
-            throw new Error('Payment verification timeout. Please contact support if payment was successful.');
+            throw new Error(
+              "Payment verification timeout. Please contact support if payment was successful.",
+            );
           }
-          
+
           // Wait before next poll
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
-          
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
         } catch (error: any) {
           // If it's a timeout error, throw it
-          if (attempt === maxAttempts || error.message.includes('timeout') || error.message.includes('failed')) {
+          if (
+            attempt === maxAttempts ||
+            error.message.includes("timeout") ||
+            error.message.includes("failed")
+          ) {
             throw error;
           }
-          
+
           // For network errors, continue polling
           log.info(`Network error on attempt ${attempt}, continuing...`);
-          await new Promise(resolve => setTimeout(resolve, pollInterval));
+          await new Promise((resolve) => setTimeout(resolve, pollInterval));
         }
       }
     },
-    [verifyPayment, paymentData.walletAddress, paymentData.cohortId]
+    [verifyPayment, paymentData.walletAddress, paymentData.cohortId],
   );
 
   const processPayment = useCallback(() => {

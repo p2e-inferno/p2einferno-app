@@ -7,15 +7,10 @@
 export {
   createPublicClientUnified,
   createPublicClientForChain,
-} from './public-client';
+} from "./public-client";
 
 // Wallet client creation
-export {
-  createWalletClientUnified,
-} from './wallet-client';
+export { createWalletClientUnified } from "./wallet-client";
 
 // Account creation
-export {
-  createAccountUnified,
-} from './account';
-
+export { createAccountUnified } from "./account";

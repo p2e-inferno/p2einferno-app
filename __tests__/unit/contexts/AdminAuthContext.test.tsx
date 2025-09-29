@@ -155,7 +155,7 @@ const setupMocks = (
     ready: false,
     logout: jest.fn(),
     login: jest.fn(),
-    getAccessToken: jest.fn().mockResolvedValue('test-access-token'),
+    getAccessToken: jest.fn().mockResolvedValue("test-access-token"),
   };
 
   const defaultUser = {
@@ -186,17 +186,19 @@ const setupMocks = (
   const derivedWallets = overrides.wallets
     ? { ...defaultWallets, ...overrides.wallets }
     : overrides.wallet?.walletAddress
-    ? {
-        wallets: [
-          {
-            walletClientType: 'injected',
-            address: overrides.wallet.walletAddress,
-          },
-        ],
-      }
-    : defaultWallets;
+      ? {
+          wallets: [
+            {
+              walletClientType: "injected",
+              address: overrides.wallet.walletAddress,
+            },
+          ],
+        }
+      : defaultWallets;
 
-  mockUseWallets.mockReturnValue(derivedWallets as ReturnType<typeof useWallets>);
+  mockUseWallets.mockReturnValue(
+    derivedWallets as ReturnType<typeof useWallets>,
+  );
 
   mockLockManager.checkUserHasValidKey = jest.fn();
   mockUseLockManagerClient.mockReturnValue(mockLockManager as any);
@@ -206,11 +208,14 @@ const setupMocks = (
   }
 
   const defaultFetch = jest.fn(async (input: RequestInfo) => {
-    const url = typeof input === 'string' ? input : input.url;
-    if (url.includes('/api/admin/session/verify')) {
+    const url = typeof input === "string" ? input : input.url;
+    if (url.includes("/api/admin/session/verify")) {
       return {
         ok: true,
-        json: async () => ({ valid: true, expiresAt: Math.floor(Date.now() / 1000) + 60 }),
+        json: async () => ({
+          valid: true,
+          expiresAt: Math.floor(Date.now() / 1000) + 60,
+        }),
       } as any;
     }
     return {
@@ -219,7 +224,9 @@ const setupMocks = (
     } as any;
   });
 
-  (global.fetch as jest.Mock).mockImplementation(overrides.fetch ?? defaultFetch);
+  (global.fetch as jest.Mock).mockImplementation(
+    overrides.fetch ?? defaultFetch,
+  );
 };
 
 const renderWithProvider = (component: React.ReactNode) => {
@@ -333,8 +340,8 @@ describe("AdminAuthContext", () => {
           }),
         },
         fetch: jest.fn(async (input: RequestInfo) => {
-          const url = typeof input === 'string' ? input : input.url;
-          if (url.includes('/api/admin/session/verify')) {
+          const url = typeof input === "string" ? input : input.url;
+          if (url.includes("/api/admin/session/verify")) {
             return {
               ok: true,
               json: async () => ({ valid: false }),

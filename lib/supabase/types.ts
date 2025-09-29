@@ -220,7 +220,12 @@ export interface UserTaskProgress {
 }
 
 export interface EnhancedMilestoneTask extends MilestoneTask {
-  task_type: "file_upload" | "url_submission" | "contract_interaction" | "text_submission" | "external_verification";
+  task_type:
+    | "file_upload"
+    | "url_submission"
+    | "contract_interaction"
+    | "text_submission"
+    | "external_verification";
   submission_requirements?: any;
   validation_criteria?: any;
   requires_admin_review: boolean;
@@ -245,10 +250,12 @@ export interface BootcampWithCohorts {
   // Optional enrollment-aware flags provided by API routes
   enrolled_in_bootcamp?: boolean;
   enrolled_cohort_id?: string;
-  cohorts: Array<Cohort & {
-    is_enrolled?: boolean;
-    user_enrollment_id?: string;
-  }>;
+  cohorts: Array<
+    Cohort & {
+      is_enrolled?: boolean;
+      user_enrollment_id?: string;
+    }
+  >;
 }
 
 export interface Enrollment {

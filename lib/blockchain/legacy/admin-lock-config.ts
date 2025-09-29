@@ -1,12 +1,15 @@
 import { type Address } from "viem";
 import { CLIENT_CHAIN_CONFIG } from "./client-config";
 import { getAdminLockManagerAddresses } from "../services/transaction-service";
-import type { Cohort, BootcampProgram, Quest, CohortMilestone } from "../../supabase/types";
-import { getLogger } from '@/lib/utils/logger';
+import type {
+  Cohort,
+  BootcampProgram,
+  Quest,
+  CohortMilestone,
+} from "../../supabase/types";
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('blockchain:admin-lock-config');
-
-
+const log = getLogger("blockchain:admin-lock-config");
 
 // ============================================================================
 // NAIRA TO USD RATE ESTIMATE CONSTANT
@@ -51,11 +54,13 @@ const EXPIRATION_DURATIONS = {
  */
 export const generateCohortLockConfig = (cohort: Cohort): LockConfig => {
   // Use USDT amount if available, otherwise convert from Naira (rough estimate)
-  const priceInUSD = cohort.usdt_amount || (cohort.naira_amount ? cohort.naira_amount / NAIRA_TO_USD_RATE : 0);
-  
+  const priceInUSD =
+    cohort.usdt_amount ||
+    (cohort.naira_amount ? cohort.naira_amount / NAIRA_TO_USD_RATE : 0);
+
   // If no price is set, create a free lock
   const isFree = priceInUSD === 0;
-  
+
   return {
     name: `${cohort.name} Access`,
     symbol: "COHORT",
@@ -75,7 +80,9 @@ export const generateCohortLockConfig = (cohort: Cohort): LockConfig => {
  * - 1 year expiration
  * - Free or paid based on program settings
  */
-export const generateBootcampLockConfig = (bootcamp: BootcampProgram): LockConfig => {
+export const generateBootcampLockConfig = (
+  bootcamp: BootcampProgram,
+): LockConfig => {
   return {
     name: `${bootcamp.name} Certificate`,
     symbol: "BOOTCAMP",
@@ -115,7 +122,10 @@ export const generateQuestLockConfig = (quest: Quest): LockConfig => {
  * - 1 year expiration
  * - Free completion badge based on total reward amount
  */
-export const generateMilestoneLockConfig = (milestone: CohortMilestone, _totalReward: number = 0): LockConfig => {
+export const generateMilestoneLockConfig = (
+  milestone: CohortMilestone,
+  _totalReward: number = 0,
+): LockConfig => {
   return {
     name: `${milestone.name} NFT Badge`,
     symbol: "MILESTONE",
@@ -140,7 +150,7 @@ export const generateMilestoneLockConfig = (milestone: CohortMilestone, _totalRe
  */
 export const createLockConfigWithManagers = (baseLockConfig: LockConfig) => {
   const keyManagers = getAdminLockManagerAddresses();
-  
+
   return {
     ...baseLockConfig,
     keyManagers, // Add admin addresses as key managers
@@ -160,25 +170,33 @@ export const getTokenAddressForCurrency = (currency: string): Address => {
   if (currency === "FREE") {
     return "0x0000000000000000000000000000000000000000" as Address;
   }
-  
+
   if (currency === "USDC") {
     // Determine USDC address based on current network
     const chainId = CLIENT_CHAIN_CONFIG.chain.id;
     let usdcAddress: string | undefined;
-    
-    if (chainId === 8453) { // Base Mainnet
-      usdcAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
-    } else if (chainId === 84532) { // Base Sepolia
-      usdcAddress = process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA || "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
+
+    if (chainId === 8453) {
+      // Base Mainnet
+      usdcAddress =
+        process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET ||
+        "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+    } else if (chainId === 84532) {
+      // Base Sepolia
+      usdcAddress =
+        process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA ||
+        "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
     }
-    
+
     if (!usdcAddress) {
-      log.warn("USDC token address not configured for current network, using ETH");
+      log.warn(
+        "USDC token address not configured for current network, using ETH",
+      );
       return "0x0000000000000000000000000000000000000000" as Address;
     }
     return usdcAddress as Address;
   }
-  
+
   // Default to ETH for unknown currencies
   return "0x0000000000000000000000000000000000000000" as Address;
 };

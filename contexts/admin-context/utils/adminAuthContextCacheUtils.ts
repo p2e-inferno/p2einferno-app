@@ -1,11 +1,11 @@
 /**
  * Admin Authentication Context Cache Utilities
- * 
+ *
  * Pure utility functions for cache management and validation.
  * Extracted from AdminAuthContext.tsx for better organization and reusability.
  */
 
-import { ERROR_RETRY_DELAY } from '../constants/AdminAuthContextConstants';
+import { ERROR_RETRY_DELAY } from "../constants/AdminAuthContextConstants";
 
 /**
  * Check if auth cache is still valid
@@ -27,19 +27,22 @@ export const createCacheExpiry = (durationMs: number): number => {
 export const shouldInvalidateCache = (
   cacheValidUntil: number,
   errorCount: number,
-  lastErrorTime: number
+  lastErrorTime: number,
 ): boolean => {
   const now = Date.now();
-  
+
   // Always invalidate if cache expired
   if (now >= cacheValidUntil) return true;
-  
+
   // Invalidate if recent errors (exponential backoff)
   if (errorCount > 0 && lastErrorTime > 0) {
     const timeSinceError = now - lastErrorTime;
-    const backoffDelay = Math.min(ERROR_RETRY_DELAY * Math.pow(2, errorCount - 1), 60000);
+    const backoffDelay = Math.min(
+      ERROR_RETRY_DELAY * Math.pow(2, errorCount - 1),
+      60000,
+    );
     return timeSinceError >= backoffDelay;
   }
-  
+
   return false;
 };

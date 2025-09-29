@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { mainnet } from "viem/chains";
-import { createPublicClientUnified, createPublicClientForChain } from "@/lib/blockchain/config";
+import {
+  createPublicClientUnified,
+  createPublicClientForChain,
+} from "@/lib/blockchain/config";
 import { getEnsName } from "viem/ens";
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:useENSResolution');
-
+const log = getLogger("hooks:useENSResolution");
 
 interface ENSResolutionResult {
   ensName: string | null;
@@ -21,7 +23,7 @@ interface ENSResolutionResult {
  * @returns Object containing resolved names, loading state, and error
  */
 export const useENSResolution = (
-  address: string | undefined
+  address: string | undefined,
 ): ENSResolutionResult => {
   const [result, setResult] = useState<ENSResolutionResult>({
     ensName: null,

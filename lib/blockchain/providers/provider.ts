@@ -1,11 +1,21 @@
-import { ethers } from 'ethers';
-import { getClientRpcUrls, getClientConfig } from '../config';
-import { blockchainLogger } from '../shared/logging-utils';
+import { ethers } from "ethers";
+import { getClientRpcUrls, getClientConfig } from "../config";
+import { blockchainLogger } from "../shared/logging-utils";
 
-let readOnlyProviderSingleton: ethers.JsonRpcProvider | ethers.FallbackProvider | null = null;
+let readOnlyProviderSingleton:
+  | ethers.JsonRpcProvider
+  | ethers.FallbackProvider
+  | null = null;
 
-const parseHost = (u: string) => { try { return new URL(u).host; } catch { return '[unparseable]'; } };
-const isKeyedHost = (h: string) => /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
+const parseHost = (u: string) => {
+  try {
+    return new URL(u).host;
+  } catch {
+    return "[unparseable]";
+  }
+};
+const isKeyedHost = (h: string) =>
+  /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
 const isPublicBaseHost = (h: string) => /\.base\.org$/i.test(h);
 
 function buildReadOnlyProvider() {
@@ -15,31 +25,31 @@ function buildReadOnlyProvider() {
   const hasKeyed = hostsAll.some(isKeyedHost);
 
   let urls = allUrls;
-  if (typeof window !== 'undefined' && hasKeyed) {
+  if (typeof window !== "undefined" && hasKeyed) {
     const keyed = allUrls.filter((u) => isKeyedHost(parseHost(u)));
     const publicBase = allUrls.filter((u) => isPublicBaseHost(parseHost(u)));
     const others = allUrls.filter(
-      (u) => !keyed.includes(u) && !publicBase.includes(u)
+      (u) => !keyed.includes(u) && !publicBase.includes(u),
     );
     urls = [...keyed, ...others, ...publicBase];
   }
 
   const hosts = urls.map(parseHost);
 
-  blockchainLogger.debug('Provider:init', {
-    operation: 'provider:create:frontend:unified',
+  blockchainLogger.debug("Provider:init", {
+    operation: "provider:create:frontend:unified",
     chainId: cfg.chain.id,
     order: hosts,
     keptPublicBaseFallback: hasKeyed,
   });
 
-  if (urls.length === 0) throw new Error('No RPC URLs configured');
+  if (urls.length === 0) throw new Error("No RPC URLs configured");
 
   const createEthersProvider = (url: string) => {
     const provider = new ethers.JsonRpcProvider(
       url,
-      { chainId: cfg.chain.id, name: cfg.networkName || 'unknown' },
-      { staticNetwork: true, polling: false }
+      { chainId: cfg.chain.id, name: cfg.networkName || "unknown" },
+      { staticNetwork: true, polling: false },
     );
     (provider as any).pollingInterval = Number.MAX_SAFE_INTEGER;
     return provider;
@@ -65,7 +75,9 @@ function buildReadOnlyProvider() {
   return fallback;
 }
 
-export function getReadOnlyProvider(): ethers.JsonRpcProvider | ethers.FallbackProvider {
+export function getReadOnlyProvider():
+  | ethers.JsonRpcProvider
+  | ethers.FallbackProvider {
   if (!readOnlyProviderSingleton) {
     readOnlyProviderSingleton = buildReadOnlyProvider();
   }
@@ -73,8 +85,8 @@ export function getReadOnlyProvider(): ethers.JsonRpcProvider | ethers.FallbackP
 }
 
 export function getBrowserProvider(): ethers.BrowserProvider {
-  if (typeof window === 'undefined' || !(window as any).ethereum) {
-    throw new Error('window.ethereum not available');
+  if (typeof window === "undefined" || !(window as any).ethereum) {
+    throw new Error("window.ethereum not available");
   }
   return new ethers.BrowserProvider((window as any).ethereum);
 }

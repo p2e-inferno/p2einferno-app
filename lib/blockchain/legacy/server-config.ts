@@ -4,12 +4,12 @@
  */
 
 import { type WalletClient, type PublicClient } from "viem";
-import { 
+import {
   UNIFIED_BLOCKCHAIN_CONFIG,
   createPublicClientUnified,
   createWalletClientUnified,
   createAccountUnified,
-  isServerBlockchainConfigured as isConfigured
+  isServerBlockchainConfigured as isConfigured,
 } from "../config";
 
 // ============================================================================

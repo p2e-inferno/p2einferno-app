@@ -2,9 +2,7 @@
 export { createClient as createBrowserClient, supabase } from "./client";
 
 // Export server-side configuration
-export {
-  createAdminClient,
-} from "./server";
+export { createAdminClient } from "./server";
 
 // Export types
 export type * from "./types";

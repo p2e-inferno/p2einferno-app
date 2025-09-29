@@ -111,7 +111,9 @@ export function AdminAuthDebugPanel() {
         setApiMessage("Admin session cookie cleared via API logout");
       } else {
         const data = await resp.json().catch(() => ({}));
-        setApiMessage(data?.error || `Logout failed with status ${resp.status}`);
+        setApiMessage(
+          data?.error || `Logout failed with status ${resp.status}`,
+        );
       }
     } catch (error: any) {
       setApiMessage(error?.message || "Logout request failed");
@@ -322,7 +324,8 @@ function PrivyDebugControls() {
         <div>
           <p className="text-sm font-semibold">Privy Controls</p>
           <p className="text-[11px] text-purple-300">
-            Ready: {ready ? "yes" : "no"} | Authenticated: {authenticated ? "yes" : "no"}
+            Ready: {ready ? "yes" : "no"} | Authenticated:{" "}
+            {authenticated ? "yes" : "no"}
           </p>
           {user?.id && (
             <p className="text-[11px] text-purple-300">Privy DID: {user.id}</p>

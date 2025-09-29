@@ -8,17 +8,17 @@ import {
   getDefaultCheckinService,
   getEnvironmentConfig,
   DEFAULT_CHECKIN_CONFIG,
-  type CheckinServiceConfig
-} from './core/schemas';
+  type CheckinServiceConfig,
+} from "./core/schemas";
 
-import type { CheckinResult, StreakInfo, XPBreakdown } from './core/types';
+import type { CheckinResult, StreakInfo, XPBreakdown } from "./core/types";
 
 // ================================
 // Core Exports
 // ================================
 
 // Main service and factory
-export { DailyCheckinService } from './core/service';
+export { DailyCheckinService } from "./core/service";
 export {
   CheckinServiceFactory,
   createDailyCheckinService,
@@ -26,8 +26,8 @@ export {
   getDefaultCheckinService,
   resetDefaultCheckinService,
   validateCheckinConfig,
-  getEnvironmentConfig
-} from './core/schemas';
+  getEnvironmentConfig,
+} from "./core/schemas";
 
 // Core types and interfaces
 export type {
@@ -38,66 +38,66 @@ export type {
   CheckinPreview,
   StreakInfo,
   XPBreakdown,
-  
+
   // Configuration types
   XPConfig,
   StreakConfig,
   CheckinConfig,
   MultiplierTier,
   CheckinServiceDependencies,
-  
+
   // Strategy interfaces
   StreakCalculatorStrategy,
   MultiplierStrategy,
   XPCalculatorStrategy,
   XPUpdaterStrategy,
-  
+
   // Event and utility types
   CheckinEvent,
   StreakMilestone,
   CheckinActivityType,
   StreakStatus,
   MultiplierType,
-  
+
   // Hook return types
   UseStreakDataReturn,
   UseDailyCheckinReturn,
-  
+
   // Component prop types
   StreakDisplayProps,
   DailyCheckinButtonProps,
   CheckinCardProps,
-  
+
   // Error types
   CheckinError,
   StreakCalculationError,
   XPCalculationError,
   XPUpdateError,
-  AttestationError
-} from './core/types';
+  AttestationError,
+} from "./core/types";
 
-export type { CheckinServiceConfig } from './core/schemas';
+export type { CheckinServiceConfig } from "./core/schemas";
 
 // ================================
 // Streak Module Exports
 // ================================
 
 // Streak calculators
-export { 
+export {
   DefaultStreakCalculator,
   EnhancedStreakCalculator,
   TimezoneAwareStreakCalculator,
   createStreakCalculator,
   createEnhancedStreakCalculator,
-  createTimezoneAwareStreakCalculator
-} from './streak/calculator';
+  createTimezoneAwareStreakCalculator,
+} from "./streak/calculator";
 
 // Streak utilities
 export {
   getStreakEmoji,
   getStreakMessage,
-  formatStreakDuration
-} from './streak/calculator';
+  formatStreakDuration,
+} from "./streak/calculator";
 
 // Multiplier strategies
 export {
@@ -109,15 +109,15 @@ export {
   createLinearMultiplier,
   createExponentialMultiplier,
   createSeasonalMultiplier,
-  MULTIPLIER_PRESETS
-} from './streak/multiplier';
+  MULTIPLIER_PRESETS,
+} from "./streak/multiplier";
 
 // Multiplier utilities
 export {
   getMultiplierColor,
   formatMultiplier,
-  getMultiplierDescription
-} from './streak/multiplier';
+  getMultiplierDescription,
+} from "./streak/multiplier";
 
 // ================================
 // XP Module Exports
@@ -135,13 +135,11 @@ export {
   createTieredXPCalculator,
   createEventXPCalculator,
   createContextualXPCalculator,
-  XP_PRESETS
-} from './xp/calculator';
+  XP_PRESETS,
+} from "./xp/calculator";
 
 // XP calculator types
-export type {
-  XPTier
-} from './xp/calculator';
+export type { XPTier } from "./xp/calculator";
 
 // XP updaters
 export {
@@ -152,16 +150,16 @@ export {
   createSupabaseXPUpdater,
   createBatchXPUpdater,
   createMockXPUpdater,
-  createCachedXPUpdater
-} from './xp/updater';
+  createCachedXPUpdater,
+} from "./xp/updater";
 
 // XP utilities
+export { formatXP, getXPColor, calculateXPGrowth } from "./xp/calculator";
 export {
-  formatXP,
-  getXPColor,
-  calculateXPGrowth
-} from './xp/calculator';
-export { validateXPAmount, formatActivityData, calculateXPUpdateMetrics } from './xp/updater';
+  validateXPAmount,
+  formatActivityData,
+  calculateXPUpdateMetrics,
+} from "./xp/updater";
 
 // ================================
 // Configuration Exports
@@ -171,8 +169,8 @@ export {
   DEFAULT_CHECKIN_CONFIG,
   GAMING_FOCUSED_CONFIG,
   CONSERVATIVE_CONFIG,
-  EVENT_CONFIG
-} from './core/schemas';
+  EVENT_CONFIG,
+} from "./core/schemas";
 
 // ================================
 // Convenience Functions
@@ -181,11 +179,13 @@ export {
 /**
  * Quick service creation with minimal configuration
  */
-export const createQuickCheckinService = (preset: 'default' | 'gaming' | 'conservative' = 'default') => {
+export const createQuickCheckinService = (
+  preset: "default" | "gaming" | "conservative" = "default",
+) => {
   switch (preset) {
-    case 'gaming':
+    case "gaming":
       return CheckinServiceFactory.createGamingService();
-    case 'conservative':
+    case "conservative":
       return CheckinServiceFactory.createConservativeService();
     default:
       return CheckinServiceFactory.createDefaultService();
@@ -198,35 +198,40 @@ export const createQuickCheckinService = (preset: 'default' | 'gaming' | 'conser
 export const createEventCheckinService = (
   eventName: string,
   startDate: Date,
-  endDate: Date
+  endDate: Date,
 ) => {
-  return CheckinServiceFactory.createEventService(startDate, endDate, eventName);
+  return CheckinServiceFactory.createEventService(
+    startDate,
+    endDate,
+    eventName,
+  );
 };
 
 // ================================
 // Version and Module Information
 // ================================
 
-export const CHECKIN_MODULE_VERSION = '1.0.0';
-export const CHECKIN_MODULE_NAME = 'Daily Check-in System';
+export const CHECKIN_MODULE_VERSION = "1.0.0";
+export const CHECKIN_MODULE_NAME = "Daily Check-in System";
 
 export const getModuleInfo = () => ({
   name: CHECKIN_MODULE_NAME,
   version: CHECKIN_MODULE_VERSION,
-  description: 'Modular daily check-in system with streak tracking, XP rewards, and blockchain attestations',
+  description:
+    "Modular daily check-in system with streak tracking, XP rewards, and blockchain attestations",
   features: [
-    'Multiple streak calculation strategies',
-    'Flexible multiplier systems',
-    'Configurable XP calculation',
-    'Blockchain attestation integration',
-    'Comprehensive testing support',
-    'Production-ready caching and batching'
+    "Multiple streak calculation strategies",
+    "Flexible multiplier systems",
+    "Configurable XP calculation",
+    "Blockchain attestation integration",
+    "Comprehensive testing support",
+    "Production-ready caching and batching",
   ],
   dependencies: {
-    eas: '@/lib/attestation',
-    supabase: '@/lib/supabase',
-    logger: '@/lib/utils/logger'
-  }
+    eas: "@/lib/attestation",
+    supabase: "@/lib/supabase",
+    logger: "@/lib/utils/logger",
+  },
 });
 
 // ================================
@@ -239,10 +244,10 @@ export const checkModuleHealth = async () => {
     return await service.getHealthStatus();
   } catch (error) {
     return {
-      status: 'unhealthy' as const,
+      status: "unhealthy" as const,
       services: {},
       timestamp: new Date(),
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 };
@@ -254,12 +259,12 @@ export const checkModuleHealth = async () => {
 export const debugCheckinModule = () => {
   const moduleInfo = getModuleInfo();
   const config = getEnvironmentConfig();
-  
+
   return {
     ...moduleInfo,
     environment: process.env.NODE_ENV,
     config,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 };
 
@@ -283,12 +288,12 @@ export const createMigrationService = () => {
   return CheckinServiceFactory.createService({
     ...DEFAULT_CHECKIN_CONFIG,
     updater: {
-      strategy: 'batch',
+      strategy: "batch",
       batchConfig: {
         batchSize: 50,
-        autoFlushMs: 1000
-      }
-    }
+        autoFlushMs: 1000,
+      },
+    },
   });
 };
 
@@ -298,29 +303,31 @@ export const createMigrationService = () => {
 
 export const isValidCheckinResult = (result: any): result is CheckinResult => {
   return (
-    typeof result === 'object' &&
-    typeof result.success === 'boolean' &&
-    typeof result.xpEarned === 'number' &&
-    typeof result.newStreak === 'number'
+    typeof result === "object" &&
+    typeof result.success === "boolean" &&
+    typeof result.xpEarned === "number" &&
+    typeof result.newStreak === "number"
   );
 };
 
 export const isValidStreakInfo = (info: any): info is StreakInfo => {
   return (
-    typeof info === 'object' &&
-    typeof info.currentStreak === 'number' &&
-    typeof info.isActive === 'boolean' &&
+    typeof info === "object" &&
+    typeof info.currentStreak === "number" &&
+    typeof info.isActive === "boolean" &&
     (info.lastCheckinDate === null || info.lastCheckinDate instanceof Date)
   );
 };
 
-export const isValidXPBreakdown = (breakdown: any): breakdown is XPBreakdown => {
+export const isValidXPBreakdown = (
+  breakdown: any,
+): breakdown is XPBreakdown => {
   return (
-    typeof breakdown === 'object' &&
-    typeof breakdown.baseXP === 'number' &&
-    typeof breakdown.streakBonus === 'number' &&
-    typeof breakdown.multiplier === 'number' &&
-    typeof breakdown.totalXP === 'number'
+    typeof breakdown === "object" &&
+    typeof breakdown.baseXP === "number" &&
+    typeof breakdown.streakBonus === "number" &&
+    typeof breakdown.multiplier === "number" &&
+    typeof breakdown.totalXP === "number"
   );
 };
 
@@ -329,5 +336,5 @@ export const isValidXPBreakdown = (breakdown: any): breakdown is XPBreakdown => 
 // ================================
 
 // Re-export commonly used EAS types and functions
-export { P2E_SCHEMA_UIDS } from '@/lib/attestation/core/config';
-export type { AttestationResult } from '@/lib/attestation/core/types';
+export { P2E_SCHEMA_UIDS } from "@/lib/attestation/core/config";
+export type { AttestationResult } from "@/lib/attestation/core/types";

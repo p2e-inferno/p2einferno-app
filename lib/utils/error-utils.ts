@@ -1,6 +1,6 @@
-import { getLogger } from './logger';
+import { getLogger } from "./logger";
 
-const log = getLogger('utils:error-utils');
+const log = getLogger("utils:error-utils");
 
 export function toMessage(err: unknown, fallback = "Something went wrong") {
   if (!err) return fallback;
@@ -38,7 +38,11 @@ export function normalizeHttpError(status: number, body?: any) {
  * Normalize admin API errors with context-aware messaging
  * Extends base HTTP error handling with admin-specific error types
  */
-export function normalizeAdminApiError(status: number, body?: any, _context?: string) {
+export function normalizeAdminApiError(
+  status: number,
+  body?: any,
+  _context?: string,
+) {
   const details = body?.error || body?.message;
 
   // Admin-specific error codes
@@ -85,7 +89,7 @@ export interface AdminApiErrorContext {
   operation: string;
   url: string;
   method: string;
-  attempt: 'original' | 'retry';
+  attempt: "original" | "retry";
   walletAddress?: string;
 }
 
@@ -96,25 +100,24 @@ export function logAdminApiError(
   status: number,
   body: any,
   context: AdminApiErrorContext,
-  originalError?: Error
+  originalError?: Error,
 ) {
   const errorDetails = {
     status,
     message: body?.error || body?.message,
     context,
     originalError: originalError?.message,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   };
 
   // Use different log levels based on error type
   if (status >= 500) {
-    log.error('Server error:', errorDetails);
+    log.error("Server error:", errorDetails);
   } else if (status === 401 || status === 403) {
-    log.warn('Auth error:', errorDetails);
+    log.warn("Auth error:", errorDetails);
   } else if (status === 400) {
-    log.info('Validation error:', errorDetails);
+    log.info("Validation error:", errorDetails);
   } else {
-    log.warn('Client error:', errorDetails);
+    log.warn("Client error:", errorDetails);
   }
 }
-

@@ -1,12 +1,17 @@
 import { Address } from "viem";
-import { lockManagerService, KeyInfo } from "@/lib/blockchain/services/lock-manager";
+import {
+  lockManagerService,
+  KeyInfo,
+} from "@/lib/blockchain/services/lock-manager";
 import { getUserWalletAddresses } from "@/lib/auth/privy";
-import { GrantKeyService, GrantKeyResponse } from "@/lib/blockchain/services/grant-key-service";
+import {
+  GrantKeyService,
+  GrantKeyResponse,
+} from "@/lib/blockchain/services/grant-key-service";
 import { getLockManagerAddress } from "@/lib/blockchain/legacy/server-config";
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('services:user-key-service');
-
+const log = getLogger("services:user-key-service");
 
 export interface UserKeyCheckResult {
   hasValidKey: boolean;
@@ -30,18 +35,26 @@ export class UserKeyService {
    * @param lockAddress - The contract address of the Unlock lock.
    * @returns A result object indicating if a key was found, on which address, and any errors.
    */
-  static async checkUserKeyOwnership(userId: string, lockAddress: string): Promise<UserKeyCheckResult> {
+  static async checkUserKeyOwnership(
+    userId: string,
+    lockAddress: string,
+  ): Promise<UserKeyCheckResult> {
     const walletAddresses = await getUserWalletAddresses(userId);
     if (walletAddresses.length === 0) {
       return { hasValidKey: false, checkedAddresses: [], errors: [] };
     }
 
-    const keyCheckPromises = walletAddresses.map(address =>
-      lockManagerService.checkUserHasValidKey(address as Address, lockAddress as Address)
-        .then(keyInfo => ({ address, keyInfo, error: null }))
-        .catch(error => ({ address, keyInfo: null, error: error.message || 'Unknown error' }))
+    const keyCheckPromises = walletAddresses.map((address) =>
+      lockManagerService
+        .checkUserHasValidKey(address as Address, lockAddress as Address)
+        .then((keyInfo) => ({ address, keyInfo, error: null }))
+        .catch((error) => ({
+          address,
+          keyInfo: null,
+          error: error.message || "Unknown error",
+        })),
     );
-    
+
     const results = await Promise.all(keyCheckPromises);
 
     let validAddress: string | undefined;
@@ -57,10 +70,16 @@ export class UserKeyService {
         keyInfo = result.keyInfo;
       }
     }
-    
-    return { hasValidKey: !!validAddress, validAddress, checkedAddresses: walletAddresses, errors, keyInfo };
+
+    return {
+      hasValidKey: !!validAddress,
+      validAddress,
+      checkedAddresses: walletAddresses,
+      errors,
+      keyInfo,
+    };
   }
-  
+
   /**
    * Grants a key to the user's primary wallet using the server-side admin wallet.
    * This is a gasless transaction for the user.
@@ -68,19 +87,24 @@ export class UserKeyService {
    * @param lockAddress - The contract address of the Unlock lock to grant a key for.
    * @returns The result of the key granting transaction from the GrantKeyService.
    */
-  static async grantKeyToUser(userId: string, lockAddress: string): Promise<UserKeyGrantResult> {
+  static async grantKeyToUser(
+    userId: string,
+    lockAddress: string,
+  ): Promise<UserKeyGrantResult> {
     const walletAddresses = await getUserWalletAddresses(userId);
     if (!walletAddresses.length) {
       throw new Error("User has no wallet address to grant the key to.");
     }
-    
+
     // Grant the key to the user's primary (first linked) wallet.
-    const targetWallet = walletAddresses[0]!; 
+    const targetWallet = walletAddresses[0]!;
 
     // Before granting, quickly check if they already have a key to prevent wasted transactions.
     const keyCheck = await this.checkUserKeyOwnership(userId, lockAddress);
     if (keyCheck.hasValidKey) {
-      log.info(`User ${userId} already has a key for lock ${lockAddress}. Skipping grant.`);
+      log.info(
+        `User ${userId} already has a key for lock ${lockAddress}. Skipping grant.`,
+      );
       return { success: true };
     }
 
@@ -89,7 +113,9 @@ export class UserKeyService {
     if (!adminAddress) {
       return { success: false, error: "Admin wallet not configured" };
     }
-    log.info(`Using admin address ${adminAddress} as key manager for lock ${lockAddress}`);
+    log.info(
+      `Using admin address ${adminAddress} as key manager for lock ${lockAddress}`,
+    );
 
     const grantKeyService = new GrantKeyService();
     return grantKeyService.grantKeyToUser({

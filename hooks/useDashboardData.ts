@@ -2,10 +2,9 @@ import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { Application } from "@/lib/supabase";
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:useDashboardData');
-
+const log = getLogger("hooks:useDashboardData");
 
 export interface UserProfile {
   id: string;
@@ -130,7 +129,6 @@ export const useDashboardData = (): UseDashboardDataResult => {
     }
   }, [ready, authenticated, user]);
 
-  
   return {
     data,
     loading,

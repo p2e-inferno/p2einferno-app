@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
-import { toast } from 'react-hot-toast';
-import { getLogger } from '@/lib/utils/logger';
+import { useState, useEffect, useCallback } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { toast } from "react-hot-toast";
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('hooks:useNotifications');
-
+const log = getLogger("hooks:useNotifications");
 
 export interface Notification {
   id: string;
@@ -27,13 +26,16 @@ export const useNotifications = () => {
     setLoading(true);
     try {
       const token = await getAccessToken();
-      const response = await fetch('/api/user/notifications', {
+      const response = await fetch("/api/user/notifications", {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json();
       if (response.ok) {
         setNotifications(data.notifications || []);
-        setUnreadCount((data.notifications || []).filter((n: Notification) => !n.read).length);
+        setUnreadCount(
+          (data.notifications || []).filter((n: Notification) => !n.read)
+            .length,
+        );
       }
     } catch (error) {
       log.error("Failed to fetch notifications:", error);
@@ -46,16 +48,21 @@ export const useNotifications = () => {
     if (!authenticated || notificationIds.length === 0) return;
     try {
       const token = await getAccessToken();
-      await fetch('/api/user/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      await fetch("/api/user/notifications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ notificationIds }),
       });
       // Optimistically update UI
-      setNotifications(prev =>
-        prev.map(n => (notificationIds.includes(n.id) ? { ...n, read: true } : n))
+      setNotifications((prev) =>
+        prev.map((n) =>
+          notificationIds.includes(n.id) ? { ...n, read: true } : n,
+        ),
       );
-      setUnreadCount(prev => Math.max(0, prev - notificationIds.length));
+      setUnreadCount((prev) => Math.max(0, prev - notificationIds.length));
     } catch (error) {
       toast.error("Failed to mark notifications as read.");
       log.error("Failed to mark notifications as read:", error);
@@ -66,22 +73,27 @@ export const useNotifications = () => {
     if (!authenticated) return;
     try {
       const token = await getAccessToken();
-      const response = await fetch('/api/user/notifications', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      const response = await fetch("/api/user/notifications", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ notificationId }),
       });
-      
+
       if (response.ok) {
         // Optimistically update UI
-        const deletedNotification = notifications.find(n => n.id === notificationId);
-        setNotifications(prev => prev.filter(n => n.id !== notificationId));
+        const deletedNotification = notifications.find(
+          (n) => n.id === notificationId,
+        );
+        setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
         if (deletedNotification && !deletedNotification.read) {
-          setUnreadCount(prev => Math.max(0, prev - 1));
+          setUnreadCount((prev) => Math.max(0, prev - 1));
         }
         toast.success("Notification deleted");
       } else {
-        throw new Error('Failed to delete notification');
+        throw new Error("Failed to delete notification");
       }
     } catch (error) {
       toast.error("Failed to delete notification.");
@@ -95,5 +107,11 @@ export const useNotifications = () => {
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
-  return { notifications, unreadCount, loading, markAsRead, deleteNotification };
-}; 
+  return {
+    notifications,
+    unreadCount,
+    loading,
+    markAsRead,
+    deleteNotification,
+  };
+};

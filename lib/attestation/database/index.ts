@@ -2,4 +2,4 @@
  * Database utilities exports
  */
 
-export * from './queries';
+export * from "./queries";

@@ -1,6 +1,6 @@
 /**
  * Admin Authentication Context - Main Exports
- * 
+ *
  * Public API for the AdminAuthContext system.
  * Provides a single entry point for all AdminAuthContext functionality.
  */
@@ -10,7 +10,7 @@
 // ================================
 
 // Provider and Consumer
-export { AdminAuthProvider, useAdminAuthContext } from './AdminAuthProvider';
+export { AdminAuthProvider, useAdminAuthContext } from "./AdminAuthProvider";
 
 // ================================
 // TYPE EXPORTS
@@ -20,7 +20,7 @@ export type {
   AdminAuthStatus,
   AdminAuthContextValue,
   AdminAuthProviderProps,
-} from './types/AdminAuthContextTypes';
+} from "./types/AdminAuthContextTypes";
 
 // ================================
 // UTILITY EXPORTS
@@ -30,7 +30,7 @@ export {
   isFullyAuthenticated,
   isAuthLoading,
   getAuthStatusMessage,
-} from './utils/adminAuthContextStatusUtils';
+} from "./utils/adminAuthContextStatusUtils";
 
 // ================================
 // CONSTANT EXPORTS
@@ -41,5 +41,4 @@ export {
   ERROR_RETRY_DELAY,
   MAX_ERROR_COUNT,
   MAX_BACKOFF_DELAY,
-} from './constants/AdminAuthContextConstants';
-
+} from "./constants/AdminAuthContextConstants";

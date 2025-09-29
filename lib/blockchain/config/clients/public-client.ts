@@ -3,18 +3,30 @@
  * Handles read-only blockchain operations
  */
 
-import { createPublicClient, createTransport, http, fallback, type PublicClient, type Chain, type Transport } from "viem";
-import { resolveChain, resolveRpcUrls, getRpcFallbackSettings } from "../core/chain-resolution";
+import {
+  createPublicClient,
+  createTransport,
+  http,
+  fallback,
+  type PublicClient,
+  type Chain,
+  type Transport,
+} from "viem";
+import {
+  resolveChain,
+  resolveRpcUrls,
+  getRpcFallbackSettings,
+} from "../core/chain-resolution";
 import { blockchainLogger } from "../../shared/logging-utils";
 
 // Import transport functions (will be created in transport modules)
 // For now, we'll import from the original file to maintain functionality
-import { createSequentialHttpTransport } from '../transport/viem-transport';
+import { createSequentialHttpTransport } from "../transport/viem-transport";
 
 let cachedServerPublicClient: PublicClient | null = null;
 let cachedBrowserPublicClient: PublicClient | null = null;
 
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * Create browser sequential transport (temporary - will be moved to transport/browser.ts)
@@ -28,7 +40,7 @@ const createBrowserSequentialTransport = (
   }: {
     timeoutMs: number;
     retryDelay: number;
-  }
+  },
 ): Transport => {
   let lastGoodIndex = 0;
   const total = urls.length;
@@ -36,47 +48,50 @@ const createBrowserSequentialTransport = (
   return ({ chain, retryCount: retryCount_ = 0, timeout: timeout_ }) => {
     const timeout = timeout_ ?? timeoutMs;
 
-    return createTransport({
-      key: 'http-sequential',
-      name: 'HTTP JSON-RPC (sequential)',
-      type: 'http',
-      retryCount: 0,
-      retryDelay,
-      timeout,
-      async request(requestArgs) {
-        if (total === 0) {
-          throw new Error('No RPC URLs configured');
-        }
+    return createTransport(
+      {
+        key: "http-sequential",
+        name: "HTTP JSON-RPC (sequential)",
+        type: "http",
+        retryCount: 0,
+        retryDelay,
+        timeout,
+        async request(requestArgs) {
+          if (total === 0) {
+            throw new Error("No RPC URLs configured");
+          }
 
-        let lastError: unknown;
-        const startIndex = lastGoodIndex % total;
+          let lastError: unknown;
+          const startIndex = lastGoodIndex % total;
 
-        for (let attempt = 0; attempt < total; attempt += 1) {
-          const index = (startIndex + attempt) % total;
-          const url = urls[index];
+          for (let attempt = 0; attempt < total; attempt += 1) {
+            const index = (startIndex + attempt) % total;
+            const url = urls[index];
 
-          const transport = http(url, {
-            timeout,
-            retryDelay,
-            retryCount: retryCount_,
-          })({ chain, retryCount: retryCount_, timeout });
+            const transport = http(url, {
+              timeout,
+              retryDelay,
+              retryCount: retryCount_,
+            })({ chain, retryCount: retryCount_, timeout });
 
-          try {
-            const result = await transport.request(requestArgs as any);
-            lastGoodIndex = index;
-            return result as any;
-          } catch (error) {
-            lastError = error;
-            if (attempt < total - 1) {
-              const backoff = Math.min(retryDelay * (attempt + 1), 1500);
-              await delay(backoff);
+            try {
+              const result = await transport.request(requestArgs as any);
+              lastGoodIndex = index;
+              return result as any;
+            } catch (error) {
+              lastError = error;
+              if (attempt < total - 1) {
+                const backoff = Math.min(retryDelay * (attempt + 1), 1500);
+                await delay(backoff);
+              }
             }
           }
-        }
 
-        throw lastError ?? new Error('All RPC endpoints failed');
+          throw lastError ?? new Error("All RPC endpoints failed");
+        },
       },
-    }, { url: urls[lastGoodIndex % total] ?? urls[0]! });
+      { url: urls[lastGoodIndex % total] ?? urls[0]! },
+    );
   };
 };
 
@@ -86,7 +101,7 @@ const createBrowserSequentialTransport = (
 export const createPublicClientUnified = (): PublicClient => {
   const { chain } = resolveChain();
   let { urls, hosts } = resolveRpcUrls(chain.id);
-  const isBrowser = typeof window !== 'undefined';
+  const isBrowser = typeof window !== "undefined";
 
   const cachedClient = isBrowser
     ? cachedBrowserPublicClient
@@ -96,24 +111,32 @@ export const createPublicClientUnified = (): PublicClient => {
   }
 
   if (isBrowser) {
-    const parseHost = (u: string) => { try { return new URL(u).host; } catch { return '[unparseable]'; } };
-    const keyedPred = (h: string) => /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
+    const parseHost = (u: string) => {
+      try {
+        return new URL(u).host;
+      } catch {
+        return "[unparseable]";
+      }
+    };
+    const keyedPred = (h: string) =>
+      /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
     const publicBasePred = (h: string) => /\.base\.org$/i.test(h);
     const hasKeyed = hosts.some(keyedPred);
     if (hasKeyed) {
       const keyed = urls.filter((u) => keyedPred(parseHost(u)));
       const publicBase = urls.filter((u) => publicBasePred(parseHost(u)));
       const others = urls.filter(
-        (u) => !keyed.includes(u) && !publicBase.includes(u)
+        (u) => !keyed.includes(u) && !publicBase.includes(u),
       );
       urls = [...keyed, ...others, ...publicBase];
       hosts = urls.map(parseHost);
     }
   }
-  const { timeoutMs, stallMs, retryCount, retryDelay } = getRpcFallbackSettings();
+  const { timeoutMs, stallMs, retryCount, retryDelay } =
+    getRpcFallbackSettings();
 
-  blockchainLogger.info('RPC fallback configured', {
-    operation: 'config:rpc',
+  blockchainLogger.info("RPC fallback configured", {
+    operation: "config:rpc",
     chainId: chain.id,
     order: hosts,
     timeoutMs,
@@ -163,8 +186,8 @@ export const createPublicClientForChain = (
   if (targetChain?.id) {
     const { urls, hosts } = resolveRpcUrls(targetChain.id);
 
-    blockchainLogger.info('RPC fallback configured (custom chain)', {
-      operation: 'config:rpc',
+    blockchainLogger.info("RPC fallback configured (custom chain)", {
+      operation: "config:rpc",
       chainId: targetChain.id,
       order: hosts,
       timeoutMs,

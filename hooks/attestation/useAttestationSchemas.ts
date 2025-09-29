@@ -2,13 +2,13 @@
  * Hook for managing attestation schemas
  */
 
-import { useState, useEffect } from 'react';
-import { 
-  getAllSchemas, 
-  getSchemaByUid, 
+import { useState, useEffect } from "react";
+import {
+  getAllSchemas,
+  getSchemaByUid,
   getSchemasByCategory,
-  AttestationSchema 
-} from '@/lib/attestation';
+  AttestationSchema,
+} from "@/lib/attestation";
 
 export const useAttestationSchemas = (category?: string) => {
   const [schemas, setSchemas] = useState<AttestationSchema[]>([]);
@@ -19,10 +19,12 @@ export const useAttestationSchemas = (category?: string) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = category ? await getSchemasByCategory(category) : await getAllSchemas();
+      const data = category
+        ? await getSchemasByCategory(category)
+        : await getAllSchemas();
       setSchemas(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch schemas');
+      setError(err instanceof Error ? err.message : "Failed to fetch schemas");
     } finally {
       setIsLoading(false);
     }
@@ -47,14 +49,14 @@ export const useAttestationSchema = (schemaUid: string) => {
 
   const fetchSchema = async () => {
     if (!schemaUid) return;
-    
+
     setIsLoading(true);
     setError(null);
     try {
       const data = await getSchemaByUid(schemaUid);
       setSchema(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch schema');
+      setError(err instanceof Error ? err.message : "Failed to fetch schema");
     } finally {
       setIsLoading(false);
     }

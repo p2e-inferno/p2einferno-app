@@ -1,6 +1,11 @@
 export type Currency = "NGN" | "USD";
 export type PaymentMethod = "paystack" | "blockchain";
-export type PaymentStatus = "pending" | "processing" | "success" | "failed" | "abandoned";
+export type PaymentStatus =
+  | "pending"
+  | "processing"
+  | "success"
+  | "failed"
+  | "abandoned";
 
 export interface PaymentConfig {
   amount: number;
@@ -39,12 +44,15 @@ export function generatePaymentReference(): string {
 /**
  * Validate currency amount based on minimums and payment method
  */
-export function validatePaymentAmount(amount: number, currency: Currency): boolean {
+export function validatePaymentAmount(
+  amount: number,
+  currency: Currency,
+): boolean {
   const minimums = {
     NGN: 10, // 10 Naira minimum for Paystack
     USD: 1, // 1 USD minimum for blockchain
   };
-  
+
   return amount >= minimums[currency];
 }
 
@@ -60,15 +68,15 @@ export function getPaymentMethod(currency: Currency): PaymentMethod {
  */
 export function formatCurrency(amount: number, currency: Currency): string {
   const formatters = {
-    NGN: new Intl.NumberFormat('en-NG', {
-      style: 'currency',
-      currency: 'NGN',
+    NGN: new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
     }),
-    USD: new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
+    USD: new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
     }),
   };
-  
+
   return formatters[currency].format(amount);
 }

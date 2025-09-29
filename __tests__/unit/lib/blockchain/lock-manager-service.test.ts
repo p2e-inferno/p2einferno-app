@@ -1,17 +1,17 @@
-import type { Address } from 'viem';
-import { LockManagerService } from '@/lib/blockchain/services/lock-manager';
+import type { Address } from "viem";
+import { LockManagerService } from "@/lib/blockchain/services/lock-manager";
 
-describe('LockManagerService', () => {
+describe("LockManagerService", () => {
   const createStubClient = () => {
     return {
       chain: { id: 84532 },
       readContract: jest.fn((args: any) => {
         switch (args.functionName) {
-          case 'getHasValidKey':
+          case "getHasValidKey":
             return Promise.resolve(true);
-          case 'tokenOfOwnerByIndex':
+          case "tokenOfOwnerByIndex":
             return Promise.resolve(1n);
-          case 'keyExpirationTimestampFor':
+          case "keyExpirationTimestampFor":
             return Promise.resolve(2n);
           default:
             return Promise.resolve(null);
@@ -20,10 +20,10 @@ describe('LockManagerService', () => {
     } as any;
   };
 
-  const userAddress = '0x0000000000000000000000000000000000000001' as Address;
-  const lockAddress = '0x0000000000000000000000000000000000000002' as Address;
+  const userAddress = "0x0000000000000000000000000000000000000001" as Address;
+  const lockAddress = "0x0000000000000000000000000000000000000002" as Address;
 
-  test('server and browser clients return identical results', async () => {
+  test("server and browser clients return identical results", async () => {
     const serverClient = createStubClient();
     const browserClient = createStubClient();
 
@@ -46,7 +46,7 @@ describe('LockManagerService', () => {
     expect(browserClient.readContract).toHaveBeenCalledTimes(3);
   });
 
-  test('disposed manager rejects subsequent calls', async () => {
+  test("disposed manager rejects subsequent calls", async () => {
     const manager = new LockManagerService({
       getPublicClient: () => createStubClient(),
       getWalletClient: () => null,
@@ -56,6 +56,6 @@ describe('LockManagerService', () => {
 
     await expect(
       manager.checkUserHasValidKey(userAddress, lockAddress),
-    ).rejects.toThrow('LockManagerService has been disposed');
+    ).rejects.toThrow("LockManagerService has been disposed");
   });
 });

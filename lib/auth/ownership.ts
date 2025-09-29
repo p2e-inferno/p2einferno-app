@@ -56,7 +56,11 @@ export async function assertApplicationOwnership(
     }
 
     // Primary check: profile.id matches application.user_profile_id
-    if (profile.id && app.user_profile_id && profile.id === app.user_profile_id) {
+    if (
+      profile.id &&
+      app.user_profile_id &&
+      profile.id === app.user_profile_id
+    ) {
       return { ok: true };
     }
 
@@ -71,4 +75,3 @@ export async function assertApplicationOwnership(
     return { ok: false, reason: "Ownership check error" };
   }
 }
-

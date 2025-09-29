@@ -10,17 +10,17 @@ function toInt(value: string | undefined, fallback: number): number {
 
 export const ADMIN_SESSION_TTL_SECONDS: number = toInt(
   process.env.ADMIN_SESSION_TTL_SECONDS,
-  60
+  60,
 );
 
 export const ADMIN_RPC_TIMEOUT_MS: number = toInt(
   process.env.ADMIN_RPC_TIMEOUT_MS,
-  10_000
+  10_000,
 );
 
 export const ADMIN_MAX_PAGE_SIZE: number = toInt(
   process.env.ADMIN_MAX_PAGE_SIZE,
-  200
+  200,
 );
 
 // Cache keys/tags used by Route Handlers (future steps)
@@ -28,15 +28,18 @@ export const ADMIN_CACHE_TAGS = {
   task: (id: string) => `admin:task:${id}`,
   milestone: (id: string) => `admin:milestone:${id}`,
   cohort: (id: string) => `admin:cohort:${id}`,
-  cohortList: 'admin:cohort:list',
+  cohortList: "admin:cohort:list",
   cohortApplications: (id: string) => `admin:cohort:applications:${id}`,
   submissions: (taskId: string) => `admin:submissions:${taskId}`,
   bootcamp: (id: string) => `admin:bootcamp:${id}`,
-  bootcampList: 'admin:bootcamp:list',
+  bootcampList: "admin:bootcamp:list",
 } as const;
 
 // Small utility exposed for consistent pagination clamping
-export function clampPageSize(size: number | undefined, max = ADMIN_MAX_PAGE_SIZE) {
+export function clampPageSize(
+  size: number | undefined,
+  max = ADMIN_MAX_PAGE_SIZE,
+) {
   if (!size || size <= 0) return Math.min(50, max);
   return Math.min(size, max);
 }

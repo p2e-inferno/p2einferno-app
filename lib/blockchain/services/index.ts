@@ -4,6 +4,6 @@
  */
 
 // Service exports
-export * from './grant-key-service';
-export * from './lock-manager';
-export * from './transaction-service';
+export * from "./grant-key-service";
+export * from "./lock-manager";
+export * from "./transaction-service";

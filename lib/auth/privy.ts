@@ -2,10 +2,14 @@ import { NextApiRequest } from "next";
 import type { NextRequest } from "next/server";
 import { PrivyClient } from "@privy-io/server-auth";
 import * as jose from "jose";
-import { handleAuthError, handleJwtError, isNetworkError } from "./error-handler";
+import {
+  handleAuthError,
+  handleJwtError,
+  isNetworkError,
+} from "./error-handler";
 import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('auth:privy');
+const log = getLogger("auth:privy");
 
 // Initialize Privy client with app ID and secret
 const getPrivyClient = () => {
@@ -14,7 +18,7 @@ const getPrivyClient = () => {
 
   if (!appId || !appSecret) {
     throw new Error(
-      "Missing Privy credentials. Please check your environment variables."
+      "Missing Privy credentials. Please check your environment variables.",
     );
   }
 
@@ -27,19 +31,22 @@ const getPrivyClient = () => {
  * @returns Array of wallet addresses
  */
 export async function getUserWalletAddresses(
-  userId: string
+  userId: string,
 ): Promise<string[]> {
   try {
     const privy = getPrivyClient();
-    
+
     // Add timeout wrapper to fail faster when Privy API is unavailable
     const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error('Privy API timeout after 3 seconds')), 3000);
+      setTimeout(
+        () => reject(new Error("Privy API timeout after 3 seconds")),
+        3000,
+      );
     });
-    
+
     const userProfile = await Promise.race([
       privy.getUserById(userId),
-      timeoutPromise
+      timeoutPromise,
     ]);
 
     const walletAddresses: string[] = [];
@@ -54,7 +61,10 @@ export async function getUserWalletAddresses(
 
     return walletAddresses;
   } catch (error) {
-    log.warn("Error fetching user wallet addresses from Privy API, falling back to empty array", { error: error instanceof Error ? error.message : error });
+    log.warn(
+      "Error fetching user wallet addresses from Privy API, falling back to empty array",
+      { error: error instanceof Error ? error.message : error },
+    );
     return [];
   }
 }
@@ -67,7 +77,7 @@ export async function getUserWalletAddresses(
  */
 export async function getPrivyUser(
   req: NextApiRequest,
-  includeWallets = false
+  includeWallets = false,
 ) {
   try {
     // Get token from either Authorization header or privy-token cookie (like working verify endpoint)
@@ -84,45 +94,55 @@ export async function getPrivyUser(
     try {
       // First attempt: Privy API verification (recommended) with timeout
       const privy = getPrivyClient();
-      if (!privy || typeof privy.verifyAuthToken !== 'function') {
-        throw new Error('Privy client not properly initialized');
+      if (!privy || typeof privy.verifyAuthToken !== "function") {
+        throw new Error("Privy client not properly initialized");
       }
-      
+
       // Add timeout wrapper to fail faster and use JWT fallback sooner
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Privy API timeout after 3 seconds')), 3000);
+        setTimeout(
+          () => reject(new Error("Privy API timeout after 3 seconds")),
+          3000,
+        );
       });
-      
+
       claims = await Promise.race([
         privy.verifyAuthToken(token),
-        timeoutPromise
+        timeoutPromise,
       ]);
     } catch (error: any) {
-      log.error('[PRIVY_AUTH] Raw error from verifyAuthToken', { error });
-      const authError = handleAuthError(error, 'privy_token_verification', { 
+      log.error("[PRIVY_AUTH] Raw error from verifyAuthToken", { error });
+      const authError = handleAuthError(error, "privy_token_verification", {
         hasToken: !!token,
         errorType: error?.constructor?.name,
-        errorMessage: error?.message 
+        errorMessage: error?.message,
       });
-      
+
       // Check if this is a network/API error vs actual auth failure
       if (isNetworkError(error)) {
-        log.warn(`[PRIVY_AUTH] API unavailable, attempting JWT fallback verification`);
-        
+        log.warn(
+          `[PRIVY_AUTH] API unavailable, attempting JWT fallback verification`,
+        );
+
         try {
           // Fallback: Local JWT verification using jose
           const appId = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
           const verificationKey = process.env.PRIVY_VERIFICATION_KEY; // Server-accessible (no NEXT_ prefix)
-          
+
           if (!verificationKey || !appId) {
-            const configError = new Error('Missing JWT verification configuration');
-            handleAuthError(configError, 'jwt_fallback_config', { hasVerificationKey: !!verificationKey, hasAppId: !!appId });
+            const configError = new Error(
+              "Missing JWT verification configuration",
+            );
+            handleAuthError(configError, "jwt_fallback_config", {
+              hasVerificationKey: !!verificationKey,
+              hasAppId: !!appId,
+            });
             return null;
           }
 
           // Import the ES256 public key
           const publicKey = await jose.importSPKI(verificationKey, "ES256");
-          
+
           // Verify the JWT locally
           const { payload } = await jose.jwtVerify(token, publicKey, {
             issuer: "privy.io",
@@ -133,12 +153,17 @@ export async function getPrivyUser(
           claims = {
             userId: payload.sub,
             sessionId: payload.sid,
-            ...payload
+            ...payload,
           };
-          
-          log.info(`[PRIVY_AUTH] JWT fallback verification successful for user ${claims.userId}`);
+
+          log.info(
+            `[PRIVY_AUTH] JWT fallback verification successful for user ${claims.userId}`,
+          );
         } catch (localVerifyError) {
-          handleJwtError(localVerifyError, { fallbackAttempt: true, originalError: authError.code });
+          handleJwtError(localVerifyError, {
+            fallbackAttempt: true,
+            originalError: authError.code,
+          });
           return null;
         }
       } else {
@@ -184,10 +209,12 @@ export async function getPrivyUser(
  */
 export async function getPrivyUserFromNextRequest(
   req: NextRequest,
-  includeWallets = false
+  includeWallets = false,
 ) {
-  const authHeader = req.headers.get('authorization') || undefined;
-  const cookies = Object.fromEntries(req.cookies.getAll().map(c => [c.name, c.value]));
+  const authHeader = req.headers.get("authorization") || undefined;
+  const cookies = Object.fromEntries(
+    req.cookies.getAll().map((c) => [c.name, c.value]),
+  );
   const mockReq: any = {
     headers: { authorization: authHeader },
     cookies,
@@ -208,16 +235,19 @@ export async function getPrivyUserFromCookies(cookies: any) {
     }
 
     const privy = getPrivyClient();
-    
+
     // Add timeout wrapper to fail faster
     const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => reject(new Error('Privy API timeout after 3 seconds')), 3000);
+      setTimeout(
+        () => reject(new Error("Privy API timeout after 3 seconds")),
+        3000,
+      );
     });
-    
-    const claims = await Promise.race([
+
+    const claims = (await Promise.race([
       privy.verifyAuthToken(token),
-      timeoutPromise
-    ]) as any;
+      timeoutPromise,
+    ])) as any;
 
     if (!claims || !claims.userId) {
       return null;
