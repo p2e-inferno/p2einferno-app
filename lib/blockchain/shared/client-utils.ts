@@ -5,7 +5,7 @@
 
 import { ethers } from "ethers";
 import { type PublicClient, type WalletClient } from "viem";
-import { UNIFIED_BLOCKCHAIN_CONFIG } from "../config/unified-config";
+import { UNIFIED_BLOCKCHAIN_CONFIG } from "../config";
 
 // ============================================================================
 // TYPES

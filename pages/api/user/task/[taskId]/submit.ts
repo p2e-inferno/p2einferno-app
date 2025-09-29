@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
-import type { ApiResponse } from "@/lib/api";
+import type { ApiResponse } from "@/lib/helpers/api";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:user:task:[taskId]:submit");

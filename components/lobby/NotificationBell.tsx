@@ -9,7 +9,7 @@ import {
 import { useNotifications } from "@/hooks/useNotifications";
 import { Button } from "../ui/button";
 import { useRouter } from "next/router";
-import { formatDate } from "@/lib/dateUtils";
+import { formatDate } from "@/lib/utils/dateUtils";
 
 export const NotificationBell = () => {
   const { notifications, unreadCount, markAsRead, deleteNotification } =

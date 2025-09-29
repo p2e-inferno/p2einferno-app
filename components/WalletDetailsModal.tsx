@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
-import { CURRENT_NETWORK } from "@/lib/blockchain/frontend-config";
+import { CURRENT_NETWORK } from "@/lib/blockchain/legacy/frontend-config";
 import { Copy, ExternalLink, RefreshCcw, Wallet, Download } from "lucide-react";
 import { toast } from "react-hot-toast";
 

@@ -3,7 +3,7 @@ import { issueAdminSession, setAdminCookie } from '@/lib/auth/admin-session';
 import { getPrivyUserFromNextRequest, getUserWalletAddresses } from '@/lib/auth/privy';
 import { checkMultipleWalletsForAdminKey, checkDevelopmentAdminAddress } from '@/lib/auth/admin-key-checker';
 import { getLogger } from '@/lib/utils/logger';
-import { ADMIN_SESSION_TTL_SECONDS, ADMIN_RPC_TIMEOUT_MS } from '@/lib/config/admin';
+import { ADMIN_SESSION_TTL_SECONDS, ADMIN_RPC_TIMEOUT_MS } from '@/lib/app-config/admin';
 
 const log = getLogger('api:admin-session');
 

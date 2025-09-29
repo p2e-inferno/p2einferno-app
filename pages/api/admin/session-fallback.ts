@@ -6,7 +6,7 @@ import {
   checkMultipleWalletsForAdminKey,
   checkDevelopmentAdminAddress,
 } from "@/lib/auth/admin-key-checker";
-import { ADMIN_SESSION_TTL_SECONDS } from "@/lib/config/admin";
+import { ADMIN_SESSION_TTL_SECONDS } from "@/lib/app-config/admin";
 
 function setCookie(
   res: NextApiResponse,

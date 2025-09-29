@@ -1,12 +1,12 @@
 import { ethers } from "ethers";
 import { type Address } from "viem";
-import { getClientConfig } from "./config/unified-config";
+import { getClientConfig } from "../config";
 import { getLogger } from '@/lib/utils/logger';
 import { 
   ensureCorrectNetwork as ensureCorrectNetworkShared,
   getBlockExplorerUrl as getBlockExplorerUrlShared,
   type NetworkConfig 
-} from "./shared/network-utils";
+} from "../shared/network-utils";
 
 const log = getLogger('blockchain:transaction-helpers');
 
@@ -42,7 +42,7 @@ export interface TokenExtractionResult {
  * Switch to the correct network for Unlock operations
  * Uses shared network utilities
  */
-export const ensureCorrectNetwork = async (rawProvider: any): Promise<void> => {
+export const ensureSwitchToCorrectNetwork = async (rawProvider: any): Promise<void> => {
   const clientConfig = getClientConfig();
   const networkConfig: NetworkConfig = {
     chain: clientConfig.chain,

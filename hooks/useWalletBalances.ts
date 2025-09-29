@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { usePrivy } from '@privy-io/react-auth';
 import { ethers } from 'ethers';
 import { getLogger } from '@/lib/utils/logger';
-import { CURRENT_NETWORK, ERC20_ABI } from '@/lib/blockchain/frontend-config';
-import { createPublicClientUnified } from '@/lib/blockchain/config/unified-config';
+import { CURRENT_NETWORK, ERC20_ABI } from '@/lib/blockchain/legacy/frontend-config';
+import { createPublicClientUnified } from '@/lib/blockchain/config';
 import type { Address } from 'viem';
 
 const log = getLogger('hooks:useWalletBalances');

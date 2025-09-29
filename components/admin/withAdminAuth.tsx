@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import AdminAccessRequired from "./AdminAccessRequired";
-import { listenForWalletChanges } from "@/lib/utils";
+import { listenForWalletChanges } from "@/lib/utils/wallet-change";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:withAdminAuth");

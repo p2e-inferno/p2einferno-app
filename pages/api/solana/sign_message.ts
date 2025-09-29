@@ -3,7 +3,7 @@ import {
   APIError,
   createPrivyClient,
   fetchAndVerifyAuthorization,
-} from "../../../lib/privyUtils";
+} from "../../../lib/utils/privyUtils";
 import { WalletApiRpcResponseType } from "@privy-io/public-api";
 import { getLogger } from "@/lib/utils/logger";
 

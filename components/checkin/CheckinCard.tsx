@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/wallet-change";
 import {
   Card,
   CardContent,

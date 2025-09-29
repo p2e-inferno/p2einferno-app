@@ -2,7 +2,7 @@ import React from "react";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
-import { lockManagerService } from "@/lib/blockchain/lock-manager";
+import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
 import {
   AdminAuthProvider,
   useAdminAuthContext,

@@ -1,9 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
-import { grantKeyService } from "@/lib/blockchain/grant-key-service";
-import { isValidEthereumAddress } from "@/lib/blockchain/transaction-helpers";
-import { isServerBlockchainConfigured } from "@/lib/blockchain/server-config";
+import { grantKeyService } from "@/lib/blockchain/services/grant-key-service";
+import { isValidEthereumAddress } from "@/lib/blockchain/services/transaction-service";
+import { isServerBlockchainConfigured } from "@/lib/blockchain/legacy/server-config";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:admin:grant-key");

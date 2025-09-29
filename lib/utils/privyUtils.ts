@@ -2,13 +2,12 @@ import { AuthTokenClaims, PrivyClient } from "@privy-io/server-auth";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getLogger } from '@/lib/utils/logger';
 
-const log = getLogger('privyUtils');
-
-
-export type APIError = {
+export interface APIError {
   error: string;
   cause?: string;
-};
+}
+
+const log = getLogger('privyUtils');
 
 /**
  * Authorizes a user to call an endpoint, returning either an error result or their verifiedClaims

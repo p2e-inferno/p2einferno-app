@@ -3,7 +3,7 @@ import { revalidateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
-import { ADMIN_CACHE_TAGS } from '@/lib/config/admin';
+import { ADMIN_CACHE_TAGS } from '@/lib/app-config/admin';
 
 const log = getLogger('api:bootcamps:detail');
 

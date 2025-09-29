@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import type { ApiResponse } from "@/lib/api";
+import type { ApiResponse } from "@/lib/helpers/api";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:bootcamps");

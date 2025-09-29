@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { mainnet } from "viem/chains";
-import { createPublicClientUnified, createPublicClientForChain } from "@/lib/blockchain/config/unified-config";
+import { createPublicClientUnified, createPublicClientForChain } from "@/lib/blockchain/config";
 import { getEnsName } from "viem/ens";
 import { getLogger } from '@/lib/utils/logger';
 

@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/wallet-change";
 import { Check } from "lucide-react";
 
 interface Step {

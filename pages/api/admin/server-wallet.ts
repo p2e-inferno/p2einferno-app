@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
-import { getLockManagerAddress } from "@/lib/blockchain/server-config";
-import { isServerBlockchainConfigured } from "@/lib/blockchain/server-config";
+import { getLockManagerAddress } from "@/lib/blockchain/legacy/server-config";
+import { isServerBlockchainConfigured } from "@/lib/blockchain/legacy/server-config";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:admin:server-wallet");

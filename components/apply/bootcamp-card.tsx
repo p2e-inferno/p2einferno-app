@@ -9,7 +9,7 @@ import {
   Zap,
 } from "lucide-react";
 import { FlameIcon, TrophyIcon, CrystalIcon } from "../icons/dashboard-icons";
-import { formatCurrency } from "@/lib/bootcamp-data";
+import { formatCurrency } from "@/lib/utils/payment-utils";
 import type { BootcampCardProps } from "./types";
 
 /**

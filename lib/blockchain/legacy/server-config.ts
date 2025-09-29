@@ -10,7 +10,7 @@ import {
   createWalletClientUnified,
   createAccountUnified,
   isServerBlockchainConfigured as isConfigured
-} from "./config/unified-config";
+} from "../config";
 
 // ============================================================================
 // SERVER-SIDE BLOCKCHAIN CLIENTS

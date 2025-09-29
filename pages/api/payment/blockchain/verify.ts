@@ -4,7 +4,7 @@ import { getLogger } from "@/lib/utils/logger";
 import {
   fetchAndVerifyAuthorization,
   createPrivyClient,
-} from "@/lib/privyUtils";
+} from "@/lib/utils/privyUtils";
 import { assertApplicationOwnership } from "@/lib/auth/ownership";
 
 const log = getLogger("api:payment:blockchain:verify");

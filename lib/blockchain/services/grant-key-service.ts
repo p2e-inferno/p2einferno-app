@@ -1,6 +1,6 @@
 import { type Address } from "viem";
 import { lockManagerService } from "./lock-manager";
-import { getLockManagerAddress } from "./server-config";
+import { getLockManagerAddress } from "../legacy/server-config";
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('blockchain:grant-key-service');

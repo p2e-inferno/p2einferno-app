@@ -1,9 +1,9 @@
 import type { Address, Hex } from "viem";
 import { base, baseSepolia } from "viem/chains";
 import { ethers, formatUnits, parseUnits } from "ethers";
-import { UNIFIED_BLOCKCHAIN_CONFIG, getClientRpcUrls } from "../blockchain/config/unified-config";
+import { UNIFIED_BLOCKCHAIN_CONFIG, getClientRpcUrls } from "../blockchain/config";
 import { blockchainLogger } from "../blockchain/shared/logging-utils";
-import { getReadOnlyProvider as getUnifiedReadOnlyProvider } from "../blockchain/provider";
+import { getReadOnlyProvider as getUnifiedReadOnlyProvider } from "../blockchain/providers/provider";
 import { 
   ensureCorrectNetwork as ensureCorrectNetworkShared,
   getBlockExplorerUrl as getBlockExplorerUrlShared,

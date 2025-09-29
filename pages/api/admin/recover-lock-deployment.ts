@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
-import { isValidEthereumAddress } from "@/lib/blockchain/transaction-helpers";
+import { isValidEthereumAddress } from "@/lib/blockchain/services/transaction-service";
 import { unlockUtils } from "@/lib/unlock/lockUtils";
 import type { EntityType } from "@/lib/utils/lock-deployment-state";
 import { getLogger } from "@/lib/utils/logger";

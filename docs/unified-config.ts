@@ -16,7 +16,8 @@ import {
   type Chain,
   type Transport,
 } from "viem";
-import { blockchainLogger } from "../shared/logging-utils";
+import { createSequentialHttpTransport } from '../lib/blockchain/config/transport/viem-transport';
+import { blockchainLogger } from "../lib/blockchain/shared/logging-utils";
 
 // ============================================================================
 // TYPES
@@ -316,15 +317,15 @@ export const createPublicClientUnified = (): PublicClient => {
     }) as unknown as PublicClient;
   }
 
-  const transports = urls.map((u) => http(u, { timeout: timeoutMs }));
+  const sequentialTransport = createSequentialHttpTransport({
+    urls,
+    timeoutMs,
+    retryDelayMs: retryDelay,
+  });
 
   return createPublicClient({
     chain,
-    transport: fallback(transports, {
-      rank: { timeout: stallMs },
-      retryCount,
-      retryDelay,
-    }),
+    transport: sequentialTransport,
   }) as unknown as PublicClient;
 };
 

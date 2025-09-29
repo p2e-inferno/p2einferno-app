@@ -9,7 +9,7 @@ import { useEffect, useMemo, useCallback } from 'react';
 import { usePrivy, useUser } from '@privy-io/react-auth';
 import { useSmartWalletSelection } from '@/hooks/useSmartWalletSelection';
 import { useAdminSession } from '@/hooks/useAdminSession';
-import { listenForAdminWalletChanges } from '@/lib/utils';
+import { listenForAdminWalletChanges } from '@/lib/utils/wallet-change';
 import { getLogger } from '@/lib/utils/logger';
 import { deriveAuthStatus } from '../utils/adminAuthContextStatusUtils';
 import { isCacheValid } from '../utils/adminAuthContextCacheUtils';

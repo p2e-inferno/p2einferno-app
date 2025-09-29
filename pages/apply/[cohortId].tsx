@@ -10,7 +10,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
-import { applicationApi, type ApplicationData } from "@/lib/api";
+import { applicationApi, type ApplicationData } from "@/lib/helpers/api";
 import { useApiCall } from "@/hooks/useApiCall";
 import toast from "react-hot-toast";
 import {

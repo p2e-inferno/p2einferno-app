@@ -7,11 +7,11 @@ import { type PublicClient } from "viem";
 import { 
   getClientConfig,
   createPublicClientUnified
-} from "./config/unified-config";
+} from "../config";
 import {
   getBlockExplorerUrl as getBlockExplorerUrlShared,
   type NetworkConfig
-} from "./shared/network-utils";
+} from "../shared/network-utils";
 
 // ============================================================================
 // CLIENT-SIDE BLOCKCHAIN CLIENTS

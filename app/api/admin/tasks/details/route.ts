@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { unstable_cache } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getLogger } from '@/lib/utils/logger';
-import { ADMIN_CACHE_TAGS, clampPageSize } from '@/lib/config/admin';
-import { parseIncludeParam } from '@/lib/api/parsers/admin-task-details';
+import { ADMIN_CACHE_TAGS, clampPageSize } from '@/lib/app-config/admin';
+import { parseIncludeParam } from '@/lib/helpers/parsers/admin-task-details';
 import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 
 const log = getLogger('api:task-details');

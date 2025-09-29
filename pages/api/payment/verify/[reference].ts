@@ -2,10 +2,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import axios from "axios";
-import { extractAndValidateApplicationId } from "../../../../lib/payment-helpers";
-import { grantKeyService } from "../../../../lib/blockchain/grant-key-service";
-import { isServerBlockchainConfigured } from "../../../../lib/blockchain/server-config";
-import { isValidEthereumAddress } from "../../../../lib/blockchain/transaction-helpers";
+import { extractAndValidateApplicationId } from "../../../../lib/helpers/payment-helpers";
+import { grantKeyService } from "../../../../lib/blockchain/services/grant-key-service";
+import { isServerBlockchainConfigured } from "../../../../lib/blockchain/legacy/server-config";
+import { isValidEthereumAddress } from "../../../../lib/blockchain/services/transaction-service";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:payment:verify:[reference]");

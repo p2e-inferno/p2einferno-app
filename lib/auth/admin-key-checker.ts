@@ -5,7 +5,7 @@
  */
 
 import { Address } from "viem";
-import { lockManagerService } from "../blockchain/lock-manager";
+import { lockManagerService } from "../blockchain/services/lock-manager";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger('auth:key-check');

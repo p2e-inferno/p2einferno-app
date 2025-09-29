@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
-import { lockManagerService } from "@/lib/blockchain/lock-manager";
+import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
 

@@ -14,8 +14,8 @@ import { unlockUtils } from "@/lib/unlock/lockUtils";
 import {
   generateQuestLockConfig,
   createLockConfigWithManagers,
-} from "@/lib/blockchain/admin-lock-config";
-import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
+} from "@/lib/blockchain/legacy";
+import { getBlockExplorerUrl } from "@/lib/blockchain/services/transaction-service";
 import {
   saveDraft,
   removeDraft,

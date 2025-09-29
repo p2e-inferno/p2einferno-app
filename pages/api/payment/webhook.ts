@@ -2,7 +2,7 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createHmac } from "crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { buffer } from "micro";
-import { extractAndValidateApplicationId } from "../../../lib/payment-helpers";
+import { extractAndValidateApplicationId } from "../../../lib/helpers/payment-helpers";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:payment:webhook");

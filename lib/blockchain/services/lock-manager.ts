@@ -2,11 +2,12 @@ import { type Address, type Hash, formatEther } from "viem";
 import {
   createServerPublicClient,
   createServerWalletClient,
-} from "./server-config";
-import { COMPLETE_LOCK_ABI } from "./shared/abi-definitions";
-import { blockchainLogger } from "./shared/logging-utils";
-import "./shared/logger-bridge"; // side-effect import to bridge logging transport
-import { extractTokenIdsFromReceipt } from "./shared/transaction-utils";
+} from "../legacy/server-config";
+import { COMPLETE_LOCK_ABI } from "../shared/abi-definitions";
+import { blockchainLogger } from "../shared/logging-utils";
+import "../shared/logger-bridge"; // side-effect import to bridge logging transport
+import { extractTokenIdsFromReceipt } from "../shared/transaction-utils";
+
 export interface GrantKeysParams {
   recipientAddress: Address;
   lockAddress: Address;
@@ -305,10 +306,10 @@ export class LockManagerService {
   }
 
   /**
-   * Get the default expiration duration from the contract
+   * The default expiration duration if none is provided
    */
   private async getDefaultExpirationDuration(): Promise<bigint> {
-    // Default to 30 days if we can't fetch from contract
+    // Default to 30 days if none is provided
     return BigInt(30 * 24 * 60 * 60);
   }
 

@@ -1,7 +1,7 @@
 import { type Address } from "viem";
 import { CLIENT_CHAIN_CONFIG } from "./client-config";
-import { getAdminLockManagerAddresses } from "./transaction-helpers";
-import type { Cohort, BootcampProgram, Quest, CohortMilestone } from "../supabase/types";
+import { getAdminLockManagerAddresses } from "../services/transaction-service";
+import type { Cohort, BootcampProgram, Quest, CohortMilestone } from "../../supabase/types";
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('blockchain:admin-lock-config');

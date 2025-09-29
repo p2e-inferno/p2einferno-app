@@ -1,8 +1,8 @@
 import { Address } from "viem";
-import { lockManagerService, KeyInfo } from "@/lib/blockchain/lock-manager";
+import { lockManagerService, KeyInfo } from "@/lib/blockchain/services/lock-manager";
 import { getUserWalletAddresses } from "@/lib/auth/privy";
-import { GrantKeyService, GrantKeyResponse } from "@/lib/blockchain/grant-key-service";
-import { getLockManagerAddress } from "@/lib/blockchain/server-config";
+import { GrantKeyService, GrantKeyResponse } from "@/lib/blockchain/services/grant-key-service";
+import { getLockManagerAddress } from "@/lib/blockchain/legacy/server-config";
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('services:user-key-service');

@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
-import { getClientRpcUrls, getClientConfig } from './config/unified-config';
-import { blockchainLogger } from './shared/logging-utils';
+import { getClientRpcUrls, getClientConfig } from '../config';
+import { blockchainLogger } from '../shared/logging-utils';
 
 let readOnlyProviderSingleton: ethers.JsonRpcProvider | ethers.FallbackProvider | null = null;
 
@@ -35,12 +35,20 @@ function buildReadOnlyProvider() {
 
   if (urls.length === 0) throw new Error('No RPC URLs configured');
 
+  const createEthersProvider = (url: string) => {
+    return new ethers.JsonRpcProvider(
+      url,
+      { chainId: cfg.chain.id, name: cfg.networkName || 'unknown' },
+      { staticNetwork: true }
+    );
+  };
+
   if (urls.length === 1) {
-    return new ethers.JsonRpcProvider(urls[0]!);
+    return createEthersProvider(urls[0]!);
   }
 
   const fallbackProviders = urls.map((u, index) => ({
-    provider: new ethers.JsonRpcProvider(u),
+    provider: createEthersProvider(u),
     priority: index + 1,
     stallTimeout: index === 0 ? 500 : 1500,
     weight: 1,

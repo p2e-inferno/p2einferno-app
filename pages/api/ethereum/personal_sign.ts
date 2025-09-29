@@ -5,7 +5,7 @@ import {
   APIError,
   fetchAndVerifyAuthorization,
   createPrivyClient,
-} from "../../../lib/privyUtils";
+} from "../../../lib/utils/privyUtils";
 
 const log = getLogger("api:ethereum:personal_sign");
 

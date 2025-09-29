@@ -1,10 +1,10 @@
 import { useCallback, useState } from "react";
-import { formatCurrency, type Currency } from "../../lib/payment-utils";
+import { formatCurrency, type Currency } from "../../lib/utils/payment-utils";
 import { AlertCircle, Wallet, X } from "lucide-react";
 import { useWallets } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "../../lib/unlock/lockUtils";
-import { getClientConfig } from "../../lib/blockchain/config/unified-config";
+import { getClientConfig } from "../../lib/blockchain/config";
 import { LoadingButton } from "../ui/loading-button";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { getLogger } from "@/lib/utils/logger";

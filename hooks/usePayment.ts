@@ -1,8 +1,8 @@
 import { useState, useCallback } from "react";
 import { usePaystackPayment } from "react-paystack";
 import { useApiCall } from "./useApiCall";
-import { convertToSmallestUnit, type Currency } from "../lib/payment-utils";
-import api from "../lib/api";
+import { convertToSmallestUnit, type Currency } from "../lib/utils/payment-utils";
+import api from "../lib/helpers/api";
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('hooks:usePayment');

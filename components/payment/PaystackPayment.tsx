@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { LoadingButton } from "../ui/loading-button";
 import { usePayment } from "../../hooks/usePayment";
-import { type Currency } from "../../lib/payment-utils";
+import { type Currency } from "../../lib/utils/payment-utils";
 import { CheckCircle, CreditCard, AlertCircle } from "lucide-react";
 
 interface PaystackPaymentProps {

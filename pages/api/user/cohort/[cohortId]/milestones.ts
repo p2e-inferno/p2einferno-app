@@ -1,7 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import type { ApiResponse } from "@/lib/api";
+import type { ApiResponse } from "@/lib/helpers/api";
 import { UserKeyService } from "@/lib/services/user-key-service";
 import { getLogger } from "@/lib/utils/logger";
 

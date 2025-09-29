@@ -2,10 +2,10 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useAdminSession } from "@/hooks/useAdminSession";
-import { lockManagerService } from "@/lib/blockchain/lock-manager";
+import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
-import { listenForAdminWalletChanges } from "@/lib/utils";
+import { listenForAdminWalletChanges } from "@/lib/utils/wallet-change";
 // Error utilities available for future use
 // import { 
 //   normalizeAdminApiError, 

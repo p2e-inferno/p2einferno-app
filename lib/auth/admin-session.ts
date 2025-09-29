@@ -1,7 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { NextResponse } from 'next/server';
 import type { NextApiRequest } from 'next';
-import { ADMIN_SESSION_TTL_SECONDS } from '@/lib/config/admin';
+import { ADMIN_SESSION_TTL_SECONDS } from '@/lib/app-config/admin';
 
 const DEFAULT_COOKIE_NAME = 'admin-session';
 

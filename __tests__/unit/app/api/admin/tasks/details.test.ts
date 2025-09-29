@@ -1,5 +1,5 @@
-import { parseIncludeParam } from "@/lib/api/parsers/admin-task-details";
-import { clampPageSize } from "@/lib/config/admin";
+import { parseIncludeParam } from "@/lib/helpers/parsers/admin-task-details";
+import { clampPageSize } from "@/lib/app-config/admin";
 
 describe("task details include parsing", () => {
   const parse = (s: string | null) => parseIncludeParam(s, clampPageSize);

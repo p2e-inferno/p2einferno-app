@@ -9,7 +9,7 @@ import {
   Flame,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/bootcamp-data";
+import { formatCurrency } from "@/lib/utils/payment-utils";
 import type { CohortHeroProps } from "./types";
 
 /**

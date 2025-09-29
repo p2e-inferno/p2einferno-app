@@ -4,13 +4,13 @@ import { getLogger } from "@/lib/utils/logger";
 import {
   fetchAndVerifyAuthorization,
   createPrivyClient,
-} from "@/lib/privyUtils";
+} from "@/lib/utils/privyUtils";
 import { assertApplicationOwnership } from "@/lib/auth/ownership";
 import {
   generatePaymentReference,
   validatePaymentAmount,
   type Currency,
-} from "../../../../lib/payment-utils";
+} from "../../../../lib/utils/payment-utils";
 
 const log = getLogger("api:payment:blockchain:initialize");
 

@@ -5,7 +5,7 @@ import { Pencil, Calendar, Trash2, Star } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
-import { formatDate } from "@/lib/dateUtils";
+import { formatDate } from "@/lib/utils/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useAdminApi } from "@/hooks/useAdminApi";

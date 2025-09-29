@@ -4,14 +4,14 @@ import { getLogger } from "@/lib/utils/logger";
 import {
   fetchAndVerifyAuthorization,
   createPrivyClient,
-} from "@/lib/privyUtils";
+} from "@/lib/utils/privyUtils";
 import { assertApplicationOwnership } from "@/lib/auth/ownership";
 import {
   generatePaymentReference,
   convertToSmallestUnit,
   validatePaymentAmount,
   type Currency,
-} from "../../../lib/payment-utils";
+} from "../../../lib/utils/payment-utils";
 
 const supabase = createAdminClient();
 const log = getLogger("api:payment:initialize");

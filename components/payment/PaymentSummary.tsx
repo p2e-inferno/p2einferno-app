@@ -1,4 +1,4 @@
-import { formatCurrency, type Currency } from "../../lib/payment-utils";
+import { formatCurrency, type Currency } from "../../lib/utils/payment-utils";
 
 interface PaymentSummaryProps {
   amount: number;

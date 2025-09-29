@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/wallet-change";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CheckCircle, Clock, Zap } from "lucide-react";

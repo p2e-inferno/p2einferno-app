@@ -18,7 +18,7 @@ import {
   formatCurrency,
   getPaymentMethod,
   type Currency,
-} from "@/lib/payment-utils";
+} from "@/lib/utils/payment-utils";
 import { CheckCircle, AlertCircle } from "lucide-react";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { getLogger } from "@/lib/utils/logger";

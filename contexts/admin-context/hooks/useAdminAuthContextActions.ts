@@ -8,7 +8,7 @@
 import { useCallback } from 'react';
 import { usePrivy, useUser } from '@privy-io/react-auth';
 import { useSmartWalletSelection } from '@/hooks/useSmartWalletSelection';
-import { lockManagerService } from '@/lib/blockchain/lock-manager';
+import { lockManagerService } from '@/lib/blockchain/services/lock-manager';
 import { type Address } from 'viem';
 import { getLogger } from '@/lib/utils/logger';
 import { isCacheValid, createCacheExpiry, shouldInvalidateCache } from '../utils/adminAuthContextCacheUtils';

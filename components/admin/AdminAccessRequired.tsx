@@ -7,7 +7,7 @@ import { RefreshCcw, User, Copy, LogOut, Plus, Unlink } from "lucide-react";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { formatWalletAddress } from "@/lib/utils/wallet-address";
-import { lockManagerService } from "@/lib/blockchain/lock-manager";
+import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
 
