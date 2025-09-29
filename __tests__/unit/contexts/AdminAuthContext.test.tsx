@@ -1,8 +1,8 @@
 import React from "react";
 import { render, screen, waitFor, act } from "@testing-library/react";
-import { usePrivy, useUser } from "@privy-io/react-auth";
+import { usePrivy, useUser, useWallets } from "@privy-io/react-auth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
-import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
+import { useLockManagerClient } from "@/hooks/useLockManagerClient";
 import {
   AdminAuthProvider,
   useAdminAuthContext,
@@ -20,16 +20,15 @@ jest.mock("@/hooks/useDetectConnectedWalletAddress", () => ({
   useDetectConnectedWalletAddress: jest.fn(),
 }));
 
-jest.mock("@/lib/blockchain/lock-manager", () => ({
-  lockManagerService: {
-    checkUserHasValidKey: jest.fn(),
-  },
+jest.mock("@/hooks/useLockManagerClient", () => ({
+  useLockManagerClient: jest.fn(),
 }));
 
 // Override the global Privy mock to be more controllable
 jest.mock("@privy-io/react-auth", () => ({
   usePrivy: jest.fn(),
   useUser: jest.fn(),
+  useWallets: jest.fn(),
 }));
 
 // Mock window.ethereum with event handlers (extends global mock)
@@ -55,9 +54,13 @@ const mockUseDetectConnectedWalletAddress =
   useDetectConnectedWalletAddress as jest.MockedFunction<
     typeof useDetectConnectedWalletAddress
   >;
-const mockLockManagerService = lockManagerService as jest.Mocked<
-  typeof lockManagerService
+const mockUseLockManagerClient = useLockManagerClient as jest.MockedFunction<
+  typeof useLockManagerClient
 >;
+const mockUseWallets = useWallets as jest.MockedFunction<typeof useWallets>;
+const mockLockManager = {
+  checkUserHasValidKey: jest.fn(),
+};
 
 // ================================
 // MOCK FACTORIES
@@ -141,7 +144,9 @@ const setupMocks = (
     privy?: Partial<ReturnType<typeof usePrivy>>;
     user?: Partial<ReturnType<typeof useUser>>;
     wallet?: Partial<ReturnType<typeof useDetectConnectedWalletAddress>>;
-    lockManager?: Partial<typeof lockManagerService>;
+    wallets?: Partial<ReturnType<typeof useWallets>>;
+    lockManager?: Partial<typeof mockLockManager>;
+    fetch?: jest.Mock;
   } = {},
 ) => {
   // Default mock values
@@ -149,6 +154,8 @@ const setupMocks = (
     authenticated: false,
     ready: false,
     logout: jest.fn(),
+    login: jest.fn(),
+    getAccessToken: jest.fn().mockResolvedValue('test-access-token'),
   };
 
   const defaultUser = {
@@ -175,9 +182,44 @@ const setupMocks = (
     ...overrides.wallet,
   } as ReturnType<typeof useDetectConnectedWalletAddress>);
 
+  const defaultWallets = { wallets: [] };
+  const derivedWallets = overrides.wallets
+    ? { ...defaultWallets, ...overrides.wallets }
+    : overrides.wallet?.walletAddress
+    ? {
+        wallets: [
+          {
+            walletClientType: 'injected',
+            address: overrides.wallet.walletAddress,
+          },
+        ],
+      }
+    : defaultWallets;
+
+  mockUseWallets.mockReturnValue(derivedWallets as ReturnType<typeof useWallets>);
+
+  mockLockManager.checkUserHasValidKey = jest.fn();
+  mockUseLockManagerClient.mockReturnValue(mockLockManager as any);
+
   if (overrides.lockManager) {
-    Object.assign(mockLockManagerService, overrides.lockManager);
+    Object.assign(mockLockManager, overrides.lockManager);
   }
+
+  const defaultFetch = jest.fn(async (input: RequestInfo) => {
+    const url = typeof input === 'string' ? input : input.url;
+    if (url.includes('/api/admin/session/verify')) {
+      return {
+        ok: true,
+        json: async () => ({ valid: true, expiresAt: Math.floor(Date.now() / 1000) + 60 }),
+      } as any;
+    }
+    return {
+      ok: true,
+      json: async () => ({ success: true }),
+    } as any;
+  });
+
+  (global.fetch as jest.Mock).mockImplementation(overrides.fetch ?? defaultFetch);
 };
 
 const renderWithProvider = (component: React.ReactNode) => {
@@ -290,6 +332,19 @@ describe("AdminAuthContext", () => {
             expirationTimestamp: BigInt(Number.MAX_SAFE_INTEGER),
           }),
         },
+        fetch: jest.fn(async (input: RequestInfo) => {
+          const url = typeof input === 'string' ? input : input.url;
+          if (url.includes('/api/admin/session/verify')) {
+            return {
+              ok: true,
+              json: async () => ({ valid: false }),
+            } as any;
+          }
+          return {
+            ok: true,
+            json: async () => ({ success: true }),
+          } as any;
+        }),
       });
 
       renderWithProvider(<TestConsumer />);

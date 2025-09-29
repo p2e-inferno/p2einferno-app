@@ -2,6 +2,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useAdminSession } from "@/hooks/useAdminSession";
+// NOTE: This legacy example intentionally references the server singleton to illustrate
+// the original implementation. Production code should import useLockManagerClient instead.
 import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";

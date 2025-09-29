@@ -1,6 +1,8 @@
+'use client';
+
 import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
+import { useLockManagerClient } from "@/hooks/useLockManagerClient";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -42,6 +44,7 @@ export function useAuth(
   options: UseAuthOptions = {}
 ): UseAuthReturn {
   const { user, authenticated, ready, login, logout } = usePrivy();
+  const { checkUserHasValidKey } = useLockManagerClient();
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -123,10 +126,9 @@ export function useAuth(
         }
 
         // Check blockchain admin key
-        const keyInfo = await lockManagerService.checkUserHasValidKey(
+        const keyInfo = await checkUserHasValidKey(
           walletAddress as Address,
-          adminLockAddress as Address,
-          false
+          adminLockAddress as Address
         );
 
         const hasValidKey = keyInfo !== null && keyInfo.isValid;

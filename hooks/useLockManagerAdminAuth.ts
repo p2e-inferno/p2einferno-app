@@ -1,7 +1,9 @@
+'use client';
+
 import { useState, useEffect, useCallback, useRef } from "react";
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
-import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
+import { useLockManagerClient } from "@/hooks/useLockManagerClient";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -17,6 +19,7 @@ export const useLockManagerAdminAuth = () => {
 
   // Use the consistent wallet address detection hook
   const { walletAddress } = useDetectConnectedWalletAddress(user);
+  const { checkUserHasValidKey } = useLockManagerClient();
 
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -122,10 +125,10 @@ export const useLockManagerAdminAuth = () => {
         let hasValidKey = false;
 
         try {
-          const keyInfo = await lockManagerService.checkUserHasValidKey(
+          const keyInfo = await checkUserHasValidKey(
             currentWalletAddress as Address,
             adminLockAddress as Address,
-            forceRefresh
+            { forceRefresh }
           );
 
           if (keyInfo && keyInfo.isValid) {

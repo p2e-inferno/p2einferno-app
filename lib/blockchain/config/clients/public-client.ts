@@ -11,6 +11,9 @@ import { blockchainLogger } from "../../shared/logging-utils";
 // For now, we'll import from the original file to maintain functionality
 import { createSequentialHttpTransport } from '../transport/viem-transport';
 
+let cachedServerPublicClient: PublicClient | null = null;
+let cachedBrowserPublicClient: PublicClient | null = null;
+
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
@@ -85,6 +88,13 @@ export const createPublicClientUnified = (): PublicClient => {
   let { urls, hosts } = resolveRpcUrls(chain.id);
   const isBrowser = typeof window !== 'undefined';
 
+  const cachedClient = isBrowser
+    ? cachedBrowserPublicClient
+    : cachedServerPublicClient;
+  if (cachedClient) {
+    return cachedClient;
+  }
+
   if (isBrowser) {
     const parseHost = (u: string) => { try { return new URL(u).host; } catch { return '[unparseable]'; } };
     const keyedPred = (h: string) => /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
@@ -118,10 +128,12 @@ export const createPublicClientUnified = (): PublicClient => {
       retryDelay,
     });
 
-    return createPublicClient({
+    const client = createPublicClient({
       chain,
       transport: sequentialTransport,
     }) as unknown as PublicClient;
+    cachedBrowserPublicClient = client;
+    return client;
   }
 
   const sequentialTransport = createSequentialHttpTransport({
@@ -130,10 +142,12 @@ export const createPublicClientUnified = (): PublicClient => {
     retryDelayMs: retryDelay,
   });
 
-  return createPublicClient({
+  const client = createPublicClient({
     chain,
     transport: sequentialTransport,
   }) as unknown as PublicClient;
+  cachedServerPublicClient = client;
+  return client;
 };
 
 /**
@@ -174,4 +188,3 @@ export const createPublicClientForChain = (
     transport: http(undefined as any, { timeout: timeoutMs }),
   }) as unknown as PublicClient;
 };
-

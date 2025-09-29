@@ -1,4 +1,10 @@
-import { type Address, type Hash, formatEther } from "viem";
+import {
+  type Address,
+  type Hash,
+  type PublicClient,
+  type WalletClient,
+  formatEther,
+} from "viem";
 import {
   createServerPublicClient,
   createServerWalletClient,
@@ -32,21 +38,46 @@ export interface KeyInfo {
 /**
  * Service for managing lock operations on the blockchain
  */
-export class LockManagerService {
-  private publicClient;
-  private walletClient;
-  private contractAbi;
+interface LockManagerDependencies {
+  getPublicClient?: () => PublicClient;
+  getWalletClient?: () => WalletClient | null;
+}
 
-  constructor() {
-    this.publicClient = createServerPublicClient();
-    this.walletClient = createServerWalletClient();
-    this.contractAbi = COMPLETE_LOCK_ABI;
-    
+/**
+ * Service for managing lock operations on the blockchain
+ */
+export class LockManagerService {
+  private readonly publicClient: PublicClient;
+  private walletClient: WalletClient | null;
+  private readonly contractAbi = COMPLETE_LOCK_ABI;
+  private disposed = false;
+
+  constructor({ getPublicClient, getWalletClient }: LockManagerDependencies = {}) {
+    const resolvePublicClient = getPublicClient ?? createServerPublicClient;
+    const resolveWalletClient = getWalletClient ?? createServerWalletClient;
+
+    this.publicClient = resolvePublicClient();
+    this.walletClient = resolveWalletClient();
+
     blockchainLogger.debug("LockManagerService initialized", {
       operation: "constructor",
       hasWalletClient: !!this.walletClient,
-      chainId: this.publicClient.chain?.id
+      chainId: this.publicClient.chain?.id,
     });
+  }
+
+  dispose() {
+    if (this.disposed) return;
+    this.disposed = true;
+    // Currently, viem public clients do not expose a teardown API, but we clear
+    // references so the GC can reclaim any browser-scoped transport state.
+    this.walletClient = null;
+  }
+
+  private assertNotDisposed() {
+    if (this.disposed) {
+      throw new Error("LockManagerService has been disposed");
+    }
   }
 
   /**
@@ -60,6 +91,7 @@ export class LockManagerService {
     keyManagers,
     expirationDuration,
   }: GrantKeysParams): Promise<GrantKeysResult> {
+    this.assertNotDisposed();
     // Check if wallet client is available
     if (!this.walletClient) {
       blockchainLogger.logConfigurationWarning(
@@ -161,6 +193,7 @@ export class LockManagerService {
     lockAddress: Address,
     forceRefresh = false
   ): Promise<KeyInfo | null> {
+    this.assertNotDisposed();
     try {
       const overallStart = Date.now();
       // Add cache-busting parameter if forceRefresh is true
@@ -260,6 +293,7 @@ export class LockManagerService {
     lockAddress: Address,
     forceRefresh = false
     ): Promise<boolean | null> {
+    this.assertNotDisposed();
     try {
       // Add cache-busting parameter if forceRefresh is true
       const cacheOptions = forceRefresh
@@ -346,5 +380,8 @@ export class LockManagerService {
   }
 }
 
-// Export a singleton instance
-export const lockManagerService = new LockManagerService();
+// Export helpers so server contexts can obtain dedicated instances when needed
+export const createServerLockManager = () => new LockManagerService();
+
+// Export a singleton instance for legacy server consumers
+export const lockManagerService = createServerLockManager();

@@ -15,8 +15,9 @@ import { PUBLIC_LOCK_CONTRACT } from "../../../constants";
 export const UNLOCK_FACTORY_ABI = [
   {
     inputs: [
-      { internalType: "bytes", name: "calldata", type: "bytes" },
-      { internalType: "uint16", name: "version", type: "uint16" },
+      { internalType: "bytes",   name: "data",        type: "bytes" },
+      { internalType: "uint16",  name: "lockVersion", type: "uint16" },
+      { internalType: "bytes[]", name: "transactions",type: "bytes[]" },
     ],
     name: "createUpgradeableLockAtVersion",
     outputs: [{ internalType: "address", name: "", type: "address" }],
@@ -82,6 +83,14 @@ export const ADDITIONAL_LOCK_ABI = [
     outputs: [{ internalType: "address", name: "", type: "address" }],
     stateMutability: "view",
     type: "function",
+  },  
+  // Renounce lock manager function
+  { 
+    inputs: [], 
+    name: "renounceLockManager", 
+    outputs: [], 
+    stateMutability: "nonpayable", 
+    type: "function" 
   },
 ] as const;
 

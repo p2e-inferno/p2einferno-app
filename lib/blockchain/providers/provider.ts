@@ -36,11 +36,13 @@ function buildReadOnlyProvider() {
   if (urls.length === 0) throw new Error('No RPC URLs configured');
 
   const createEthersProvider = (url: string) => {
-    return new ethers.JsonRpcProvider(
+    const provider = new ethers.JsonRpcProvider(
       url,
       { chainId: cfg.chain.id, name: cfg.networkName || 'unknown' },
-      { staticNetwork: true }
+      { staticNetwork: true, polling: false }
     );
+    (provider as any).pollingInterval = Number.MAX_SAFE_INTEGER;
+    return provider;
   };
 
   if (urls.length === 1) {
@@ -54,7 +56,13 @@ function buildReadOnlyProvider() {
     weight: 1,
   }));
 
-  return new ethers.FallbackProvider(fallbackProviders, 1);
+  fallbackProviders.forEach(({ provider }) => {
+    (provider as any).pollingInterval = Number.MAX_SAFE_INTEGER;
+  });
+
+  const fallback = new ethers.FallbackProvider(fallbackProviders, 1);
+  (fallback as any).pollingInterval = Number.MAX_SAFE_INTEGER;
+  return fallback;
 }
 
 export function getReadOnlyProvider(): ethers.JsonRpcProvider | ethers.FallbackProvider {

@@ -7,7 +7,7 @@ import { RefreshCcw, User, Copy, LogOut, Plus, Unlink } from "lucide-react";
 import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { formatWalletAddress } from "@/lib/utils/wallet-address";
-import { lockManagerService } from "@/lib/blockchain/services/lock-manager";
+import { useLockManagerClient } from "@/hooks/useLockManagerClient";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -26,6 +26,7 @@ export default function AdminAccessRequired({
 
   // Use the consistent wallet address detection hook
   const { walletAddress } = useDetectConnectedWalletAddress(user);
+  const { checkUserHasValidKey } = useLockManagerClient();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -48,10 +49,10 @@ export default function AdminAccessRequired({
       setAccessStatus((prev) => ({ ...prev, isChecking: true }));
 
       try {
-        const keyInfo = await lockManagerService.checkUserHasValidKey(
+        const keyInfo = await checkUserHasValidKey(
           addr as Address,
           adminLockAddress as Address,
-          forceRefresh,
+          { forceRefresh },
         );
 
         if (keyInfo && keyInfo.isValid) {
