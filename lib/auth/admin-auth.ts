@@ -5,6 +5,7 @@ import {
   verifyAdminSession,
   getAdminTokenFromNextApiRequest,
 } from "@/lib/auth/admin-session";
+import {createPublicClientUnified} from "@/lib/blockchain/config";
 import {
   checkMultipleWalletsForAdminKey,
   checkDevelopmentAdminAddress,
@@ -91,9 +92,11 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
           if (devAdminAddresses) {
             const devAddress = devAdminAddresses.split(",")[0]?.trim();
             if (devAddress) {
+              const client = createPublicClientUnified();
               const result = await checkDevelopmentAdminAddress(
                 devAddress,
                 adminLockAddress,
+                client,
               );
               if (result.isValid) {
                 return handler(req, res);
@@ -125,9 +128,11 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
             .status(403)
             .json({ error: "Active wallet not linked to user" });
         }
+        const client = createPublicClientUnified();
         const keyRes = await checkMultipleWalletsForAdminKey(
           [activeWallet],
           adminLockAddress,
+          client,
         );
         if (!keyRes?.hasValidKey)
           return res.status(403).json({ error: "Admin access required" });
@@ -148,9 +153,11 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
             .status(403)
             .json({ error: "Active wallet not linked to user" });
         }
+        const client = createPublicClientUnified();
         const keyRes = await checkMultipleWalletsForAdminKey(
           [activeWallet],
           adminLockAddress,
+          client,
         );
         if (!keyRes?.hasValidKey)
           return res.status(403).json({ error: "Admin access required" });
@@ -160,9 +167,11 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
         return handler(req, res);
       }
 
+      const client = createPublicClientUnified();
       const keyCheckResult = await checkMultipleWalletsForAdminKey(
         walletAddresses,
         adminLockAddress,
+        client,
       );
       if (keyCheckResult.hasValidKey) return handler(req, res);
       return res.status(403).json({ error: "Admin access required" });

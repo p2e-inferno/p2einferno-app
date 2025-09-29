@@ -4,9 +4,8 @@ import { useCallback, useState } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem";
 import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
-import { getClientConfig } from "@/lib/blockchain/config";
 import { getLogger } from "@/lib/utils/logger";
-import type { Address } from "viem";
+import { getAddress, type Address, type Hex } from "viem";
 import type { KeyGrantParams, KeyGrantResult, OperationState } from "./types";
 
 const log = getLogger("hooks:unlock:key-grant");
@@ -31,15 +30,30 @@ export const useLockManagerKeyGrant = () => {
       setState({ isLoading: true, error: null, isSuccess: false });
 
       try {
-        // Fresh viem client per operation
-        const client = await createViemFromPrivyWallet(wallet);
-        const config = getClientConfig();
+        // Fresh viem clients per operation
+        const { walletClient, publicClient } = await createViemFromPrivyWallet(
+          wallet,
+        );
 
-        const userAddress = wallet.address as Address;
+        const userAddress = getAddress(wallet.address as Address);
+        const walletAccount = walletClient.account ?? userAddress;
+        const walletChain = walletClient.chain;
+
+        let lockAddress: Address;
+        try {
+          lockAddress = getAddress(params.lockAddress);
+        } catch (addressError) {
+          throw new Error("Invalid lock address provided");
+        }
+
+        const recipientAddress = getAddress(params.recipientAddress);
+        const keyManagers = params.keyManagers.map((manager) =>
+          getAddress(manager),
+        );
 
         // Check if user is lock manager
-        const isLockManager = await client.readContract({
-          address: params.lockAddress,
+        const isLockManager = await publicClient.readContract({
+          address: lockAddress,
           abi: COMPLETE_LOCK_ABI,
           functionName: "isLockManager",
           args: [userAddress],
@@ -50,30 +64,30 @@ export const useLockManagerKeyGrant = () => {
         }
 
         // Grant key using the same purchase function but with special manager privileges
-        const grantTx = await client.writeContract({
-          address: params.lockAddress,
+        const grantTx = await walletClient.writeContract({
+          address: lockAddress,
           abi: COMPLETE_LOCK_ABI,
           functionName: "purchase",
           args: [
             [0n], // values (0 for free grant)
-            [params.recipientAddress], // recipients
+            [recipientAddress], // recipients
             [userAddress], // referrers (lock manager)
-            params.keyManagers, // keyManagers
-            ["0x"], // data
+            keyManagers, // keyManagers
+            ["0x" as Hex], // data
           ],
           value: 0n, // No payment required for manager grants
-          chain: config.chain,
-          account: userAddress,
+          account: walletAccount,
+          chain: walletChain,
         });
 
-        await client.waitForTransactionReceipt({
-          hash: grantTx
+        await publicClient.waitForTransactionReceipt({
+          hash: grantTx,
         });
 
         log.info("Key grant successful", {
           transactionHash: grantTx,
-          recipient: params.recipientAddress,
-          lockAddress: params.lockAddress
+          recipient: recipientAddress,
+          lockAddress,
         });
 
         setState({ isLoading: false, error: null, isSuccess: true });

@@ -3,10 +3,18 @@
  * Client-side Privy wallet integration for viem wallet clients
  */
 
-import { createWalletClient, createPublicClient, custom, type WalletClient, type PublicClient } from 'viem';
-import { type ConnectedWallet } from '@privy-io/react-auth';
-import { getClientConfig } from '../config';
-import { getLogger } from '@/lib/utils/logger';
+import {
+  createPublicClient,
+  createWalletClient,
+  custom,
+  publicActions,
+  type WalletClient,
+  type PublicClient,
+} from "viem";
+import { type ConnectedWallet } from "@privy-io/react-auth";
+import { getClientConfig } from "../config";
+import { createPublicClientUnified } from "../config/clients/public-client";
+import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger('blockchain:privy-viem');
 
@@ -15,8 +23,8 @@ const log = getLogger('blockchain:privy-viem');
  * Returns wallet client that also has public client methods
  */
 export async function createViemFromPrivyWallet(
-  wallet: ConnectedWallet
-): Promise<WalletClient & PublicClient> {
+  wallet: ConnectedWallet,
+): Promise<{ walletClient: WalletClient; publicClient: PublicClient }> {
   if (!wallet || !wallet.address) {
     throw new Error('No wallet provided or wallet not connected');
   }
@@ -57,30 +65,23 @@ export async function createViemFromPrivyWallet(
     throw new Error('No provider available for wallet');
   }
 
-  // Create combined wallet and public client
+  // Create wallet client with public actions
   try {
-    const walletClient = createWalletClient({
+    const baseWalletClient = createWalletClient({
       account: wallet.address as `0x${string}`,
       chain: config.chain,
       transport: custom(provider),
     });
+    const walletClient = baseWalletClient.extend(publicActions);
 
-    const publicClient = createPublicClient({
-      chain: config.chain,
-      transport: custom(provider),
-    });
-
-    // Extend wallet client with public client methods
-    const combinedClient = walletClient.extend(() => ({
-      ...publicClient,
-    }));
+    const publicClient = createViemPublicClient();
 
     log.info('Viem combined client created successfully', {
       address: wallet.address,
       chainId: config.chainId,
     });
 
-    return combinedClient as WalletClient & PublicClient;
+    return { walletClient: walletClient as WalletClient, publicClient };
   } catch (error) {
     log.error('Failed to create viem client', { error });
     throw new Error('Failed to create viem client');
@@ -91,17 +92,30 @@ export async function createViemFromPrivyWallet(
  * Create public client for reads (uses unified config)
  */
 export function createViemPublicClient(): PublicClient {
-  const config = getClientConfig();
-
   try {
-    const publicClient = createPublicClient({
-      chain: config.chain,
-      transport: custom(typeof window !== 'undefined' && (window as any).ethereum ? (window as any).ethereum : undefined),
+    const publicClient = createPublicClientUnified();
+    log.debug('Viem public client created from unified config', {
+      chainId: publicClient.chain?.id,
     });
-
-    log.debug('Viem public client created', { chainId: config.chainId });
     return publicClient;
   } catch (error) {
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      try {
+        const config = getClientConfig();
+        const fallbackClient = createPublicClient({
+          chain: config.chain,
+          transport: custom((window as any).ethereum),
+        });
+
+        log.warn('Falling back to injected provider for viem public client');
+        return fallbackClient as PublicClient;
+      } catch (fallbackError) {
+        log.error('Failed fallback viem public client creation', {
+          error: fallbackError,
+        });
+      }
+    }
+
     log.error('Failed to create viem public client', { error });
     throw new Error('Failed to create viem public client');
   }

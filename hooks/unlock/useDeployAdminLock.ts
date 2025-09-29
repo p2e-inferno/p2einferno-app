@@ -6,11 +6,11 @@ import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem
 import {
   UNLOCK_FACTORY_ABI,
   UNLOCK_FACTORY_ADDRESSES,
-  ADDITIONAL_LOCK_ABI
+  ADDITIONAL_LOCK_ABI,
 } from "@/lib/blockchain/shared/abi-definitions";
-import { getClientConfig } from "@/lib/blockchain/config";
+import { extractLockAddressFromReceiptViem } from "@/lib/blockchain/shared/transaction-utils";
 import { getLogger } from "@/lib/utils/logger";
-import { encodeFunctionData, type Address } from "viem";
+import { encodeFunctionData, getAddress, type Address } from "viem";
 import type { AdminLockDeploymentParams, AdminLockDeploymentResult, OperationState } from "./types";
 
 const log = getLogger("hooks:unlock:deploy-admin-lock");
@@ -42,25 +42,43 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
       setState({ isLoading: true, error: null, isSuccess: false });
 
       try {
-        // Fresh viem client per operation
-        const client = await createViemFromPrivyWallet(wallet);
-        const config = getClientConfig();
+        // Fresh viem clients per operation
+        const { walletClient, publicClient } = await createViemFromPrivyWallet(
+          wallet,
+        );
 
-        const userAddress = wallet.address as Address;
-        const chainId = await client.getChainId();
+        const userAddress = getAddress(wallet.address as Address);
+        const walletAccount = walletClient.account ?? userAddress;
+        const walletChain = walletClient.chain;
+        const chainId = await publicClient.getChainId();
 
         // Get factory address for current chain
-        const factoryAddress = UNLOCK_FACTORY_ADDRESSES[chainId as keyof typeof UNLOCK_FACTORY_ADDRESSES];
-        if (!factoryAddress) {
+        const factoryAddressValue =
+          UNLOCK_FACTORY_ADDRESSES[
+            chainId as keyof typeof UNLOCK_FACTORY_ADDRESSES
+          ];
+        if (!factoryAddressValue) {
           throw new Error(`Unlock factory not available on chain ${chainId}`);
         }
+        const factoryAddress = getAddress(factoryAddressValue as Address);
 
         // Fetch server wallet address from API
-        const serverResponse = await fetch('/api/admin/server-wallet');
+        const serverResponse = await fetch("/api/admin/server-wallet", {
+          credentials: "include",
+        });
         if (!serverResponse.ok) {
           throw new Error('Failed to fetch server wallet address');
         }
         const { serverWalletAddress } = await serverResponse.json();
+
+        let normalizedServerWallet: Address;
+        try {
+          normalizedServerWallet = getAddress(serverWalletAddress);
+        } catch (error) {
+          throw new Error('Server wallet address is invalid');
+        }
+
+        const tokenAddress = getAddress(params.tokenAddress);
 
         // Encode initialization data (factory as initial owner)
         const initData = encodeFunctionData({
@@ -69,7 +87,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           args: [
             factoryAddress, // Factory as initial lock creator
             params.expirationDuration,
-            params.tokenAddress,
+            tokenAddress,
             params.keyPrice,
             params.maxNumberOfKeys,
             params.name,
@@ -86,7 +104,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
         const addServerManagerTx = encodeFunctionData({
           abi: ADDITIONAL_LOCK_ABI,
           functionName: "addLockManager",
-          args: [serverWalletAddress],
+          args: [normalizedServerWallet],
         });
 
         const renounceFactoryTx = encodeFunctionData({
@@ -102,8 +120,8 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
         ];
 
         // Deploy lock with factory pattern
-        const deployTx = await client.writeContract({
-          address: factoryAddress as Address,
+        const deployTx = await walletClient.writeContract({
+          address: factoryAddress,
           abi: UNLOCK_FACTORY_ABI,
           functionName: "createUpgradeableLockAtVersion",
           args: [
@@ -111,25 +129,27 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
             params.lockVersion || 14,
             additionalTransactions,
           ],
-          chain: config.chain,
-          account: userAddress,
+          account: walletAccount,
+          chain: walletChain,
         });
 
-        const receipt = await client.waitForTransactionReceipt({
-          hash: deployTx
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: deployTx,
         });
 
-        // Extract lock address from logs
-        const newLockLog = receipt.logs.find((log: any) =>
-          log.topics[0] === "0x01017ed19df0c7f8acc436147b234b09664a9fb4797b4fa3fb9e599c2eb67be7" // NewLock event
+        const lockAddress = extractLockAddressFromReceiptViem(
+          receipt,
+          userAddress,
         );
 
-        const lockAddress = newLockLog?.topics[2] as Address;
+        if (!lockAddress) {
+          throw new Error("Failed to determine deployed lock address");
+        }
 
         log.info("Admin lock deployment successful", {
           transactionHash: deployTx,
           lockAddress,
-          serverWalletAddress,
+          serverWalletAddress: normalizedServerWallet,
           name: params.name
         });
 
@@ -139,7 +159,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           success: true,
           transactionHash: deployTx,
           lockAddress,
-          serverWalletAddress,
+          serverWalletAddress: normalizedServerWallet,
         };
 
       } catch (error: any) {

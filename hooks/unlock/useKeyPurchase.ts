@@ -4,9 +4,9 @@ import { useCallback, useState } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem";
 import { COMPLETE_LOCK_ABI, ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
-import { getClientConfig } from "@/lib/blockchain/config";
+import { extractTokenIdsFromReceipt } from "@/lib/blockchain/shared/transaction-utils";
 import { getLogger } from "@/lib/utils/logger";
-import type { Address } from "viem";
+import { getAddress, zeroAddress, type Address, type Hex } from "viem";
 import type { KeyPurchaseParams, KeyPurchaseResult, OperationState } from "./types";
 
 const log = getLogger("hooks:unlock:key-purchase");
@@ -31,77 +31,99 @@ export const useKeyPurchase = () => {
       setState({ isLoading: true, error: null, isSuccess: false });
 
       try {
-        // Fresh viem client per operation
-        const client = await createViemFromPrivyWallet(wallet);
-        const config = getClientConfig();
+        // Fresh viem clients per operation
+        const { walletClient, publicClient } = await createViemFromPrivyWallet(
+          wallet,
+        );
 
-        const userAddress = wallet.address as Address;
-        const recipient = params.recipient || userAddress;
+        const userAddress = getAddress(wallet.address as Address);
+        const walletAccount = walletClient.account ?? userAddress;
+        const walletChain = walletClient.chain;
+
+        let lockAddress: Address;
+        try {
+          lockAddress = getAddress(params.lockAddress);
+        } catch (addressError) {
+          throw new Error("Invalid lock address provided");
+        }
+
+        const recipient = params.recipient
+          ? getAddress(params.recipient)
+          : userAddress;
+        const keyManager = params.keyManager
+          ? getAddress(params.keyManager)
+          : recipient;
+        const referrer = params.referrer
+          ? getAddress(params.referrer)
+          : zeroAddress;
+        const data = (params.data || "0x") as Hex;
 
         // Get key price and token address
         const [keyPrice, tokenAddress] = await Promise.all([
-          client.readContract({
-            address: params.lockAddress,
+          publicClient.readContract({
+            address: lockAddress,
             abi: COMPLETE_LOCK_ABI,
             functionName: "keyPrice",
           }) as Promise<bigint>,
-          client.readContract({
-            address: params.lockAddress,
+          publicClient.readContract({
+            address: lockAddress,
             abi: COMPLETE_LOCK_ABI,
             functionName: "tokenAddress",
           }) as Promise<Address>,
         ]);
 
         // Handle token approval if needed (ERC20)
-        const isETH = tokenAddress === "0x0000000000000000000000000000000000000000";
+        const isETH = tokenAddress === zeroAddress;
 
         if (!isETH) {
-          const allowance = await client.readContract({
+          const allowance = await publicClient.readContract({
             address: tokenAddress,
             abi: ERC20_ABI,
             functionName: "allowance",
-            args: [userAddress, params.lockAddress],
+            args: [userAddress, lockAddress],
           }) as bigint;
 
           if (allowance < keyPrice) {
             log.info("Approving token spend", { tokenAddress, keyPrice });
-            const approveTx = await client.writeContract({
+            const approveTx = await walletClient.writeContract({
               address: tokenAddress,
               abi: ERC20_ABI,
               functionName: "approve",
-              args: [params.lockAddress, keyPrice],
-              chain: config.chain,
-              account: userAddress,
+              args: [lockAddress, keyPrice],
+              account: walletAccount,
+              chain: walletChain,
             });
-            await client.waitForTransactionReceipt({ hash: approveTx });
+            await publicClient.waitForTransactionReceipt({ hash: approveTx });
           }
         }
 
         // Purchase key
-        const purchaseTx = await client.writeContract({
-          address: params.lockAddress,
+        const purchaseTx = await walletClient.writeContract({
+          address: lockAddress,
           abi: COMPLETE_LOCK_ABI,
           functionName: "purchase",
           args: [
             [keyPrice], // values
             [recipient], // recipients
-            [params.referrer || "0x0000000000000000000000000000000000000000"], // referrers
-            [params.keyManager || recipient], // keyManagers
-            [params.data || "0x"], // data
+            [referrer], // referrers
+            [keyManager], // keyManagers
+            [data], // data
           ],
           value: isETH ? keyPrice : 0n,
-          chain: config.chain,
-          account: userAddress,
+          account: walletAccount,
+          chain: walletChain,
         });
 
-        await client.waitForTransactionReceipt({
-          hash: purchaseTx
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: purchaseTx,
         });
+
+        const tokenIds = extractTokenIdsFromReceipt(receipt);
 
         log.info("Key purchase successful", {
           transactionHash: purchaseTx,
           recipient,
-          lockAddress: params.lockAddress
+          lockAddress,
         });
 
         setState({ isLoading: false, error: null, isSuccess: true });
@@ -109,7 +131,7 @@ export const useKeyPurchase = () => {
         return {
           success: true,
           transactionHash: purchaseTx,
-          tokenIds: [], // Extract from logs if needed
+          tokenIds,
         };
 
       } catch (error: any) {

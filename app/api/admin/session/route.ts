@@ -4,6 +4,7 @@ import { getPrivyUserFromNextRequest, getUserWalletAddresses } from '@/lib/auth/
 import { checkMultipleWalletsForAdminKey, checkDevelopmentAdminAddress } from '@/lib/auth/admin-key-checker';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_SESSION_TTL_SECONDS, ADMIN_RPC_TIMEOUT_MS } from '@/lib/app-config/admin';
+import {createPublicClientUnified} from "@/lib/blockchain/config";
 
 const log = getLogger('api:admin-session');
 
@@ -59,7 +60,8 @@ export async function POST(req: NextRequest) {
       if (devAdminAddresses) {
         const devAddress = devAdminAddresses.split(',')[0]?.trim();
         if (devAddress && adminLockAddress) {
-          const res = await checkDevelopmentAdminAddress(devAddress, adminLockAddress);
+          const client = createPublicClientUnified();
+          const res = await checkDevelopmentAdminAddress(devAddress, adminLockAddress, client);
           if (res.isValid) {
             const { token, exp } = await issueAdminSession({ did: user.id, wallet: devAddress, roles: ['admin'], locks: [adminLockAddress] }, ADMIN_SESSION_TTL_SECONDS);
             const response = NextResponse.json({ ok: true, exp }, { status: 200 });
@@ -76,8 +78,9 @@ export async function POST(req: NextRequest) {
 
     // Key check with timeout race to avoid hanging
     const doKeyCheck = async () => {
+      const client = createPublicClientUnified();
       if (!adminLockAddress) return { hasValidKey: true }; // dev path
-      return await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress);
+      return await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress, client);
     };
     const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('keycheck-timeout')), ADMIN_RPC_TIMEOUT_MS));
     let keyRes: any;

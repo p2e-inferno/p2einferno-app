@@ -6,11 +6,11 @@ import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem
 import {
   UNLOCK_FACTORY_ABI,
   UNLOCK_FACTORY_ADDRESSES,
-  ADDITIONAL_LOCK_ABI
+  ADDITIONAL_LOCK_ABI,
 } from "@/lib/blockchain/shared/abi-definitions";
-import { getClientConfig } from "@/lib/blockchain/config";
+import { extractLockAddressFromReceiptViem } from "@/lib/blockchain/shared/transaction-utils";
 import { getLogger } from "@/lib/utils/logger";
-import { encodeFunctionData, type Address } from "viem";
+import { encodeFunctionData, getAddress, type Address } from "viem";
 import type { LockDeploymentParams, LockDeploymentResult, OperationState } from "./types";
 
 const log = getLogger("hooks:unlock:deploy-lock");
@@ -35,18 +35,27 @@ export const useDeployLock = () => {
       setState({ isLoading: true, error: null, isSuccess: false });
 
       try {
-        // Fresh viem client per operation
-        const client = await createViemFromPrivyWallet(wallet);
-        const config = getClientConfig();
+        // Fresh viem clients per operation
+        const { walletClient, publicClient } = await createViemFromPrivyWallet(
+          wallet,
+        );
 
-        const userAddress = wallet.address as Address;
-        const chainId = await client.getChainId();
+        const userAddress = getAddress(wallet.address as Address);
+        const walletAccount = walletClient.account ?? userAddress;
+        const walletChain = walletClient.chain;
+        const chainId = await publicClient.getChainId();
 
         // Get factory address for current chain
-        const factoryAddress = UNLOCK_FACTORY_ADDRESSES[chainId as keyof typeof UNLOCK_FACTORY_ADDRESSES];
-        if (!factoryAddress) {
+        const factoryAddressValue =
+          UNLOCK_FACTORY_ADDRESSES[
+            chainId as keyof typeof UNLOCK_FACTORY_ADDRESSES
+          ];
+        if (!factoryAddressValue) {
           throw new Error(`Unlock factory not available on chain ${chainId}`);
         }
+        const factoryAddress = getAddress(factoryAddressValue as Address);
+
+        const tokenAddress = getAddress(params.tokenAddress);
 
         // Encode initialization data
         const initData = encodeFunctionData({
@@ -55,7 +64,7 @@ export const useDeployLock = () => {
           args: [
             userAddress, // _lockCreator
             params.expirationDuration, // _expirationDuration
-            params.tokenAddress, // _tokenAddress
+            tokenAddress, // _tokenAddress
             params.keyPrice, // _keyPrice
             params.maxNumberOfKeys, // _maxNumberOfKeys
             params.name, // _lockName
@@ -63,8 +72,8 @@ export const useDeployLock = () => {
         });
 
         // Deploy lock
-        const deployTx = await client.writeContract({
-          address: factoryAddress as Address,
+        const deployTx = await walletClient.writeContract({
+          address: factoryAddress,
           abi: UNLOCK_FACTORY_ABI,
           functionName: "createUpgradeableLockAtVersion",
           args: [
@@ -72,20 +81,22 @@ export const useDeployLock = () => {
             params.lockVersion || 14, // Default to latest version
             [], // No additional transactions
           ],
-          chain: config.chain,
-          account: userAddress,
+          account: walletAccount,
+          chain: walletChain,
         });
 
-        const receipt = await client.waitForTransactionReceipt({
-          hash: deployTx
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: deployTx,
         });
 
-        // Extract lock address from logs
-        const newLockLog = receipt.logs.find((log: any) =>
-          log.topics[0] === "0x01017ed19df0c7f8acc436147b234b09664a9fb4797b4fa3fb9e599c2eb67be7" // NewLock event
+        const lockAddress = extractLockAddressFromReceiptViem(
+          receipt,
+          userAddress,
         );
 
-        const lockAddress = newLockLog?.topics[2] as Address;
+        if (!lockAddress) {
+          log.warn("Failed to determine deployed lock address");
+        }
 
         log.info("Lock deployment successful", {
           transactionHash: deployTx,
@@ -98,7 +109,7 @@ export const useDeployLock = () => {
         return {
           success: true,
           transactionHash: deployTx,
-          lockAddress,
+          lockAddress: lockAddress!,
         };
 
       } catch (error: any) {

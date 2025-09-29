@@ -7,6 +7,7 @@ import {
   getPrivyUserFromNextRequest,
   getUserWalletAddresses,
 } from "@/lib/auth/privy";
+import {createPublicClientUnified} from "@/lib/blockchain/config";
 import {
   checkMultipleWalletsForAdminKey,
   checkDevelopmentAdminAddress,
@@ -87,9 +88,11 @@ export async function ensureAdminOrRespond(
       if (devAdminAddresses) {
         const devAddress = devAdminAddresses.split(",")[0]?.trim();
         if (devAddress) {
+          const client = createPublicClientUnified();
           const res = await checkDevelopmentAdminAddress(
             devAddress,
             adminLockAddress,
+            client,
           );
           if (res.isValid) return null;
         }
@@ -121,9 +124,11 @@ export async function ensureAdminOrRespond(
           { status: 403 },
         );
       }
+      const client = createPublicClientUnified();
       const keyRes = await checkMultipleWalletsForAdminKey(
         [activeWallet],
         adminLockAddress,
+        client,
       );
       if (!keyRes?.hasValidKey) {
         return NextResponse.json(
@@ -149,9 +154,11 @@ export async function ensureAdminOrRespond(
           { status: 403 },
         );
       }
+      const client = createPublicClientUnified();
       const keyRes = await checkMultipleWalletsForAdminKey(
         [activeWallet],
         adminLockAddress,
+        client,
       );
       if (!keyRes?.hasValidKey) {
         return NextResponse.json(
@@ -169,9 +176,11 @@ export async function ensureAdminOrRespond(
     }
 
     // No active wallet header: permit only if user still holds a valid admin key on any linked wallet
+    const client = createPublicClientUnified();
     const keyRes = await checkMultipleWalletsForAdminKey(
       walletAddresses,
       adminLockAddress,
+      client,
     );
     if (!keyRes?.hasValidKey) {
       return NextResponse.json(

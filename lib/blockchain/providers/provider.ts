@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { getClientRpcUrls, getClientConfig } from "../config";
+import { getClientRpcUrls, getClientConfig } from "@/lib/blockchain/config";
 import { blockchainLogger } from "../shared/logging-utils";
 
 let readOnlyProviderSingleton:

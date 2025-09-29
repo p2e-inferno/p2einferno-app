@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { issueAdminSession } from "@/lib/auth/admin-session";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { getUserWalletAddresses } from "@/lib/auth/privy";
+import {createPublicClientUnified} from "@/lib/blockchain/config";
 import {
   checkMultipleWalletsForAdminKey,
   checkDevelopmentAdminAddress,
@@ -77,9 +78,11 @@ export default async function handler(
       if (devAdminAddresses) {
         const devAddress = devAdminAddresses.split(",")[0]?.trim();
         if (devAddress) {
+          const client = createPublicClientUnified();
           const resDev = await checkDevelopmentAdminAddress(
             devAddress,
             adminLockAddress,
+            client,
           );
           if (resDev.isValid) {
             const { token, exp } = await issueAdminSession(
@@ -109,9 +112,11 @@ export default async function handler(
       return res.status(403).json({ error: "No wallet addresses found" });
     }
 
+    const client = createPublicClientUnified();
     const keyRes = await checkMultipleWalletsForAdminKey(
       walletAddresses,
       adminLockAddress,
+      client,
     );
     if (!keyRes?.hasValidKey) {
       return res.status(403).json({ error: "Admin access required" });
