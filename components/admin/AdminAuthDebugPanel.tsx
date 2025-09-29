@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   AdminAuthProvider,
   useAdminAuthContext,
@@ -6,8 +6,15 @@ import {
   getAuthStatusMessage,
 } from "@/contexts/admin-context";
 import { isCacheValid } from "@/contexts/admin-context/utils/adminAuthContextCacheUtils";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { PrivyConnectButton } from "@/components/PrivyConnectButton";
+import {
+  useHasValidKey,
+  useUnlockWriteOperations,
+  useUnlockAdminOperations,
+} from "@/hooks/unlock";
+import { parseEther } from "viem";
+import type { Address } from "viem";
 
 const formatMillis = (value: number | null | undefined) => {
   if (!value) return "n/a";
@@ -55,8 +62,42 @@ export function AdminAuthDebugPanel() {
     getHealthStatus,
   } = useAdminAuthContext();
 
+  const { wallets } = useWallets(); // Get connected wallets for operations
+  const connectedWallet = wallets[0]; // First connected wallet
+
   const [sessionMessage, setSessionMessage] = useState("");
   const [apiMessage, setApiMessage] = useState("");
+
+  // Write operations testing state
+  const { checkHasValidKey } = useHasValidKey();
+  const [isAdminForTesting, setIsAdminForTesting] = useState(false);
+  const writeOps = useUnlockWriteOperations();
+  const adminOps = useUnlockAdminOperations({ isAdmin: isAdminForTesting });
+
+  const [testParams, setTestParams] = useState({
+    lockAddress: "",
+    recipientAddress: "",
+    lockName: "Test Lock",
+    keyPrice: "0.01",
+    expirationDuration: "365", // days
+  });
+
+  // Admin detection using clean unlock hooks (prevents RPC hammering)
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (
+        connectedWallet?.address &&
+        process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS
+      ) {
+        const result = await checkHasValidKey(
+          connectedWallet.address as Address,
+          process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS as Address,
+        );
+        setIsAdminForTesting(!!result?.isValid);
+      }
+    };
+    checkAdmin();
+  }, [connectedWallet?.address, checkHasValidKey]);
 
   const handleRefreshAuth = useCallback(async () => {
     setSessionMessage("");
@@ -243,6 +284,213 @@ export function AdminAuthDebugPanel() {
           {apiMessage && <p>API logout: {apiMessage}</p>}
         </div>
       )}
+
+      <section className="space-y-4 rounded border border-dashed border-orange-500/60 bg-orange-950/10 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-base font-semibold text-orange-100">
+            Unlock Operations Testing
+          </h3>
+          <span className="font-mono text-xs uppercase text-orange-300">
+            {isAdminForTesting ? "ADMIN" : "USER"}
+          </span>
+        </div>
+
+        <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <DebugStat
+              label="Admin for Testing"
+              value={isAdminForTesting ? "yes" : "no"}
+            />
+            <DebugStat
+              label="Key Purchase Loading"
+              value={writeOps.keyPurchase.isLoading ? "yes" : "no"}
+            />
+            <DebugStat
+              label="Deploy Lock Loading"
+              value={writeOps.deployLock.isLoading ? "yes" : "no"}
+            />
+            <DebugStat
+              label="Key Grant Loading"
+              value={writeOps.keyGrant.isLoading ? "yes" : "no"}
+            />
+            <DebugStat
+              label="Admin Deploy Loading"
+              value={adminOps.deployAdminLock.isLoading ? "yes" : "no"}
+            />
+            <DebugStat
+              label="Operation Success"
+              value={
+                writeOps.keyPurchase.isSuccess ||
+                writeOps.deployLock.isSuccess ||
+                writeOps.keyGrant.isSuccess ||
+                adminOps.deployAdminLock.isSuccess
+                  ? "yes"
+                  : "no"
+              }
+            />
+          </div>
+
+          <div className="rounded bg-orange-950/20 p-2 font-mono text-xs text-orange-200">
+            {writeOps.keyPurchase.error && (
+              <p className="text-red-300">
+                Key Purchase Error: {writeOps.keyPurchase.error}
+              </p>
+            )}
+            {writeOps.deployLock.error && (
+              <p className="text-red-300">
+                Deploy Lock Error: {writeOps.deployLock.error}
+              </p>
+            )}
+            {writeOps.keyGrant.error && (
+              <p className="text-red-300">
+                Key Grant Error: {writeOps.keyGrant.error}
+              </p>
+            )}
+            {adminOps.deployAdminLock.error && (
+              <p className="text-red-300">
+                Admin Deploy Error: {adminOps.deployAdminLock.error}
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs text-orange-300">Lock Address</label>
+            <input
+              type="text"
+              value={testParams.lockAddress}
+              onChange={(e) =>
+                setTestParams((prev) => ({
+                  ...prev,
+                  lockAddress: e.target.value,
+                }))
+              }
+              placeholder="0x..."
+              className="w-full rounded bg-orange-950/30 px-2 py-1 text-xs text-orange-100 placeholder-orange-400"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-orange-300">Recipient Address</label>
+            <input
+              type="text"
+              value={testParams.recipientAddress}
+              onChange={(e) =>
+                setTestParams((prev) => ({
+                  ...prev,
+                  recipientAddress: e.target.value,
+                }))
+              }
+              placeholder="0x..."
+              className="w-full rounded bg-orange-950/30 px-2 py-1 text-xs text-orange-100 placeholder-orange-400"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-orange-300">Lock Name</label>
+            <input
+              type="text"
+              value={testParams.lockName}
+              onChange={(e) =>
+                setTestParams((prev) => ({ ...prev, lockName: e.target.value }))
+              }
+              placeholder="Test Lock"
+              className="w-full rounded bg-orange-950/30 px-2 py-1 text-xs text-orange-100 placeholder-orange-400"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-orange-300">Key Price (ETH)</label>
+            <input
+              type="text"
+              value={testParams.keyPrice}
+              onChange={(e) =>
+                setTestParams((prev) => ({ ...prev, keyPrice: e.target.value }))
+              }
+              placeholder="0.01"
+              className="w-full rounded bg-orange-950/30 px-2 py-1 text-xs text-orange-100 placeholder-orange-400"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-orange-300">
+              Expiration Duration (days)
+            </label>
+            <input
+              type="text"
+              value={testParams.expirationDuration}
+              onChange={(e) =>
+                setTestParams((prev) => ({
+                  ...prev,
+                  expirationDuration: e.target.value,
+                }))
+              }
+              placeholder="365"
+              className="w-full rounded bg-orange-950/30 px-2 py-1 text-xs text-orange-100 placeholder-orange-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <DebugButton
+            onClick={async () => {
+              if (!testParams.lockAddress) return;
+              await writeOps.keyPurchase.purchaseKey({
+                lockAddress: testParams.lockAddress as Address,
+                recipient: (testParams.recipientAddress ||
+                  connectedWallet?.address) as Address,
+              });
+            }}
+            label="Purchase Key"
+            variant="default"
+          />
+          <DebugButton
+            onClick={async () => {
+              await writeOps.deployLock.deployLock({
+                name: testParams.lockName,
+                expirationDuration: BigInt(
+                  parseInt(testParams.expirationDuration) * 24 * 60 * 60,
+                ),
+                tokenAddress:
+                  "0x0000000000000000000000000000000000000000" as Address, // ETH
+                keyPrice: parseEther(testParams.keyPrice),
+                maxNumberOfKeys: 1000n,
+              });
+            }}
+            label="Deploy User Lock"
+            variant="default"
+          />
+          {isAdminForTesting && (
+            <DebugButton
+              onClick={async () => {
+                await adminOps.deployAdminLock.deployAdminLock({
+                  name: testParams.lockName,
+                  expirationDuration: BigInt(
+                    parseInt(testParams.expirationDuration) * 24 * 60 * 60,
+                  ),
+                  tokenAddress:
+                    "0x0000000000000000000000000000000000000000" as Address, // ETH
+                  keyPrice: parseEther(testParams.keyPrice),
+                  maxNumberOfKeys: 1000n,
+                  isAdmin: true,
+                });
+              }}
+              label="Deploy Admin Lock"
+              variant="default"
+            />
+          )}
+          <DebugButton
+            onClick={async () => {
+              if (!testParams.lockAddress || !testParams.recipientAddress)
+                return;
+              await writeOps.keyGrant.grantKey({
+                lockAddress: testParams.lockAddress as Address,
+                recipientAddress: testParams.recipientAddress as Address,
+                keyManagers: [testParams.recipientAddress as Address],
+              });
+            }}
+            label="Grant Key (Manager)"
+            variant="default"
+          />
+        </div>
+      </section>
 
       {user && (
         <div className="space-y-1">

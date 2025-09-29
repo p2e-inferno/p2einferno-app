@@ -12,5 +12,8 @@ export * from "./lock-manager";
 // Viem provider utilities (when implemented)
 // export * from './viem-provider';
 
+// Privy + Viem integration
+export * from './privy-viem';
+
 // Ethers provider utilities (when implemented)
 // export * from './ethers-provider';

@@ -5,7 +5,7 @@
  */
 
 import { Address } from "viem";
-import { lockManagerService } from "../blockchain/services/lock-manager";
+import { createServerLockManager } from "../blockchain/services/lock-manager";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("auth:key-check");
@@ -56,7 +56,9 @@ export const checkMultipleWalletsForAdminKey = async (
       try {
         log.debug(`Checking wallet ${address}...`);
 
-        const keyInfo = await lockManagerService.checkUserHasValidKey(
+        // Create fresh service instance for each check - no persistence
+        const lockManager = createServerLockManager();
+        const keyInfo = await lockManager.checkUserHasValidKey(
           address as Address,
           adminLockAddress as Address,
         );
@@ -148,7 +150,9 @@ export const checkDevelopmentAdminAddress = async (
   try {
     log.info(`Checking development admin address: ${devAddress}`);
 
-    const keyInfo = await lockManagerService.checkUserHasValidKey(
+    // Create fresh service instance - no persistence
+    const lockManager = createServerLockManager();
+    const keyInfo = await lockManager.checkUserHasValidKey(
       devAddress as Address,
       adminLockAddress as Address,
     );

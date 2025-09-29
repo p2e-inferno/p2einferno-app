@@ -1,5 +1,5 @@
 import { type Address } from "viem";
-import { lockManagerService } from "./lock-manager";
+import { createServerLockManager } from "./lock-manager";
 import { getLockManagerAddress } from "../legacy/server-config";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -52,7 +52,9 @@ export class GrantKeyService {
 
     // Check if user is a lock manager
     const adminAddress = getLockManagerAddress();
-    const isLockManager = await lockManagerService.checkUserIsLockManager(
+    // Create fresh service instance - no persistence
+    const lockManager = createServerLockManager();
+    const isLockManager = await lockManager.checkUserIsLockManager(
       adminAddress as Address,
       lockAddress,
     );
@@ -70,7 +72,9 @@ export class GrantKeyService {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Attempt to grant key
-        const result = await lockManagerService.grantKeys({
+        // Create fresh service instance for each attempt - no persistence
+        const grantLockManager = createServerLockManager();
+        const result = await grantLockManager.grantKeys({
           recipientAddress: walletAddress as Address,
           lockAddress,
           keyManagers,
@@ -153,7 +157,9 @@ export class GrantKeyService {
     }
 
     try {
-      const keyInfo = await lockManagerService.checkUserHasValidKey(
+      // Create fresh service instance - no persistence
+      const lockManager = createServerLockManager();
+      const keyInfo = await lockManager.checkUserHasValidKey(
         walletAddress as Address,
         lockAddress,
       );
