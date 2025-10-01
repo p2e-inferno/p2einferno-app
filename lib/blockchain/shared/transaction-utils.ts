@@ -4,18 +4,8 @@
  */
 
 import { ethers } from "ethers";
-import {
-  decodeEventLog,
-  getAddress,
-  parseAbi,
-  zeroAddress,
-  type Address,
-  type Hex,
-} from "viem";
 import { EVENT_SIGNATURES, UNLOCK_FACTORY_EVENTS } from "./abi-definitions";
 import { blockchainLogger } from "./logging-utils";
-
-const UNLOCK_FACTORY_EVENTS_ABI = parseAbi(UNLOCK_FACTORY_EVENTS);
 
 // ============================================================================
 // TYPES
@@ -199,101 +189,6 @@ export const extractLockAddressFromReceipt = (
   } catch (error) {
     blockchainLogger.error("Error extracting lock address from receipt", {
       operation: "extractLockAddress",
-      error: error instanceof Error ? error.message : "Unknown error",
-      deployerAddress,
-    });
-    return null;
-  }
-};
-
-/**
- * Extract lock address from a viem receipt
- */
-export const extractLockAddressFromReceiptViem = (
-  receipt: { logs?: Array<{ topics?: readonly Hex[]; data: Hex }> },
-  deployerAddress?: Address,
-): Address | null => {
-  try {
-    const { logs } = receipt || {};
-    if (!logs || logs.length === 0) {
-      blockchainLogger.warn("No logs found in deployment receipt (viem)");
-      return null;
-    }
-
-    for (const log of logs) {
-      if (!log.topics || log.topics.length === 0) continue;
-
-      try {
-        const topics = [...log.topics].filter(Boolean) as [
-          `0x${string}`,
-          ...`0x${string}`[],
-        ];
-        if (topics.length === 0) continue;
-
-        const decoded = decodeEventLog({
-          abi: UNLOCK_FACTORY_EVENTS_ABI,
-          data: log.data,
-          topics,
-        });
-
-        if (
-          decoded.eventName === "NewLock" &&
-          decoded.args?.newLockAddress
-        ) {
-          const address = getAddress(
-            decoded.args.newLockAddress as `0x${string}`,
-          );
-          blockchainLogger.info("Extracted lock address from NewLock event", {
-            operation: "extractLockAddressViem",
-            lockAddress: address,
-            deployerAddress,
-          });
-          return address;
-        }
-      } catch (error) {
-        // Not a NewLock event – continue scanning
-      }
-    }
-
-    for (const log of logs) {
-      if (!log.topics || log.topics.length <= 1) continue;
-      for (let i = 1; i < log.topics.length; i += 1) {
-        const topic = log.topics[i];
-        if (!topic || topic.length < 10) continue;
-
-        try {
-          const address = getAddress(`0x${topic.slice(-40)}` as `0x${string}`);
-
-          if (
-            address !== zeroAddress &&
-            (!deployerAddress ||
-              address.toLowerCase() !== deployerAddress.toLowerCase())
-          ) {
-            blockchainLogger.info(
-              "Extracted lock address from log topic fallback (viem)",
-              {
-                operation: "extractLockAddressViem",
-                lockAddress: address,
-                deployerAddress,
-              },
-            );
-            return address;
-          }
-        } catch (addressError) {
-          // Ignore malformed topic conversions
-        }
-      }
-    }
-
-    blockchainLogger.warn("Could not extract lock address from receipt (viem)", {
-      operation: "extractLockAddressViem",
-      deployerAddress,
-      logCount: logs.length,
-    });
-    return null;
-  } catch (error) {
-    blockchainLogger.error("Error extracting lock address from receipt (viem)", {
-      operation: "extractLockAddressViem",
       error: error instanceof Error ? error.message : "Unknown error",
       deployerAddress,
     });

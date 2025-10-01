@@ -8,7 +8,7 @@ import {
   UNLOCK_FACTORY_ADDRESSES,
   ADDITIONAL_LOCK_ABI,
 } from "@/lib/blockchain/shared/abi-definitions";
-import { extractLockAddressFromReceiptViem } from "@/lib/blockchain/shared/transaction-utils";
+import { extractLockAddressFromReceipt } from "@/lib/blockchain/shared/transaction-utils";
 import { getLogger } from "@/lib/utils/logger";
 import { encodeFunctionData, getAddress, type Address } from "viem";
 import type { LockDeploymentParams, LockDeploymentResult, OperationState } from "./types";
@@ -78,7 +78,6 @@ export const useDeployLock = () => {
           args: [
             initData,
             params.lockVersion || 14, // Default to latest version
-            [], // No additional transactions
           ],
           account: walletAccount,
           chain: walletChain,
@@ -88,7 +87,7 @@ export const useDeployLock = () => {
           hash: deployTx,
         });
 
-        const lockAddress = extractLockAddressFromReceiptViem(
+        const lockAddress = extractLockAddressFromReceipt(
           receipt,
           userAddress,
         );
@@ -108,7 +107,7 @@ export const useDeployLock = () => {
         return {
           success: true,
           transactionHash: deployTx,
-          lockAddress: lockAddress!,
+          lockAddress: lockAddress as Address,
         };
 
       } catch (error: any) {

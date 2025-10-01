@@ -68,6 +68,7 @@ export interface AdminLockDeploymentParams {
 export interface AdminLockDeploymentResult {
   success: boolean;
   transactionHash?: string;
+  grantTransactionHash?: string;
   lockAddress?: Address;
   serverWalletAddress?: string; // Server wallet added as manager
   error?: string;

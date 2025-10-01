@@ -8,10 +8,15 @@ import {
   UNLOCK_FACTORY_ADDRESSES,
   ADDITIONAL_LOCK_ABI,
 } from "@/lib/blockchain/shared/abi-definitions";
-import { extractLockAddressFromReceiptViem } from "@/lib/blockchain/shared/transaction-utils";
+import { extractLockAddressFromReceipt } from "@/lib/blockchain/shared/transaction-utils";
 import { getLogger } from "@/lib/utils/logger";
 import { encodeFunctionData, getAddress, type Address } from "viem";
-import type { AdminLockDeploymentParams, AdminLockDeploymentResult, OperationState } from "./types";
+import type {
+  AdminLockDeploymentParams,
+  AdminLockDeploymentResult,
+  OperationState,
+} from "./types";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 const log = getLogger("hooks:unlock:deploy-admin-lock");
 
@@ -23,18 +28,22 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
     isSuccess: false,
   });
 
+  const { adminFetch } = useAdminApi();
+
   const deployAdminLock = useCallback(
-    async (params: AdminLockDeploymentParams): Promise<AdminLockDeploymentResult> => {
+    async (
+      params: AdminLockDeploymentParams,
+    ): Promise<AdminLockDeploymentResult> => {
       // Security check - must be admin
       if (!isAdmin || !params.isAdmin) {
         const error = "Admin access required for admin lock deployment";
-        setState(prev => ({ ...prev, error }));
+        setState((prev) => ({ ...prev, error }));
         return { success: false, error };
       }
 
       if (!wallet) {
         const error = "Wallet not connected";
-        setState(prev => ({ ...prev, error }));
+        setState((prev) => ({ ...prev, error }));
         return { success: false, error };
       }
 
@@ -42,9 +51,8 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
 
       try {
         // Fresh viem clients per operation
-        const { walletClient, publicClient } = await createViemFromPrivyWallet(
-          wallet,
-        );
+        const { walletClient, publicClient } =
+          await createViemFromPrivyWallet(wallet);
 
         const userAddress = getAddress(wallet.address as Address);
         const walletAccount = walletClient.account ?? userAddress;
@@ -62,19 +70,21 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
         const factoryAddress = getAddress(factoryAddressValue as Address);
 
         // Fetch server wallet address from API
-        const serverResponse = await fetch("/api/admin/server-wallet", {
-          credentials: "include",
-        });
-        if (!serverResponse.ok) {
-          throw new Error('Failed to fetch server wallet address');
+        const serverResponse = await adminFetch<{
+          serverWalletAddress: string;
+        }>("/api/admin/server-wallet");
+        if (serverResponse.error || !serverResponse.data?.serverWalletAddress) {
+          throw new Error(
+            serverResponse.error || "Failed to fetch server wallet address",
+          );
         }
-        const { serverWalletAddress } = await serverResponse.json();
+        const { serverWalletAddress } = serverResponse.data;
 
         let normalizedServerWallet: Address;
         try {
           normalizedServerWallet = getAddress(serverWalletAddress);
         } catch (error) {
-          throw new Error('Server wallet address is invalid');
+          throw new Error("Server wallet address is invalid");
         }
 
         const tokenAddress = getAddress(params.tokenAddress);
@@ -84,7 +94,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           abi: ADDITIONAL_LOCK_ABI,
           functionName: "initialize",
           args: [
-            factoryAddress, // Factory as initial lock creator
+            userAddress, // Factory as initial lock creator
             params.expirationDuration,
             tokenAddress,
             params.keyPrice,
@@ -93,41 +103,12 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           ],
         });
 
-        // Prepare additional transactions (manager setup + renounce)
-        const addUserManagerTx = encodeFunctionData({
-          abi: ADDITIONAL_LOCK_ABI,
-          functionName: "addLockManager",
-          args: [userAddress],
-        });
-
-        const addServerManagerTx = encodeFunctionData({
-          abi: ADDITIONAL_LOCK_ABI,
-          functionName: "addLockManager",
-          args: [normalizedServerWallet],
-        });
-
-        const renounceFactoryTx = encodeFunctionData({
-          abi: ADDITIONAL_LOCK_ABI,
-          functionName: "renounceLockManager",
-          args: [],
-        });
-
-        const additionalTransactions = [
-          addUserManagerTx,
-          addServerManagerTx,
-          renounceFactoryTx,
-        ];
-
         // Deploy lock with factory pattern
         const deployTx = await walletClient.writeContract({
           address: factoryAddress,
           abi: UNLOCK_FACTORY_ABI,
           functionName: "createUpgradeableLockAtVersion",
-          args: [
-            initData,
-            params.lockVersion || 14,
-            additionalTransactions,
-          ],
+          args: [initData, params.lockVersion || 14],
           account: walletAccount,
           chain: walletChain,
         });
@@ -136,10 +117,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           hash: deployTx,
         });
 
-        const lockAddress = extractLockAddressFromReceiptViem(
-          receipt,
-          userAddress,
-        );
+        const lockAddress = extractLockAddressFromReceipt(receipt, userAddress);
 
         if (!lockAddress) {
           throw new Error("Failed to determine deployed lock address");
@@ -149,7 +127,21 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           transactionHash: deployTx,
           lockAddress,
           serverWalletAddress: normalizedServerWallet,
-          name: params.name
+          name: params.name,
+        });
+
+        // grant server wallet manager role
+        const grantTx = await walletClient.writeContract({
+          address: lockAddress as Address,
+          abi: ADDITIONAL_LOCK_ABI,
+          functionName: "addLockManager",
+          args: [normalizedServerWallet],
+          account: walletAccount,
+          chain: walletChain,
+        });
+
+        await publicClient.waitForTransactionReceipt({
+          hash: grantTx,
         });
 
         setState({ isLoading: false, error: null, isSuccess: true });
@@ -157,10 +149,10 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
         return {
           success: true,
           transactionHash: deployTx,
-          lockAddress,
+          grantTransactionHash: grantTx,
+          lockAddress: lockAddress as Address,
           serverWalletAddress: normalizedServerWallet,
         };
-
       } catch (error: any) {
         const errorMsg = error.message || "Admin lock deployment failed";
         log.error("Admin lock deployment error", { error, params });
@@ -168,7 +160,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
         return { success: false, error: errorMsg };
       }
     },
-    [wallet, isAdmin]
+    [wallet, isAdmin, adminFetch],
   );
 
   return {

@@ -17,7 +17,6 @@ export const UNLOCK_FACTORY_ABI = [
     inputs: [
       { internalType: "bytes", name: "data", type: "bytes" },
       { internalType: "uint16", name: "lockVersion", type: "uint16" },
-      { internalType: "bytes[]", name: "transactions", type: "bytes[]" },
     ],
     name: "createUpgradeableLockAtVersion",
     outputs: [{ internalType: "address", name: "", type: "address" }],
