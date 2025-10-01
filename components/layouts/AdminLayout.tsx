@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { PrivyConnectButton } from "@/components/PrivyConnectButton";
 import {
@@ -31,40 +31,11 @@ const adminNavItems = [
 ];
 
 export default function AdminLayout({ children }: AdminLayoutProps) {
-  const {
-    isAdmin,
-    loading: authLoading,
-    authenticated,
-  } = useLockManagerAdminAuth();
+  const { isAdmin, authenticated, authStatus, isLoadingAuth } =
+    useAdminAuthContext();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
-
-  // Additional immediate wallet change protection
-  const [walletChangeDetected, setWalletChangeDetected] = useState(false);
-
-  // Listen for wallet changes directly in AdminLayout for immediate UI protection
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.ethereum) {
-      const handleAccountsChanged = () => {
-        // Immediately flag wallet change to show access denied
-        setWalletChangeDetected(true);
-
-        // Reset flag after a short delay to allow hook to update
-        setTimeout(() => {
-          setWalletChangeDetected(false);
-        }, 1000);
-      };
-
-      window.ethereum.on("accountsChanged", handleAccountsChanged);
-      return () => {
-        window.ethereum.removeListener(
-          "accountsChanged",
-          handleAccountsChanged,
-        );
-      };
-    }
-  }, []);
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -76,17 +47,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  // Show loading state while checking authentication OR immediately after wallet change
-  if (authLoading || walletChangeDetected) {
+  const isLoadingState = authStatus === "loading" || isLoadingAuth;
+
+  // Show loading state while checking authentication
+  if (isLoadingState) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-flame-yellow border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-white text-lg">
-            {walletChangeDetected
-              ? "Wallet changed - verifying admin access..."
-              : "Loading admin panel..."}
-          </p>
+          <p className="text-white text-lg">Loading admin panel...</p>
         </div>
       </div>
     );

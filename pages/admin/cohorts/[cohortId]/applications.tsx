@@ -13,7 +13,7 @@ import {
   Settings,
 } from "lucide-react";
 import AdminLayout from "../../../../components/layouts/AdminLayout";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -61,12 +61,7 @@ interface CohortStats {
 }
 
 export default function CohortDetailPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -188,7 +183,7 @@ export default function CohortDetailPage() {
     fetcher: fetchCohortData,
   });
 
-  if (authLoading || loading) {
+  if (isLoadingAuth || loading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
@@ -205,7 +200,7 @@ export default function CohortDetailPage() {
           <NetworkError
             error={error || "Cohort not found"}
             onRetry={handleRefresh}
-            isRetrying={refreshing || authLoading || loading}
+            isRetrying={refreshing || isLoadingAuth || loading}
           />
         </div>
       </AdminLayout>

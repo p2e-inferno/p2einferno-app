@@ -4,7 +4,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "../ui/button";
 import Link from "next/link";
 import { RefreshCcw, User, Copy, LogOut, Plus, Unlink } from "lucide-react";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { formatWalletAddress } from "@/lib/utils/wallet-address";
 import { useHasValidKey } from "@/hooks/unlock";
@@ -20,14 +20,28 @@ interface AdminAccessRequiredProps {
 export default function AdminAccessRequired({
   message,
 }: AdminAccessRequiredProps) {
-  const { user, authenticated, login, logout, linkWallet, unlinkWallet } =
-    usePrivy();
-  const { refreshAdminStatus } = useLockManagerAdminAuth();
+  const {
+    user: privyUser,
+    login,
+    logout,
+    linkWallet,
+    unlinkWallet,
+  } = usePrivy();
+  const {
+    authenticated: isAuthenticated,
+    user: adminUser,
+    walletAddress: contextWalletAddress,
+    refreshAdminStatus,
+  } = useAdminAuthContext();
 
   // Use the consistent wallet address detection hook
-  const { walletAddress } = useDetectConnectedWalletAddress(user);
+  const effectiveUser = (privyUser ?? adminUser) as any;
+  const { walletAddress: detectedWalletAddress } =
+    useDetectConnectedWalletAddress(effectiveUser);
+  const walletAddress = detectedWalletAddress || contextWalletAddress;
+  const user = effectiveUser;
   const { checkHasValidKey } = useHasValidKey({
-    enabled: authenticated && !!walletAddress,
+    enabled: isAuthenticated && !!walletAddress,
   });
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -175,7 +189,7 @@ export default function AdminAccessRequired({
         </div>
 
         <div className="mt-8 space-y-6">
-          {!authenticated ? (
+          {!isAuthenticated ? (
             <div className="space-y-4">
               <p className="text-sm text-gray-400">
                 Please connect your wallet first

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, ExternalLink } from "lucide-react";
@@ -35,11 +35,7 @@ interface PaymentTransaction {
 }
 
 const AdminPaymentsPage: React.FC = () => {
-  const {
-    isAdmin,
-    loading: authLoading,
-    authenticated,
-  } = useLockManagerAdminAuth();
+  const { isAdmin, isLoadingAuth, authenticated } = useAdminAuthContext();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
@@ -55,11 +51,11 @@ const AdminPaymentsPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (!isClient || authLoading) return;
+    if (!isClient || isLoadingAuth) return;
     if (!authenticated || !isAdmin) {
       router.push("/");
     }
-  }, [authenticated, isAdmin, authLoading, router, isClient]);
+  }, [authenticated, isAdmin, isLoadingAuth, router, isClient]);
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -159,7 +155,7 @@ const AdminPaymentsPage: React.FC = () => {
   };
 
   // Show loading while auth is being checked
-  if (authLoading || !isClient) {
+  if (isLoadingAuth || !isClient) {
     return (
       <AdminLayout>
         <div className="w-full flex justify-center items-center min-h-[400px]">

@@ -8,7 +8,7 @@ import type { CohortMilestone } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { toast } from "react-hot-toast";
 import { unlockUtils } from "@/lib/unlock/lockUtils";
@@ -90,7 +90,7 @@ export default function MilestoneFormEnhanced({
   const [error, setError] = useState<string | null>(null);
   const { adminFetch } = useAdminApi();
   const wallet = useSmartWalletSelection();
-  const { authenticated, isAdmin, user } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, user } = useAdminAuthContext();
 
   const [formData, setFormData] = useState<Partial<CohortMilestone>>(
     milestone || {

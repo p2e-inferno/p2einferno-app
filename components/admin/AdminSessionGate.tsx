@@ -1,5 +1,5 @@
 import React from "react";
-import { useAdminAuthWithSession } from "@/hooks/useAdminAuthWithSession";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import AdminAccessRequired from "./AdminAccessRequired";
 import AdminSessionRequired from "./AdminSessionRequired";
 import { getLogger } from "@/lib/utils/logger";
@@ -22,20 +22,40 @@ export default function AdminSessionGate({
   requiresSession = true,
 }: AdminSessionGateProps) {
   const {
-    authStep,
-    isFullyAuthenticated,
-    isLoading,
-    needsPrivyAuth,
-    needsBlockchainAuth,
-    needsSessionAuth,
+    authStatus,
+    authenticated,
+    user,
+    isAdmin,
+    hasValidSession,
+    isLoadingAuth,
+    isLoadingSession,
     createAdminSession,
     sessionExpiry,
-    user,
-    authenticated,
-  } = useAdminAuthWithSession();
+  } = useAdminAuthContext();
+
+  const isLoading =
+    authStatus === "loading" ||
+    isLoadingAuth ||
+    (requiresSession && isLoadingSession);
+
+  const needsPrivyAuth =
+    authStatus === "privy_required" ||
+    authStatus === "wallet_required" ||
+    !authenticated ||
+    !user;
+
+  const needsBlockchainAuth =
+    authStatus === "blockchain_denied" || (!isAdmin && !needsPrivyAuth);
+
+  const needsSessionAuth =
+    requiresSession &&
+    (authStatus === "session_required" || (!hasValidSession && isAdmin));
+
+  const isFullyAuthenticated =
+    authenticated && !!user && isAdmin && (!requiresSession || hasValidSession);
 
   log.debug("AdminSessionGate render", {
-    authStep,
+    authStatus,
     isFullyAuthenticated,
     isLoading,
     requiresSession,
@@ -56,7 +76,7 @@ export default function AdminSessionGate({
   }
 
   // Step 1: Require Privy authentication
-  if (needsPrivyAuth || !authenticated || !user) {
+  if (needsPrivyAuth) {
     log.debug("Showing AdminAccessRequired - no Privy auth");
     return (
       <AdminAccessRequired message="Please connect your wallet to access admin features" />
@@ -72,7 +92,7 @@ export default function AdminSessionGate({
   }
 
   // Step 3: Require valid admin session (if enabled)
-  if (requiresSession && needsSessionAuth) {
+  if (needsSessionAuth) {
     log.debug("Showing AdminSessionRequired - no valid session");
     return (
       <AdminSessionRequired
@@ -86,7 +106,7 @@ export default function AdminSessionGate({
   // All requirements met - render protected content
   if (requiresSession && !isFullyAuthenticated) {
     log.warn("Unexpected state: session required but not fully authenticated", {
-      authStep,
+      authStatus,
       isFullyAuthenticated,
     });
 
@@ -100,12 +120,6 @@ export default function AdminSessionGate({
   }
 
   // If session not required, just check blockchain access
-  if (!requiresSession && needsBlockchainAuth) {
-    return (
-      <AdminAccessRequired message="You need admin access to view this page" />
-    );
-  }
-
   log.debug("Rendering protected admin content");
   return <>{children}</>;
 }

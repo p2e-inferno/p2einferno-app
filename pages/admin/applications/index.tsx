@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,10 +17,9 @@ import {
   Settings,
   UserCheck,
 } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 const log = getLogger("admin:applications:index");
 
@@ -55,13 +54,7 @@ interface ApplicationStats {
 }
 
 const AdminApplicationsPage: React.FC = () => {
-  const {
-    isAdmin,
-    loading: authLoading,
-    authenticated,
-  } = useLockManagerAdminAuth();
-  const { getAccessToken } = usePrivy();
-  const selectedWallet = useSmartWalletSelection() as any;
+  const { isAdmin, isLoadingAuth, authenticated } = useAdminAuthContext();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -72,49 +65,45 @@ const AdminApplicationsPage: React.FC = () => {
   const [selectedPaymentStatus, setSelectedPaymentStatus] =
     useState<string>("");
   const [reconcilingIds, setReconcilingIds] = useState<Set<string>>(new Set());
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(apiOptions);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
   useEffect(() => {
-    if (!isClient || authLoading) return;
+    if (!isClient || isLoadingAuth) return;
     if (!authenticated || !isAdmin) {
       router.push("/");
     }
-  }, [authenticated, isAdmin, authLoading, router, isClient]);
+  }, [authenticated, isAdmin, isLoadingAuth, router, isClient]);
 
   const fetchApplications = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const accessToken = await getAccessToken();
       const params = new URLSearchParams();
       if (selectedStatus) params.append("status", selectedStatus);
       if (selectedPaymentStatus)
         params.append("payment_status", selectedPaymentStatus);
 
-      const response = await fetch(
-        `/api/admin/applications?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-            "X-Active-Wallet": selectedWallet?.address || "",
-          },
-        },
-      );
+      const endpoint = `/api/admin/applications${
+        params.toString() ? `?${params.toString()}` : ""
+      }`;
+      const result = await adminFetch<{
+        applications?: Application[];
+        stats?: ApplicationStats;
+      }>(endpoint);
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch applications");
+      if (result.error) {
+        throw new Error(result.error);
       }
 
-      const data = await response.json();
+      const data = result.data || {};
       setApplications(data.applications || []);
-      setStats(data.stats);
+      setStats(data.stats || null);
     } catch (err) {
       log.error("Error fetching applications:", err);
       setError(
@@ -123,12 +112,7 @@ const AdminApplicationsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [
-    selectedStatus,
-    selectedPaymentStatus,
-    getAccessToken,
-    selectedWallet?.address,
-  ]);
+  }, [adminFetch, selectedStatus, selectedPaymentStatus]);
 
   useEffect(() => {
     if (authenticated && isAdmin && isClient) {
@@ -149,35 +133,28 @@ const AdminApplicationsPage: React.FC = () => {
       }
       setReconcilingIds((prev) => new Set(prev).add(applicationId));
 
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("Authentication failed - please refresh the page");
-      }
-
-      const response = await fetch("/api/admin/applications/reconcile", {
+      const result = await adminFetch<{
+        success?: boolean;
+        message?: string;
+        summary?: { successful: number; total: number };
+        results?: unknown;
+      }>("/api/admin/applications/reconcile", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
-        },
         body: JSON.stringify({ applicationId, actions }),
       });
 
-      const result = await response.json();
-
-      if (!response.ok) {
+      if (result.error) {
         throw new Error(result.error || "Reconciliation failed");
       }
 
-      if (result.success) {
+      if (result.data?.success) {
         toast.success(
-          `Application reconciled successfully! ${result.summary.successful}/${result.summary.total} actions completed.`,
+          `Application reconciled successfully! ${result.data.summary?.successful ?? 0}/${result.data.summary?.total ?? 0} actions completed.`,
         );
         await fetchApplications();
       } else {
-        toast.error(result.message || "Reconciliation partially failed");
-        log.info("Reconciliation results:", result.results);
+        toast.error(result.data?.message || "Reconciliation partially failed");
+        log.info("Reconciliation results:", result.data?.results);
       }
     } catch (err) {
       log.error("Reconciliation error:", err);
@@ -267,7 +244,7 @@ const AdminApplicationsPage: React.FC = () => {
   };
 
   // Show loading while auth is being checked
-  if (authLoading || !isClient) {
+  if (isLoadingAuth || !isClient) {
     return (
       <AdminLayout>
         <div className="w-full flex justify-center items-center min-h-[400px]">

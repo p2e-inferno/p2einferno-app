@@ -6,7 +6,7 @@ import { Calendar, Clock, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CohortMilestone, Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -17,12 +17,7 @@ interface MilestoneWithCohort extends CohortMilestone {
 }
 
 export default function MilestoneDetailsPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { id: cohortId, milestoneId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -114,7 +109,7 @@ export default function MilestoneDetailsPage() {
         cohortId ? `/admin/cohorts/${cohortId}/milestones` : "/admin/cohorts"
       }
       backLinkText="Back to milestones"
-      isLoading={authLoading || isLoading}
+      isLoading={isLoadingAuth || isLoading}
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}

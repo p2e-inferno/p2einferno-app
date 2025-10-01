@@ -4,19 +4,14 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:[cohortId]:index");
 
 export default function EditCohortPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -78,7 +73,7 @@ export default function EditCohortPage() {
       title="Edit Cohort"
       backLinkHref="/admin/cohorts"
       backLinkText="Back to cohorts"
-      isLoading={authLoading || isLoading} // This is for data loading, auth loading is handled above
+      isLoading={isLoadingAuth || isLoading} // This is for data loading, auth loading is handled above
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}

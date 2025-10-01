@@ -1,5 +1,6 @@
 import { PrivyProvider } from "@privy-io/react-auth";
 import React, { useEffect } from "react";
+import { AdminAuthProvider } from "@/contexts/admin-context";
 
 // This component is a workaround for a common issue with scrollbars in server-rendered
 // applications that have different content lengths on server and client. It ensures
@@ -15,7 +16,21 @@ const ScrollbarFix = () => {
 
 // This wrapper now contains the PrivyProvider and is only ever rendered on the client side.
 // This is the key to preventing SSR-related errors from libraries that expect a window object.
-function ClientSideWrapper({ children }: { children: React.ReactNode }) {
+export interface ClientSideWrapperProps {
+  children: React.ReactNode;
+  isAdminRoute?: boolean;
+}
+
+function ClientSideWrapper({
+  children,
+  isAdminRoute = false,
+}: ClientSideWrapperProps) {
+  const content = isAdminRoute ? (
+    <AdminAuthProvider>{children}</AdminAuthProvider>
+  ) : (
+    children
+  );
+
   return (
     <PrivyProvider
       appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
@@ -37,7 +52,7 @@ function ClientSideWrapper({ children }: { children: React.ReactNode }) {
       }}
     >
       <ScrollbarFix />
-      {children}
+      {content}
     </PrivyProvider>
   );
 }

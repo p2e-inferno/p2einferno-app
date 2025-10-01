@@ -8,19 +8,14 @@ import type { BootcampProgram } from "@/lib/supabase/types";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:bootcamps:index");
 
 export default function BootcampsPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
   const [error, setError] = useState<string | null>(null);
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
@@ -113,7 +108,7 @@ export default function BootcampsPage() {
         title="Bootcamp Programs"
         newButtonText="New Bootcamp"
         newButtonLink="/admin/bootcamps/new"
-        isLoading={authLoading || loading}
+        isLoading={isLoadingAuth || loading}
         error={error}
         onRetry={handleRetry}
         isRetrying={isRetrying}

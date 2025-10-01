@@ -4,7 +4,7 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskSubmissions from "@/components/admin/TaskSubmissions";
 import type { MilestoneTask, CohortMilestone } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -20,12 +20,7 @@ interface TaskWithMilestone extends MilestoneTask {
 }
 
 export default function TaskSubmissionsPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { id } = router.query;
   const taskId = typeof id === "string" ? id : undefined;
@@ -97,7 +92,7 @@ export default function TaskSubmissionsPage() {
         title={"Task Submissions"}
         backLinkHref={"/admin/cohorts"}
         backLinkText="Back to milestone"
-        isLoading={authLoading || false}
+        isLoading={isLoadingAuth || false}
         error={error}
         onRetry={handleRetry}
         isRetrying={isRetrying}
@@ -116,7 +111,7 @@ export default function TaskSubmissionsPage() {
           : "/admin/cohorts"
       }
       backLinkText="Back to milestone"
-      isLoading={authLoading || isLoading}
+      isLoading={isLoadingAuth || isLoading}
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}

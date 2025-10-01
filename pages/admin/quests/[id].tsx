@@ -17,7 +17,7 @@ import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { NetworkError } from "@/components/ui/network-error";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 import { getLogger } from "@/lib/utils/logger";
@@ -37,12 +37,7 @@ interface QuestDetails extends Quest {
 }
 
 export default function QuestDetailsPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { id } = router.query;
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
@@ -121,7 +116,7 @@ export default function QuestDetailsPage() {
     }
   };
 
-  if (authLoading || isLoading) {
+  if (isLoadingAuth || isLoading) {
     return (
       <AdminLayout>
         <div className="flex justify-center items-center min-h-[400px]">

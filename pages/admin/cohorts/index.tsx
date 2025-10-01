@@ -9,19 +9,14 @@ import { formatDate } from "@/lib/utils/dateUtils";
 import { Badge } from "@/components/ui/badge";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:index");
 
 export default function CohortListPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const [cohorts, setCohorts] = useState<
     (Cohort & { bootcamp_program: BootcampProgram })[]
   >([]);
@@ -91,7 +86,7 @@ export default function CohortListPage() {
       title="Cohorts"
       newButtonText="New Cohort"
       newButtonLink="/admin/cohorts/new"
-      isLoading={authLoading || loading} // Wait for auth + data
+      isLoading={isLoadingAuth || loading} // Wait for auth + data
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}

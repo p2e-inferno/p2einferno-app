@@ -4,19 +4,14 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:bootcamps:[id]");
 
 export default function EditBootcampPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { id } = router.query;
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
@@ -79,7 +74,7 @@ export default function EditBootcampPage() {
       title="Edit Bootcamp"
       backLinkHref="/admin/bootcamps"
       backLinkText="Back to bootcamps"
-      isLoading={authLoading || isLoading}
+      isLoading={isLoadingAuth || isLoading}
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}

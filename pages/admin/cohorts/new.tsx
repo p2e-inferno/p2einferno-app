@@ -4,10 +4,10 @@ import AdminLayout from "@/components/layouts/AdminLayout";
 import CohortForm from "@/components/admin/CohortForm";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 
 export default function NewCohortPage() {
-  const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
+  const { isAdmin, isLoadingAuth, authenticated } = useAdminAuthContext();
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
 
@@ -19,16 +19,16 @@ export default function NewCohortPage() {
   // Protect admin route
   useEffect(() => {
     // Only run this effect on client-side and after auth check is complete
-    if (!isClient || loading) return;
+    if (!isClient || isLoadingAuth) return;
 
     // Redirect if not authenticated or not an admin
     if (!authenticated || !isAdmin) {
       router.push("/");
     }
-  }, [authenticated, isAdmin, loading, router, isClient]);
+  }, [authenticated, isAdmin, isLoadingAuth, router, isClient]);
 
   // Show loading state while checking authentication
-  if (loading || !isClient) {
+  if (isLoadingAuth || !isClient) {
     return (
       <AdminLayout>
         <div className="w-full flex justify-center items-center min-h-[400px]">

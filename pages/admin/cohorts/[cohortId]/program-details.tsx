@@ -12,19 +12,14 @@ import type {
   ProgramRequirement,
 } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:cohorts:[cohortId]:program-details");
 
 export default function ProgramDetailsPage() {
-  const {
-    authenticated,
-    isAdmin,
-    loading: authLoading,
-    user,
-  } = useLockManagerAdminAuth();
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { cohortId } = router.query;
   // Memoize options to prevent adminFetch from being recreated every render
@@ -119,7 +114,7 @@ export default function ProgramDetailsPage() {
       title={cohort ? `Program Details: ${cohort.name}` : "Program Details"}
       backLinkHref="/admin/cohorts"
       backLinkText="Back to cohorts"
-      isLoading={authLoading || isLoading}
+      isLoading={isLoadingAuth || isLoading}
       error={error}
       onRetry={handleRetry}
       isRetrying={isRetrying}
