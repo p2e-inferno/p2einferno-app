@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useWallets } from "@privy-io/react-auth";
+import { usePrivyWriteWallet } from "./usePrivyWriteWallet";
 import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem";
 import { COMPLETE_LOCK_ABI, ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { extractTokenIdsFromReceipt } from "@/lib/blockchain/shared/transaction-utils";
@@ -12,7 +12,7 @@ import type { KeyPurchaseParams, KeyPurchaseResult, OperationState } from "./typ
 const log = getLogger("hooks:unlock:key-purchase");
 
 export const useKeyPurchase = () => {
-  const { wallets } = useWallets();
+  const wallet = usePrivyWriteWallet();
   const [state, setState] = useState<OperationState>({
     isLoading: false,
     error: null,
@@ -21,7 +21,6 @@ export const useKeyPurchase = () => {
 
   const purchaseKey = useCallback(
     async (params: KeyPurchaseParams): Promise<KeyPurchaseResult> => {
-      const wallet = wallets[0]; // Use first connected wallet
       if (!wallet) {
         const error = "Wallet not connected";
         setState(prev => ({ ...prev, error }));
@@ -141,7 +140,7 @@ export const useKeyPurchase = () => {
         return { success: false, error: errorMsg };
       }
     },
-    [wallets]
+    [wallet]
   );
 
   return {

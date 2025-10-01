@@ -25,6 +25,7 @@ export {
 
 // Chain resolution
 export {
+  getAlchemyBaseUrl,
   createAlchemyRpcUrl,
   resolveChain,
   getRpcFallbackSettings,

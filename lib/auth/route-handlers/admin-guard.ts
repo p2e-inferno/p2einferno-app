@@ -7,7 +7,7 @@ import {
   getPrivyUserFromNextRequest,
   getUserWalletAddresses,
 } from "@/lib/auth/privy";
-import {createPublicClientUnified} from "@/lib/blockchain/config";
+import { createAlchemyEthersAdapterReadClient } from "@/lib/blockchain/config";
 import {
   checkMultipleWalletsForAdminKey,
   checkDevelopmentAdminAddress,
@@ -88,7 +88,7 @@ export async function ensureAdminOrRespond(
       if (devAdminAddresses) {
         const devAddress = devAdminAddresses.split(",")[0]?.trim();
         if (devAddress) {
-          const client = createPublicClientUnified();
+          const client = createAlchemyEthersAdapterReadClient();
           const res = await checkDevelopmentAdminAddress(
             devAddress,
             adminLockAddress,
@@ -124,7 +124,7 @@ export async function ensureAdminOrRespond(
           { status: 403 },
         );
       }
-      const client = createPublicClientUnified();
+      const client = createAlchemyEthersAdapterReadClient();
       const keyRes = await checkMultipleWalletsForAdminKey(
         [activeWallet],
         adminLockAddress,
@@ -154,7 +154,7 @@ export async function ensureAdminOrRespond(
           { status: 403 },
         );
       }
-      const client = createPublicClientUnified();
+      const client = createAlchemyEthersAdapterReadClient();
       const keyRes = await checkMultipleWalletsForAdminKey(
         [activeWallet],
         adminLockAddress,
@@ -176,7 +176,7 @@ export async function ensureAdminOrRespond(
     }
 
     // No active wallet header: permit only if user still holds a valid admin key on any linked wallet
-    const client = createPublicClientUnified();
+    const client = createAlchemyEthersAdapterReadClient();
     const keyRes = await checkMultipleWalletsForAdminKey(
       walletAddresses,
       adminLockAddress,

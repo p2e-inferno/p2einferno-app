@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useWallets } from "@privy-io/react-auth";
+import { usePrivyWriteWallet } from "./usePrivyWriteWallet";
 import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem";
 import {
   UNLOCK_FACTORY_ABI,
@@ -16,7 +16,7 @@ import type { LockDeploymentParams, LockDeploymentResult, OperationState } from 
 const log = getLogger("hooks:unlock:deploy-lock");
 
 export const useDeployLock = () => {
-  const { wallets } = useWallets();
+  const wallet = usePrivyWriteWallet();
   const [state, setState] = useState<OperationState>({
     isLoading: false,
     error: null,
@@ -25,7 +25,6 @@ export const useDeployLock = () => {
 
   const deployLock = useCallback(
     async (params: LockDeploymentParams): Promise<LockDeploymentResult> => {
-      const wallet = wallets[0]; // Use first connected wallet
       if (!wallet) {
         const error = "Wallet not connected";
         setState(prev => ({ ...prev, error }));
@@ -119,7 +118,7 @@ export const useDeployLock = () => {
         return { success: false, error: errorMsg };
       }
     },
-    [wallets]
+    [wallet]
   );
 
   return {

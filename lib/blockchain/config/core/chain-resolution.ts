@@ -8,6 +8,26 @@ import { blockchainLogger } from "../../shared/logging-utils";
 import type { ChainConfig, RpcUrlsResult, RpcFallbackSettings } from "./types";
 
 /**
+ * Get Alchemy base URL for a given chain
+ * @param chainId The chain ID to get base URL for
+ * @returns Alchemy base URL
+ */
+export const getAlchemyBaseUrl = (chainId: number): string => {
+  const baseUrls = {
+    8453: "https://base-mainnet.g.alchemy.com/v2/",      // Base Mainnet
+    84532: "https://base-sepolia.g.alchemy.com/v2/",     // Base Sepolia  
+    1: "https://eth-mainnet.g.alchemy.com/v2/",          // Ethereum Mainnet
+  };
+
+  const baseUrl = baseUrls[chainId as keyof typeof baseUrls];
+  if (!baseUrl) {
+    throw new Error(`Unsupported chain: ${chainId}`);
+  }
+
+  return baseUrl;
+};
+
+/**
  * Create properly configured RPC URL with Alchemy API key
  * @param baseUrl The base Alchemy URL
  * @returns Complete RPC URL with API key or fallback

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   AdminAuthProvider,
   useAdminAuthContext,
@@ -6,13 +6,14 @@ import {
   getAuthStatusMessage,
 } from "@/contexts/admin-context";
 import { isCacheValid } from "@/contexts/admin-context/utils/adminAuthContextCacheUtils";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { PrivyConnectButton } from "@/components/PrivyConnectButton";
 import {
-  useHasValidKey,
   useUnlockWriteOperations,
   useUnlockAdminOperations,
 } from "@/hooks/unlock";
+import { useDeployLockEthers } from "@/hooks/unlock/useDeployLockEthers";
 import { parseEther } from "viem";
 import type { Address } from "viem";
 
@@ -62,17 +63,14 @@ export function AdminAuthDebugPanel() {
     getHealthStatus,
   } = useAdminAuthContext();
 
-  const { wallets } = useWallets(); // Get connected wallets for operations
-  const connectedWallet = wallets[0]; // First connected wallet
+  const connectedWallet = useSmartWalletSelection(); // Smart wallet selection
 
   const [sessionMessage, setSessionMessage] = useState("");
   const [apiMessage, setApiMessage] = useState("");
 
-  // Write operations testing state
-  const { checkHasValidKey } = useHasValidKey();
-  const [isAdminForTesting, setIsAdminForTesting] = useState(false);
   const writeOps = useUnlockWriteOperations();
-  const adminOps = useUnlockAdminOperations({ isAdmin: isAdminForTesting });
+  const adminOps = useUnlockAdminOperations({ isAdmin: isAdmin });
+  const ethersTestOps = useDeployLockEthers(); // Ethers test hook for debugging
 
   const [testParams, setTestParams] = useState({
     lockAddress: "",
@@ -81,23 +79,6 @@ export function AdminAuthDebugPanel() {
     keyPrice: "0.01",
     expirationDuration: "365", // days
   });
-
-  // Admin detection using clean unlock hooks (prevents RPC hammering)
-  useEffect(() => {
-    const checkAdmin = async () => {
-      if (
-        connectedWallet?.address &&
-        process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS
-      ) {
-        const result = await checkHasValidKey(
-          connectedWallet.address as Address,
-          process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS as Address,
-        );
-        setIsAdminForTesting(!!result?.isValid);
-      }
-    };
-    checkAdmin();
-  }, [connectedWallet?.address, checkHasValidKey]);
 
   const handleRefreshAuth = useCallback(async () => {
     setSessionMessage("");
@@ -291,7 +272,7 @@ export function AdminAuthDebugPanel() {
             Unlock Operations Testing
           </h3>
           <span className="font-mono text-xs uppercase text-orange-300">
-            {isAdminForTesting ? "ADMIN" : "USER"}
+            {isAdmin ? "ADMIN" : "USER"}
           </span>
         </div>
 
@@ -299,7 +280,7 @@ export function AdminAuthDebugPanel() {
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <DebugStat
               label="Admin for Testing"
-              value={isAdminForTesting ? "yes" : "no"}
+              value={isAdmin ? "yes" : "no"}
             />
             <DebugStat
               label="Key Purchase Loading"
@@ -318,12 +299,17 @@ export function AdminAuthDebugPanel() {
               value={adminOps.deployAdminLock.isLoading ? "yes" : "no"}
             />
             <DebugStat
+              label="Ethers Test Loading"
+              value={ethersTestOps.isLoading ? "yes" : "no"}
+            />
+            <DebugStat
               label="Operation Success"
               value={
                 writeOps.keyPurchase.isSuccess ||
                 writeOps.deployLock.isSuccess ||
                 writeOps.keyGrant.isSuccess ||
-                adminOps.deployAdminLock.isSuccess
+                adminOps.deployAdminLock.isSuccess ||
+                ethersTestOps.isSuccess
                   ? "yes"
                   : "no"
               }
@@ -349,6 +335,16 @@ export function AdminAuthDebugPanel() {
             {adminOps.deployAdminLock.error && (
               <p className="text-red-300">
                 Admin Deploy Error: {adminOps.deployAdminLock.error}
+              </p>
+            )}
+            {ethersTestOps.error && (
+              <p className="text-yellow-300">
+                Ethers Test Error: {ethersTestOps.error}
+              </p>
+            )}
+            {ethersTestOps.isSuccess && (
+              <p className="text-green-300">
+                ✅ Ethers Test: Deployment successful!
               </p>
             )}
           </div>
@@ -454,10 +450,26 @@ export function AdminAuthDebugPanel() {
                 maxNumberOfKeys: 1000n,
               });
             }}
-            label="Deploy User Lock"
+            label="Deploy User Lock (Viem)"
             variant="default"
           />
-          {isAdminForTesting && (
+          <DebugButton
+            onClick={async () => {
+              await ethersTestOps.deployLock({
+                name: testParams.lockName + " (Ethers)",
+                expirationDuration: BigInt(
+                  parseInt(testParams.expirationDuration) * 24 * 60 * 60,
+                ),
+                tokenAddress:
+                  "0x0000000000000000000000000000000000000000" as Address, // ETH
+                keyPrice: parseEther(testParams.keyPrice),
+                maxNumberOfKeys: 1000n,
+              });
+            }}
+            label="Deploy User Lock (Ethers Test)"
+            variant="default"
+          />
+          {isAdmin && (
             <DebugButton
               onClick={async () => {
                 await adminOps.deployAdminLock.deployAdminLock({

@@ -5,7 +5,6 @@
  */
 
 import { Address, zeroAddress } from "viem";
-import { createServerLockManager } from "../blockchain/services/lock-manager";
 import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { getLogger } from "@/lib/utils/logger";
 import type { KeyInfo } from "@/lib/blockchain/services/lock-manager";
@@ -39,7 +38,7 @@ export interface WalletKeyCheck {
 export const checkMultipleWalletsForAdminKey = async (
   walletAddresses: string[],
   adminLockAddress: string,
-  client?: any,
+  client: any,
 ): Promise<AdminKeyResult> => {
   if (walletAddresses.length === 0) {
     return {
@@ -64,24 +63,16 @@ export const checkMultipleWalletsForAdminKey = async (
           expirationTimestamp: 0n,
           isValid: false,
         };
-        // Create fresh service instance for each check - no persistence
-        if (client) {
-          const hasValidKey = await client.readContract({
-            address: adminLockAddress,
-            abi: COMPLETE_LOCK_ABI,
-            functionName: "getHasValidKey",
-            args: [address],
-          });
-          keyInfo.isValid = hasValidKey;
-          keyInfo.owner = address as Address;
-        }else {
-          const lockManager = createServerLockManager();
-          keyInfo = await lockManager.checkUserHasValidKey(
-            address as Address,
-            adminLockAddress as Address,
-          );
-        }
 
+        const hasValidKey = await client.readContract({
+          address: adminLockAddress,
+          abi: COMPLETE_LOCK_ABI,
+          functionName: "getHasValidKey",
+          args: [address],
+        });
+        keyInfo.isValid = hasValidKey;
+        keyInfo.owner = address as Address;
+       
         log.debug(
           `Wallet ${address}: ${keyInfo?.isValid ? "VALID" : "INVALID"}`,
         );
@@ -165,7 +156,7 @@ export const checkMultipleWalletsForAdminKey = async (
 export const checkDevelopmentAdminAddress = async (
   devAddress: string,
   adminLockAddress: string,
-  client?: any,
+  client: any,
 ): Promise<{ isValid: boolean; error?: string }> => {
   try {
     log.info(`Checking development admin address: ${devAddress}`);
@@ -175,8 +166,7 @@ export const checkDevelopmentAdminAddress = async (
       expirationTimestamp: 0n,
       isValid: false,
     };
-    // Create fresh service instance - no persistence
-    if (client) {
+   
       const hasValidKey = await client.readContract({
         address: adminLockAddress,
         abi: COMPLETE_LOCK_ABI,
@@ -185,13 +175,7 @@ export const checkDevelopmentAdminAddress = async (
       });
       keyInfo.isValid = hasValidKey;
       keyInfo.owner = devAddress as Address;
-    } else {
-      const lockManager = createServerLockManager();
-      keyInfo = await lockManager.checkUserHasValidKey(
-        devAddress as Address,
-        adminLockAddress as Address,
-      );
-    }
+    
 
     const isValid = keyInfo?.isValid || false;
     log.info(`Development admin check: ${isValid ? "VALID" : "INVALID"}`);
@@ -213,13 +197,14 @@ export const checkDevelopmentAdminAddress = async (
 export const compareKeyCheckPerformance = async (
   walletAddresses: string[],
   adminLockAddress: string,
+  client: any,
 ): Promise<{
   parallelTime: number;
   estimatedSequentialTime: number;
   performanceGain: string;
 }> => {
   const startTime = Date.now();
-  await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress);
+  await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress, client);
   const parallelTime = Date.now() - startTime;
 
   // Estimate sequential time (this is approximate)

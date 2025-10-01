@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useWallets } from "@privy-io/react-auth";
+import { usePrivyWriteWallet } from "./usePrivyWriteWallet";
 import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem";
 import {
   UNLOCK_FACTORY_ABI,
@@ -16,7 +16,7 @@ import type { AdminLockDeploymentParams, AdminLockDeploymentResult, OperationSta
 const log = getLogger("hooks:unlock:deploy-admin-lock");
 
 export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
-  const { wallets } = useWallets();
+  const wallet = usePrivyWriteWallet();
   const [state, setState] = useState<OperationState>({
     isLoading: false,
     error: null,
@@ -32,7 +32,6 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
         return { success: false, error };
       }
 
-      const wallet = wallets[0]; // Use first connected wallet
       if (!wallet) {
         const error = "Wallet not connected";
         setState(prev => ({ ...prev, error }));
@@ -169,7 +168,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
         return { success: false, error: errorMsg };
       }
     },
-    [wallets, isAdmin]
+    [wallet, isAdmin]
   );
 
   return {

@@ -11,6 +11,9 @@ export { useDeployLock } from "./useDeployLock";
 export { useDeployAdminLock } from "./useDeployAdminLock";
 export { useLockManagerKeyGrant } from "./useLockManagerKeyGrant";
 
+// Test/debug hooks
+export { useDeployLockEthers } from "./useDeployLockEthers";
+
 // Types
 export type {
   UnlockHookOptions,
@@ -24,7 +27,7 @@ export type {
   AdminLockDeploymentResult,
   KeyGrantParams,
   KeyGrantResult,
-  OperationState
+  OperationState,
 } from "./types";
 
 // Import hooks for composite
@@ -64,6 +67,10 @@ export const useUnlockWriteOperations = () => ({
 });
 
 // Admin-specific operations (requires isAdmin prop)
-export const useUnlockAdminOperations = ({ isAdmin }: { isAdmin: boolean }) => ({
+export const useUnlockAdminOperations = ({
+  isAdmin,
+}: {
+  isAdmin: boolean;
+}) => ({
   deployAdminLock: useDeployAdminLock({ isAdmin }),
 });

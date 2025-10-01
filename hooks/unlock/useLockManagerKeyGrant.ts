@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { useWallets } from "@privy-io/react-auth";
+import { usePrivyWriteWallet } from "./usePrivyWriteWallet";
 import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem";
 import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { getLogger } from "@/lib/utils/logger";
@@ -11,7 +11,7 @@ import type { KeyGrantParams, KeyGrantResult, OperationState } from "./types";
 const log = getLogger("hooks:unlock:key-grant");
 
 export const useLockManagerKeyGrant = () => {
-  const { wallets } = useWallets();
+  const wallet = usePrivyWriteWallet();
   const [state, setState] = useState<OperationState>({
     isLoading: false,
     error: null,
@@ -20,7 +20,6 @@ export const useLockManagerKeyGrant = () => {
 
   const grantKey = useCallback(
     async (params: KeyGrantParams): Promise<KeyGrantResult> => {
-      const wallet = wallets[0]; // Use first connected wallet
       if (!wallet) {
         const error = "Wallet not connected";
         setState(prev => ({ ...prev, error }));
@@ -104,7 +103,7 @@ export const useLockManagerKeyGrant = () => {
         return { success: false, error: errorMsg };
       }
     },
-    [wallets]
+    [wallet]
   );
 
   return {

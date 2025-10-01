@@ -28,6 +28,7 @@ export {
 
 // Chain resolution
 export {
+  getAlchemyBaseUrl,
   createAlchemyRpcUrl,
   getRpcFallbackSettings,
   getPreferredProvider,
@@ -73,6 +74,7 @@ import { validateEnvironment } from "./core/validation";
 import { createPublicClientUnified } from "./clients/public-client";
 import { createWalletClientUnified } from "./clients/wallet-client";
 
+
 // Initialize configuration using our core modules
 const { chain, rpcUrl, usdcTokenAddress, networkName } = resolveChain();
 const { hosts: rpcHosts } = resolveRpcUrls(chain.id);
@@ -113,6 +115,8 @@ export const UNIFIED_BLOCKCHAIN_CONFIG: BlockchainConfig = {
 // Export the client creation functions that are used in the main config
 export { createPublicClientUnified } from "./clients/public-client";
 export { createWalletClientUnified } from "./clients/wallet-client";
+export { createAlchemyPublicClient } from "./clients/alchemy-client";
+export { createAlchemyEthersAdapterReadClient } from "./clients/ethers-adapter-client";
 
 /**
  * Check if server blockchain operations are properly configured
