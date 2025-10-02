@@ -152,7 +152,7 @@ export default function ApplicationPage({
   const [formData, setFormData] = useState<FormData>({
     user_name: "",
     user_email: "",
-    phone_number: "",
+    phone_number: "0",
     experience_level: "beginner",
     motivation: "",
     goals: [],
@@ -263,8 +263,8 @@ export default function ApplicationPage({
         return !!(
           formData.user_name &&
           formData.user_email &&
-          !fieldErrors.user_email && // Ensure no active email format error
-          formData.phone_number
+          !fieldErrors.user_email // Ensure no active email format error
+          // phone_number is now optional
         );
       case 2:
         return !!formData.experience_level;
@@ -323,8 +323,7 @@ export default function ApplicationPage({
         errors.user_email = "Please enter a valid email address";
       }
     }
-    if (!formData.phone_number.trim())
-      errors.phone_number = "Phone number is required";
+    // phone_number is now optional - no validation needed
     if (!formData.motivation.trim())
       errors.motivation = "Motivation is required";
     if (formData.goals.length === 0)
@@ -336,7 +335,7 @@ export default function ApplicationPage({
         "Please fix the errors in your application before submitting.",
       );
       // Try to navigate to the first step with an error
-      if (errors.user_name || errors.user_email || errors.phone_number)
+      if (errors.user_name || errors.user_email)
         setCurrentStep(1);
       else if (errors.motivation || errors.goals) setCurrentStep(3);
       return;
@@ -348,7 +347,7 @@ export default function ApplicationPage({
         cohort_id: cohortId,
         user_email: formData.user_email.trim(),
         user_name: formData.user_name.trim(),
-        phone_number: formData.phone_number.trim(),
+        phone_number: formData.phone_number.trim() || "0", // Use "0" placeholder if empty
         experience_level: formData.experience_level,
         motivation: formData.motivation.trim(),
         goals: formData.goals,

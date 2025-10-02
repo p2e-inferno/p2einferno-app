@@ -46,7 +46,7 @@ export default async function handler(
       "cohort_id",
       "user_email",
       "user_name",
-      "phone_number",
+      // phone_number is optional - "0" placeholder is used for empty values
       "experience_level",
       "motivation",
       "goals",

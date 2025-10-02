@@ -19,8 +19,8 @@
     "functions:serve:verify": "supabase functions serve verify-blockchain-payment --no-verify-jwt --env-file .env.local"
   },
   "dependencies": {
-    "@ethereum-attestation-service/eas-sdk": "^2.7.0",
     "@ensdomains/ensjs": "^4.0.2",
+    "@ethereum-attestation-service/eas-sdk": "^2.7.0",
     "@headlessui/react": "^1.7.3",
     "@heroicons/react": "^2.0.12",
     "@privy-io/react-auth": "^2.12.0",
@@ -54,6 +54,7 @@
     "react-dom": "18.2.0",
     "react-hot-toast": "^2.5.2",
     "react-paystack": "^6.0.0",
+    "react-phone-number-input": "^3.4.12",
     "tailwind-merge": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
     "viem": "^2.31.3"

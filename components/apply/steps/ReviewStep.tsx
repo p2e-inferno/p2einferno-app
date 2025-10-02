@@ -56,7 +56,9 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ formData }) => {
             </p>
             <p>
               <span className="text-faded-grey">Phone:</span>{" "}
-              {formData.phone_number || "Not provided"}
+              {formData.phone_number && formData.phone_number !== "0"
+                ? formData.phone_number
+                : "Not provided"}
             </p>
           </div>
         </Card>

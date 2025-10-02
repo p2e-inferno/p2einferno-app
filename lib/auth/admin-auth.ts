@@ -5,7 +5,7 @@ import {
   verifyAdminSession,
   getAdminTokenFromNextApiRequest,
 } from "@/lib/auth/admin-session";
-import { createAlchemyEthersAdapterReadClient } from "@/lib/blockchain/config";
+import { createInfuraEthersAdapterReadClient } from "@/lib/blockchain/config";
 import {
   checkMultipleWalletsForAdminKey,
   checkDevelopmentAdminAddress,
@@ -92,7 +92,7 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
           if (devAdminAddresses) {
             const devAddress = devAdminAddresses.split(",")[0]?.trim();
             if (devAddress) {
-              const client = createAlchemyEthersAdapterReadClient();
+              const client = createInfuraEthersAdapterReadClient();
               const result = await checkDevelopmentAdminAddress(
                 devAddress,
                 adminLockAddress,
@@ -128,7 +128,7 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
             .status(403)
             .json({ error: "Active wallet not linked to user" });
         }
-        const client = createAlchemyEthersAdapterReadClient();
+        const client = createInfuraEthersAdapterReadClient();
         const keyRes = await checkMultipleWalletsForAdminKey(
           [activeWallet],
           adminLockAddress,
@@ -153,7 +153,7 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
             .status(403)
             .json({ error: "Active wallet not linked to user" });
         }
-        const client = createAlchemyEthersAdapterReadClient();
+        const client = createInfuraEthersAdapterReadClient();
         const keyRes = await checkMultipleWalletsForAdminKey(
           [activeWallet],
           adminLockAddress,
@@ -167,7 +167,7 @@ export function withAdminAuth(handler: NextApiHandler): NextApiHandler {
         return handler(req, res);
       }
 
-      const client = createAlchemyEthersAdapterReadClient();
+      const client = createInfuraEthersAdapterReadClient();
       const keyCheckResult = await checkMultipleWalletsForAdminKey(
         walletAddresses,
         adminLockAddress,
