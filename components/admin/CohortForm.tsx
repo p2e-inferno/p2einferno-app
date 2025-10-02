@@ -66,7 +66,8 @@ export default function CohortForm({
   );
 
   const { isAdmin } = useAdminAuthContext();
-  const { deployAdminLock } = useDeployAdminLock({ isAdmin });
+  const { deployAdminLock, isLoading: isDeployingFromHook } =
+    useDeployAdminLock({ isAdmin });
 
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
@@ -840,13 +841,17 @@ export default function CohortForm({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting || !isFormValid}
+          disabled={isSubmitting || !isFormValid || isDeployingFromHook}
           className="bg-steel-red hover:bg-steel-red/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSubmitting ? (
+          {isSubmitting || isDeployingFromHook ? (
             <>
               <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-              {isEditing ? "Updating..." : "Creating..."}
+              {isDeployingFromHook
+                ? "Deploying Lock..."
+                : isEditing
+                  ? "Updating..."
+                  : "Creating..."}
             </>
           ) : (
             <>{isEditing ? "Update Cohort" : "Create Cohort"}</>

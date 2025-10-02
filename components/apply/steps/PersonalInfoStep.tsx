@@ -142,7 +142,8 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({
             htmlFor="phone_number"
             className="block text-sm font-medium mb-2"
           >
-            Phone Number <span className="text-faded-grey text-xs">(Optional)</span>
+            Phone Number{" "}
+            <span className="text-faded-grey text-xs">(Optional)</span>
           </label>
           <div className="relative">
             <Phone className="absolute left-3 top-3 h-5 w-5 text-faded-grey z-10" />
@@ -151,7 +152,11 @@ const PersonalInfoStep: React.FC<PersonalInfoStepProps> = ({
               international
               defaultCountry="NG"
               placeholder="Enter your phone number"
-              value={formData.phone_number === "0" || !formData.phone_number ? undefined : formData.phone_number}
+              value={
+                formData.phone_number === "0" || !formData.phone_number
+                  ? undefined
+                  : formData.phone_number
+              }
               onChange={handlePhoneChange}
               inputComponent={CustomPhoneInput as any}
               hasError={!!fieldErrors.phone_number}

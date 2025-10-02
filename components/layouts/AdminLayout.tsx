@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
+import AdminSessionRequired from "@/components/admin/AdminSessionRequired";
 import { PrivyConnectButton } from "@/components/PrivyConnectButton";
 import {
   Menu,
@@ -15,9 +16,13 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:AdminLayout");
 
 interface AdminLayoutProps {
   children: React.ReactNode;
+  requiresSession?: boolean; // Allow disabling session requirement for specific pages
 }
 
 const adminNavItems = [
@@ -30,9 +35,21 @@ const adminNavItems = [
   { name: "Draft Recovery", href: "/admin/draft-recovery", icon: FileText },
 ];
 
-export default function AdminLayout({ children }: AdminLayoutProps) {
-  const { isAdmin, authenticated, authStatus, isLoadingAuth } =
-    useAdminAuthContext();
+export default function AdminLayout({
+  children,
+  requiresSession = true,
+}: AdminLayoutProps) {
+  const {
+    authStatus,
+    authenticated,
+    user,
+    isAdmin,
+    hasValidSession,
+    isLoadingAuth,
+    isLoadingSession,
+    createAdminSession,
+    sessionExpiry,
+  } = useAdminAuthContext();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
@@ -47,10 +64,41 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  const isLoadingState = authStatus === "loading" || isLoadingAuth;
+  // ============ AUTHENTICATION LOGIC ============
 
-  // Show loading state while checking authentication
-  if (isLoadingState) {
+  const isLoading =
+    authStatus === "loading" ||
+    isLoadingAuth ||
+    (requiresSession && isLoadingSession);
+
+  const needsPrivyAuth =
+    authStatus === "privy_required" ||
+    authStatus === "wallet_required" ||
+    !authenticated ||
+    !user;
+
+  const needsBlockchainAuth =
+    authStatus === "blockchain_denied" || (!isAdmin && !needsPrivyAuth);
+
+  const needsSessionAuth =
+    requiresSession &&
+    (authStatus === "session_required" || (!hasValidSession && isAdmin));
+
+  const isFullyAuthenticated =
+    authenticated && !!user && isAdmin && (!requiresSession || hasValidSession);
+
+  log.debug("AdminLayout render", {
+    authStatus,
+    isFullyAuthenticated,
+    isLoading,
+    requiresSession,
+    needsPrivyAuth,
+    needsBlockchainAuth,
+    needsSessionAuth,
+  });
+
+  // Show loading spinner while checking authentication
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
@@ -61,12 +109,53 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     );
   }
 
-  // Show access denied if not authenticated or not an admin
-  if (!authenticated || !isAdmin) {
+  // Step 1: Require Privy authentication
+  if (needsPrivyAuth) {
+    log.debug("Showing AdminAccessRequired - no Privy auth");
+    return (
+      <AdminAccessRequired message="Please connect your wallet to access admin features" />
+    );
+  }
+
+  // Step 2: Require blockchain admin access (admin key ownership)
+  if (needsBlockchainAuth) {
+    log.debug("Showing AdminAccessRequired - no blockchain access");
     return (
       <AdminAccessRequired message="You need admin access to view this page" />
     );
   }
+
+  // Step 3: Require valid admin session (if enabled)
+  if (needsSessionAuth) {
+    log.debug("Showing AdminSessionRequired - no valid session");
+    return (
+      <AdminSessionRequired
+        onCreateSession={createAdminSession}
+        sessionExpiry={sessionExpiry}
+        message="A fresh admin session is required for enhanced security"
+      />
+    );
+  }
+
+  // All requirements met - render admin layout with navigation
+  if (requiresSession && !isFullyAuthenticated) {
+    log.warn("Unexpected state: session required but not fully authenticated", {
+      authStatus,
+      isFullyAuthenticated,
+    });
+
+    return (
+      <AdminSessionRequired
+        onCreateSession={createAdminSession}
+        sessionExpiry={sessionExpiry}
+        message="Authentication verification required"
+      />
+    );
+  }
+
+  // ============ ADMIN LAYOUT RENDERING ============
+
+  log.debug("Rendering admin layout with navigation");
 
   return (
     <div className="min-h-screen bg-black">

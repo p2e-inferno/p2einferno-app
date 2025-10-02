@@ -49,7 +49,8 @@ export default function QuestForm({
   const [error, setError] = useState<string | null>(null);
 
   const { isAdmin } = useAdminAuthContext();
-  const { deployAdminLock } = useDeployAdminLock({ isAdmin });
+  const { deployAdminLock, isLoading: isDeployingFromHook } =
+    useDeployAdminLock({ isAdmin });
 
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
@@ -643,13 +644,13 @@ export default function QuestForm({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isDeployingFromHook}
           className="bg-steel-red hover:bg-steel-red/90 text-white"
         >
-          {isSubmitting ? (
+          {isSubmitting || isDeployingFromHook ? (
             <>
               <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
-              Saving...
+              {isDeployingFromHook ? "Deploying Lock..." : "Saving..."}
             </>
           ) : (
             <>

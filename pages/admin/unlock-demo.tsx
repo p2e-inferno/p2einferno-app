@@ -1,29 +1,7 @@
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useAdminAuthContext } from "@/contexts/admin-context";
-import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { UnlockUtilsDemo } from "@/components/unlock/UnlockUtilsDemo";
 
 export default function UnlockDemoPage() {
-  const { isAdmin, isLoadingAuth, authenticated } = useAdminAuthContext();
-
-  // Show loading state while checking authentication
-  if (isLoadingAuth) {
-    return (
-      <AdminLayout>
-        <div className="w-full flex justify-center items-center min-h-[400px]">
-          <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  // Show access required message if not authenticated or not an admin
-  if (!authenticated || !isAdmin) {
-    return (
-      <AdminAccessRequired message="You need admin access to view the Unlock Protocol demo" />
-    );
-  }
-
   return (
     <AdminLayout>
       <div className="w-full">

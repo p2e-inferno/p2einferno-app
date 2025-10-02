@@ -1,9 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useAdminAuthContext } from "@/contexts/admin-context";
-import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
 import { RefreshCw, ExternalLink } from "lucide-react";
 import { NetworkError } from "@/components/ui/network-error";
@@ -35,9 +32,6 @@ interface PaymentTransaction {
 }
 
 const AdminPaymentsPage: React.FC = () => {
-  const { isAdmin, isLoadingAuth, authenticated } = useAdminAuthContext();
-  const router = useRouter();
-  const [isClient, setIsClient] = useState(false);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,17 +39,6 @@ const AdminPaymentsPage: React.FC = () => {
 
   const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch } = useAdminApi(apiOptions);
-
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isClient || isLoadingAuth) return;
-    if (!authenticated || !isAdmin) {
-      router.push("/");
-    }
-  }, [authenticated, isAdmin, isLoadingAuth, router, isClient]);
 
   const fetchTransactions = useCallback(async () => {
     try {
@@ -82,10 +65,8 @@ const AdminPaymentsPage: React.FC = () => {
   }, [adminFetch]);
 
   useEffect(() => {
-    if (authenticated && isAdmin && isClient) {
-      fetchTransactions();
-    }
-  }, [authenticated, isAdmin, isClient, fetchTransactions]);
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   const handleReconcile = async (applicationId: string) => {
     try {
@@ -153,24 +134,6 @@ const AdminPaymentsPage: React.FC = () => {
     const explorerUrl = explorers[chainId] || "https://basescan.org";
     return `${explorerUrl}/tx/${txHash}`;
   };
-
-  // Show loading while auth is being checked
-  if (isLoadingAuth || !isClient) {
-    return (
-      <AdminLayout>
-        <div className="w-full flex justify-center items-center min-h-[400px]">
-          <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  // Show access required if not authenticated or not admin
-  if (!authenticated || !isAdmin) {
-    return (
-      <AdminAccessRequired message="You need admin access to view payment transactions" />
-    );
-  }
 
   return (
     <AdminLayout>

@@ -56,7 +56,8 @@ export default function BootcampForm({
   });
 
   const { isAdmin } = useAdminAuthContext();
-  const { deployAdminLock } = useDeployAdminLock({ isAdmin });
+  const { deployAdminLock, isLoading: isDeployingFromHook } =
+    useDeployAdminLock({ isAdmin });
 
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
@@ -571,13 +572,17 @@ export default function BootcampForm({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isDeployingFromHook}
           className="bg-steel-red hover:bg-steel-red/90 text-white"
         >
-          {isSubmitting ? (
+          {isSubmitting || isDeployingFromHook ? (
             <>
               <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-              {isEditing ? "Updating..." : "Creating..."}
+              {isDeployingFromHook
+                ? "Deploying Lock..."
+                : isEditing
+                  ? "Updating..."
+                  : "Creating..."}
             </>
           ) : (
             <>{isEditing ? "Update Bootcamp" : "Create Bootcamp"}</>

@@ -261,9 +261,11 @@ export default function ApplicationPage({
     switch (step) {
       case 1:
         return !!(
-          formData.user_name &&
-          formData.user_email &&
-          !fieldErrors.user_email // Ensure no active email format error
+          (
+            formData.user_name &&
+            formData.user_email &&
+            !fieldErrors.user_email // Ensure no active email format error
+          )
           // phone_number is now optional
         );
       case 2:
@@ -335,8 +337,7 @@ export default function ApplicationPage({
         "Please fix the errors in your application before submitting.",
       );
       // Try to navigate to the first step with an error
-      if (errors.user_name || errors.user_email)
-        setCurrentStep(1);
+      if (errors.user_name || errors.user_email) setCurrentStep(1);
       else if (errors.motivation || errors.goals) setCurrentStep(3);
       return;
     }

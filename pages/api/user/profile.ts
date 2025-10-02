@@ -139,13 +139,15 @@ async function getUserDashboardData(
     throw new Error(`Failed to fetch profile: ${profileError.message}`);
   }
 
-  // Get user applications with status (non-blocking)
-  const { data: applications, error: applicationsError } = await supabase
+  // Get user applications - query both ways to catch orphaned applications
+  // First, get applications through user_application_status (normal path)
+  const { data: statusApplications, error: statusAppError } = await supabase
     .from("user_application_status")
     .select(
       `
       *,
       applications (
+        id,
         cohort_id,
         user_name,
         user_email,
@@ -159,8 +161,47 @@ async function getUserDashboardData(
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
 
-  if (applicationsError) {
-    log.error("Error fetching applications:", applicationsError);
+  // Also check for orphaned applications directly
+  const { data: orphanedApps, error: orphanedError } = await supabase
+    .from("applications")
+    .select("*")
+    .eq("user_profile_id", userProfileId)
+    .order("created_at", { ascending: false });
+
+  // Merge the results, avoiding duplicates
+  let applications = statusApplications || [];
+
+  if (orphanedApps) {
+    const existingAppIds = new Set(
+      applications.map((a: any) => a.applications?.id).filter(Boolean),
+    );
+
+    orphanedApps.forEach((app: any) => {
+      if (!existingAppIds.has(app.id)) {
+        // Create a synthetic user_application_status record for orphaned apps
+        applications.push({
+          id: app.id,
+          user_profile_id: userProfileId,
+          application_id: app.id,
+          status:
+            app.payment_status === "completed"
+              ? "completed"
+              : app.payment_status === "failed"
+                ? "failed"
+                : "pending",
+          created_at: app.created_at,
+          applications: app,
+          _is_orphaned: true,
+        });
+      }
+    });
+  }
+
+  if (statusAppError && orphanedError) {
+    log.error("Error fetching applications:", {
+      statusAppError,
+      orphanedError,
+    });
   }
 
   // Get bootcamp enrollments (non-blocking)

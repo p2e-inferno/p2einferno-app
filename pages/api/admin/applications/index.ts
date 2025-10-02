@@ -40,19 +40,25 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       limit = 20,
     }: ApplicationsQuery = req.query;
 
-    // Use the original user_applications_view (simpler approach)
-    let query = supabase.from("user_applications_view").select(`
-        id,
-        user_profile_id,
+    // Use the all_applications_view to catch orphaned applications
+    let query = supabase.from("all_applications_view").select(`
         application_id,
-        status,
-        created_at,
+        user_profile_id,
+        user_application_status_id as id,
+        user_application_status as status,
+        application_created_at as created_at,
         cohort_id,
+        cohort_name,
         user_name,
         user_email,
         experience_level,
         payment_status,
-        application_status
+        application_status,
+        missing_user_status,
+        missing_profile_link,
+        missing_enrollment,
+        enrollment_id,
+        enrollment_status
       `);
 
     // Apply filters
@@ -84,58 +90,38 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       });
     }
 
-    // Fetch enrollment data and cohort names separately
-    const userProfileIds =
-      applications?.map((app: any) => app.user_profile_id) || [];
-    const cohortIds =
-      applications?.map((app: any) => app.cohort_id).filter(Boolean) || [];
-
-    // Fetch cohort names
-    let cohorts: any[] = [];
-    if (cohortIds.length > 0) {
-      const { data: cohortData } = await supabase
-        .from("cohorts")
-        .select("id, name, start_date, end_date")
-        .in("id", cohortIds);
-
-      cohorts = cohortData || [];
-    }
-
-    let enrollments: any[] = [];
-    if (userProfileIds.length > 0 && cohortIds.length > 0) {
-      const { data: enrollmentData, error: enrollmentError } = await supabase
-        .from("bootcamp_enrollments")
-        .select("id, user_profile_id, cohort_id, enrollment_status, created_at")
-        .in("user_profile_id", userProfileIds)
-        .in("cohort_id", cohortIds);
-
-      if (enrollmentError) {
-        log.error("Error fetching enrollments:", enrollmentError);
-        // Continue without enrollments rather than failing
-      } else {
-        enrollments = enrollmentData || [];
-      }
-    }
-
-    // Combine applications with their enrollment data and cohort info
+    // Transform the data to match the expected format
     const applicationsWithEnrollments =
       applications?.map((app: any) => {
-        const cohort = cohorts.find((c) => c.id === app.cohort_id);
+        // Build bootcamp_enrollments array from the view data
+        const bootcamp_enrollments = app.enrollment_id
+          ? [
+              {
+                id: app.enrollment_id,
+                enrollment_status: app.enrollment_status,
+                created_at: app.enrollment_created_at,
+              },
+            ]
+          : [];
+
         return {
           ...app,
-          cohort_name: cohort?.name || app.cohort_id,
-          bootcamp_enrollments: enrollments.filter(
-            (enrollment) =>
-              enrollment.user_profile_id === app.user_profile_id &&
-              enrollment.cohort_id === app.cohort_id,
-          ),
+          // Map fields to expected names
+          id: app.id || app.application_id, // Use app ID if status ID is missing
+          bootcamp_enrollments,
+          // Add data quality indicators
+          data_issues: {
+            missing_user_status: app.missing_user_status,
+            missing_profile_link: app.missing_profile_link,
+            missing_enrollment: app.missing_enrollment,
+          },
         };
       }) || [];
 
     // Get total count for pagination
     let countQuery = supabase
-      .from("user_applications_view")
-      .select("id", { count: "exact", head: true });
+      .from("all_applications_view")
+      .select("application_id", { count: "exact", head: true });
 
     if (status) countQuery = countQuery.eq("application_status", status);
     if (payment_status)
@@ -148,7 +134,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
       log.error("Error getting applications count:", countError);
     }
 
-    // Calculate stats from the combined data
+    // Calculate stats from the combined data including data quality issues
     const stats = {
       total: count || 0,
       pending:
@@ -165,26 +151,22 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         ).length || 0,
       inconsistent:
         applicationsWithEnrollments.filter((app: any) => {
-          const paymentStatus = app.payment_status;
-          const status = app.status;
+          // Check for any data quality issues
           return (
-            paymentStatus === "completed" &&
-            (status === "under_review" || status === "pending")
+            app.data_issues?.missing_user_status ||
+            app.data_issues?.missing_profile_link ||
+            app.data_issues?.missing_enrollment ||
+            (app.payment_status === "completed" && app.status === "pending")
           );
         }).length || 0,
       missingEnrollments:
         applicationsWithEnrollments.filter((app: any) => {
-          const paymentStatus = app.payment_status;
-          const status = app.status;
-          const hasEnrollment =
-            app.bootcamp_enrollments && app.bootcamp_enrollments.length > 0;
-          return (
-            paymentStatus === "completed" &&
-            status === "approved" &&
-            !hasEnrollment
-          );
+          return app.data_issues?.missing_enrollment === true;
         }).length || 0,
-      missingPaymentRecords: 0, // We'll keep this for future use
+      missingPaymentRecords:
+        applicationsWithEnrollments.filter((app: any) => {
+          return app.data_issues?.missing_user_status === true;
+        }).length || 0,
     };
 
     res.status(200).json({
