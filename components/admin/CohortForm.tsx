@@ -8,7 +8,6 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { toast } from "react-hot-toast";
-import { unlockUtils } from "@/lib/unlock/lockUtils";
 import {
   generateCohortLockConfig,
   createLockConfigWithManagers,
@@ -24,6 +23,9 @@ import {
 } from "@/lib/utils/lock-deployment-state";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { getLogger } from "@/lib/utils/logger";
+import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 
 const log = getLogger("admin:CohortForm");
 
@@ -62,6 +64,9 @@ export default function CohortForm({
   const [keyManagersInput, setKeyManagersInput] = useState<string>(
     cohort?.key_managers?.join(", ") || "",
   );
+
+  const { isAdmin } = useAdminAuthContext();
+  const { deployAdminLock } = useDeployAdminLock({ isAdmin });
 
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
@@ -258,35 +263,35 @@ export default function CohortForm({
       const lockConfig = generateCohortLockConfig(formData as Cohort);
       const deployConfig = createLockConfigWithManagers(lockConfig);
 
+      // Convert to AdminLockDeploymentParams
+      const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+
       setDeploymentStep("Deploying lock on blockchain...");
       toast.loading("Deploying cohort access lock...", { id: "lock-deploy" });
 
-      // Deploy the lock
-      const result = await unlockUtils.deployLock(deployConfig, wallet);
+      // Deploy the lock using admin hook
+      const result = await deployAdminLock(params);
 
-      if (!result.success) {
+      if (!result.success || !result.lockAddress) {
         throw new Error(result.error || "Lock deployment failed");
       }
 
-      // Get lock address from deployment result
-      if (!result.lockAddress) {
-        throw new Error(
-          "Lock deployment succeeded but no lock address returned",
-        );
-      }
+      setDeploymentStep("Granting server wallet manager role...");
 
       const lockAddress = result.lockAddress;
-      setDeploymentStep("Lock deployed successfully!");
+      setDeploymentStep("Lock deployed and configured successfully!");
 
       // Update draft with lock address to preserve it in case of database failure
       updateDraftWithLockAddress("cohort", lockAddress);
 
-      // Save deployment state before database operation
+      // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "cohort",
         entityData: formData,
         transactionHash: result.transactionHash,
+        grantTransactionHash: result.grantTransactionHash,
+        serverWalletAddress: result.serverWalletAddress,
         blockExplorerUrl: result.transactionHash
           ? getBlockExplorerUrl(result.transactionHash)
           : undefined,
@@ -299,6 +304,8 @@ export default function CohortForm({
         <>
           Lock deployed successfully!
           <br />
+          Server wallet granted manager role.
+          <br />
           {result.transactionHash && (
             <a
               href={getBlockExplorerUrl(result.transactionHash)}
@@ -306,8 +313,21 @@ export default function CohortForm({
               rel="noopener noreferrer"
               className="underline"
             >
-              View transaction
+              View deployment
             </a>
+          )}
+          {result.grantTransactionHash && (
+            <>
+              {" | "}
+              <a
+                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View grant
+              </a>
+            </>
           )}
         </>,
         {
@@ -319,6 +339,8 @@ export default function CohortForm({
       log.info("Lock deployed:", {
         lockAddress,
         transactionHash: result.transactionHash,
+        grantTransactionHash: result.grantTransactionHash,
+        serverWalletAddress: result.serverWalletAddress,
         deploymentId,
       });
 

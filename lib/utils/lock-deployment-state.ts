@@ -25,6 +25,8 @@ export interface PendingDeployment {
   timestamp: number;
   retryCount: number;
   transactionHash?: string;
+  grantTransactionHash?: string;
+  serverWalletAddress?: string;
   blockExplorerUrl?: string;
 }
 

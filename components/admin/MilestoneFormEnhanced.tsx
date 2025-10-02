@@ -11,7 +11,6 @@ import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { toast } from "react-hot-toast";
-import { unlockUtils } from "@/lib/unlock/lockUtils";
 import {
   generateMilestoneLockConfig,
   createLockConfigWithManagers,
@@ -26,6 +25,8 @@ import {
   updateDraftWithLockAddress,
 } from "@/lib/utils/lock-deployment-state";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
+import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
+import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 
 const log = getLogger("admin:MilestoneFormEnhanced");
 
@@ -91,6 +92,7 @@ export default function MilestoneFormEnhanced({
   const { adminFetch } = useAdminApi();
   const wallet = useSmartWalletSelection();
   const { authenticated, isAdmin, user } = useAdminAuthContext();
+  const { deployAdminLock } = useDeployAdminLock({ isAdmin });
 
   const [formData, setFormData] = useState<Partial<CohortMilestone>>(
     milestone || {
@@ -292,37 +294,37 @@ export default function MilestoneFormEnhanced({
       );
       const deployConfig = createLockConfigWithManagers(lockConfig);
 
+      // Convert to AdminLockDeploymentParams
+      const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+
       setDeploymentStep("Deploying lock on blockchain...");
       toast.loading("Deploying milestone access lock...", {
         id: "milestone-lock-deploy",
       });
 
-      // Deploy the lock
-      const result = await unlockUtils.deployLock(deployConfig, wallet);
+      // Deploy the lock using admin hook
+      const result = await deployAdminLock(params);
 
-      if (!result.success) {
+      if (!result.success || !result.lockAddress) {
         throw new Error(result.error || "Lock deployment failed");
       }
 
-      // Get lock address from deployment result
-      if (!result.lockAddress) {
-        throw new Error(
-          "Lock deployment succeeded but no lock address returned",
-        );
-      }
+      setDeploymentStep("Granting server wallet manager role...");
 
       const lockAddress = result.lockAddress;
-      setDeploymentStep("Lock deployed successfully!");
+      setDeploymentStep("Lock deployed and configured successfully!");
 
       // Update draft with lock address to preserve it in case of database failure
       updateDraftWithLockAddress("milestone", lockAddress);
 
-      // Save deployment state before database operation
+      // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "milestone",
         entityData: formData,
         transactionHash: result.transactionHash,
+        grantTransactionHash: result.grantTransactionHash,
+        serverWalletAddress: result.serverWalletAddress,
         blockExplorerUrl: result.transactionHash
           ? getBlockExplorerUrl(result.transactionHash)
           : undefined,
@@ -332,6 +334,8 @@ export default function MilestoneFormEnhanced({
         <>
           Milestone lock deployed successfully!
           <br />
+          Server wallet granted manager role.
+          <br />
           {result.transactionHash && (
             <a
               href={getBlockExplorerUrl(result.transactionHash)}
@@ -339,8 +343,21 @@ export default function MilestoneFormEnhanced({
               rel="noopener noreferrer"
               className="underline"
             >
-              View transaction
+              View deployment
             </a>
+          )}
+          {result.grantTransactionHash && (
+            <>
+              {" | "}
+              <a
+                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View grant
+              </a>
+            </>
           )}
         </>,
         {
@@ -352,6 +369,8 @@ export default function MilestoneFormEnhanced({
       log.info("Milestone lock deployed:", {
         lockAddress,
         transactionHash: result.transactionHash,
+        grantTransactionHash: result.grantTransactionHash,
+        serverWalletAddress: result.serverWalletAddress,
         deploymentId,
       });
 
