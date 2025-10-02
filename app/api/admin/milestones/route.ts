@@ -48,7 +48,16 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
     const { data, error } = await supabase.from('cohort_milestones').insert(payload).select('*').single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      log.error('milestones POST supabase error', {
+        error,
+        payloadKeys:
+          payload && typeof payload === 'object'
+            ? Object.keys(payload as Record<string, unknown>)
+            : [],
+      });
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     invalidateMilestone(data);
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (error: any) {
@@ -65,7 +74,14 @@ export async function PUT(req: NextRequest) {
     const { id, ...update } = await req.json();
     if (!id) return NextResponse.json({ error: 'Missing milestone ID' }, { status: 400 });
     const { data, error } = await supabase.from('cohort_milestones').update({ ...update, updated_at: new Date().toISOString() }).eq('id', id).select('*').single();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) {
+      log.error('milestones PUT supabase error', {
+        error,
+        payloadKeys: Object.keys(update ?? {}),
+        milestoneId: id,
+      });
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
     invalidateMilestone(data);
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error: any) {

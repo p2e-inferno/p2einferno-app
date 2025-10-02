@@ -137,14 +137,37 @@ export default function MilestoneFormEnhanced({
   useEffect(() => {
     if (!isEditing) {
       const draft = getDraft("milestone");
-      if (draft) {
-        setFormData((prev) => ({ ...prev, ...draft.formData }));
-        if (draft.formData.tasks) {
-          setTasks(draft.formData.tasks);
+      if (draft?.formData && typeof draft.formData === "object") {
+        const {
+          tasks: draftTasks,
+          auto_lock_creation: draftAutoLockCreation,
+          ...sanitizedDraftForm
+        } = draft.formData as Partial<CohortMilestone> & {
+          tasks?: TaskForm[];
+          auto_lock_creation?: boolean;
+        };
+
+        if (draftTasks) {
+          if (Array.isArray(draftTasks)) {
+            log.debug("Restored milestone draft tasks", {
+              taskCount: draftTasks.length,
+            });
+            setTasks(draftTasks);
+          } else {
+            log.warn("Ignoring malformed tasks payload on milestone draft", {
+              valueType: typeof draftTasks,
+            });
+          }
         }
 
+        if (typeof draftAutoLockCreation === "boolean") {
+          setShowAutoLockCreation(draftAutoLockCreation);
+        }
+
+        setFormData((prev) => ({ ...prev, ...sanitizedDraftForm }));
+
         // If draft contains a lock address, disable auto-creation
-        if (draft.formData.lock_address) {
+        if (sanitizedDraftForm.lock_address) {
           setShowAutoLockCreation(false);
           toast.success("Restored draft data with deployed lock");
         } else {
@@ -469,7 +492,12 @@ export default function MilestoneFormEnhanced({
 
       // Save draft before starting deployment (for new milestones)
       if (!isEditing) {
-        saveDraft("milestone", { ...formData, tasks });
+        const draftPayload = {
+          ...formData,
+          auto_lock_creation: showAutoLockCreation,
+          tasks,
+        };
+        saveDraft("milestone", draftPayload);
       }
 
       // Deploy lock if not editing and auto-creation is enabled and no lock address provided
@@ -495,15 +523,37 @@ export default function MilestoneFormEnhanced({
       }
 
       // Prepare milestone data
+      const {
+        tasks: formTasks,
+        auto_lock_creation: formAutoLockCreation,
+        ...formDataWithoutTasks
+      } = (formData || {}) as Partial<CohortMilestone> & {
+        tasks?: TaskForm[];
+        auto_lock_creation?: boolean;
+      };
+
+      if (formTasks) {
+        log.debug("Omitting tasks from milestone payload", {
+          taskCount: Array.isArray(formTasks)
+            ? formTasks.length
+            : typeof formTasks,
+        });
+      }
+
+      if (typeof formAutoLockCreation !== "undefined") {
+        log.debug("Dropping auto_lock_creation flag from milestone payload");
+      }
+
       const milestoneData = {
-        ...formData,
-        name: formData.name || "",
-        description: formData.description || "",
-        start_date: formData.start_date || null,
-        end_date: formData.end_date || null,
+        ...formDataWithoutTasks,
+        name: formDataWithoutTasks.name || "",
+        description: formDataWithoutTasks.description || "",
+        start_date: formDataWithoutTasks.start_date || null,
+        end_date: formDataWithoutTasks.end_date || null,
         lock_address: lockAddress,
-        prerequisite_milestone_id: formData.prerequisite_milestone_id || null,
-        duration_hours: formData.duration_hours || 0,
+        prerequisite_milestone_id:
+          formDataWithoutTasks.prerequisite_milestone_id || null,
+        duration_hours: formDataWithoutTasks.duration_hours || 0,
         total_reward: totalTaskReward,
         updated_at: now,
       };
@@ -513,10 +563,43 @@ export default function MilestoneFormEnhanced({
         (milestoneData as any).created_at = now;
       }
 
+      const allowedMilestoneKeys = new Set<string>([
+        "id",
+        "cohort_id",
+        "name",
+        "description",
+        "order_index",
+        "start_date",
+        "end_date",
+        "lock_address",
+        "prerequisite_milestone_id",
+        "duration_hours",
+        "total_reward",
+        "created_at",
+        "updated_at",
+        "old_id_text",
+      ]);
+
+      const invalidKeys = Object.keys(milestoneData).filter(
+        (key) => !allowedMilestoneKeys.has(key),
+      );
+
+      if (invalidKeys.length > 0) {
+        log.warn("Removing unsupported milestone payload keys", {
+          invalidKeys,
+        });
+      }
+
+      const sanitizedMilestoneData = Object.fromEntries(
+        Object.entries(milestoneData).filter(([key]) =>
+          allowedMilestoneKeys.has(key),
+        ),
+      );
+
       // Submit milestone
       const milestoneResult = await adminFetch("/api/admin/milestones", {
         method: isEditing ? "PUT" : "POST",
-        body: JSON.stringify(milestoneData),
+        body: JSON.stringify(sanitizedMilestoneData),
       });
 
       if (milestoneResult.error) {
