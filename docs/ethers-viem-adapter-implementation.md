@@ -7,12 +7,12 @@ Created an ethers-based client adapter that provides a viem-compatible interface
 
 ### Core Files Created
 
-#### 1. `lib/blockchain/config/clients/ethers-alchemy-adapter.ts`
+#### 1. `lib/blockchain/config/clients/ethers-adapter-client.ts`
 - **Purpose**: Ethers-based client with viem-compatible `readContract()` interface
 - **Features**:
-  - Singleton caching for performance
+  - Mapped cache per provider and chain (e.g., `alchemy:8453`, `infura:84532`)
   - Uses default ethers settings (no custom timeout/retries)
-  - Mirrors Alchemy-only RPC URL resolution with public RPC fallback
+  - Supports Alchemy and Infura creators; each falls back to public RPC if its key/URL is missing
   - Integrates with existing blockchain logger
 
 **Key Interface**:
@@ -29,23 +29,27 @@ class EthersViemAdapter {
 }
 ```
 
-**Export Function**:
+**Export Functions**:
 ```typescript
-export const createAlchemyEthersAdapterReadClient = (): EthersViemAdapter
+export const createEthersAdapterReadClient: (opts?: { prefer?: 'alchemy' | 'infura' }) => EthersViemAdapter
+export const createAlchemyEthersAdapterReadClient: () => EthersViemAdapter
+export const createInfuraEthersAdapterReadClient: () => EthersViemAdapter
 ```
 
-### RPC URL Resolution Strategy
+### RPC URL Resolution Strategy (single preferred + public fallback)
 
-The adapter mirrors the existing `createAlchemyPublicClient` approach:
+For the selected provider only (no multi-provider fallback chain):
 
 1. Get chain from `resolveChain()`
-2. Get Alchemy base URL for chain ID
-3. Call `createAlchemyRpcUrl(baseUrl)` which:
-   - Returns Alchemy URL with API key if `NEXT_PUBLIC_ALCHEMY_API_KEY` is set
-   - Falls back to public RPC if no API key:
-     - Base Mainnet → `https://mainnet.base.org`
-     - Base Sepolia → `https://sepolia.base.org`
-     - Ethereum Mainnet → `https://cloudflare-eth.com`
+2. If preferred is Alchemy:
+   - Build base via `getAlchemyBaseUrl(chain.id)` and call `createAlchemyRpcUrl(baseUrl)`
+   - If no Alchemy key, `createAlchemyRpcUrl` returns public Base RPC (`https://mainnet.base.org` or `https://sepolia.base.org`)
+3. If preferred is Infura:
+   - Use `NEXT_PUBLIC_INFURA_BASE_MAINNET_RPC_URL` / `NEXT_PUBLIC_INFURA_BASE_SEPOLIA_RPC_URL` if set
+   - Else construct `https://base-mainnet.infura.io/v3/${NEXT_PUBLIC_INFURA_API_KEY}` or `https://base-sepolia.infura.io/v3/${NEXT_PUBLIC_INFURA_API_KEY}`
+   - If neither present, fall back to public Base RPC (`https://mainnet.base.org` or `https://sepolia.base.org`)
+
+Note: This adapter intentionally does not implement multi-provider fallback (e.g., Alchemy→Infura). That logic remains in the viem public client with fallback transport.
 
 ### Contract Execution
 
@@ -61,11 +65,13 @@ async readContract<T>(params: ReadContractParameters): Promise<T> {
 ## Files Updated
 
 ### Export Configuration
-1. **`lib/blockchain/config/clients/index.ts`**
-   - Added export for `createAlchemyEthersAdapterReadClient`
+1. **`lib/blockchain/config/clients/index.ts`** (if present)
+   - Export `createEthersAdapterReadClient`
+   - Export `createAlchemyEthersAdapterReadClient`
+   - Export `createInfuraEthersAdapterReadClient`
 
 2. **`lib/blockchain/config/index.ts`**
-   - Added export for `createAlchemyEthersAdapterReadClient` in main config
+   - Export the same creators for top-level consumption
 
 ### Admin Authentication Files (Migrated to Ethers Adapter)
 1. **`app/api/admin/session/route.ts`**
@@ -73,15 +79,15 @@ async readContract<T>(params: ReadContractParameters): Promise<T> {
    - All admin key checks now use ethers adapter
 
 2. **`lib/auth/route-handlers/admin-guard.ts`**
-   - Replaced all instances (4 total)
+   - Replaced all instances
    - Admin guard now uses ethers for contract reads
 
 3. **`lib/auth/admin-auth.ts`**
-   - Replaced all instances (4 total)
+   - Replaced all instances
    - Pages API admin auth now uses ethers adapter
 
 4. **`pages/api/admin/session-fallback.ts`**
-   - Replaced all instances (2 total)
+   - Replaced all instances
    - Fallback session endpoint now uses ethers adapter
 
 ## Usage Comparison
@@ -99,7 +105,7 @@ const hasKey = await client.readContract({
 });
 ```
 
-### After (Ethers Adapter)
+### After (Ethers Adapter - Alchemy)
 ```typescript
 import { createAlchemyEthersAdapterReadClient } from "@/lib/blockchain/config";
 
@@ -112,15 +118,28 @@ const hasKey = await client.readContract({
 });
 ```
 
+### After (Ethers Adapter - Infura)
+```typescript
+import { createInfuraEthersAdapterReadClient } from "@/lib/blockchain/config";
+
+const client = createInfuraEthersAdapterReadClient();
+const hasKey = await client.readContract({
+  address: adminLockAddress,
+  abi: COMPLETE_LOCK_ABI,
+  functionName: "getHasValidKey",
+  args: [userAddress],
+});
+```
+
 ## Benefits
 
 1. ✅ **Drop-in Replacement**: Same interface as viem's PublicClient
 2. ✅ **Type Safety**: Full TypeScript support maintained
-3. ✅ **Performance**: Singleton caching for provider reuse
+3. ✅ **Performance**: Mapped cache per provider+chain for adapter reuse
 4. ✅ **Consistent Logging**: Uses existing blockchain logger
-5. ✅ **Fallback Support**: Automatic fallback to public RPC when no API key
+5. ✅ **Fallback Support**: Automatic public RPC fallback when the preferred provider key/URL is missing
 6. ✅ **Default Settings**: Uses ethers defaults (no custom timeout/retries)
-7. ✅ **Simple Implementation**: Reuses existing `createAlchemyRpcUrl` helper
+7. ✅ **Simple Implementation**: Reuses `createAlchemyRpcUrl` and simple Infura URL construction
 
 ## Testing
 

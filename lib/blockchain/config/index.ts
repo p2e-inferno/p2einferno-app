@@ -116,7 +116,7 @@ export const UNIFIED_BLOCKCHAIN_CONFIG: BlockchainConfig = {
 export { createPublicClientUnified } from "./clients/public-client";
 export { createWalletClientUnified } from "./clients/wallet-client";
 export { createAlchemyPublicClient } from "./clients/alchemy-client";
-export { createAlchemyEthersAdapterReadClient } from "./clients/ethers-adapter-client";
+export { createAlchemyEthersAdapterReadClient, createInfuraEthersAdapterReadClient } from "./clients/ethers-adapter-client";
 
 /**
  * Check if server blockchain operations are properly configured

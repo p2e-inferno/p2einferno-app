@@ -1,7 +1,7 @@
 // Next.js 15 instrumentation hook for minimal RPC warm-up
 // Runs on the server at startup
 
-import { createPublicClientUnified, createAlchemyEthersAdapterReadClient } from "./lib/blockchain/config";
+import { createPublicClientUnified, createInfuraEthersAdapterReadClient } from "./lib/blockchain/config";
 import { blockchainLogger } from "./lib/blockchain/shared/logging-utils";
 
 export async function register() {
@@ -12,7 +12,7 @@ export async function register() {
 
   try {
     const client = createPublicClientUnified();
-    const ethersAdapterClient = createAlchemyEthersAdapterReadClient();
+    const ethersAdapterClient = createInfuraEthersAdapterReadClient();
     const start = Date.now();
     const block = await client.getBlockNumber();
     const block2 = await ethersAdapterClient.getBlockNumber();

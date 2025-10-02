@@ -3,10 +3,12 @@
  */
 
 import { ethers } from "ethers";
-import { resolveChain, getAlchemyBaseUrl, createAlchemyRpcUrl } from "../core/chain-resolution";
+import { resolveChain, getAlchemyBaseUrl, createAlchemyRpcUrl, getPreferredProvider } from "../core/chain-resolution";
 import { blockchainLogger } from "../../shared/logging-utils";
 
-let cachedEthersAdapter: any = null;
+const cachedAdapters = new Map<string, any>();
+
+type PreferredProvider = "alchemy" | "infura";
 
 interface ReadContractParameters {
   address: string;
@@ -58,36 +60,69 @@ function createEthersViemAdapter(provider: ethers.JsonRpcProvider, chainId: numb
 }
 
 /**
- * Create Alchemy-based ethers adapter with viem interface
- * Falls back to public RPC if no Alchemy API key found
- * Uses default ethers settings (no custom timeout/retries)
+ * Resolve a single preferred RPC URL for the current chain.
+ * If the preferred keyed URL is unavailable, fall back to public Base RPC.
  */
-export const createAlchemyEthersAdapterReadClient = (): any => {
-  const { chain } = resolveChain();
-  
-  // Return cached adapter if available
-  if (cachedEthersAdapter) {
-    return cachedEthersAdapter;
+function resolvePreferredRpcUrl(chainId: number, prefer: PreferredProvider): string {
+  if (prefer === "alchemy") {
+    const baseUrl = getAlchemyBaseUrl(chainId);
+    return createAlchemyRpcUrl(baseUrl);
   }
 
-  const baseUrl = getAlchemyBaseUrl(chain.id);
-  const alchemyUrl = createAlchemyRpcUrl(baseUrl);
-  
-  blockchainLogger.info("Creating Alchemy ethers adapter (viem interface)", {
+  const infuraKey = process.env.NEXT_PUBLIC_INFURA_API_KEY;
+  if (chainId === 8453) {
+    const direct = process.env.NEXT_PUBLIC_INFURA_BASE_MAINNET_RPC_URL;
+    if (direct) return direct;
+    if (infuraKey) return `https://base-mainnet.infura.io/v3/${infuraKey}`;
+    return "https://mainnet.base.org";
+  } else {
+    const direct = process.env.NEXT_PUBLIC_INFURA_BASE_SEPOLIA_RPC_URL;
+    if (direct) return direct;
+    if (infuraKey) return `https://base-sepolia.infura.io/v3/${infuraKey}`;
+    return "https://sepolia.base.org";
+  }
+}
+
+/**
+ * Create ethers adapter with viem-like interface for the preferred provider.
+ * Does not implement multi-URL fallback; single preferred with public fallback only.
+ */
+export const createEthersAdapterReadClient = (opts?: { prefer?: PreferredProvider }): any => {
+  const { chain } = resolveChain();
+  const prefer: PreferredProvider = opts?.prefer ?? getPreferredProvider();
+  const url = resolvePreferredRpcUrl(chain.id, prefer);
+  const cacheKey = `${prefer}:${chain.id}`;
+
+  const cached = cachedAdapters.get(cacheKey);
+  if (cached) return cached;
+
+  blockchainLogger.info("Creating ethers adapter (viem interface)", {
     operation: "ethers-adapter:create",
     chainId: chain.id,
     networkName: chain.name,
-    hasApiKey: !!process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+    prefer,
+    host: (() => { try { return new URL(url).host; } catch { return "[unparseable]"; } })(),
   });
 
-  // Create ethers provider with default settings (no custom timeout/retries)
   const provider = new ethers.JsonRpcProvider(
-    alchemyUrl,
+    url,
     { chainId: chain.id, name: chain.name }
   );
-
   const adapter = createEthersViemAdapter(provider, chain.id, chain.name);
-  cachedEthersAdapter = adapter;
-  
+  cachedAdapters.set(cacheKey, adapter);
   return adapter;
+};
+
+/**
+ * Backwards-compatible Alchemy creator.
+ */
+export const createAlchemyEthersAdapterReadClient = (): any => {
+  return createEthersAdapterReadClient({ prefer: "alchemy" });
+};
+
+/**
+ * New Infura creator.
+ */
+export const createInfuraEthersAdapterReadClient = (): any => {
+  return createEthersAdapterReadClient({ prefer: "infura" });
 };
