@@ -5,6 +5,7 @@ import { grantKeyService } from "@/lib/blockchain/services/grant-key-service";
 import { isValidEthereumAddress } from "@/lib/blockchain/services/transaction-service";
 import { isServerBlockchainConfigured } from "@/lib/blockchain/legacy/server-config";
 import { getLogger } from "@/lib/utils/logger";
+import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
 
 const log = getLogger("api:admin:grant-key");
 
@@ -118,25 +119,7 @@ async function handler(
       });
     }
 
-    // Check if user already has a valid key
-    log.info(
-      `Checking if user ${walletAddress} already has key for lock ${targetLockAddress}`,
-    );
-
-    const hasValidKey = await grantKeyService.userHasValidKey(
-      walletAddress,
-      targetLockAddress as `0x${string}`,
-    );
-
-    if (hasValidKey) {
-      log.info(`User ${walletAddress} already has a valid key`);
-      return res.status(200).json({
-        success: true,
-        message: "User already has a valid key for this lock",
-      });
-    }
-
-    // Grant key to user
+    // Grant key to user (service handles pre-grant key check internally)
     log.info(
       `Granting key to user ${walletAddress} for lock ${targetLockAddress}`,
     );
@@ -144,7 +127,10 @@ async function handler(
     const grantResult = await grantKeyService.grantKeyToUser({
       walletAddress,
       lockAddress: targetLockAddress as `0x${string}`,
-      keyManagers: [], // Will use default key managers from lock
+      keyManagers: getKeyManagersForContext(
+        walletAddress as `0x${string}`,
+        "admin_grant",
+      ),
     });
 
     if (!grantResult.success) {

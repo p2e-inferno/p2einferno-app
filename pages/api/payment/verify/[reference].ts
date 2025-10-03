@@ -7,6 +7,7 @@ import { grantKeyService } from "../../../../lib/blockchain/services/grant-key-s
 import { isServerBlockchainConfigured } from "../../../../lib/blockchain/legacy/server-config";
 import { isValidEthereumAddress } from "../../../../lib/blockchain/services/transaction-service";
 import { getLogger } from "@/lib/utils/logger";
+import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
 
 const log = getLogger("api:payment:verify:[reference]");
 
@@ -172,20 +173,7 @@ async function grantKeyToUser(applicationId: string, maxRetries: number = 2) {
       `Granting key to user ${userProfile.wallet_address} for cohort ${cohort.name} (${cohort.lock_address})`,
     );
 
-    // Check if user already has a valid key
-    const hasValidKey = await grantKeyService.userHasValidKey(
-      userProfile.wallet_address,
-      cohort.lock_address as `0x${string}`,
-    );
-
-    if (hasValidKey) {
-      log.info(
-        `User ${userProfile.wallet_address} already has a valid key for cohort ${cohort.name}`,
-      );
-      return { success: true, message: "User already has valid key" };
-    }
-
-    // Grant key with retry logic
+    // Grant key with retry logic (service handles pre-grant key check internally)
     let lastError: string = "";
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
@@ -194,7 +182,10 @@ async function grantKeyToUser(applicationId: string, maxRetries: number = 2) {
         const grantResult = await grantKeyService.grantKeyToUser({
           walletAddress: userProfile.wallet_address,
           lockAddress: cohort.lock_address as `0x${string}`,
-          keyManagers: [],
+          keyManagers: getKeyManagersForContext(
+            userProfile.wallet_address as `0x${string}`,
+            "payment",
+          ),
         });
 
         if (grantResult.success) {

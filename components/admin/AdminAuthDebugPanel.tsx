@@ -67,6 +67,12 @@ export function AdminAuthDebugPanel() {
 
   const [sessionMessage, setSessionMessage] = useState("");
   const [apiMessage, setApiMessage] = useState("");
+  const [serverGrantState, setServerGrantState] = useState({
+    loading: false,
+    success: false,
+    error: "",
+    result: null as any,
+  });
 
   const writeOps = useUnlockWriteOperations();
   const adminOps = useUnlockAdminOperations({ isAdmin: isAdmin });
@@ -141,6 +147,82 @@ export function AdminAuthDebugPanel() {
       setApiMessage(error?.message || "Logout request failed");
     }
   }, [clearSession]);
+
+  const handleServerGrantKey = useCallback(async () => {
+    if (!testParams.lockAddress || !testParams.recipientAddress) {
+      setServerGrantState({
+        loading: false,
+        success: false,
+        error: "Lock address and recipient address are required",
+        result: null,
+      });
+      return;
+    }
+
+    if (!connectedWallet?.address) {
+      setServerGrantState({
+        loading: false,
+        success: false,
+        error: "Please connect your wallet first",
+        result: null,
+      });
+      return;
+    }
+
+    setServerGrantState({
+      loading: true,
+      success: false,
+      error: "",
+      result: null,
+    });
+
+    try {
+      const resp = await fetch("/api/admin/grant-key", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Active-Wallet": connectedWallet.address,
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          walletAddress: testParams.recipientAddress,
+          lockAddress: testParams.lockAddress,
+        }),
+      });
+
+      const data = await resp.json();
+
+      if (resp.ok && data.success) {
+        setServerGrantState({
+          loading: false,
+          success: true,
+          error: "",
+          result: data,
+        });
+      } else {
+        setServerGrantState({
+          loading: false,
+          success: false,
+          error:
+            data.error ||
+            data.message ||
+            `Request failed with status ${resp.status}`,
+          result: data,
+        });
+      }
+    } catch (error: any) {
+      setServerGrantState({
+        loading: false,
+        success: false,
+        error: error?.message || "Server grant key request failed",
+        result: null,
+      });
+    }
+  }, [
+    testParams.lockAddress,
+    testParams.recipientAddress,
+    connectedWallet?.address,
+  ]);
 
   const statusMessage = getAuthStatusMessage(authStatus);
   const health = getHealthStatus();
@@ -501,6 +583,132 @@ export function AdminAuthDebugPanel() {
             label="Grant Key (Manager)"
             variant="default"
           />
+        </div>
+      </section>
+
+      <section className="space-y-4 rounded border border-dashed border-green-500/60 bg-green-950/10 p-4">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-base font-semibold text-green-100">
+            Server-Side Grant Key Testing
+          </h3>
+          <span className="font-mono text-xs uppercase text-green-300">
+            API TEST
+          </span>
+        </div>
+
+        <div className="rounded bg-green-950/20 p-2 font-mono text-xs text-green-200">
+          <p>
+            This tests the refactored server-side grant key flow using the new
+            unified client architecture.
+          </p>
+          <p className="mt-1 text-[10px] text-green-300">
+            Endpoint: POST /api/admin/grant-key
+          </p>
+        </div>
+
+        <div className="grid gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <DebugStat
+              label="Connected Wallet"
+              value={connectedWallet?.address || "none"}
+              mono
+            />
+            <DebugStat
+              label="Server Grant Loading"
+              value={serverGrantState.loading ? "yes" : "no"}
+            />
+            <DebugStat
+              label="Server Grant Success"
+              value={serverGrantState.success ? "yes" : "no"}
+            />
+          </div>
+
+          {serverGrantState.error && (
+            <div className="rounded bg-red-950/30 p-2 text-xs text-red-200">
+              <p className="font-semibold">Error:</p>
+              <p className="mt-1 font-mono text-[11px]">
+                {serverGrantState.error}
+              </p>
+            </div>
+          )}
+
+          {serverGrantState.success && serverGrantState.result && (
+            <div className="rounded bg-green-950/30 p-2 text-xs text-green-200">
+              <p className="font-semibold">✅ Success!</p>
+              <pre className="mt-1 max-h-32 overflow-auto font-mono text-[10px]">
+                {JSON.stringify(serverGrantState.result, null, 2)}
+              </pre>
+            </div>
+          )}
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-2">
+            <label className="text-xs text-green-300">
+              Lock Address <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={testParams.lockAddress}
+              onChange={(e) =>
+                setTestParams((prev) => ({
+                  ...prev,
+                  lockAddress: e.target.value,
+                }))
+              }
+              placeholder="0x..."
+              className="w-full rounded bg-green-950/30 px-2 py-1 text-xs text-green-100 placeholder-green-400"
+            />
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs text-green-300">
+              Recipient Address <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={testParams.recipientAddress}
+              onChange={(e) =>
+                setTestParams((prev) => ({
+                  ...prev,
+                  recipientAddress: e.target.value,
+                }))
+              }
+              placeholder="0x..."
+              className="w-full rounded bg-green-950/30 px-2 py-1 text-xs text-green-100 placeholder-green-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleServerGrantKey}
+            disabled={
+              serverGrantState.loading ||
+              !testParams.lockAddress ||
+              !testParams.recipientAddress ||
+              !connectedWallet?.address
+            }
+            className="rounded bg-green-700 px-3 py-1 text-xs font-semibold text-white transition hover:bg-green-600 focus-visible:outline-none focus-visible:ring focus-visible:ring-green-400 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {serverGrantState.loading
+              ? "Granting Key..."
+              : "Grant Key (Server)"}
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setServerGrantState({
+                loading: false,
+                success: false,
+                error: "",
+                result: null,
+              })
+            }
+            className="rounded bg-slate-700 px-3 py-1 text-xs font-semibold text-white transition hover:bg-slate-600 focus-visible:outline-none focus-visible:ring focus-visible:ring-slate-400"
+          >
+            Clear Results
+          </button>
         </div>
       </section>
 

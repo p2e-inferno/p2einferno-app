@@ -27,14 +27,8 @@ describe("LockManagerService", () => {
     const serverClient = createStubClient();
     const browserClient = createStubClient();
 
-    const serverManager = new LockManagerService({
-      getPublicClient: () => serverClient,
-      getWalletClient: () => null,
-    });
-    const browserManager = new LockManagerService({
-      getPublicClient: () => browserClient,
-      getWalletClient: () => null,
-    });
+    const serverManager = new LockManagerService(serverClient, null);
+    const browserManager = new LockManagerService(browserClient, null);
 
     const [serverResult, browserResult] = await Promise.all([
       serverManager.checkUserHasValidKey(userAddress, lockAddress),
@@ -47,15 +41,28 @@ describe("LockManagerService", () => {
   });
 
   test("disposed manager rejects subsequent calls", async () => {
-    const manager = new LockManagerService({
-      getPublicClient: () => createStubClient(),
-      getWalletClient: () => null,
-    });
+    const manager = new LockManagerService(createStubClient(), null);
 
     manager.dispose();
 
     await expect(
       manager.checkUserHasValidKey(userAddress, lockAddress),
     ).rejects.toThrow("LockManagerService has been disposed");
+  });
+
+  test("hasValidKey returns boolean directly with single RPC call", async () => {
+    const client = createStubClient();
+    const manager = new LockManagerService(client, null);
+
+    const result = await manager.hasValidKey(userAddress, lockAddress);
+
+    expect(result).toBe(true);
+    expect(client.readContract).toHaveBeenCalledTimes(1);
+    expect(client.readContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        functionName: "getHasValidKey",
+        args: [userAddress],
+      }),
+    );
   });
 });

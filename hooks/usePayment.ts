@@ -108,6 +108,7 @@ export const usePayment = (paymentData: PaymentConfig) => {
 
           const response = await api.get(
             `/payment/verify/${reference}${queryParams}`,
+            { timeout: 60000 }, // 60 seconds to allow server to complete payment processing and key granting
           );
 
           // Check if webhook has updated the status

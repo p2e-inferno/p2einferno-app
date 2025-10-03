@@ -5,6 +5,7 @@ import { grantKeyService } from "@/lib/blockchain/services/grant-key-service";
 import { isServerBlockchainConfigured } from "@/lib/blockchain/legacy/server-config";
 import { isValidEthereumAddress } from "@/lib/blockchain/services/transaction-service";
 import { getLogger } from "@/lib/utils/logger";
+import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
 
 const log = getLogger("api:admin:reconcile-key-grants");
 
@@ -195,7 +196,10 @@ async function retryFailedKeyGrants(
         const grantResult = await grantKeyService.grantKeyToUser({
           walletAddress: walletAddress,
           lockAddress: lockAddress as `0x${string}`,
-          keyManagers: [],
+          keyManagers: getKeyManagersForContext(
+            walletAddress as `0x${string}`,
+            "reconciliation",
+          ),
         });
 
         if (grantResult.success) {
@@ -317,7 +321,10 @@ async function retrySingleKeyGrant(
     const grantResult = await grantKeyService.grantKeyToUser({
       walletAddress: walletAddress,
       lockAddress: lockAddress as `0x${string}`,
-      keyManagers: [],
+      keyManagers: getKeyManagersForContext(
+        walletAddress as `0x${string}`,
+        "reconciliation",
+      ),
     });
 
     if (grantResult.success) {

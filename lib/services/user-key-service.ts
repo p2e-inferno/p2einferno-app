@@ -1,15 +1,16 @@
 import { Address } from "viem";
 import {
-  lockManagerService,
+  LockManagerService,
   KeyInfo,
 } from "@/lib/blockchain/services/lock-manager";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { getUserWalletAddresses } from "@/lib/auth/privy";
 import {
   GrantKeyService,
   GrantKeyResponse,
 } from "@/lib/blockchain/services/grant-key-service";
-import { getLockManagerAddress } from "@/lib/blockchain/legacy/server-config";
 import { getLogger } from "@/lib/utils/logger";
+import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
 
 const log = getLogger("services:user-key-service");
 
@@ -44,8 +45,12 @@ export class UserKeyService {
       return { hasValidKey: false, checkedAddresses: [], errors: [] };
     }
 
+    // Create public client using unified config
+    const publicClient = createPublicClientUnified();
+    const lockManager = new LockManagerService(publicClient);
+
     const keyCheckPromises = walletAddresses.map((address) =>
-      lockManagerService
+      lockManager
         .checkUserHasValidKey(address as Address, lockAddress as Address)
         .then((keyInfo) => ({ address, keyInfo, error: null }))
         .catch((error) => ({
@@ -108,20 +113,14 @@ export class UserKeyService {
       return { success: true };
     }
 
-    // Get the admin wallet address to use as key manager
-    const adminAddress = getLockManagerAddress();
-    if (!adminAddress) {
-      return { success: false, error: "Admin wallet not configured" };
-    }
-    log.info(
-      `Using admin address ${adminAddress} as key manager for lock ${lockAddress}`,
-    );
-
     const grantKeyService = new GrantKeyService();
     return grantKeyService.grantKeyToUser({
       walletAddress: targetWallet,
       lockAddress: lockAddress as Address,
-      keyManagers: [adminAddress as Address], // Use admin address as key manager
+      keyManagers: getKeyManagersForContext(
+        targetWallet as Address,
+        "milestone",
+      ),
       expirationDuration: BigInt(365 * 24 * 60 * 60), // 1 year expiration for milestone keys
     });
   }

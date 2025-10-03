@@ -59,3 +59,50 @@ npm run db:migrate          # Apply Supabase migrations
 - Pages API under `pages/api/...`. Admin endpoints protected by middleware when `ADMIN_SESSION_ENABLED=true`.
 - Use `lib/api.ts` axios instance for client requests; it already logs via the standard logger.
 - **Admin API Flow**: Client calls → middleware checks cookie → auto-refresh on 401 → retry with valid session.
+
+## Key Manager Patterns (Server-Side Grant Keys)
+When granting keys server-side, use `getKeyManagersForContext()` from `lib/helpers/key-manager-utils.ts` to determine the correct key managers array. **Never pass an empty array** - this causes "Array index out of bounds" contract errors.
+
+### Contexts and Patterns:
+- **`payment`**: User paid for enrollment → User manages key
+  - Pattern: `[recipientAddress]`
+  - Used in: Payment verification flow
+  - Rationale: User purchased access, should control their key
+
+- **`milestone`**: User earned through tasks → Admin manages key
+  - Pattern: `[adminAddress]` (from `LOCK_MANAGER_PRIVATE_KEY`)
+  - Used in: Milestone claim flow
+  - Rationale: Milestone keys are non-transferable credentials
+
+- **`admin_grant`**: Admin manually granting access → User manages key
+  - Pattern: `[recipientAddress]`
+  - Used in: Admin grant-key API
+  - Rationale: Admin-granted access should be controlled by recipient
+
+- **`reconciliation`**: Retrying failed payment grants → User manages key
+  - Pattern: `[recipientAddress]`
+  - Used in: Reconciliation/retry flows
+  - Rationale: Same as original payment context
+
+### Example Usage:
+```ts
+import { getKeyManagersForContext } from '@/lib/helpers/key-manager-utils';
+
+const grantResult = await grantKeyService.grantKeyToUser({
+  walletAddress: userAddress,
+  lockAddress: lockAddress as `0x${string}`,
+  keyManagers: getKeyManagersForContext(
+    userAddress as `0x${string}`,
+    'payment' // or 'milestone', 'admin_grant', 'reconciliation'
+  ),
+});
+```
+
+### Anti-Pattern (DO NOT DO):
+```ts
+// ❌ Never use empty array - causes contract revert
+keyManagers: []
+
+// ❌ Don't hardcode - use the helper function
+keyManagers: [userAddress]
+```

@@ -5,10 +5,6 @@ import {
   type WalletClient,
   formatEther,
 } from "viem";
-import {
-  createServerPublicClient,
-  createServerWalletClient,
-} from "../legacy/server-config";
 import { COMPLETE_LOCK_ABI } from "../shared/abi-definitions";
 import { blockchainLogger } from "../shared/logging-utils";
 import "../shared/logger-bridge"; // side-effect import to bridge logging transport
@@ -37,14 +33,9 @@ export interface KeyInfo {
 
 /**
  * Service for managing lock operations on the blockchain
- */
-interface LockManagerDependencies {
-  getPublicClient?: () => PublicClient;
-  getWalletClient?: () => WalletClient | null;
-}
-
-/**
- * Service for managing lock operations on the blockchain
+ *
+ * NOTE: This service requires clients to be passed in to prevent persistent RPC polling.
+ * Use createPublicClientUnified() and createWalletClientUnified() to create clients.
  */
 export class LockManagerService {
   private readonly publicClient: PublicClient;
@@ -52,15 +43,13 @@ export class LockManagerService {
   private readonly contractAbi = COMPLETE_LOCK_ABI;
   private disposed = false;
 
-  constructor({
-    getPublicClient,
-    getWalletClient,
-  }: LockManagerDependencies = {}) {
-    const resolvePublicClient = getPublicClient ?? createServerPublicClient;
-    const resolveWalletClient = getWalletClient ?? createServerWalletClient;
-
-    this.publicClient = resolvePublicClient();
-    this.walletClient = resolveWalletClient();
+  /**
+   * @param publicClient - Required. Create using createPublicClientUnified()
+   * @param walletClient - Optional. Only needed for write operations. Create using createWalletClientUnified()
+   */
+  constructor(publicClient: PublicClient, walletClient?: WalletClient | null) {
+    this.publicClient = publicClient;
+    this.walletClient = walletClient ?? null;
 
     blockchainLogger.debug("LockManagerService initialized", {
       operation: "constructor",
@@ -181,6 +170,39 @@ export class LockManagerService {
         success: false,
         error: error.message || "Failed to grant key",
       };
+    }
+  }
+
+  /**
+   * Simple check if user has a valid key - single RPC call
+   * Use this for pre-grant validation instead of checkUserHasValidKey
+   * This is more efficient as it only makes 1 RPC call vs 3 calls
+   * @param userAddress The user's wallet address
+   * @param lockAddress The lock contract address
+   * @returns boolean indicating if user has a valid key
+   */
+  async hasValidKey(
+    userAddress: Address,
+    lockAddress: Address,
+  ): Promise<boolean> {
+    this.assertNotDisposed();
+    try {
+      const hasValidKey = (await this.publicClient.readContract({
+        address: lockAddress,
+        abi: this.contractAbi,
+        functionName: "getHasValidKey",
+        args: [userAddress],
+      })) as boolean;
+
+      return hasValidKey;
+    } catch (error) {
+      blockchainLogger.error("Failed to check if user has valid key", {
+        operation: "hasValidKey",
+        userAddress,
+        lockAddress,
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+      return false;
     }
   }
 
@@ -402,9 +424,3 @@ export class LockManagerService {
     }
   }
 }
-
-// Export helpers so server contexts can obtain dedicated instances when needed
-export const createServerLockManager = () => new LockManagerService();
-
-// Export a singleton instance for legacy server consumers
-export const lockManagerService = createServerLockManager();

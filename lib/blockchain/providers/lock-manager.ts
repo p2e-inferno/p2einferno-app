@@ -6,8 +6,7 @@ import { LockManagerService } from "../services/lock-manager";
  * The wallet client is omitted because browser contexts should never
  * attempt privileged write operations.
  */
-export const createBrowserLockManager = () =>
-  new LockManagerService({
-    getPublicClient: createPublicClientUnified,
-    getWalletClient: () => null,
-  });
+export const createBrowserLockManager = () => {
+  const publicClient = createPublicClientUnified();
+  return new LockManagerService(publicClient, null);
+};

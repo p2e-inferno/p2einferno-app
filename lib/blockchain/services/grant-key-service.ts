@@ -1,5 +1,7 @@
 import { type Address } from "viem";
-import { createServerLockManager } from "./lock-manager";
+import { LockManagerService } from "./lock-manager";
+import { createPublicClientUnified } from "../config/clients/public-client";
+import { createWalletClientUnified } from "../config/clients/wallet-client";
 import { getLockManagerAddress } from "../legacy/server-config";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -50,10 +52,13 @@ export class GrantKeyService {
       };
     }
 
+    // Create clients using unified config
+    const publicClient = createPublicClientUnified();
+    const walletClient = createWalletClientUnified();
+    const lockManager = new LockManagerService(publicClient, walletClient);
+
     // Check if user is a lock manager
     const adminAddress = getLockManagerAddress();
-    // Create fresh service instance - no persistence
-    const lockManager = createServerLockManager();
     const isLockManager = await lockManager.checkUserIsLockManager(
       adminAddress as Address,
       lockAddress,
@@ -65,6 +70,18 @@ export class GrantKeyService {
       };
     }
 
+    // Check if user already has a valid key (1 RPC call vs 3)
+    const hasKey = await lockManager.hasValidKey(
+      walletAddress as Address,
+      lockAddress,
+    );
+    if (hasKey) {
+      return {
+        success: true,
+        error: "User already has a valid key",
+      };
+    }
+
     let lastError: string = "";
     let retryCount = 0;
 
@@ -72,9 +89,7 @@ export class GrantKeyService {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Attempt to grant key
-        // Create fresh service instance for each attempt - no persistence
-        const grantLockManager = createServerLockManager();
-        const result = await grantLockManager.grantKeys({
+        const result = await lockManager.grantKeys({
           recipientAddress: walletAddress as Address,
           lockAddress,
           keyManagers,
@@ -157,13 +172,13 @@ export class GrantKeyService {
     }
 
     try {
-      // Create fresh service instance - no persistence
-      const lockManager = createServerLockManager();
-      const keyInfo = await lockManager.checkUserHasValidKey(
+      // Create public client using unified config
+      const publicClient = createPublicClientUnified();
+      const lockManager = new LockManagerService(publicClient);
+      return await lockManager.hasValidKey(
         walletAddress as Address,
         lockAddress,
       );
-      return keyInfo !== null && keyInfo.isValid;
     } catch (error) {
       log.error("Error checking user key:", error);
       return false;
