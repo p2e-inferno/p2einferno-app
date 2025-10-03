@@ -59,4 +59,4 @@ BEGIN
       'Supported chain IDs: 1=Ethereum, 137=Polygon, 8453=Base, 84532=Base Sepolia, 42161=Arbitrum, 10=Optimism, 100=Gnosis, 56=BSC, 97=BSC Testnet, 43114=Avalanche, 80001=Polygon Mumbai';
   
   END IF;
-END $$; 
+END $$;

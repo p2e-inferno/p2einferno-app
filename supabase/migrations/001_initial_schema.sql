@@ -3,7 +3,6 @@
 
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- Create quests table
 CREATE TABLE public.quests (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -14,7 +13,6 @@ CREATE TABLE public.quests (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create quest_tasks table
 CREATE TABLE public.quest_tasks (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -28,7 +26,6 @@ CREATE TABLE public.quest_tasks (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create user_quest_progress table
 CREATE TABLE public.user_quest_progress (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -41,7 +38,6 @@ CREATE TABLE public.user_quest_progress (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, quest_id)
 );
-
 -- Create user_task_completions table
 CREATE TABLE public.user_task_completions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -53,7 +49,6 @@ CREATE TABLE public.user_task_completions (
     completed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, task_id)
 );
-
 -- Create tos_signatures table
 CREATE TABLE public.tos_signatures (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -65,7 +60,6 @@ CREATE TABLE public.tos_signatures (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, tos_version)
 );
-
 -- Create bootcamp_programs table
 CREATE TABLE public.bootcamp_programs (
     id TEXT PRIMARY KEY,
@@ -76,7 +70,6 @@ CREATE TABLE public.bootcamp_programs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create cohorts table
 CREATE TABLE public.cohorts (
     id TEXT PRIMARY KEY,
@@ -91,7 +84,6 @@ CREATE TABLE public.cohorts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create applications table
 CREATE TABLE public.applications (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -111,7 +103,6 @@ CREATE TABLE public.applications (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create indexes for better performance
 CREATE INDEX idx_quest_tasks_quest_id ON public.quest_tasks(quest_id);
 CREATE INDEX idx_quest_tasks_order_index ON public.quest_tasks(order_index);
@@ -123,7 +114,6 @@ CREATE INDEX idx_user_task_completions_task_id ON public.user_task_completions(t
 CREATE INDEX idx_tos_signatures_user_id ON public.tos_signatures(user_id);
 CREATE INDEX idx_applications_cohort_id ON public.applications(cohort_id);
 CREATE INDEX idx_applications_user_email ON public.applications(user_email);
-
 -- Create updated_at trigger function
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -132,7 +122,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
-
 -- Create triggers for updated_at columns
 CREATE TRIGGER update_quests_updated_at BEFORE UPDATE ON public.quests FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_quest_tasks_updated_at BEFORE UPDATE ON public.quest_tasks FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
@@ -140,7 +129,6 @@ CREATE TRIGGER update_user_quest_progress_updated_at BEFORE UPDATE ON public.use
 CREATE TRIGGER update_bootcamp_programs_updated_at BEFORE UPDATE ON public.bootcamp_programs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_cohorts_updated_at BEFORE UPDATE ON public.cohorts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_applications_updated_at BEFORE UPDATE ON public.applications FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 -- Enable Row Level Security (RLS) - recommended for production
 ALTER TABLE public.quests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quest_tasks ENABLE ROW LEVEL SECURITY;
@@ -150,14 +138,12 @@ ALTER TABLE public.tos_signatures ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.bootcamp_programs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cohorts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.applications ENABLE ROW LEVEL SECURITY;
-
 -- Create RLS policies (basic ones - you may want to customize these)
 -- Allow read access to quests and quest_tasks for authenticated users
 CREATE POLICY "Allow read access to quests" ON public.quests FOR SELECT USING (is_active = true);
 CREATE POLICY "Allow read access to quest_tasks" ON public.quest_tasks FOR SELECT USING (true);
 CREATE POLICY "Allow read access to bootcamp_programs" ON public.bootcamp_programs FOR SELECT USING (true);
 CREATE POLICY "Allow read access to cohorts" ON public.cohorts FOR SELECT USING (true);
-
 -- Allow users to manage their own progress and completions
 CREATE POLICY "Users can manage their own quest progress" ON public.user_quest_progress 
     FOR ALL USING (auth.uid()::text = user_id);
@@ -167,7 +153,6 @@ CREATE POLICY "Users can manage their own TOS signatures" ON public.tos_signatur
     FOR ALL USING (auth.uid()::text = user_id);
 CREATE POLICY "Users can manage their own applications" ON public.applications 
     FOR ALL USING (auth.uid()::text = user_email OR auth.email() = user_email);
-
 -- Grant necessary permissions to authenticated users
 GRANT USAGE ON SCHEMA public TO authenticated;
 GRANT SELECT ON public.quests TO authenticated;
@@ -177,4 +162,4 @@ GRANT SELECT ON public.cohorts TO authenticated;
 GRANT ALL ON public.user_quest_progress TO authenticated;
 GRANT ALL ON public.user_task_completions TO authenticated;
 GRANT ALL ON public.tos_signatures TO authenticated;
-GRANT ALL ON public.applications TO authenticated; 
+GRANT ALL ON public.applications TO authenticated;

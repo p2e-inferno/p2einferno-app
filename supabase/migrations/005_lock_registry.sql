@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS public.lock_registry (
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     UNIQUE(entity_type, entity_id) -- Each entity can have only one lock
 );
-
 -- 2) Modify tables to reference the registry
 -- Add foreign keys and make lock_address column unique within each table
 
@@ -33,7 +32,6 @@ WHERE
 AND 
     lock_address != ''
 ON CONFLICT (lock_address) DO NOTHING;
-
 -- Create constraint trigger to check registry before insert/update
 CREATE OR REPLACE FUNCTION check_lock_address_uniqueness()
 RETURNS TRIGGER AS $$
@@ -59,7 +57,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Add triggers to each table
 
 -- For bootcamp_programs
@@ -68,42 +65,34 @@ CREATE TRIGGER check_bootcamp_program_lock_address
 BEFORE INSERT OR UPDATE OF lock_address ON public.bootcamp_programs
 FOR EACH ROW
 EXECUTE FUNCTION check_lock_address_uniqueness('bootcamp_program', 'program_certification');
-
 -- For cohorts
 DROP TRIGGER IF EXISTS check_cohort_lock_address ON public.cohorts;
 CREATE TRIGGER check_cohort_lock_address
 BEFORE INSERT OR UPDATE OF lock_address ON public.cohorts
 FOR EACH ROW
 EXECUTE FUNCTION check_lock_address_uniqueness('cohort', 'access_ticket');
-
 -- For quests
 DROP TRIGGER IF EXISTS check_quest_lock_address ON public.quests;
 CREATE TRIGGER check_quest_lock_address
 BEFORE INSERT OR UPDATE OF lock_address ON public.quests
 FOR EACH ROW
 EXECUTE FUNCTION check_lock_address_uniqueness('quest', 'completion_badge');
-
 -- For milestones (they already have lock_address)
 DROP TRIGGER IF EXISTS check_milestone_lock_address ON public.cohort_milestones;
 CREATE TRIGGER check_milestone_lock_address
 BEFORE INSERT OR UPDATE OF lock_address ON public.cohort_milestones
 FOR EACH ROW
 EXECUTE FUNCTION check_lock_address_uniqueness('milestone', 'achievement_badge');
-
 -- Enable Row Level Security on registry
 ALTER TABLE public.lock_registry ENABLE ROW LEVEL SECURITY;
-
 -- Create RLS policies
 CREATE POLICY "Authenticated users can view lock registry" ON public.lock_registry
     FOR SELECT USING (auth.role() = 'authenticated');
-
 CREATE POLICY "Service role can manage lock registry" ON public.lock_registry
     FOR ALL USING (auth.role() = 'service_role');
-
 -- Add index for performance
 CREATE INDEX idx_lock_registry_lock_address ON public.lock_registry(lock_address);
-
 -- Update the trigger function for updated_at
 CREATE TRIGGER trg_update_lock_registry_updated
 BEFORE UPDATE ON public.lock_registry
-FOR EACH ROW EXECUTE FUNCTION public.set_updated_at(); 
+FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

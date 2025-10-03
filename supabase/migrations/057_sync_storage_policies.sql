@@ -3,7 +3,6 @@
 
 -- Update bootcamp images upload policy to match remote
 drop policy if exists "Upload access for bootcamp images" on storage.objects;
-
 create policy "Upload access for bootcamp images"
 on storage.objects
 as permissive

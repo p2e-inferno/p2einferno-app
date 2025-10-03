@@ -4,7 +4,6 @@
 -- Drop the old trigger and function first
 DROP TRIGGER IF EXISTS update_cohort_participants_on_enrollment_change ON bootcamp_enrollments;
 DROP FUNCTION IF EXISTS update_cohort_participant_count();
-
 -- Create corrected function to update cohort participant count using 'active' status
 CREATE OR REPLACE FUNCTION update_cohort_participant_count() RETURNS TRIGGER AS $$
 BEGIN
@@ -75,13 +74,11 @@ BEGIN
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create corrected trigger to automatically update participant counts
 CREATE TRIGGER update_cohort_participants_on_enrollment_change
     AFTER INSERT OR UPDATE OR DELETE ON bootcamp_enrollments
     FOR EACH ROW
     EXECUTE FUNCTION update_cohort_participant_count();
-
 -- Corrected one-time fix: Update all existing cohort current_participants to actual counts using 'active' status
 UPDATE cohorts 
 SET current_participants = (
@@ -91,10 +88,8 @@ SET current_participants = (
     AND enrollment_status = 'active'
 ),
 updated_at = NOW();
-
 -- Update helpful comments for future reference
 COMMENT ON FUNCTION update_cohort_participant_count() IS 
 'Automatically updates cohort current_participants count when bootcamp_enrollments change. Only counts enrollments with status = active (corrected from enrolled).';
-
 COMMENT ON TRIGGER update_cohort_participants_on_enrollment_change ON bootcamp_enrollments IS 
 'Maintains accurate current_participants count in cohorts table based on active bootcamp_enrollments (corrected version).';

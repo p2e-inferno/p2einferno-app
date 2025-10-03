@@ -19,15 +19,12 @@ CREATE TABLE IF NOT EXISTS public.user_milestone_progress (
   
   UNIQUE(user_profile_id, milestone_id)
 );
-
 -- Add indexes for performance
 CREATE INDEX IF NOT EXISTS idx_user_milestone_progress_user_profile_id ON public.user_milestone_progress(user_profile_id);
 CREATE INDEX IF NOT EXISTS idx_user_milestone_progress_milestone_id ON public.user_milestone_progress(milestone_id);
 CREATE INDEX IF NOT EXISTS idx_user_milestone_progress_status ON public.user_milestone_progress(status);
-
 -- Enable RLS
 ALTER TABLE public.user_milestone_progress ENABLE ROW LEVEL SECURITY;
-
 -- RLS Policies
 CREATE POLICY "Users can view their own milestone progress" 
     ON public.user_milestone_progress
@@ -35,31 +32,26 @@ CREATE POLICY "Users can view their own milestone progress"
     USING (user_profile_id IN (
       SELECT id FROM public.user_profiles WHERE privy_user_id = auth.uid()::text
     ));
-
 CREATE POLICY "Users can create their own milestone progress" 
     ON public.user_milestone_progress
     FOR INSERT
     WITH CHECK (user_profile_id IN (
       SELECT id FROM public.user_profiles WHERE privy_user_id = auth.uid()::text
     ));
-
 CREATE POLICY "Users can update their own milestone progress" 
     ON public.user_milestone_progress
     FOR UPDATE
     USING (user_profile_id IN (
       SELECT id FROM public.user_profiles WHERE privy_user_id = auth.uid()::text
     ));
-
 CREATE POLICY "Service role can manage all milestone progress" 
     ON public.user_milestone_progress
     FOR ALL 
     USING (auth.role() = 'service_role');
-
 -- Add updated_at trigger
 CREATE TRIGGER update_user_milestone_progress_updated_at
 BEFORE UPDATE ON user_milestone_progress
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
-
 -- Grant permissions
 GRANT SELECT ON public.user_milestone_progress TO authenticated;

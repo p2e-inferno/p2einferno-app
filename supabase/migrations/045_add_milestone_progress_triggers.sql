@@ -86,13 +86,11 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger to update milestone progress when task progress changes
 CREATE TRIGGER update_milestone_progress_on_task_change
 AFTER INSERT OR UPDATE OR DELETE ON user_task_progress
 FOR EACH ROW
 EXECUTE FUNCTION update_user_milestone_progress();
-
 -- Create function to update task progress when submission status changes
 CREATE OR REPLACE FUNCTION update_task_progress_on_submission()
 RETURNS TRIGGER AS $$
@@ -150,7 +148,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger to update task progress when submission changes
 CREATE TRIGGER update_task_progress_on_submission_change
 AFTER INSERT OR UPDATE ON task_submissions

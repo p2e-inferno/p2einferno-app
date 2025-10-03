@@ -38,11 +38,8 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS trigger_notify_on_task_submission_review ON public.task_submissions;
 CREATE TRIGGER trigger_notify_on_task_submission_review
 AFTER UPDATE OF status ON public.task_submissions
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_task_submission_review();
-
-

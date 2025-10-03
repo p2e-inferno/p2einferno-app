@@ -14,10 +14,8 @@ BEGIN
   VALUES (p_user_profile_id, p_title, p_message, p_link, false, NOW());
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION public.create_notification_v2(UUID, TEXT, TEXT, TEXT) TO authenticated, service_role;
-
 -- 2) Trigger: Task completion notifications (using user_task_completions table)
 CREATE OR REPLACE FUNCTION public.notify_on_task_completion()
 RETURNS TRIGGER AS $$
@@ -55,14 +53,12 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger for task completions
 DROP TRIGGER IF EXISTS trigger_notify_on_task_completion ON public.user_task_completions;
 CREATE TRIGGER trigger_notify_on_task_completion
 AFTER INSERT ON public.user_task_completions
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_task_completion();
-
 -- 3) Trigger: Milestone completion notifications
 CREATE OR REPLACE FUNCTION public.notify_on_milestone_progress()
 RETURNS TRIGGER AS $$
@@ -90,14 +86,12 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger for milestone progress
 DROP TRIGGER IF EXISTS trigger_notify_on_milestone_progress ON public.user_milestone_progress;
 CREATE TRIGGER trigger_notify_on_milestone_progress
 AFTER INSERT OR UPDATE OF status ON public.user_milestone_progress
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_milestone_progress();
-
 -- 4) Trigger: Enrollment notifications (the main fix for bootcamp enrollments)
 CREATE OR REPLACE FUNCTION public.notify_on_enrollment_change()
 RETURNS TRIGGER AS $$
@@ -136,14 +130,12 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger for enrollment changes
 DROP TRIGGER IF EXISTS trigger_notify_on_enrollment_change ON public.bootcamp_enrollments;
 CREATE TRIGGER trigger_notify_on_enrollment_change
 AFTER INSERT OR UPDATE OF enrollment_status ON public.bootcamp_enrollments
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_enrollment_change();
-
 -- 5) Trigger: Application status notifications
 CREATE OR REPLACE FUNCTION public.notify_on_application_status()
 RETURNS TRIGGER AS $$
@@ -187,26 +179,20 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger for application status
 DROP TRIGGER IF EXISTS trigger_notify_on_application_status ON public.user_application_status;
 CREATE TRIGGER trigger_notify_on_application_status
 AFTER INSERT OR UPDATE OF status ON public.user_application_status
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_application_status();
-
 -- Add helpful comments for future reference
 COMMENT ON FUNCTION public.create_notification_v2(UUID, TEXT, TEXT, TEXT) IS 
 'Helper function to create notifications using current schema (title, message, link). Updated version that aligns with app expectations.';
-
 COMMENT ON FUNCTION public.notify_on_enrollment_change() IS 
 'Creates notifications when bootcamp enrollments are created or status changes. Uses current notification schema.';
-
 COMMENT ON FUNCTION public.notify_on_task_completion() IS 
 'Creates notifications when tasks are completed. Uses current notification schema.';
-
 COMMENT ON FUNCTION public.notify_on_milestone_progress() IS 
 'Creates notifications when milestones are completed. Uses current notification schema.';
-
 COMMENT ON FUNCTION public.notify_on_application_status() IS 
 'Creates notifications when application status changes. Uses current notification schema.';

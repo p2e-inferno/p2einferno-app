@@ -11,7 +11,6 @@ SELECT
 FROM task_submissions
 GROUP BY task_id, user_id
 HAVING count(*) > 1;
-
 -- For each duplicate group, keep only the most recent submission (first in the array)
 -- and delete the older ones
 DO $$
@@ -29,11 +28,9 @@ BEGIN
         END LOOP;
     END LOOP;
 END $$;
-
 -- Drop the existing trigger and function that prevented duplicates
 DROP TRIGGER IF EXISTS prevent_duplicate_submissions ON public.task_submissions;
 DROP FUNCTION IF EXISTS check_duplicate_submission();
-
 -- Create updated function to ensure only one submission per user per task
 -- This allows updating existing submissions but prevents multiple entries
 CREATE OR REPLACE FUNCTION check_single_submission_per_user_task()
@@ -67,18 +64,15 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create new trigger with updated function
 CREATE TRIGGER ensure_single_submission_per_user_task
 BEFORE INSERT OR UPDATE ON task_submissions
 FOR EACH ROW
 EXECUTE FUNCTION check_single_submission_per_user_task();
-
 -- Now add the unique index to enforce one submission per user per task at database level
 -- This will prevent any potential race conditions
 CREATE UNIQUE INDEX IF NOT EXISTS idx_task_submissions_user_task_unique 
 ON public.task_submissions(task_id, user_id);
-
 -- Add a comment to document the constraint
 COMMENT ON INDEX idx_task_submissions_user_task_unique IS 
 'Ensures one submission per user per task. Users can only have one submission record per task, which gets updated for resubmissions.';

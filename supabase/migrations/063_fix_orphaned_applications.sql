@@ -45,10 +45,8 @@ LEFT JOIN public.user_profiles up ON up.id = COALESCE(a.user_profile_id, uas.use
 LEFT JOIN public.bootcamp_enrollments be ON be.user_profile_id = COALESCE(a.user_profile_id, uas.user_profile_id) 
   AND be.cohort_id = a.cohort_id
 LEFT JOIN public.cohorts c ON c.id = a.cohort_id;
-
 -- 2. Update the existing user_applications_view to be more resilient
 DROP VIEW IF EXISTS public.user_applications_view CASCADE;
-
 CREATE OR REPLACE VIEW public.user_applications_view AS
 SELECT 
   COALESCE(uas.id, gen_random_uuid()) as id, -- Generate ID if missing
@@ -82,7 +80,8 @@ LEFT JOIN public.user_profiles up ON up.email = a.user_email OR up.id = a.user_p
 LEFT JOIN public.bootcamp_enrollments be ON be.user_profile_id = COALESCE(a.user_profile_id, up.id) 
   AND be.cohort_id = a.cohort_id
 LEFT JOIN public.cohorts c ON c.id = a.cohort_id
-WHERE COALESCE(a.user_profile_id, up.id) IS NOT NULL; -- Ensure we have a user profile
+WHERE COALESCE(a.user_profile_id, up.id) IS NOT NULL;
+-- Ensure we have a user profile
 
 -- 3. Create a function to fix orphaned applications
 CREATE OR REPLACE FUNCTION fix_orphaned_applications()
@@ -154,17 +153,14 @@ BEGIN
   END LOOP;
 END;
 $$ LANGUAGE plpgsql;
-
 -- 4. Grant necessary permissions
 GRANT SELECT ON public.all_applications_view TO authenticated;
 GRANT SELECT ON public.all_applications_view TO service_role;
 GRANT SELECT ON public.user_applications_view TO authenticated;
 GRANT SELECT ON public.user_applications_view TO service_role;
 GRANT EXECUTE ON FUNCTION fix_orphaned_applications() TO service_role;
-
 -- 5. Run the fix function to repair existing orphaned applications
 SELECT * FROM fix_orphaned_applications();
-
 -- 6. Add a trigger to prevent future orphaned applications
 CREATE OR REPLACE FUNCTION ensure_user_application_status()
 RETURNS TRIGGER AS $$
@@ -201,7 +197,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create the trigger
 DROP TRIGGER IF EXISTS ensure_user_application_status_trigger ON applications;
 CREATE TRIGGER ensure_user_application_status_trigger
@@ -209,7 +204,6 @@ CREATE TRIGGER ensure_user_application_status_trigger
   FOR EACH ROW
   WHEN (NEW.user_profile_id IS NOT NULL)
   EXECUTE FUNCTION ensure_user_application_status();
-
 -- 7. Add comments for documentation
 COMMENT ON VIEW public.all_applications_view IS 'Shows ALL applications including orphaned ones without user_application_status records';
 COMMENT ON VIEW public.user_applications_view IS 'Enhanced view that gracefully handles missing user_application_status records';

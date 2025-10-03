@@ -8,10 +8,8 @@ CREATE TABLE IF NOT EXISTS user_journey_preferences (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(user_profile_id, enrollment_id) -- Prevent duplicate preferences for same user-enrollment pair
 );
-
 -- Add Row Level Security (RLS)
 ALTER TABLE user_journey_preferences ENABLE ROW LEVEL SECURITY;
-
 -- Create RLS policies
 CREATE POLICY "Users can only access their own journey preferences"
     ON user_journey_preferences
@@ -22,12 +20,10 @@ CREATE POLICY "Users can only access their own journey preferences"
             WHERE privy_user_id = (auth.jwt() ->> 'sub')::text
         )
     );
-
 -- Create indexes for performance
 CREATE INDEX idx_user_journey_preferences_user_profile_id ON user_journey_preferences(user_profile_id);
 CREATE INDEX idx_user_journey_preferences_enrollment_id ON user_journey_preferences(enrollment_id);
 CREATE INDEX idx_user_journey_preferences_is_hidden ON user_journey_preferences(is_hidden);
-
 -- Create updated_at trigger
 CREATE OR REPLACE FUNCTION update_user_journey_preferences_updated_at()
 RETURNS TRIGGER AS $$
@@ -36,7 +32,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 CREATE TRIGGER user_journey_preferences_updated_at
     BEFORE UPDATE ON user_journey_preferences
     FOR EACH ROW

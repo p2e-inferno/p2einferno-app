@@ -71,14 +71,12 @@ BEGIN
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger to automatically update participant counts
 DROP TRIGGER IF EXISTS update_cohort_participants_on_enrollment_change ON bootcamp_enrollments;
 CREATE TRIGGER update_cohort_participants_on_enrollment_change
     AFTER INSERT OR UPDATE OR DELETE ON bootcamp_enrollments
     FOR EACH ROW
     EXECUTE FUNCTION update_cohort_participant_count();
-
 -- One-time fix: Update all existing cohort current_participants to actual counts
 UPDATE cohorts 
 SET current_participants = (
@@ -88,10 +86,8 @@ SET current_participants = (
     AND enrollment_status = 'enrolled'
 ),
 updated_at = NOW();
-
 -- Add helpful comment for future reference
 COMMENT ON FUNCTION update_cohort_participant_count() IS 
 'Automatically updates cohort current_participants count when bootcamp_enrollments change. Only counts enrollments with status = enrolled.';
-
 COMMENT ON TRIGGER update_cohort_participants_on_enrollment_change ON bootcamp_enrollments IS 
 'Maintains accurate current_participants count in cohorts table based on enrolled bootcamp_enrollments.';

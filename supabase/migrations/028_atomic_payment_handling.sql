@@ -5,7 +5,6 @@
 -- 1. Clean up redundant tables to enforce a single source of truth for enrollments.
 DROP TABLE IF EXISTS public.user_cohorts;
 DROP TABLE IF EXISTS public.user_program_memberships;
-
 -- 2. Clean up old, potentially conflicting status-sync triggers to centralize logic.
 DROP TRIGGER IF EXISTS sync_status_on_application_update ON applications;
 DROP TRIGGER IF EXISTS sync_status_on_user_app_status_update ON user_application_status;
@@ -13,7 +12,6 @@ DROP TRIGGER IF EXISTS sync_status_on_enrollment_change ON bootcamp_enrollments;
 DROP FUNCTION IF EXISTS sync_application_status();
 DROP FUNCTION IF EXISTS compute_user_application_status(TEXT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS reconcile_all_application_statuses();
-
 -- 3. Create the new, robust atomic function for handling successful payments.
 CREATE OR REPLACE FUNCTION public.handle_successful_payment(
     p_application_id UUID,
@@ -152,6 +150,5 @@ EXCEPTION
         RETURN QUERY SELECT false, SQLERRM, null::uuid, p_application_id;
 END;
 $$;
-
 -- Grant execute permission to the service_role for API/Edge Function access
 GRANT EXECUTE ON FUNCTION public.handle_successful_payment(UUID, TEXT, TEXT, JSONB) TO service_role;

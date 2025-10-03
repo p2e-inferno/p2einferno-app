@@ -15,7 +15,6 @@ SET
 FROM applications 
 WHERE user_application_status.application_id = applications.id 
   AND user_application_status.status != applications.payment_status;
-
 -- ============================================================================
 -- 2. Create missing payment_transactions for completed applications (conditional)
 -- ============================================================================
@@ -56,7 +55,6 @@ BEGIN
       AND pt.id IS NULL;
   END IF;
 END $$;
-
 -- ============================================================================
 -- 3. Create missing enrollments for completed applications
 -- ============================================================================
@@ -111,7 +109,6 @@ BEGIN
       AND up.id IS NOT NULL;
   END IF;
 END $$;
-
 -- ============================================================================
 -- 4. Add indexes for better performance on reconciliation queries
 -- ============================================================================
@@ -120,7 +117,6 @@ END $$;
 CREATE INDEX IF NOT EXISTS idx_applications_payment_status 
 ON applications(payment_status) 
 WHERE payment_status IN ('pending', 'completed', 'failed');
-
 -- Index for finding payment transactions by application (conditional)
 DO $$
 BEGIN
@@ -129,11 +125,9 @@ BEGIN
     ON payment_transactions(application_id);
   END IF;
 END $$;
-
 -- Index for finding user application status mismatches
 CREATE INDEX IF NOT EXISTS idx_user_application_status_mismatch 
 ON user_application_status(application_id, status);
-
 -- ============================================================================
 -- 5. Update stats for affected users
 -- ============================================================================
