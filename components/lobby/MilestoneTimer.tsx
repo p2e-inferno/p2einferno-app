@@ -115,13 +115,21 @@ export default function MilestoneTimer({
   const formatTimeLeft = () => {
     if (!timeLeft) return null;
 
+    let timeString = "";
     if (timeLeft.days > 0) {
-      return `${timeLeft.days}d ${timeLeft.hours}h`;
+      timeString = `${timeLeft.days}d ${timeLeft.hours}h`;
     } else if (timeLeft.hours > 0) {
-      return `${timeLeft.hours}h ${timeLeft.minutes}m`;
+      timeString = `${timeLeft.hours}h ${timeLeft.minutes}m`;
     } else {
-      return `${timeLeft.minutes}m ${timeLeft.seconds}s`;
+      timeString = `${timeLeft.minutes}m ${timeLeft.seconds}s`;
     }
+
+    // Add "Rewards expire in" prefix for active milestones
+    if (status === "active") {
+      return `Rewards expire in ${timeString}`;
+    }
+
+    return timeString;
   };
 
   return (
@@ -136,7 +144,7 @@ export default function MilestoneTimer({
           </span>
         </div>
 
-        {timeLeft && (
+        {timeLeft && status !== "not_started" && (
           <div className={`text-sm font-mono font-bold ${config.textColor}`}>
             {formatTimeLeft()}
           </div>
@@ -151,7 +159,12 @@ export default function MilestoneTimer({
 
       {status === "not_started" && startDate && (
         <div className="mt-2 text-xs text-faded-grey">
-          Available from {new Date(startDate).toLocaleDateString()}
+          Available from{" "}
+          {new Date(startDate).toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}
         </div>
       )}
     </div>
