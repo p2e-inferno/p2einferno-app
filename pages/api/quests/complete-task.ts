@@ -36,7 +36,7 @@ export default async function handler(
     }
     const effectiveUserId = authUser.id;
 
-    // Check if task is already completed
+    // Check if task has an existing completion
     const { data: existingCompletion } = await supabase
       .from("user_task_completions")
       .select("*")
@@ -44,8 +44,18 @@ export default async function handler(
       .eq("task_id", taskId)
       .single();
 
+    // Allow resubmission only if status is 'retry' or 'failed'
     if (existingCompletion) {
-      return res.status(400).json({ error: "Task already completed" });
+      const canResubmit = ["retry", "failed"].includes(
+        existingCompletion.submission_status,
+      );
+
+      if (!canResubmit) {
+        return res.status(400).json({
+          error: "Task already completed or under review",
+          currentStatus: existingCompletion.submission_status,
+        });
+      }
     }
 
     // Get the task details to check type and review requirements
@@ -83,10 +93,27 @@ export default async function handler(
       };
     }
 
-    // Complete the task
-    const { error: completionError } = await supabase
-      .from("user_task_completions")
-      .insert({
+    // Complete the task (INSERT new or UPDATE existing for resubmission)
+    let completionError;
+
+    if (existingCompletion) {
+      // UPDATE existing completion for retry/failed cases
+      const { error } = await supabase
+        .from("user_task_completions")
+        .update({
+          verification_data: verificationData,
+          submission_data: inputData,
+          submission_status: initialStatus,
+          admin_feedback: null, // Clear previous feedback
+          reviewed_at: null, // Clear review timestamp
+          reviewed_by: null, // Clear reviewer
+          completed_at: new Date().toISOString(), // Update submission time
+        })
+        .eq("id", existingCompletion.id);
+      completionError = error;
+    } else {
+      // INSERT new completion
+      const { error } = await supabase.from("user_task_completions").insert({
         user_id: effectiveUserId,
         quest_id: questId,
         task_id: taskId,
@@ -95,6 +122,8 @@ export default async function handler(
         submission_status: initialStatus,
         reward_claimed: false,
       });
+      completionError = error;
+    }
 
     if (completionError) {
       log.error("Error completing task:", completionError);

@@ -121,8 +121,10 @@ const QuestDetailsPage = () => {
             return {
               task,
               completion,
-              isCompleted: !!completion,
-              canClaim: !!completion && !completion.reward_claimed,
+              isCompleted: completion?.submission_status === "completed",
+              canClaim:
+                completion?.submission_status === "completed" &&
+                !completion.reward_claimed,
             };
           })
           .sort((a: any, b: any) => a.task.order_index - b.task.order_index);
