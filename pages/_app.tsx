@@ -51,6 +51,10 @@ function MyApp({ Component, pageProps }: AppProps) {
               borderRadius: "8px",
               fontSize: "14px",
               padding: "12px 16px",
+              maxWidth: "400px",
+              wordWrap: "break-word",
+              overflowWrap: "break-word",
+              whiteSpace: "pre-wrap",
               boxShadow:
                 "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
             },
@@ -60,6 +64,10 @@ function MyApp({ Component, pageProps }: AppProps) {
                 background: "hsl(142 76% 36%)",
                 color: "white",
                 border: "1px solid hsl(142 76% 30%)",
+                maxWidth: "400px",
+                wordWrap: "break-word",
+                overflowWrap: "break-word",
+                whiteSpace: "pre-wrap",
               },
               iconTheme: {
                 primary: "white",
@@ -72,6 +80,10 @@ function MyApp({ Component, pageProps }: AppProps) {
                 background: "hsl(0 84% 60%)",
                 color: "white",
                 border: "1px solid hsl(0 84% 50%)",
+                maxWidth: "400px",
+                wordWrap: "break-word",
+                overflowWrap: "break-word",
+                whiteSpace: "pre-wrap",
               },
               iconTheme: {
                 primary: "white",
@@ -84,6 +96,10 @@ function MyApp({ Component, pageProps }: AppProps) {
                 background: "hsl(var(--muted))",
                 color: "hsl(var(--muted-foreground))",
                 border: "1px solid hsl(var(--border))",
+                maxWidth: "400px",
+                wordWrap: "break-word",
+                overflowWrap: "break-word",
+                whiteSpace: "pre-wrap",
               },
             },
           }}

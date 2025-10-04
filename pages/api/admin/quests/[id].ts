@@ -136,59 +136,112 @@ async function updateQuest(
 
     // Handle tasks update if provided
     if (tasks && Array.isArray(tasks)) {
-      // Delete existing tasks
-      const { error: deleteError } = await supabase
+      // Step 1: Get existing tasks from database
+      const { data: existingTasks, error: fetchError } = await supabase
         .from("quest_tasks")
-        .delete()
+        .select("id")
         .eq("quest_id", questId);
 
-      if (deleteError) throw deleteError;
+      if (fetchError) throw fetchError;
 
-      // Insert new/updated tasks
-      if (tasks.length > 0) {
-        const tasksWithIds = tasks.map(
+      const existingTaskIds = (existingTasks || []).map((t: any) => t.id);
+      const incomingTaskIds = tasks
+        .filter((t) => t.id && !t.id.startsWith("temp"))
+        .map((t) => t.id);
+
+      // Step 2: Identify tasks to delete
+      const tasksToDelete = existingTaskIds.filter(
+        (id: string) => !incomingTaskIds.includes(id),
+      );
+
+      // Step 3: Check if tasks being deleted have user submissions
+      if (tasksToDelete.length > 0) {
+        const { count, error: countError } = await supabase
+          .from("user_task_completions")
+          .select("*", { count: "exact", head: true })
+          .in("task_id", tasksToDelete);
+
+        if (countError) throw countError;
+
+        if (count && count > 0) {
+          return res.status(400).json({
+            error: `Cannot delete ${tasksToDelete.length} task(s) with user submissions (${count} submission(s) exist). Deactivate the quest instead or keep existing tasks.`,
+          });
+        }
+      }
+
+      // Step 4: Categorize tasks into insert, update, delete
+      const tasksToInsert = tasks.filter(
+        (t: Partial<QuestTask>) => !t.id || t.id.startsWith("temp"),
+      );
+      const tasksToUpdate = tasks.filter(
+        (t: Partial<QuestTask>) => t.id && !t.id.startsWith("temp"),
+      );
+
+      // Step 5: Execute updates
+      for (let i = 0; i < tasksToUpdate.length; i++) {
+        const task = tasksToUpdate[i];
+        const { id, ...taskData } = task as Partial<QuestTask> & { id: string };
+
+        const { error: updateError } = await supabase
+          .from("quest_tasks")
+          .update({
+            ...taskData,
+            quest_id: questId,
+            updated_at: now,
+          })
+          .eq("id", id);
+
+        if (updateError) throw updateError;
+      }
+
+      // Step 6: Execute inserts
+      if (tasksToInsert.length > 0) {
+        const newTasks = tasksToInsert.map(
           (task: Partial<QuestTask>, index: number) => {
-            // Separate the id field so we can handle it explicitly
-            const { id: incomingId, ...taskData } =
-              task as Partial<QuestTask> & {
-                id?: string | null;
-              };
-
-            const base: Partial<QuestTask> & { quest_id: string } = {
+            const { id: _tempId, ...taskData } = task as any;
+            return {
+              id: randomUUID(),
               quest_id: questId,
               ...taskData,
-              order_index: task.order_index ?? index,
-              created_at: task.created_at || now,
+              order_index:
+                task.order_index ?? tasksToUpdate.length + index,
+              created_at: now,
               updated_at: now,
-            } as any;
-
-            if (incomingId && !incomingId.startsWith("temp")) {
-              // Existing task with a real UUID, keep it
-              (base as any).id = incomingId;
-            } else {
-              // New task – generate a fresh UUID so we don't violate the NOT NULL constraint
-              (base as any).id = randomUUID();
-            }
-
-            return base;
+            };
           },
         );
 
-        const { data: tasksData, error: tasksError } = await supabase
+        const { error: insertError } = await supabase
           .from("quest_tasks")
-          .insert(tasksWithIds)
-          .select();
+          .insert(newTasks);
 
-        if (tasksError) throw tasksError;
-
-        return res.status(200).json({
-          success: true,
-          quest: {
-            ...questData,
-            quest_tasks: tasksData,
-          },
-        });
+        if (insertError) throw insertError;
       }
+
+      // Step 7: Execute deletes (already validated no submissions)
+      if (tasksToDelete.length > 0) {
+        const { error: deleteError } = await supabase
+          .from("quest_tasks")
+          .delete()
+          .in("id", tasksToDelete);
+
+        if (deleteError) throw deleteError;
+      }
+
+      // Step 8: Fetch updated quest with all tasks
+      const { data: updatedQuest, error: finalFetchError } = await supabase
+        .from("quests")
+        .select("*, quest_tasks(*)")
+        .eq("id", questId)
+        .single();
+
+      if (finalFetchError) throw finalFetchError;
+
+      return res.status(200).json({
+        success: true,
+        quest: updatedQuest,
+      });
     }
 
     return res.status(200).json({

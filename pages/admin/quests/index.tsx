@@ -9,6 +9,9 @@ import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { getLogger } from "@/lib/utils/logger";
+import { toast } from "react-hot-toast";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("admin:quests:index");
 
@@ -34,7 +37,10 @@ export default function AdminQuestsPage() {
     questTitle: "",
   });
   const [isDeleting, setIsDeleting] = useState(false);
+  const [checkingDelete, setCheckingDelete] = useState<string | null>(null);
   const { adminFetch, loading } = useAdminApi({ suppressToasts: true });
+  const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection();
   const [isRetrying, setIsRetrying] = useState(false);
 
   const fetchQuests = useCallback(async () => {
@@ -93,12 +99,56 @@ export default function AdminQuestsPage() {
     }
   };
 
-  const openDeleteConfirmation = (quest: Quest) => {
-    setDeleteConfirmation({
-      isOpen: true,
-      questId: quest.id,
-      questTitle: quest.title,
-    });
+  const openDeleteConfirmation = async (quest: Quest) => {
+    setCheckingDelete(quest.id);
+    try {
+      // Get auth token for direct fetch (avoids triggering global loading state)
+      const accessToken = await getAccessToken();
+
+      if (!accessToken) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      // Direct fetch - doesn't trigger global loading state
+      const response = await fetch(
+        `/api/admin/quests/${quest.id}/can-delete`,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "X-Active-Wallet": selectedWallet?.address || "",
+          },
+          credentials: "include",
+        },
+      );
+
+      if (!response.ok) {
+        toast.error("Failed to verify delete status");
+        return;
+      }
+
+      const result = await response.json();
+
+      if (!result.canDelete) {
+        // Show error toast instead of modal
+        toast.error(result.message || "Cannot delete this quest", {
+          duration: 5000,
+        });
+        return;
+      }
+
+      // Deletion is allowed, show confirmation modal
+      setDeleteConfirmation({
+        isOpen: true,
+        questId: quest.id,
+        questTitle: quest.title,
+      });
+    } catch (err: any) {
+      log.error("Error checking delete status:", err);
+      toast.error("Failed to verify delete status");
+    } finally {
+      setCheckingDelete(null);
+    }
   };
 
   const closeDeleteConfirmation = () => {
@@ -113,7 +163,6 @@ export default function AdminQuestsPage() {
   const handleDeleteConfirm = async () => {
     try {
       setIsDeleting(true);
-      setError(null);
       const result = await adminFetch(
         `/api/admin/quests/${deleteConfirmation.questId}`,
         {
@@ -125,12 +174,14 @@ export default function AdminQuestsPage() {
         throw new Error(result.error);
       }
 
-      // Refresh quests
+      toast.success("Quest deleted successfully!");
       await fetchQuests();
       closeDeleteConfirmation();
     } catch (err: any) {
       log.error("Error deleting quest:", err);
-      setError(err.message || "Failed to delete quest");
+      toast.error(err.message || "Failed to delete quest");
+      closeDeleteConfirmation();
+    } finally {
       setIsDeleting(false);
     }
   };
@@ -316,8 +367,11 @@ export default function AdminQuestsPage() {
                   variant="outline"
                   className="border-gray-700 hover:border-red-500 hover:text-red-500 w-full justify-center"
                   onClick={() => openDeleteConfirmation(quest)}
+                  disabled={checkingDelete === quest.id}
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2
+                    className={`h-3 w-3 ${checkingDelete === quest.id ? 'animate-spin' : ''}`}
+                  />
                 </Button>
               </div>
             </div>
@@ -461,8 +515,11 @@ export default function AdminQuestsPage() {
                   variant="outline"
                   className="border-gray-700 hover:border-red-500 hover:text-red-500"
                   onClick={() => openDeleteConfirmation(quest)}
+                  disabled={checkingDelete === quest.id}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2
+                    className={`h-4 w-4 ${checkingDelete === quest.id ? 'animate-spin' : ''}`}
+                  />
                 </Button>
               </div>
             </div>

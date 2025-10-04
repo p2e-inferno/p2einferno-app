@@ -8,6 +8,7 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { toast } from "react-hot-toast";
+import { formatErrorMessageForToast } from "@/lib/utils/toast-utils";
 import {
   generateCohortLockConfig,
   createLockConfigWithManagers,
@@ -348,7 +349,8 @@ export default function CohortForm({
       return lockAddress;
     } catch (error: any) {
       log.error("Lock deployment failed:", error);
-      toast.error(error.message || "Failed to deploy lock", {
+      const errorMessage = error.message || "Failed to deploy lock";
+      toast.error(formatErrorMessageForToast(errorMessage), {
         id: "lock-deploy",
       });
       setDeploymentStep("");

@@ -103,7 +103,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           ],
         });
 
-        // Deploy lock with factory pattern
+        // Deploy lock
         const deployTx = await walletClient.writeContract({
           address: factoryAddress,
           abi: UNLOCK_FACTORY_ABI,
@@ -130,6 +130,23 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           name: params.name,
         });
 
+        // Estimate gas for addLockManager transaction
+        const estimatedGas = await publicClient.estimateContractGas({
+          address: lockAddress as Address,
+          abi: ADDITIONAL_LOCK_ABI,
+          functionName: "addLockManager",
+          args: [normalizedServerWallet],
+          account: walletAccount,
+        });
+
+        // Add 20% padding to estimated gas
+        const gasWithPadding = (estimatedGas * 120n) / 100n;
+
+        log.info("Gas estimation for addLockManager", {
+          estimatedGas: estimatedGas.toString(),
+          gasWithPadding: gasWithPadding.toString(),
+        });
+
         // grant server wallet manager role
         const grantTx = await walletClient.writeContract({
           address: lockAddress as Address,
@@ -138,6 +155,7 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           args: [normalizedServerWallet],
           account: walletAccount,
           chain: walletChain,
+          gas: gasWithPadding,
         });
 
         await publicClient.waitForTransactionReceipt({

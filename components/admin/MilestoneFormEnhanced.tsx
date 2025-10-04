@@ -11,6 +11,7 @@ import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { toast } from "react-hot-toast";
+import { formatErrorMessageForToast } from "@/lib/utils/toast-utils";
 import {
   generateMilestoneLockConfig,
   createLockConfigWithManagers,
@@ -401,7 +402,8 @@ export default function MilestoneFormEnhanced({
       return lockAddress;
     } catch (error: any) {
       log.error("Milestone lock deployment failed:", error);
-      toast.error(error.message || "Failed to deploy lock", {
+      const errorMessage = error.message || "Failed to deploy lock";
+      toast.error(formatErrorMessageForToast(errorMessage), {
         id: "milestone-lock-deploy",
       });
       setDeploymentStep("");

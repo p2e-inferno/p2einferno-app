@@ -9,6 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { CopyBadge } from "@/components/ui/badge";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { toast } from "react-hot-toast";
+import { formatErrorMessageForToast } from "@/lib/utils/toast-utils";
 import {
   generateBootcampLockConfig,
   createLockConfigWithManagers,
@@ -257,7 +258,8 @@ export default function BootcampForm({
       return lockAddress;
     } catch (error: any) {
       log.error("Lock deployment failed:", error);
-      toast.error(error.message || "Failed to deploy lock", {
+      const errorMessage = error.message || "Failed to deploy lock";
+      toast.error(formatErrorMessageForToast(errorMessage), {
         id: "lock-deploy",
       });
       setDeploymentStep("");
