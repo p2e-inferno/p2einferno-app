@@ -111,16 +111,13 @@ export default function AdminQuestsPage() {
       }
 
       // Direct fetch - doesn't trigger global loading state
-      const response = await fetch(
-        `/api/admin/quests/${quest.id}/can-delete`,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "X-Active-Wallet": selectedWallet?.address || "",
-          },
-          credentials: "include",
+      const response = await fetch(`/api/admin/quests/${quest.id}/can-delete`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
-      );
+        credentials: "include",
+      });
 
       if (!response.ok) {
         toast.error("Failed to verify delete status");
@@ -370,7 +367,7 @@ export default function AdminQuestsPage() {
                   disabled={checkingDelete === quest.id}
                 >
                   <Trash2
-                    className={`h-3 w-3 ${checkingDelete === quest.id ? 'animate-spin' : ''}`}
+                    className={`h-3 w-3 ${checkingDelete === quest.id ? "animate-spin" : ""}`}
                   />
                 </Button>
               </div>
@@ -518,7 +515,7 @@ export default function AdminQuestsPage() {
                   disabled={checkingDelete === quest.id}
                 >
                   <Trash2
-                    className={`h-4 w-4 ${checkingDelete === quest.id ? 'animate-spin' : ''}`}
+                    className={`h-4 w-4 ${checkingDelete === quest.id ? "animate-spin" : ""}`}
                   />
                 </Button>
               </div>

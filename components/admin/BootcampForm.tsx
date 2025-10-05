@@ -19,7 +19,7 @@ import {
   saveDraft,
   removeDraft,
   getDraft,
-  updateDraftWithLockAddress,
+  updateDraftWithDeploymentResult,
   savePendingDeployment,
   removePendingDeployment,
   hasPendingDeployments,
@@ -69,6 +69,12 @@ export default function BootcampForm({
   );
   const [hasPendingBootcampDeployments, setHasPendingBootcampDeployments] =
     useState(false);
+  const [lockManagerGranted, setLockManagerGranted] = useState(
+    isEditing ? (bootcamp?.lock_manager_granted ?? true) : true,
+  );
+  const [grantFailureReason, setGrantFailureReason] = useState<
+    string | undefined
+  >(isEditing ? (bootcamp?.grant_failure_reason ?? undefined) : undefined);
 
   // Keep track of the original bootcamp ID for updates
   const [originalBootcampId, setOriginalBootcampId] = useState<string | null>(
@@ -102,6 +108,12 @@ export default function BootcampForm({
       if (draft) {
         setFormData((prev) => ({ ...prev, ...draft.formData }));
 
+        // Restore grant failure state if present
+        if (draft.formData.lock_manager_granted === false) {
+          setLockManagerGranted(false);
+          setGrantFailureReason(draft.formData.grant_failure_reason);
+        }
+
         // If draft contains a lock address, disable auto-creation
         if (draft.formData.lock_address) {
           setShowAutoLockCreation(false);
@@ -116,6 +128,14 @@ export default function BootcampForm({
       setHasPendingBootcampDeployments(hasPending);
     }
   }, [isEditing]);
+
+  // Sync grant failure state from entity props when editing
+  useEffect(() => {
+    if (isEditing && bootcamp) {
+      setLockManagerGranted(bootcamp.lock_manager_granted ?? true);
+      setGrantFailureReason(bootcamp.grant_failure_reason ?? undefined);
+    }
+  }, [isEditing, bootcamp]);
 
   // Clear local error when adminApi error is cleared
   useEffect(() => {
@@ -149,7 +169,14 @@ export default function BootcampForm({
   };
 
   // Deploy lock for the bootcamp
-  const deployLockForBootcamp = async (): Promise<string | undefined> => {
+  const deployLockForBootcamp = async (): Promise<
+    | {
+        lockAddress: string;
+        grantFailed?: boolean;
+        grantError?: string;
+      }
+    | undefined
+  > => {
     if (!wallet) {
       toast.error("Please connect your wallet to deploy the lock");
       return undefined;
@@ -190,10 +217,26 @@ export default function BootcampForm({
       setDeploymentStep("Granting server wallet manager role...");
 
       const lockAddress = result.lockAddress;
-      setDeploymentStep("Lock deployed and configured successfully!");
 
-      // Update draft with lock address to preserve it in case of database failure
-      updateDraftWithLockAddress("bootcamp", lockAddress);
+      // Check if grant failed
+      if (result.grantFailed) {
+        setDeploymentStep("Lock deployed but grant manager failed!");
+        log.warn("Lock deployed but grant manager transaction failed", {
+          lockAddress,
+          grantError: result.grantError,
+        });
+      } else {
+        setDeploymentStep("Lock deployed and configured successfully!");
+        setLockManagerGranted(true);
+        setGrantFailureReason(undefined);
+      }
+
+      // Update draft with deployment result to preserve it in case of database failure
+      updateDraftWithDeploymentResult("bootcamp", {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      });
 
       // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
@@ -211,41 +254,68 @@ export default function BootcampForm({
       // Store deployment ID for cleanup on success
       setCurrentDeploymentId(deploymentId);
 
-      toast.success(
-        <>
-          Lock deployed successfully!
-          <br />
-          Server wallet granted manager role.
-          <br />
-          {result.transactionHash && (
-            <a
-              href={getBlockExplorerUrl(result.transactionHash)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              View deployment
-            </a>
-          )}
-          {result.grantTransactionHash && (
-            <>
-              {" | "}
+      if (result.grantFailed) {
+        toast(
+          <>
+            Lock deployed successfully!
+            <br />
+            ⚠️ Grant manager role failed - you can retry from bootcamp details
+            page.
+            <br />
+            {result.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                href={getBlockExplorerUrl(result.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
               >
-                View grant
+                View deployment
               </a>
-            </>
-          )}
-        </>,
-        {
-          id: "lock-deploy",
-          duration: 5000,
-        },
-      );
+            )}
+          </>,
+          {
+            id: "lock-deploy",
+            duration: 8000,
+            icon: "⚠️",
+          },
+        );
+      } else {
+        toast.success(
+          <>
+            Lock deployed successfully!
+            <br />
+            Server wallet granted manager role.
+            <br />
+            {result.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+            {result.grantTransactionHash && (
+              <>
+                {" | "}
+                <a
+                  href={getBlockExplorerUrl(result.grantTransactionHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  View grant
+                </a>
+              </>
+            )}
+          </>,
+          {
+            id: "lock-deploy",
+            duration: 5000,
+          },
+        );
+      }
 
       log.info("Lock deployed:", {
         lockAddress,
@@ -253,9 +323,15 @@ export default function BootcampForm({
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,
         deploymentId,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
       });
 
-      return lockAddress;
+      return {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      };
     } catch (error: any) {
       log.error("Lock deployment failed:", error);
       const errorMessage = error.message || "Failed to deploy lock";
@@ -295,10 +371,24 @@ export default function BootcampForm({
       if (!isEditing && showAutoLockCreation && !lockAddress) {
         try {
           log.info("Auto-deploying lock for bootcamp...");
-          lockAddress = await deployLockForBootcamp();
+          const deploymentResult = await deployLockForBootcamp();
 
-          if (!lockAddress) {
+          if (!deploymentResult || !deploymentResult.lockAddress) {
             throw new Error("Lock deployment failed");
+          }
+
+          lockAddress = deploymentResult.lockAddress;
+
+          // Track grant failure if it occurred
+          if (deploymentResult.grantFailed) {
+            setLockManagerGranted(false);
+            setGrantFailureReason(
+              deploymentResult.grantError || "Grant manager transaction failed",
+            );
+            log.warn("Bootcamp will be created with grant failure flag", {
+              lockAddress,
+              grantError: deploymentResult.grantError,
+            });
           }
         } catch (deployError: any) {
           // If lock deployment fails, don't create the bootcamp
@@ -321,6 +411,8 @@ export default function BootcampForm({
         max_reward_dgt: formData.max_reward_dgt,
         lock_address: lockAddress || null,
         image_url: formData.image_url || null,
+        lock_manager_granted: lockManagerGranted,
+        grant_failure_reason: grantFailureReason,
         updated_at: new Date().toISOString(),
       };
 

@@ -10,6 +10,8 @@ export { useKeyPurchase } from "./useKeyPurchase";
 export { useDeployLock } from "./useDeployLock";
 export { useDeployAdminLock } from "./useDeployAdminLock";
 export { useLockManagerKeyGrant } from "./useLockManagerKeyGrant";
+export { useAddLockManager } from "./useAddLockManager";
+export type { AddLockManagerParams, AddLockManagerResult } from "./useAddLockManager";
 
 // Test/debug hooks
 export { useDeployLockEthers } from "./useDeployLockEthers";

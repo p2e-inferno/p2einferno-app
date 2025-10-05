@@ -72,6 +72,8 @@ export interface AdminLockDeploymentResult {
   lockAddress?: Address;
   serverWalletAddress?: string; // Server wallet added as manager
   error?: string;
+  grantFailed?: boolean; // True if lock deployed but grant manager failed
+  grantError?: string; // Error message from grant manager failure
 }
 
 // Key Grant Types

@@ -18,7 +18,7 @@ import {
   saveDraft,
   removeDraft,
   getDraft,
-  updateDraftWithLockAddress,
+  updateDraftWithDeploymentResult,
   savePendingDeployment,
   removePendingDeployment,
 } from "@/lib/utils/lock-deployment-state";
@@ -77,6 +77,12 @@ export default function CohortForm({
   const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(
     null,
   );
+  const [lockManagerGranted, setLockManagerGranted] = useState(
+    isEditing ? (cohort?.lock_manager_granted ?? true) : true,
+  );
+  const [grantFailureReason, setGrantFailureReason] = useState<
+    string | undefined
+  >(isEditing ? (cohort?.grant_failure_reason ?? undefined) : undefined);
 
   const [formData, setFormData] = useState<Partial<Cohort>>(
     cohort || {
@@ -162,6 +168,12 @@ export default function CohortForm({
       if (draft) {
         setFormData((prev) => ({ ...prev, ...draft.formData }));
 
+        // Restore grant failure state if present
+        if (draft.formData.lock_manager_granted === false) {
+          setLockManagerGranted(false);
+          setGrantFailureReason(draft.formData.grant_failure_reason);
+        }
+
         // If draft contains a lock address, disable auto-creation
         if (draft.formData.lock_address) {
           setShowAutoLockCreation(false);
@@ -172,6 +184,14 @@ export default function CohortForm({
       }
     }
   }, [isEditing]);
+
+  // Sync grant failure state from entity props when editing
+  useEffect(() => {
+    if (isEditing && cohort) {
+      setLockManagerGranted(cohort.lock_manager_granted ?? true);
+      setGrantFailureReason(cohort.grant_failure_reason ?? undefined);
+    }
+  }, [isEditing, cohort]);
 
   // Fetch bootcamp programs on mount only
   useEffect(() => {
@@ -244,7 +264,14 @@ export default function CohortForm({
   };
 
   // Deploy lock for the cohort
-  const deployLockForCohort = async (): Promise<string | undefined> => {
+  const deployLockForCohort = async (): Promise<
+    | {
+        lockAddress: string;
+        grantFailed?: boolean;
+        grantError?: string;
+      }
+    | undefined
+  > => {
     if (!wallet) {
       toast.error("Please connect your wallet to deploy the lock");
       return undefined;
@@ -281,10 +308,26 @@ export default function CohortForm({
       setDeploymentStep("Granting server wallet manager role...");
 
       const lockAddress = result.lockAddress;
-      setDeploymentStep("Lock deployed and configured successfully!");
 
-      // Update draft with lock address to preserve it in case of database failure
-      updateDraftWithLockAddress("cohort", lockAddress);
+      // Check if grant failed
+      if (result.grantFailed) {
+        setDeploymentStep("Lock deployed but grant manager failed!");
+        log.warn("Lock deployed but grant manager transaction failed", {
+          lockAddress,
+          grantError: result.grantError,
+        });
+      } else {
+        setDeploymentStep("Lock deployed and configured successfully!");
+        setLockManagerGranted(true);
+        setGrantFailureReason(undefined);
+      }
+
+      // Update draft with deployment result to preserve it in case of database failure
+      updateDraftWithDeploymentResult("cohort", {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      });
 
       // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
@@ -302,41 +345,68 @@ export default function CohortForm({
       // Store deployment ID for cleanup on success
       setCurrentDeploymentId(deploymentId);
 
-      toast.success(
-        <>
-          Lock deployed successfully!
-          <br />
-          Server wallet granted manager role.
-          <br />
-          {result.transactionHash && (
-            <a
-              href={getBlockExplorerUrl(result.transactionHash)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              View deployment
-            </a>
-          )}
-          {result.grantTransactionHash && (
-            <>
-              {" | "}
+      if (result.grantFailed) {
+        toast(
+          <>
+            Lock deployed successfully!
+            <br />
+            ⚠️ Grant manager role failed - you can retry from cohort details
+            page.
+            <br />
+            {result.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                href={getBlockExplorerUrl(result.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
               >
-                View grant
+                View deployment
               </a>
-            </>
-          )}
-        </>,
-        {
-          id: "lock-deploy",
-          duration: 5000,
-        },
-      );
+            )}
+          </>,
+          {
+            id: "lock-deploy",
+            duration: 8000,
+            icon: "⚠️",
+          },
+        );
+      } else {
+        toast.success(
+          <>
+            Lock deployed successfully!
+            <br />
+            Server wallet granted manager role.
+            <br />
+            {result.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+            {result.grantTransactionHash && (
+              <>
+                {" | "}
+                <a
+                  href={getBlockExplorerUrl(result.grantTransactionHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  View grant
+                </a>
+              </>
+            )}
+          </>,
+          {
+            id: "lock-deploy",
+            duration: 5000,
+          },
+        );
+      }
 
       log.info("Lock deployed:", {
         lockAddress,
@@ -344,9 +414,15 @@ export default function CohortForm({
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,
         deploymentId,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
       });
 
-      return lockAddress;
+      return {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      };
     } catch (error: any) {
       log.error("Lock deployment failed:", error);
       const errorMessage = error.message || "Failed to deploy lock";
@@ -392,10 +468,24 @@ export default function CohortForm({
       if (!isEditing && showAutoLockCreation && !lockAddress) {
         try {
           log.info("Auto-deploying lock for cohort...");
-          lockAddress = await deployLockForCohort();
+          const deploymentResult = await deployLockForCohort();
 
-          if (!lockAddress) {
+          if (!deploymentResult || !deploymentResult.lockAddress) {
             throw new Error("Lock deployment failed");
+          }
+
+          lockAddress = deploymentResult.lockAddress;
+
+          // Track grant failure if it occurred
+          if (deploymentResult.grantFailed) {
+            setLockManagerGranted(false);
+            setGrantFailureReason(
+              deploymentResult.grantError || "Grant manager transaction failed",
+            );
+            log.warn("Cohort will be created with grant failure flag", {
+              lockAddress,
+              grantError: deploymentResult.grantError,
+            });
           }
         } catch (deployError: any) {
           // If lock deployment fails, don't create the cohort
@@ -411,6 +501,8 @@ export default function CohortForm({
         id: cohortId,
         key_managers: keyManagers,
         lock_address: lockAddress,
+        lock_manager_granted: lockManagerGranted,
+        grant_failure_reason: grantFailureReason,
       };
 
       const apiUrl = "/api/admin/cohorts";

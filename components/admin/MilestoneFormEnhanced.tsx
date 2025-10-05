@@ -23,7 +23,7 @@ import {
   getDraft,
   saveDraft,
   removeDraft,
-  updateDraftWithLockAddress,
+  updateDraftWithDeploymentResult,
 } from "@/lib/utils/lock-deployment-state";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
@@ -90,6 +90,12 @@ export default function MilestoneFormEnhanced({
   const [deploymentStep, setDeploymentStep] = useState("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(!isEditing);
   const [error, setError] = useState<string | null>(null);
+  const [lockManagerGranted, setLockManagerGranted] = useState(
+    isEditing ? (milestone?.lock_manager_granted ?? true) : true,
+  );
+  const [grantFailureReason, setGrantFailureReason] = useState<
+    string | undefined
+  >(isEditing ? (milestone?.grant_failure_reason ?? undefined) : undefined);
   const { adminFetch } = useAdminApi();
   const wallet = useSmartWalletSelection();
   const { authenticated, isAdmin, user } = useAdminAuthContext();
@@ -147,6 +153,8 @@ export default function MilestoneFormEnhanced({
         } = draft.formData as Partial<CohortMilestone> & {
           tasks?: TaskForm[];
           auto_lock_creation?: boolean;
+          lock_manager_granted?: boolean;
+          grant_failure_reason?: string;
         };
 
         if (draftTasks) {
@@ -168,6 +176,12 @@ export default function MilestoneFormEnhanced({
 
         setFormData((prev) => ({ ...prev, ...sanitizedDraftForm }));
 
+        // Restore grant failure state if present
+        if (sanitizedDraftForm.lock_manager_granted === false) {
+          setLockManagerGranted(false);
+          setGrantFailureReason(sanitizedDraftForm.grant_failure_reason);
+        }
+
         // If draft contains a lock address, disable auto-creation
         if (sanitizedDraftForm.lock_address) {
           setShowAutoLockCreation(false);
@@ -178,6 +192,14 @@ export default function MilestoneFormEnhanced({
       }
     }
   }, [isEditing]);
+
+  // Sync grant failure state from entity props when editing
+  useEffect(() => {
+    if (isEditing && milestone) {
+      setLockManagerGranted(milestone.lock_manager_granted ?? true);
+      setGrantFailureReason(milestone.grant_failure_reason ?? undefined);
+    }
+  }, [isEditing, milestone]);
 
   const fetchExistingTasks = useCallback(async () => {
     if (!milestone?.id) {
@@ -295,7 +317,14 @@ export default function MilestoneFormEnhanced({
   };
 
   // Deploy lock for the milestone
-  const deployLockForMilestone = async (): Promise<string | undefined> => {
+  const deployLockForMilestone = async (): Promise<
+    | {
+        lockAddress: string;
+        grantFailed?: boolean;
+        grantError?: string;
+      }
+    | undefined
+  > => {
     if (!wallet) {
       toast.error("Please connect your wallet to deploy the lock");
       return undefined;
@@ -337,10 +366,26 @@ export default function MilestoneFormEnhanced({
       setDeploymentStep("Granting server wallet manager role...");
 
       const lockAddress = result.lockAddress;
-      setDeploymentStep("Lock deployed and configured successfully!");
 
-      // Update draft with lock address to preserve it in case of database failure
-      updateDraftWithLockAddress("milestone", lockAddress);
+      // Check if grant failed
+      if (result.grantFailed) {
+        setDeploymentStep("Lock deployed but grant manager failed!");
+        log.warn("Lock deployed but grant manager transaction failed", {
+          lockAddress,
+          grantError: result.grantError,
+        });
+      } else {
+        setDeploymentStep("Lock deployed and configured successfully!");
+        setLockManagerGranted(true);
+        setGrantFailureReason(undefined);
+      }
+
+      // Update draft with deployment result to preserve it in case of database failure
+      updateDraftWithDeploymentResult("milestone", {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      });
 
       // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
@@ -355,41 +400,68 @@ export default function MilestoneFormEnhanced({
           : undefined,
       });
 
-      toast.success(
-        <>
-          Milestone lock deployed successfully!
-          <br />
-          Server wallet granted manager role.
-          <br />
-          {result.transactionHash && (
-            <a
-              href={getBlockExplorerUrl(result.transactionHash)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              View deployment
-            </a>
-          )}
-          {result.grantTransactionHash && (
-            <>
-              {" | "}
+      if (result.grantFailed) {
+        toast(
+          <>
+            Milestone lock deployed successfully!
+            <br />
+            ⚠️ Grant manager role failed - you can retry from milestone details
+            page.
+            <br />
+            {result.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                href={getBlockExplorerUrl(result.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
               >
-                View grant
+                View deployment
               </a>
-            </>
-          )}
-        </>,
-        {
-          id: "milestone-lock-deploy",
-          duration: 5000,
-        },
-      );
+            )}
+          </>,
+          {
+            id: "milestone-lock-deploy",
+            duration: 8000,
+            icon: "⚠️",
+          },
+        );
+      } else {
+        toast.success(
+          <>
+            Milestone lock deployed successfully!
+            <br />
+            Server wallet granted manager role.
+            <br />
+            {result.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+            {result.grantTransactionHash && (
+              <>
+                {" | "}
+                <a
+                  href={getBlockExplorerUrl(result.grantTransactionHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  View grant
+                </a>
+              </>
+            )}
+          </>,
+          {
+            id: "milestone-lock-deploy",
+            duration: 5000,
+          },
+        );
+      }
 
       log.info("Milestone lock deployed:", {
         lockAddress,
@@ -397,9 +469,15 @@ export default function MilestoneFormEnhanced({
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,
         deploymentId,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
       });
 
-      return lockAddress;
+      return {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      };
     } catch (error: any) {
       log.error("Milestone lock deployment failed:", error);
       const errorMessage = error.message || "Failed to deploy lock";
@@ -512,13 +590,25 @@ export default function MilestoneFormEnhanced({
       ) {
         try {
           log.info("Auto-deploying lock for milestone...");
-          const deployedLockAddress = await deployLockForMilestone();
+          const deploymentResult = await deployLockForMilestone();
 
-          if (!deployedLockAddress) {
+          if (!deploymentResult || !deploymentResult.lockAddress) {
             throw new Error("Lock deployment failed");
           }
 
-          lockAddress = deployedLockAddress;
+          lockAddress = deploymentResult.lockAddress;
+
+          // Track grant failure if it occurred
+          if (deploymentResult.grantFailed) {
+            setLockManagerGranted(false);
+            setGrantFailureReason(
+              deploymentResult.grantError || "Grant manager transaction failed",
+            );
+            log.warn("Milestone will be created with grant failure flag", {
+              lockAddress,
+              grantError: deploymentResult.grantError,
+            });
+          }
         } catch (deployError: any) {
           // If lock deployment fails, don't create the milestone
           throw new Error(`Lock deployment failed: ${deployError.message}`);
@@ -558,6 +648,8 @@ export default function MilestoneFormEnhanced({
           formDataWithoutTasks.prerequisite_milestone_id || null,
         duration_hours: formDataWithoutTasks.duration_hours || 0,
         total_reward: totalTaskReward,
+        lock_manager_granted: lockManagerGranted,
+        grant_failure_reason: grantFailureReason,
         updated_at: now,
       };
 

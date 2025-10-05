@@ -239,12 +239,16 @@ export const getDraft = (entityType: EntityType): DeploymentDraft | null => {
 };
 
 /**
- * Update existing draft with deployed lock address after successful lock deployment
- * This ensures the lock address is preserved even if database save fails
+ * Update existing draft with deployment result after successful lock deployment
+ * This ensures the lock address and grant failure info are preserved even if database save fails
  */
-export const updateDraftWithLockAddress = (
+export const updateDraftWithDeploymentResult = (
   entityType: EntityType,
-  lockAddress: string,
+  result: {
+    lockAddress: string;
+    grantFailed?: boolean;
+    grantError?: string;
+  },
 ): void => {
   try {
     if (typeof window === "undefined") return;
@@ -253,14 +257,14 @@ export const updateDraftWithLockAddress = (
     const draftIndex = existing.findIndex((d) => d.entityType === entityType);
 
     if (draftIndex === -1) {
-      log.warn("No existing draft found to update with lock address:", {
+      log.warn("No existing draft found to update with deployment result:", {
         entityType,
-        lockAddress,
+        lockAddress: result.lockAddress,
       });
       return;
     }
 
-    // Update the existing draft with lock address and disable auto-creation
+    // Update the existing draft with deployment result and disable auto-creation
     const currentDraft = existing[draftIndex];
     if (!currentDraft) {
       log.error("Draft at index is undefined", { entityType, draftIndex });
@@ -275,16 +279,20 @@ export const updateDraftWithLockAddress = (
         ...currentDraft.formData,
         questData: {
           ...currentDraft.formData.questData,
-          lock_address: lockAddress,
+          lock_address: result.lockAddress,
           auto_lock_creation: false,
+          lock_manager_granted: !result.grantFailed,
+          grant_failure_reason: result.grantError || null,
         },
       };
     } else {
       // Other entities with flat structure (bootcamp, cohort, milestone) or old quest format
       updatedFormData = {
         ...currentDraft.formData,
-        lock_address: lockAddress,
+        lock_address: result.lockAddress,
         auto_lock_creation: false,
+        lock_manager_granted: !result.grantFailed,
+        grant_failure_reason: result.grantError || null,
       };
     }
 
@@ -302,10 +310,24 @@ export const updateDraftWithLockAddress = (
       STORAGE_KEYS.DEPLOYMENT_DRAFTS,
       JSON.stringify(updated),
     );
-    log.info("Updated draft with lock address:", { entityType, lockAddress });
+    log.info("Updated draft with deployment result:", {
+      entityType,
+      lockAddress: result.lockAddress,
+      grantFailed: result.grantFailed,
+    });
   } catch (error) {
-    log.error("Error updating draft with lock address:", error);
+    log.error("Error updating draft with deployment result:", error);
   }
+};
+
+/**
+ * @deprecated Use updateDraftWithDeploymentResult instead
+ */
+export const updateDraftWithLockAddress = (
+  entityType: EntityType,
+  lockAddress: string,
+): void => {
+  updateDraftWithDeploymentResult(entityType, { lockAddress });
 };
 
 /**

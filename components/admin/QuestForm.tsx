@@ -20,7 +20,7 @@ import {
   saveDraft,
   removeDraft,
   getDraft,
-  updateDraftWithLockAddress,
+  updateDraftWithDeploymentResult,
   savePendingDeployment,
 } from "@/lib/utils/lock-deployment-state";
 import type { Quest, QuestTask } from "@/lib/supabase/types";
@@ -57,6 +57,12 @@ export default function QuestForm({
   const [isDeployingLock, setIsDeployingLock] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState<string>("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
+  const [lockManagerGranted, setLockManagerGranted] = useState(
+    isEditing ? (quest?.lock_manager_granted ?? true) : true,
+  );
+  const [grantFailureReason, setGrantFailureReason] = useState<
+    string | undefined
+  >(isEditing ? (quest?.grant_failure_reason ?? undefined) : undefined);
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
@@ -76,6 +82,14 @@ export default function QuestForm({
           setFormData((prev) => ({ ...prev, ...draft.formData.questData }));
           setTasks(draft.formData.tasks);
 
+          // Restore grant failure state if present
+          if (draft.formData.questData.lock_manager_granted === false) {
+            setLockManagerGranted(false);
+            setGrantFailureReason(
+              draft.formData.questData.grant_failure_reason,
+            );
+          }
+
           // If draft contains a lock address, disable auto-creation
           if (draft.formData.questData.lock_address) {
             setShowAutoLockCreation(false);
@@ -86,6 +100,12 @@ export default function QuestForm({
         } else {
           // Backward compatibility with old format
           setFormData((prev) => ({ ...prev, ...draft.formData }));
+
+          // Restore grant failure state if present
+          if (draft.formData.lock_manager_granted === false) {
+            setLockManagerGranted(false);
+            setGrantFailureReason(draft.formData.grant_failure_reason);
+          }
 
           // If draft contains a lock address, disable auto-creation
           if (draft.formData.lock_address) {
@@ -98,6 +118,14 @@ export default function QuestForm({
       }
     }
   }, [isEditing]);
+
+  // Sync grant failure state from entity props when editing
+  useEffect(() => {
+    if (isEditing && quest) {
+      setLockManagerGranted(quest.lock_manager_granted ?? true);
+      setGrantFailureReason(quest.grant_failure_reason ?? undefined);
+    }
+  }, [isEditing, quest]);
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
@@ -178,7 +206,14 @@ export default function QuestForm({
   };
 
   // Deploy lock for the quest
-  const deployLockForQuest = async (): Promise<string | undefined> => {
+  const deployLockForQuest = async (): Promise<
+    | {
+        lockAddress: string;
+        grantFailed?: boolean;
+        grantError?: string;
+      }
+    | undefined
+  > => {
     if (!wallet) {
       toast.error("Please connect your wallet to deploy the lock");
       return undefined;
@@ -218,10 +253,26 @@ export default function QuestForm({
       setDeploymentStep("Granting server wallet manager role...");
 
       const lockAddress = result.lockAddress;
-      setDeploymentStep("Lock deployed and configured successfully!");
 
-      // Update draft with lock address to preserve it in case of database failure
-      updateDraftWithLockAddress("quest", lockAddress);
+      // Check if grant failed
+      if (result.grantFailed) {
+        setDeploymentStep("Lock deployed but grant manager failed!");
+        log.warn("Lock deployed but grant manager transaction failed", {
+          lockAddress,
+          grantError: result.grantError,
+        });
+      } else {
+        setDeploymentStep("Lock deployed and configured successfully!");
+        setLockManagerGranted(true);
+        setGrantFailureReason(undefined);
+      }
+
+      // Update draft with deployment result to preserve it in case of database failure
+      updateDraftWithDeploymentResult("quest", {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      });
 
       // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
@@ -236,41 +287,68 @@ export default function QuestForm({
           : undefined,
       });
 
-      toast.success(
-        <>
-          Lock deployed successfully!
-          <br />
-          Server wallet granted manager role.
-          <br />
-          {result.transactionHash && (
-            <a
-              href={getBlockExplorerUrl(result.transactionHash)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              View deployment
-            </a>
-          )}
-          {result.grantTransactionHash && (
-            <>
-              {" | "}
+      if (result.grantFailed) {
+        toast(
+          <>
+            Lock deployed successfully!
+            <br />
+            ⚠️ Grant manager role failed - you can retry from quest details
+            page.
+            <br />
+            {result.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                href={getBlockExplorerUrl(result.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
               >
-                View grant
+                View deployment
               </a>
-            </>
-          )}
-        </>,
-        {
-          id: "lock-deploy",
-          duration: 5000,
-        },
-      );
+            )}
+          </>,
+          {
+            id: "lock-deploy",
+            duration: 8000,
+            icon: "⚠️",
+          },
+        );
+      } else {
+        toast.success(
+          <>
+            Lock deployed successfully!
+            <br />
+            Server wallet granted manager role.
+            <br />
+            {result.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+            {result.grantTransactionHash && (
+              <>
+                {" | "}
+                <a
+                  href={getBlockExplorerUrl(result.grantTransactionHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  View grant
+                </a>
+              </>
+            )}
+          </>,
+          {
+            id: "lock-deploy",
+            duration: 5000,
+          },
+        );
+      }
 
       log.info("Lock deployed:", {
         lockAddress,
@@ -278,9 +356,15 @@ export default function QuestForm({
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,
         deploymentId,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
       });
 
-      return lockAddress;
+      return {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      };
     } catch (error: any) {
       log.error("Lock deployment failed:", error);
       const errorMessage = error.message || "Failed to deploy lock";
@@ -360,10 +444,24 @@ export default function QuestForm({
       ) {
         try {
           log.info("Auto-deploying lock for quest...");
-          lockAddress = await deployLockForQuest();
+          const deploymentResult = await deployLockForQuest();
 
-          if (!lockAddress) {
+          if (!deploymentResult || !deploymentResult.lockAddress) {
             throw new Error("Lock deployment failed");
+          }
+
+          lockAddress = deploymentResult.lockAddress;
+
+          // Track grant failure if it occurred
+          if (deploymentResult.grantFailed) {
+            setLockManagerGranted(false);
+            setGrantFailureReason(
+              deploymentResult.grantError || "Grant manager transaction failed",
+            );
+            log.warn("Quest will be created with grant failure flag", {
+              lockAddress,
+              grantError: deploymentResult.grantError,
+            });
           }
         } catch (deployError: any) {
           // If lock deployment fails, don't create the quest
@@ -382,6 +480,8 @@ export default function QuestForm({
         ...formData,
         lock_address: lockAddress,
         total_reward: totalReward,
+        lock_manager_granted: lockManagerGranted,
+        grant_failure_reason: grantFailureReason,
       };
 
       // Prepare tasks data

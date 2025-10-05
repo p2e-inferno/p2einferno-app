@@ -222,8 +222,7 @@ async function updateQuest(
               id: randomUUID(),
               quest_id: questId,
               ...taskData,
-              order_index:
-                task.order_index ?? tasksToUpdate.length + index,
+              order_index: task.order_index ?? tasksToUpdate.length + index,
               created_at: now,
               updated_at: now,
             };

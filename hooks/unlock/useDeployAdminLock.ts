@@ -10,6 +10,7 @@ import {
 } from "@/lib/blockchain/shared/abi-definitions";
 import { extractLockAddressFromReceipt } from "@/lib/blockchain/shared/transaction-utils";
 import { getLogger } from "@/lib/utils/logger";
+import { truncateErrorMessage } from "@/lib/utils/toast-utils";
 import { encodeFunctionData, getAddress, type Address } from "viem";
 import type {
   AdminLockDeploymentParams,
@@ -148,19 +149,42 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
         });
 
         // grant server wallet manager role
-        const grantTx = await walletClient.writeContract({
-          address: lockAddress as Address,
-          abi: ADDITIONAL_LOCK_ABI,
-          functionName: "addLockManager",
-          args: [normalizedServerWallet],
-          account: walletAccount,
-          chain: walletChain,
-          gas: gasWithPadding,
-        });
+        let grantTx: `0x${string}` | undefined;
+        let grantFailed = false;
+        let grantError: string | undefined;
 
-        await publicClient.waitForTransactionReceipt({
-          hash: grantTx,
-        });
+        try {
+          grantTx = await walletClient.writeContract({
+            address: lockAddress as Address,
+            abi: ADDITIONAL_LOCK_ABI,
+            functionName: "addLockManager",
+            args: [normalizedServerWallet],
+            account: walletAccount,
+            chain: walletChain,
+            gas: gasWithPadding,
+          });
+
+          await publicClient.waitForTransactionReceipt({
+            hash: grantTx,
+          });
+
+          log.info("Server wallet granted lock manager role", {
+            grantTransactionHash: grantTx,
+            lockAddress,
+            serverWalletAddress: normalizedServerWallet,
+          });
+        } catch (grantErr: any) {
+          grantFailed = true;
+          grantError = truncateErrorMessage(
+            grantErr.message || "Failed to grant lock manager role",
+            150
+          );
+          log.error("Grant lock manager failed - lock deployed but grant failed", {
+            error: grantErr,
+            lockAddress,
+            serverWalletAddress: normalizedServerWallet,
+          });
+        }
 
         setState({ isLoading: false, error: null, isSuccess: true });
 
@@ -170,6 +194,8 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           grantTransactionHash: grantTx,
           lockAddress: lockAddress as Address,
           serverWalletAddress: normalizedServerWallet,
+          grantFailed,
+          grantError,
         };
       } catch (error: any) {
         const errorMsg = error.message || "Admin lock deployment failed";
