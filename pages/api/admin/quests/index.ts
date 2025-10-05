@@ -81,8 +81,17 @@ async function createQuest(
   res: NextApiResponse,
   supabase: any,
 ) {
-  const { title, description, image_url, tasks, xp_reward, is_active } =
-    req.body;
+  const {
+    title,
+    description,
+    image_url,
+    tasks,
+    xp_reward,
+    is_active,
+    lock_address,
+    lock_manager_granted,
+    grant_failure_reason,
+  } = req.body;
 
   if (!title) {
     return res.status(400).json({ error: "Title is required" });
@@ -99,6 +108,9 @@ async function createQuest(
         image_url,
         total_reward: xp_reward || 0,
         is_active,
+        lock_address,
+        lock_manager_granted,
+        grant_failure_reason,
       })
       .select()
       .single();

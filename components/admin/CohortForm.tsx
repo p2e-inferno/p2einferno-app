@@ -496,8 +496,14 @@ export default function CohortForm({
       // Generate ID for new cohorts
       const cohortId = getRecordId(isEditing, cohort?.id);
 
+      // Remove UI-only fields from formData before sending to database
+      const { auto_lock_creation, ...cleanFormData } =
+        formData as Partial<Cohort> & {
+          auto_lock_creation?: boolean;
+        };
+
       const dataToSave = {
-        ...formData,
+        ...cleanFormData,
         id: cohortId,
         key_managers: keyManagers,
         lock_address: lockAddress,

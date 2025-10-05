@@ -239,7 +239,7 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -330,7 +330,7 @@ import { keyGrantingService } from '../../../../lib/services/key-granting';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!
 );
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {

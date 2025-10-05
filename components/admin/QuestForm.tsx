@@ -475,9 +475,15 @@ export default function QuestForm({
 
       const method = isEditing ? "PUT" : "POST";
 
+      // Remove UI-only fields from formData before sending to database
+      const { auto_lock_creation, ...cleanFormData } =
+        formData as typeof formData & {
+          auto_lock_creation?: boolean;
+        };
+
       // Prepare quest data
       const questData = {
-        ...formData,
+        ...cleanFormData,
         lock_address: lockAddress,
         total_reward: totalReward,
         lock_manager_granted: lockManagerGranted,
@@ -752,7 +758,7 @@ export default function QuestForm({
           {isSubmitting || isDeployingFromHook ? (
             <>
               <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
-              {isDeployingFromHook ? "Deploying Lock..." : "Saving..."}
+              {isDeployingLock ? "Deploying Lock..." : "Saving..."}
             </>
           ) : (
             <>

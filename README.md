@@ -51,7 +51,7 @@ PRIVY_VERIFICATION_KEY="-----BEGIN PUBLIC KEY-----...-----END PUBLIC KEY-----"
 # Database
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+NEXT_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
 
 # Blockchain Configuration
 NEXT_PUBLIC_BLOCKCHAIN_NETWORK=base-sepolia
@@ -148,7 +148,7 @@ This project uses Supabase as its database. Follow these steps to set up the dat
    ```
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+   NEXT_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
    ```
 
 2. Install the required packages if they're not already installed:
