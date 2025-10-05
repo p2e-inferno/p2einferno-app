@@ -112,22 +112,40 @@ async function updateQuest(
   supabase: any,
   questId: string,
 ) {
-  const { quest, tasks } = req.body;
+  // Accept flat structure to match POST endpoint
+  const { tasks, xp_reward, ...questFields } = req.body;
 
-  if (!quest) {
+  // Log request body for debugging (temporary)
+  log.debug("Update quest request body", {
+    questId,
+    hasTasksField: !!tasks,
+    tasksCount: Array.isArray(tasks) ? tasks.length : 0,
+    hasXpReward: xp_reward !== undefined,
+    questFields: Object.keys(questFields),
+  });
+
+  if (!questFields || Object.keys(questFields).length === 0) {
     return res.status(400).json({ error: "Quest data is required" });
   }
 
   try {
     const now = new Date().toISOString();
 
+    // Prepare update data - map xp_reward to total_reward if provided
+    const updateData: any = {
+      ...questFields,
+      updated_at: now,
+    };
+
+    // Map xp_reward to total_reward (for compatibility with frontend)
+    if (xp_reward !== undefined) {
+      updateData.total_reward = xp_reward;
+    }
+
     // Update quest
     const { data: questData, error: questError } = await supabase
       .from("quests")
-      .update({
-        ...quest,
-        updated_at: now,
-      })
+      .update(updateData)
       .eq("id", questId)
       .select()
       .single();
