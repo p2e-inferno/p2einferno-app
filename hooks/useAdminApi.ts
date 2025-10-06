@@ -25,6 +25,14 @@ export interface ApiResponse<T = any> {
 }
 
 export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
+  const {
+    redirectOnAuthError = false,
+    redirectPath,
+    verifyTokenBeforeRequest = false,
+    suppressToasts = false,
+    autoSessionRefresh = true,
+  } = options;
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -41,7 +49,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
       setError(null);
 
       try {
-        if (options.verifyTokenBeforeRequest) {
+        if (verifyTokenBeforeRequest) {
           await verifyToken();
           // Note: useVerifyToken handles its own error state
           // We can check if verification was successful by checking the result
@@ -79,7 +87,7 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
           };
 
           // If unauthorized and auto refresh enabled, attempt session issuance then retry once
-          if (response.status === 401 && options.autoSessionRefresh !== false) {
+          if (response.status === 401 && autoSessionRefresh) {
             try {
               // Prefer Route Handler; fallback to Pages API session-fallback
               let sessionResp = await fetch("/api/admin/session", {
@@ -163,10 +171,10 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
           setError(errorMessage);
 
           // Handle redirects for authentication errors
-          if (response.status === 401 && options.redirectOnAuthError) {
-            router.push(options.redirectPath || "/admin/login");
+          if (response.status === 401 && redirectOnAuthError) {
+            router.push(redirectPath || "/admin/login");
           } else {
-            if (!options.suppressToasts) toast.error(errorMessage);
+            if (!suppressToasts) toast.error(errorMessage);
           }
 
           return { error: errorMessage };
@@ -194,13 +202,23 @@ export function useAdminApi<T = any>(options: UseAdminApiOptions = {}) {
             : err.message || "Network error";
 
         setError(errorMessage);
-        if (!options.suppressToasts) toast.error(errorMessage);
+        if (!suppressToasts) toast.error(errorMessage);
         return { error: errorMessage };
       } finally {
         setLoading(false);
       }
     },
-    [getAccessToken, router, options, verifyToken, selectedWallet?.address],
+    [
+      getAccessToken,
+      router,
+      autoSessionRefresh,
+      redirectOnAuthError,
+      redirectPath,
+      suppressToasts,
+      verifyTokenBeforeRequest,
+      verifyToken,
+      selectedWallet?.address,
+    ],
   );
 
   return {

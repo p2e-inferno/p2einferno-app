@@ -27,8 +27,13 @@ export async function GET(req: NextRequest) {
     const milestone_id = url.searchParams.get('milestone_id');
 
     if (milestone_id) {
-      const { data, error } = await supabase.from('cohort_milestones').select('*').eq('id', milestone_id).single();
+      const { data, error } = await supabase
+        .from('cohort_milestones')
+        .select('*')
+        .eq('id', milestone_id)
+        .maybeSingle();
       if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      if (!data) return NextResponse.json({ error: 'Milestone not found' }, { status: 404 });
       return NextResponse.json({ success: true, data }, { status: 200 });
     }
     if (!cohort_id) return NextResponse.json({ error: 'Missing cohort ID or milestone ID' }, { status: 400 });

@@ -8,7 +8,10 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { toast } from "react-hot-toast";
-import { formatErrorMessageForToast } from "@/lib/utils/toast-utils";
+import {
+  formatErrorMessageForToast,
+  showInfoToast,
+} from "@/lib/utils/toast-utils";
 import {
   generateCohortLockConfig,
   createLockConfigWithManagers,
@@ -22,6 +25,7 @@ import {
   savePendingDeployment,
   removePendingDeployment,
 } from "@/lib/utils/lock-deployment-state";
+import { resolveDraftById } from "@/lib/utils/draft";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { getLogger } from "@/lib/utils/logger";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
@@ -61,6 +65,7 @@ export default function CohortForm({
   // Memoize options to prevent adminFetch from being recreated every render
   const adminApiOptions = useMemo(() => ({}), []);
   const { adminFetch } = useAdminApi(adminApiOptions);
+  const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
   const [keyManagersInput, setKeyManagersInput] = useState<string>(
     cohort?.key_managers?.join(", ") || "",
@@ -163,27 +168,72 @@ export default function CohortForm({
 
   // Load draft data on mount
   useEffect(() => {
-    if (!isEditing) {
-      const draft = getDraft("cohort");
-      if (draft) {
-        setFormData((prev) => ({ ...prev, ...draft.formData }));
+    if (isEditing) return;
 
-        // Restore grant failure state if present
-        if (draft.formData.lock_manager_granted === false) {
-          setLockManagerGranted(false);
-          setGrantFailureReason(draft.formData.grant_failure_reason);
-        }
+    const draft = getDraft("cohort");
+    if (!draft) return;
 
-        // If draft contains a lock address, disable auto-creation
-        if (draft.formData.lock_address) {
+    let cancelled = false;
+
+    const hydrateDraft = (showRestoreToast: boolean = true) => {
+      setFormData((prev) => ({ ...prev, ...draft.formData }));
+
+      if (draft.formData?.lock_manager_granted === false) {
+        setLockManagerGranted(false);
+        setGrantFailureReason(draft.formData.grant_failure_reason);
+      }
+
+      if (showRestoreToast) {
+        if (draft.formData?.lock_address) {
           setShowAutoLockCreation(false);
           toast.success("Restored draft data with deployed lock");
         } else {
           toast.success("Restored draft data");
         }
       }
-    }
-  }, [isEditing]);
+    };
+
+    const fetchExisting = async (id: string) => {
+      const response = await silentFetch<{ success: boolean; data?: Cohort }>(
+        `/api/admin/cohorts/${id}`,
+      );
+      if (response.error || !response.data?.data) {
+        return null;
+      }
+      return response.data.data;
+    };
+
+    const resolveDraft = async () => {
+      const hadDraftId = Boolean(draft.formData?.id);
+      const resolution = await resolveDraftById({
+        draft,
+        fetchExisting,
+      });
+
+      if (cancelled) return;
+
+      if (resolution.mode === "existing") {
+        removeDraft("cohort");
+        toast.success("Draft already saved — redirecting to cohort editor.");
+        router.replace(`/admin/cohorts/${resolution.draftId}`);
+        return;
+      }
+
+      if (hadDraftId) {
+        showInfoToast(
+          "Saved cohort not found — continuing with draft as a new cohort.",
+        );
+      }
+
+      hydrateDraft(!hadDraftId);
+    };
+
+    resolveDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditing, adminFetch, silentFetch, router]);
 
   // Sync grant failure state from entity props when editing
   useEffect(() => {

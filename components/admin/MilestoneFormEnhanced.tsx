@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +12,10 @@ import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { toast } from "react-hot-toast";
-import { formatErrorMessageForToast } from "@/lib/utils/toast-utils";
+import {
+  formatErrorMessageForToast,
+  showInfoToast,
+} from "@/lib/utils/toast-utils";
 import {
   generateMilestoneLockConfig,
   createLockConfigWithManagers,
@@ -25,6 +29,7 @@ import {
   removeDraft,
   updateDraftWithDeploymentResult,
 } from "@/lib/utils/lock-deployment-state";
+import { resolveDraftById } from "@/lib/utils/draft";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
@@ -84,6 +89,7 @@ export default function MilestoneFormEnhanced({
   onSubmitSuccess,
   onCancel,
 }: MilestoneFormEnhancedProps) {
+  const router = useRouter();
   const isEditing = !!milestone;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeployingLock, setIsDeployingLock] = useState(false);
@@ -97,6 +103,7 @@ export default function MilestoneFormEnhanced({
     string | undefined
   >(isEditing ? (milestone?.grant_failure_reason ?? undefined) : undefined);
   const { adminFetch } = useAdminApi();
+  const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
   const { authenticated, isAdmin, user } = useAdminAuthContext();
   const { deployAdminLock, isLoading: isDeployingFromHook } =
@@ -143,46 +150,50 @@ export default function MilestoneFormEnhanced({
 
   // Load draft data on mount for new milestones
   useEffect(() => {
-    if (!isEditing) {
-      const draft = getDraft("milestone");
-      if (draft?.formData && typeof draft.formData === "object") {
-        const {
-          tasks: draftTasks,
-          auto_lock_creation: draftAutoLockCreation,
-          ...sanitizedDraftForm
-        } = draft.formData as Partial<CohortMilestone> & {
-          tasks?: TaskForm[];
-          auto_lock_creation?: boolean;
-          lock_manager_granted?: boolean;
-          grant_failure_reason?: string;
-        };
+    if (isEditing) return;
 
-        if (draftTasks) {
-          if (Array.isArray(draftTasks)) {
-            log.debug("Restored milestone draft tasks", {
-              taskCount: draftTasks.length,
-            });
-            setTasks(draftTasks);
-          } else {
-            log.warn("Ignoring malformed tasks payload on milestone draft", {
-              valueType: typeof draftTasks,
-            });
-          }
+    const draft = getDraft("milestone");
+    if (!draft?.formData || typeof draft.formData !== "object") return;
+
+    let cancelled = false;
+
+    const hydrateDraft = (showRestoreToast: boolean = true) => {
+      const {
+        tasks: draftTasks,
+        auto_lock_creation: draftAutoLockCreation,
+        ...sanitizedDraftForm
+      } = draft.formData as Partial<CohortMilestone> & {
+        tasks?: TaskForm[];
+        auto_lock_creation?: boolean;
+        lock_manager_granted?: boolean;
+        grant_failure_reason?: string;
+      };
+
+      if (draftTasks) {
+        if (Array.isArray(draftTasks)) {
+          log.debug("Restored milestone draft tasks", {
+            taskCount: draftTasks.length,
+          });
+          setTasks(draftTasks);
+        } else {
+          log.warn("Ignoring malformed tasks payload on milestone draft", {
+            valueType: typeof draftTasks,
+          });
         }
+      }
 
-        if (typeof draftAutoLockCreation === "boolean") {
-          setShowAutoLockCreation(draftAutoLockCreation);
-        }
+      if (typeof draftAutoLockCreation === "boolean") {
+        setShowAutoLockCreation(draftAutoLockCreation);
+      }
 
-        setFormData((prev) => ({ ...prev, ...sanitizedDraftForm }));
+      setFormData((prev) => ({ ...prev, ...sanitizedDraftForm }));
 
-        // Restore grant failure state if present
-        if (sanitizedDraftForm.lock_manager_granted === false) {
-          setLockManagerGranted(false);
-          setGrantFailureReason(sanitizedDraftForm.grant_failure_reason);
-        }
+      if (sanitizedDraftForm.lock_manager_granted === false) {
+        setLockManagerGranted(false);
+        setGrantFailureReason(sanitizedDraftForm.grant_failure_reason);
+      }
 
-        // If draft contains a lock address, disable auto-creation
+      if (showRestoreToast) {
         if (sanitizedDraftForm.lock_address) {
           setShowAutoLockCreation(false);
           toast.success("Restored draft data with deployed lock");
@@ -190,8 +201,54 @@ export default function MilestoneFormEnhanced({
           toast.success("Restored draft data");
         }
       }
-    }
-  }, [isEditing]);
+    };
+
+    const fetchExisting = async (id: string) => {
+      const response = await silentFetch<{
+        success: boolean;
+        data?: CohortMilestone;
+      }>(`/api/admin/milestones?milestone_id=${id}`);
+      if (response.error || !response.data?.data) {
+        return null;
+      }
+      return response.data.data;
+    };
+
+    const resolveDraft = async () => {
+      const hadDraftId = Boolean(draft.formData?.id);
+      const resolution = await resolveDraftById({
+        draft,
+        fetchExisting,
+      });
+
+      if (cancelled) return;
+
+      if (resolution.mode === "existing") {
+        removeDraft("milestone");
+        toast.success(
+          "Draft already saved — redirecting to milestone details.",
+        );
+        router.replace(
+          `/admin/cohorts/${cohortId}/milestones/${resolution.draftId}`,
+        );
+        return;
+      }
+
+      if (hadDraftId) {
+        showInfoToast(
+          "Saved milestone not found — continuing with draft as a new milestone.",
+        );
+      }
+
+      hydrateDraft(!hadDraftId);
+    };
+
+    resolveDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditing, adminFetch, silentFetch, router, cohortId]);
 
   // Sync grant failure state from entity props when editing
   useEffect(() => {

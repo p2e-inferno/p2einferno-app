@@ -10,7 +10,10 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import { PlusCircle, Coins, Save, X } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { formatErrorMessageForToast } from "@/lib/utils/toast-utils";
+import {
+  formatErrorMessageForToast,
+  showInfoToast,
+} from "@/lib/utils/toast-utils";
 import {
   generateQuestLockConfig,
   createLockConfigWithManagers,
@@ -23,6 +26,7 @@ import {
   updateDraftWithDeploymentResult,
   savePendingDeployment,
 } from "@/lib/utils/lock-deployment-state";
+import { resolveDraftById } from "@/lib/utils/draft";
 import type { Quest, QuestTask } from "@/lib/supabase/types";
 import { nanoid } from "nanoid";
 import { getLogger } from "@/lib/utils/logger";
@@ -45,6 +49,7 @@ export default function QuestForm({
 }: QuestFormProps) {
   const router = useRouter();
   const { adminFetch } = useAdminApi();
+  const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,41 +79,41 @@ export default function QuestForm({
 
   // Load draft data on mount
   useEffect(() => {
-    if (!isEditing) {
-      const draft = getDraft("quest");
-      if (draft) {
-        // Handle new structured format with questData and tasks
-        if (draft.formData.questData && draft.formData.tasks) {
-          setFormData((prev) => ({ ...prev, ...draft.formData.questData }));
-          setTasks(draft.formData.tasks);
+    if (isEditing) return;
 
-          // Restore grant failure state if present
-          if (draft.formData.questData.lock_manager_granted === false) {
-            setLockManagerGranted(false);
-            setGrantFailureReason(
-              draft.formData.questData.grant_failure_reason,
-            );
-          }
+    const draft = getDraft("quest");
+    if (!draft) return;
 
-          // If draft contains a lock address, disable auto-creation
+    let cancelled = false;
+
+    const hydrateDraft = (showRestoreToast: boolean = true) => {
+      if (draft.formData?.questData && draft.formData.tasks) {
+        setFormData((prev) => ({ ...prev, ...draft.formData.questData }));
+        setTasks(draft.formData.tasks);
+
+        if (draft.formData.questData.lock_manager_granted === false) {
+          setLockManagerGranted(false);
+          setGrantFailureReason(draft.formData.questData.grant_failure_reason);
+        }
+
+        if (showRestoreToast) {
           if (draft.formData.questData.lock_address) {
             setShowAutoLockCreation(false);
             toast.success("Restored draft data with deployed lock and tasks");
           } else {
             toast.success("Restored draft data with tasks");
           }
-        } else {
-          // Backward compatibility with old format
-          setFormData((prev) => ({ ...prev, ...draft.formData }));
+        }
+      } else {
+        setFormData((prev) => ({ ...prev, ...draft.formData }));
 
-          // Restore grant failure state if present
-          if (draft.formData.lock_manager_granted === false) {
-            setLockManagerGranted(false);
-            setGrantFailureReason(draft.formData.grant_failure_reason);
-          }
+        if (draft.formData?.lock_manager_granted === false) {
+          setLockManagerGranted(false);
+          setGrantFailureReason(draft.formData.grant_failure_reason);
+        }
 
-          // If draft contains a lock address, disable auto-creation
-          if (draft.formData.lock_address) {
+        if (showRestoreToast) {
+          if (draft.formData?.lock_address) {
             setShowAutoLockCreation(false);
             toast.success("Restored draft data with deployed lock");
           } else {
@@ -116,8 +121,49 @@ export default function QuestForm({
           }
         }
       }
-    }
-  }, [isEditing]);
+    };
+
+    const fetchExisting = async (id: string) => {
+      const response = await silentFetch<{ quest: Quest }>(
+        `/api/admin/quests/${id}`,
+      );
+      if (response.error) {
+        return null;
+      }
+      return response.data?.quest ?? null;
+    };
+
+    const resolveDraft = async () => {
+      const hadDraftId = Boolean(draft.formData?.id);
+      const resolution = await resolveDraftById({
+        draft,
+        fetchExisting,
+      });
+
+      if (cancelled) return;
+
+      if (resolution.mode === "existing") {
+        removeDraft("quest");
+        toast.success("Draft already saved — redirecting to quest editor.");
+        router.replace(`/admin/quests/${resolution.draftId}/edit`);
+        return;
+      }
+
+      if (hadDraftId) {
+        showInfoToast(
+          "Saved quest not found — continuing with draft as a new quest.",
+        );
+      }
+
+      hydrateDraft(!hadDraftId);
+    };
+
+    resolveDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditing, adminFetch, silentFetch, router]);
 
   // Sync grant failure state from entity props when editing
   useEffect(() => {

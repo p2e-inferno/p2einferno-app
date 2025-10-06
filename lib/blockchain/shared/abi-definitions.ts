@@ -3,7 +3,7 @@
  * Single source of truth for all smart contract ABIs
  */
 
-import { PUBLIC_LOCK_CONTRACT } from "../../../constants";
+import { PUBLIC_LOCK_CONTRACT } from "@/constants";
 
 // ============================================================================
 // UNLOCK PROTOCOL ABIS

@@ -51,7 +51,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
             )
           `)
           .eq('id', cohortId)
-          .single();
+          .maybeSingle();
 
         cohort = result.data;
         cohortError = result.error;

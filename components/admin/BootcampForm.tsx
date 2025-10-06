@@ -9,7 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { CopyBadge } from "@/components/ui/badge";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { toast } from "react-hot-toast";
-import { formatErrorMessageForToast } from "@/lib/utils/toast-utils";
+import {
+  formatErrorMessageForToast,
+  showInfoToast,
+} from "@/lib/utils/toast-utils";
 import {
   generateBootcampLockConfig,
   createLockConfigWithManagers,
@@ -24,6 +27,7 @@ import {
   removePendingDeployment,
   hasPendingDeployments,
 } from "@/lib/utils/lock-deployment-state";
+import { resolveDraftById } from "@/lib/utils/draft";
 import { getRecordId } from "@/lib/utils/id-generation";
 
 import ImageUpload from "@/components/ui/image-upload";
@@ -51,10 +55,11 @@ export default function BootcampForm({
   const [error, setError] = useState<string | null>(null);
   const wallet = useSmartWalletSelection();
 
-  const adminApi = useAdminApi({
+  const { adminFetch, error: adminApiError } = useAdminApi({
     redirectOnAuthError: false,
     showAuthErrorModal: true,
   });
+  const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
 
   const { isAdmin } = useAdminAuthContext();
   const { deployAdminLock, isLoading: isDeployingFromHook } =
@@ -103,31 +108,76 @@ export default function BootcampForm({
 
   // Load draft data on mount and check for pending deployments
   useEffect(() => {
-    if (!isEditing) {
-      const draft = getDraft("bootcamp");
-      if (draft) {
-        setFormData((prev) => ({ ...prev, ...draft.formData }));
+    if (isEditing) return;
 
-        // Restore grant failure state if present
-        if (draft.formData.lock_manager_granted === false) {
-          setLockManagerGranted(false);
-          setGrantFailureReason(draft.formData.grant_failure_reason);
-        }
+    const draft = getDraft("bootcamp");
+    const hasPending = hasPendingDeployments("bootcamp");
+    setHasPendingBootcampDeployments(hasPending);
 
-        // If draft contains a lock address, disable auto-creation
-        if (draft.formData.lock_address) {
+    if (!draft) return;
+
+    let cancelled = false;
+
+    const hydrateDraft = (showRestoreToast: boolean = true) => {
+      setFormData((prev) => ({ ...prev, ...draft.formData }));
+
+      if (draft.formData?.lock_manager_granted === false) {
+        setLockManagerGranted(false);
+        setGrantFailureReason(draft.formData.grant_failure_reason);
+      }
+
+      if (showRestoreToast) {
+        if (draft.formData?.lock_address) {
           setShowAutoLockCreation(false);
           toast.success("Restored draft data with deployed lock");
         } else {
           toast.success("Restored draft data");
         }
       }
+    };
 
-      // Check for pending deployments
-      const hasPending = hasPendingDeployments("bootcamp");
-      setHasPendingBootcampDeployments(hasPending);
-    }
-  }, [isEditing]);
+    const fetchExisting = async (id: string) => {
+      const response = await silentFetch<{
+        success: boolean;
+        data?: BootcampProgram;
+      }>(`/api/admin/bootcamps/${id}`);
+      if (response.error || !response.data?.data) {
+        return null;
+      }
+      return response.data.data;
+    };
+
+    const resolveDraft = async () => {
+      const hadDraftId = Boolean(draft.formData?.id);
+      const resolution = await resolveDraftById({
+        draft,
+        fetchExisting,
+      });
+
+      if (cancelled) return;
+
+      if (resolution.mode === "existing") {
+        removeDraft("bootcamp");
+        toast.success("Draft already saved — redirecting to bootcamp editor.");
+        router.replace(`/admin/bootcamps/${resolution.draftId}`);
+        return;
+      }
+
+      if (hadDraftId) {
+        showInfoToast(
+          "Saved bootcamp not found — continuing with draft as a new bootcamp.",
+        );
+      }
+
+      hydrateDraft(!hadDraftId);
+    };
+
+    resolveDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditing, adminFetch, silentFetch, router]);
 
   // Sync grant failure state from entity props when editing
   useEffect(() => {
@@ -139,10 +189,10 @@ export default function BootcampForm({
 
   // Clear local error when adminApi error is cleared
   useEffect(() => {
-    if (!adminApi.error) {
+    if (!adminApiError) {
       setError(null);
     }
-  }, [adminApi.error]);
+  }, [adminApiError]);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -424,7 +474,7 @@ export default function BootcampForm({
       const endpoint = "/api/admin/bootcamps";
       const method = isEditing ? "PUT" : "POST";
 
-      const response = await adminApi.adminFetch<{
+      const response = await adminFetch<{
         success: boolean;
         data?: BootcampProgram;
         error?: string;
