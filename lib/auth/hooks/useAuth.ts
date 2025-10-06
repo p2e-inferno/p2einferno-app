@@ -178,17 +178,16 @@ export function useAuth(
   useEffect(() => {
     if (authLevel === "admin" && options.adminStrategy !== "database") {
       if (typeof window !== "undefined" && window.ethereum) {
+        const ethereum = window.ethereum;
+
         const handleAccountsChanged = async () => {
           log.info("Wallet accounts changed, refreshing auth");
           await checkAdminAccess();
         };
 
-        window.ethereum.on("accountsChanged", handleAccountsChanged);
+        ethereum.on("accountsChanged", handleAccountsChanged);
         return () => {
-          window.ethereum?.removeListener(
-            "accountsChanged",
-            handleAccountsChanged,
-          );
+          ethereum.removeListener("accountsChanged", handleAccountsChanged);
         };
       }
     }
