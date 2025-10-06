@@ -85,7 +85,9 @@ export function listenForWalletAddressChanges(
             method: "eth_accounts",
           });
           const address =
-            Array.isArray(accounts) && accounts.length > 0 ? accounts[0] : null;
+            Array.isArray(accounts) && accounts.length > 0
+              ? (accounts[0] as string)
+              : null;
           await callback(address);
         } catch (error) {
           log.warn("Failed to get wallet accounts:", { error });
