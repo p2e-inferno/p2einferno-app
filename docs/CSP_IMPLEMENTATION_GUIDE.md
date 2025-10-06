@@ -134,6 +134,22 @@ const directives = [
 - `https://api.paystack.co` - Payment processing
 - `https://challenges.cloudflare.com` - Cloudflare challenges
 
+### Privy custom domains (whitelabel)
+If you use a Privy whitelabeled/custom domain (for example, `https://privy.p2einferno.com`), include it in both frame and network directives:
+
+- Add your custom Privy domain to `frame-src` so embedded Privy iframes can load.
+- Add your custom Privy domain to `connect-src` for XHR/fetch to Privy APIs.
+- Add the websocket variant `wss://<your-privy-domain>` to `connect-src` to allow websocket upgrades if Privy introduces or uses websockets.
+
+Example additions:
+
+```
+frame-src ... https://privy.p2einferno.com
+connect-src ... https://privy.p2einferno.com wss://privy.p2einferno.com
+```
+
+Note: adding the custom Privy domain to `script-src` is generally unnecessary unless you load scripts directly from that origin.
+
 ### Testing Verification
 All pages tested with enforcement mode:
 - ✅ Homepage (`/`) - No violations
