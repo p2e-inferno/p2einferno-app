@@ -232,7 +232,7 @@ export const useLockManagerAdminAuth = () => {
 
       // Clean up the event listener when the component unmounts
       return () => {
-        window.ethereum.removeListener(
+        window.ethereum?.removeListener(
           "accountsChanged",
           handleAccountsChanged,
         );

@@ -185,7 +185,7 @@ export function useAuth(
 
         window.ethereum.on("accountsChanged", handleAccountsChanged);
         return () => {
-          window.ethereum.removeListener(
+          window.ethereum?.removeListener(
             "accountsChanged",
             handleAccountsChanged,
           );
