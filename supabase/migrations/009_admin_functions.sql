@@ -15,10 +15,8 @@ BEGIN
   RETURN admin_role;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 -- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION is_admin(UUID) TO authenticated;
-
 -- Add metadata column to user_profiles if it doesn't exist
 DO $$ 
 BEGIN
@@ -29,4 +27,4 @@ BEGIN
   ) THEN
     ALTER TABLE user_profiles ADD COLUMN metadata JSONB DEFAULT '{}'::jsonb;
   END IF;
-END $$; 
+END $$;

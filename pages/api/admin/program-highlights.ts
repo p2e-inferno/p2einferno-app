@@ -2,16 +2,16 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:admin:program-highlights");
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "POST") {
     return createHighlights(req, res);
   } else if (req.method === "GET") {
@@ -28,7 +28,6 @@ async function handler(
 
 async function createHighlights(req: NextApiRequest, res: NextApiResponse) {
   try {
-
     const { highlights, cohortId } = req.body;
 
     if (!highlights || !Array.isArray(highlights) || highlights.length === 0) {
@@ -49,13 +48,19 @@ async function createHighlights(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Delete existing highlights for this cohort
-    await supabaseAdmin.from("program_highlights").delete().eq("cohort_id", cohortId);
+    await supabaseAdmin
+      .from("program_highlights")
+      .delete()
+      .eq("cohort_id", cohortId);
 
     // Insert new highlights
-    const { data, error } = await supabaseAdmin.from("program_highlights").insert(highlights).select();
+    const { data, error } = await supabaseAdmin
+      .from("program_highlights")
+      .insert(highlights)
+      .select();
 
     if (error) {
-      console.error("Error creating highlights:", error);
+      log.error("Error creating highlights:", error);
       return res.status(500).json({ error: "Failed to create highlights" });
     }
 
@@ -64,7 +69,7 @@ async function createHighlights(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in createHighlights:", error);
+    log.error("Error in createHighlights:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -84,7 +89,7 @@ async function getHighlights(req: NextApiRequest, res: NextApiResponse) {
       .order("order_index");
 
     if (error) {
-      console.error("Error fetching highlights:", error);
+      log.error("Error fetching highlights:", error);
       return res.status(500).json({ error: "Failed to fetch highlights" });
     }
 
@@ -93,14 +98,13 @@ async function getHighlights(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in getHighlights:", error);
+    log.error("Error in getHighlights:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
 
 async function updateHighlight(req: NextApiRequest, res: NextApiResponse) {
   try {
-
     const { id, ...updateData } = req.body;
 
     if (!id) {
@@ -118,7 +122,7 @@ async function updateHighlight(req: NextApiRequest, res: NextApiResponse) {
       .single();
 
     if (error) {
-      console.error("Error updating highlight:", error);
+      log.error("Error updating highlight:", error);
       return res.status(500).json({ error: "Failed to update highlight" });
     }
 
@@ -127,14 +131,13 @@ async function updateHighlight(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in updateHighlight:", error);
+    log.error("Error in updateHighlight:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
 
 async function deleteHighlight(req: NextApiRequest, res: NextApiResponse) {
   try {
-
     const { id } = req.query;
 
     if (!id) {
@@ -147,7 +150,7 @@ async function deleteHighlight(req: NextApiRequest, res: NextApiResponse) {
       .eq("id", id);
 
     if (error) {
-      console.error("Error deleting highlight:", error);
+      log.error("Error deleting highlight:", error);
       return res.status(500).json({ error: "Failed to delete highlight" });
     }
 
@@ -156,7 +159,7 @@ async function deleteHighlight(req: NextApiRequest, res: NextApiResponse) {
       message: "Highlight deleted successfully",
     });
   } catch (error) {
-    console.error("Error in deleteHighlight:", error);
+    log.error("Error in deleteHighlight:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }

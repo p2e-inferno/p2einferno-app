@@ -1,78 +1,96 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { getLogger } from "@/lib/utils/logger";
 
-function EditBootcampPage() {
+const log = getLogger("admin:bootcamps:[id]");
+
+export default function EditBootcampPage() {
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi();
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(apiOptions);
 
   const [bootcamp, setBootcamp] = useState<BootcampProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch bootcamp data
-  useEffect(() => {
-    async function fetchBootcamp() {
-      if (!id) return;
+  const fetchBootcamp = useCallback(async () => {
+    if (!id) return;
 
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: BootcampProgram}>(`/api/admin/bootcamps/${id}`);
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        if (!result.data?.data) {
-          throw new Error("Bootcamp not found");
-        }
+      const result = await adminFetch<{
+        success: boolean;
+        data: BootcampProgram;
+        error?: string;
+      }>(`/api/admin/bootcamps/${id}`);
 
-        setBootcamp(result.data.data);
-      } catch (err: any) {
-        console.error("Error fetching bootcamp:", err);
-        setError(err.message || "Failed to load bootcamp");
-      } finally {
-        setIsLoading(false);
+      if (result.error) {
+        throw new Error(result.error);
       }
-    }
 
-    if (id) {
-      fetchBootcamp();
+      if (!result.data?.success || !result.data.data) {
+        throw new Error(result.data?.error || "Bootcamp not found");
+      }
+
+      setBootcamp(result.data.data);
+    } catch (err: any) {
+      log.error("Error fetching bootcamp:", err);
+      setError(err.message || "Failed to load bootcamp");
+    } finally {
+      setIsLoading(false);
     }
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [id as string | undefined],
+    fetcher: fetchBootcamp,
+  });
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchBootcamp();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <AdminEditPageLayout
       title="Edit Bootcamp"
       backLinkHref="/admin/bootcamps"
       backLinkText="Back to bootcamps"
-      isLoading={isLoading}
+      isLoading={isLoadingAuth || isLoading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
-      {bootcamp ? (
-        <BootcampForm bootcamp={bootcamp} isEditing />
-      ) : // This specific "Bootcamp not found" message can be shown if !isLoading && !error && !bootcamp
-      // AdminEditPageLayout will show general error if `error` prop is set.
-      // If no error, but no bootcamp, and not loading, it implies not found.
-      !isLoading && !error && !bootcamp ? (
-        <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
-          Bootcamp not found. It may have been deleted or the ID is incorrect.
-        </div>
-      ) : null // Loading/Error is handled by AdminEditPageLayout
+      {
+        bootcamp ? (
+          <BootcampForm bootcamp={bootcamp} isEditing />
+        ) : // This specific "Bootcamp not found" message can be shown if !isLoading && !error && !bootcamp
+        // AdminEditPageLayout will show general error if `error` prop is set.
+        // If no error, but no bootcamp, and not loading, it implies not found.
+        !isLoading && !error && !bootcamp ? (
+          <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
+            Bootcamp not found. It may have been deleted or the ID is incorrect.
+          </div>
+        ) : null // Loading/Error is handled by AdminEditPageLayout
       }
     </AdminEditPageLayout>
   );
 }
-
-// Export the page wrapped in admin authentication
-export default withAdminAuth(
-  EditBootcampPage,
-  { message: "You need admin access to manage bootcamps" }
-);

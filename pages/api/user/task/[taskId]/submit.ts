@@ -1,11 +1,19 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import { canEarnRewards } from "@/lib/utils/milestone-utils";
-import type { ApiResponse } from "@/lib/api";
+import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
+import type { ApiResponse } from "@/lib/helpers/api";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:user:task:[taskId]:submit");
 
 interface TaskSubmissionData {
-  submission_type: 'url' | 'file' | 'text' | 'contract_interaction' | 'external_verification';
+  submission_type:
+    | "url"
+    | "file"
+    | "text"
+    | "contract_interaction"
+    | "external_verification";
   submission_url?: string;
   submission_data?: any;
   file_urls?: string[];
@@ -27,19 +35,19 @@ interface TaskSubmissionResponse {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<TaskSubmissionResponse>>
+  res: NextApiResponse<ApiResponse<TaskSubmissionResponse>>,
 ) {
   if (!["POST", "PUT"].includes(req.method || "")) {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
   try {
     const supabase = createAdminClient();
     const user = await getPrivyUser(req);
-    
+
     if (!user?.id) {
       return res.status(401).json({
         success: false,
@@ -48,12 +56,13 @@ export default async function handler(
     }
 
     const { taskId } = req.query;
-    const submissionData: TaskSubmissionData & { submission_id?: string } = req.body;
+    const submissionData: TaskSubmissionData & { submission_id?: string } =
+      req.body;
 
     if (!taskId || typeof taskId !== "string") {
       return res.status(400).json({
         success: false,
-        error: "Invalid task ID"
+        error: "Invalid task ID",
       });
     }
 
@@ -61,7 +70,7 @@ export default async function handler(
     if (!submissionData.submission_type) {
       return res.status(400).json({
         success: false,
-        error: "Submission type is required"
+        error: "Submission type is required",
       });
     }
 
@@ -82,7 +91,8 @@ export default async function handler(
     // Get task details and verify user can access it
     const { data: task, error: taskError } = await supabase
       .from("milestone_tasks")
-      .select(`
+      .select(
+        `
         id,
         title,
         reward_amount,
@@ -94,7 +104,8 @@ export default async function handler(
           start_date,
           end_date
         )
-      `)
+      `,
+      )
       .eq("id", taskId)
       .single();
 
@@ -123,9 +134,22 @@ export default async function handler(
       });
     }
 
-    // Check if milestone reward period has expired
-    const milestone = Array.isArray(task.milestone) ? task.milestone[0] : task.milestone;
-    const rewardsAvailable = canEarnRewards(milestone?.start_date, milestone?.end_date);
+    // Check milestone timing
+    const milestone = Array.isArray(task.milestone)
+      ? task.milestone[0]
+      : task.milestone;
+    const timing = getMilestoneTimingInfo(
+      milestone?.start_date,
+      milestone?.end_date,
+    );
+    if (timing.status === "not_started") {
+      return res.status(400).json({
+        success: false,
+        error:
+          "This milestone is not yet available. Please wait until the start date.",
+      });
+    }
+    const rewardsAvailable = timing.status === "active";
     const effectiveRewardAmount = rewardsAvailable ? task.reward_amount : 0;
 
     // Check if user already has any submission for this task
@@ -140,7 +164,8 @@ export default async function handler(
     if (existingSubmission && existingSubmission.status === "pending") {
       return res.status(409).json({
         success: false,
-        error: "You already have a pending submission for this task. Please wait for review.",
+        error:
+          "You already have a pending submission for this task. Please wait for review.",
       });
     }
 
@@ -152,64 +177,75 @@ export default async function handler(
     }
 
     let submission;
-    
+
     // Handle explicit PUT request with submission_id
-    if (req.method === 'PUT' && submissionData.submission_id) {
+    if (req.method === "PUT" && submissionData.submission_id) {
       const { data: existing, error: fetchErr } = await supabase
-        .from('task_submissions')
-        .select('id, status, user_id')
-        .eq('id', submissionData.submission_id)
+        .from("task_submissions")
+        .select("id, status, user_id")
+        .eq("id", submissionData.submission_id)
         .single();
       if (fetchErr || !existing) {
-        return res.status(404).json({ success: false, error: "Submission not found" });
+        return res
+          .status(404)
+          .json({ success: false, error: "Submission not found" });
       }
       if (existing.user_id !== user.id) {
-        return res.status(403).json({ success: false, error: "Not allowed to edit this submission" });
+        return res.status(403).json({
+          success: false,
+          error: "Not allowed to edit this submission",
+        });
       }
-      if (!['pending', 'failed', 'retry'].includes(existing.status)) {
-        return res.status(400).json({ success: false, error: "Only pending, failed, or retry submissions can be edited" });
+      if (!["pending", "failed", "retry"].includes(existing.status)) {
+        return res.status(400).json({
+          success: false,
+          error: "Only pending, failed, or retry submissions can be edited",
+        });
       }
       const { data: updated, error: updateErr } = await supabase
-        .from('task_submissions')
+        .from("task_submissions")
         .update({
           submission_type: submissionData.submission_type,
           submission_url: submissionData.submission_url,
           submission_data: submissionData.submission_data || {},
           file_urls: submissionData.file_urls || [],
           submission_metadata: submissionData.submission_metadata || {},
-          status: 'pending', // Reset status to pending for resubmission
+          status: "pending", // Reset status to pending for resubmission
           submitted_at: new Date().toISOString(), // Update submission time
           updated_at: new Date().toISOString(),
           reviewed_at: null, // Clear previous review
           reviewed_by: null,
-          feedback: null
+          feedback: null,
         })
-        .eq('id', submissionData.submission_id)
+        .eq("id", submissionData.submission_id)
         .select(`id,status,submitted_at`)
         .single();
       if (updateErr) {
         throw new Error(`Failed to update submission: ${updateErr.message}`);
       }
       submission = updated;
-    } 
+    }
     // If user has a failed or retry submission, update it instead of creating new
-    else if (existingSubmission && ['failed', 'retry'].includes(existingSubmission.status)) {
+    else if (
+      existingSubmission &&
+      ["failed", "retry"].includes(existingSubmission.status)
+    ) {
       const { data: updated, error: updateErr } = await supabase
-        .from('task_submissions')
+        .from("task_submissions")
         .update({
           submission_type: submissionData.submission_type,
           submission_url: submissionData.submission_url,
           submission_data: submissionData.submission_data || {},
           file_urls: submissionData.file_urls || [],
           submission_metadata: submissionData.submission_metadata || {},
-          status: 'pending', // Reset status to pending for resubmission
+          status: "pending", // Reset status to pending for resubmission
           submitted_at: new Date().toISOString(), // Update submission time
           updated_at: new Date().toISOString(),
           reviewed_at: null, // Clear previous review
           reviewed_by: null,
-          feedback: null
+          feedback: null,
         })
-        .eq('id', existingSubmission.id)
+        .eq("id", existingSubmission.id)
         .select(`id,status,submitted_at`)
         .single();
       if (updateErr) {
@@ -229,16 +265,20 @@ export default async function handler(
           submission_data: submissionData.submission_data || {},
           file_urls: submissionData.file_urls || [],
           submission_metadata: submissionData.submission_metadata || {},
-          status: 'pending'
+          status: "pending",
         })
-        .select(`
+        .select(
+          `
           id,
           status,
           submitted_at
-        `)
+        `,
+        )
         .single();
       if (submissionError) {
-        throw new Error(`Failed to create submission: ${submissionError.message}`);
+        throw new Error(
+          `Failed to create submission: ${submissionError.message}`,
+        );
       }
       submission = created;
     }
@@ -256,13 +296,12 @@ export default async function handler(
         task: {
           id: task.id,
           title: task.title,
-          reward_amount: task.reward_amount
-        }
-      }
+          reward_amount: task.reward_amount,
+        },
+      },
     });
-
   } catch (error: any) {
-    console.error("Error creating task submission:", error);
+    log.error("Error creating task submission:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to create task submission",

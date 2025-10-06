@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import type { ApiResponse } from "@/lib/api";
+import type { ApiResponse } from "@/lib/helpers/api";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:user:enrollments");
 
 interface EnrollmentWithDetails {
   id: string;
@@ -79,12 +82,12 @@ type RawMilestoneProgress = {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<EnrollmentWithDetails[]>>
+  res: NextApiResponse<ApiResponse<EnrollmentWithDetails[]>>,
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
@@ -118,7 +121,7 @@ export default async function handler(
     }
     if (!profile) {
       if (lastError) {
-        console.error("[ENROLLMENTS] Profile lookup error:", lastError);
+        log.error("[ENROLLMENTS] Profile lookup error:", lastError);
       }
       return res.status(404).json({
         success: false,
@@ -129,7 +132,8 @@ export default async function handler(
     // Fetch user enrollments with cohort and bootcamp details
     const { data: enrollmentsData, error: enrollmentsError } = await supabase
       .from("bootcamp_enrollments")
-      .select(`
+      .select(
+        `
         id,
         enrollment_status,
         progress,
@@ -151,23 +155,27 @@ export default async function handler(
             image_url
           )
         )
-      `)
+      `,
+      )
       .eq("user_profile_id", profile.id)
       .order("created_at", { ascending: false });
 
     if (enrollmentsError) {
-      throw new Error(`Failed to fetch enrollments: ${enrollmentsError.message}`);
+      throw new Error(
+        `Failed to fetch enrollments: ${enrollmentsError.message}`,
+      );
     }
 
     // For each enrollment, get milestone progress
     const enrollmentsWithProgress: EnrollmentWithDetails[] = [];
-    
+
     const enrollments = (enrollmentsData || []) as unknown as RawEnrollment[];
     for (const enrollment of enrollments) {
       // Get milestone progress for this cohort
       const { data: milestoneProgressData } = await supabase
         .from("user_milestone_progress")
-        .select(`
+        .select(
+          `
           milestone_id,
           status,
           progress_percentage,
@@ -176,34 +184,43 @@ export default async function handler(
             name,
             order_index
           )
-        `)
+        `,
+        )
         .eq("user_profile_id", profile.id)
         .in("milestone_id", [
           // Get all milestone IDs for this cohort
-          ...(await supabase
-            .from("cohort_milestones")
-            .select("id")
-            .eq("cohort_id", enrollment.cohort.id))
-            .data?.map(m => m.id) || []
+          ...((
+            await supabase
+              .from("cohort_milestones")
+              .select("id")
+              .eq("cohort_id", enrollment.cohort.id)
+          ).data?.map((m) => m.id) || []),
         ]);
 
       // Calculate milestone progress stats
-      const milestoneProgress = (milestoneProgressData || []) as unknown as RawMilestoneProgress[];
+      const milestoneProgress = (milestoneProgressData ||
+        []) as unknown as RawMilestoneProgress[];
       const totalMilestones = milestoneProgress.length;
-      const completedMilestones = milestoneProgress.filter(mp => mp.status === 'completed').length;
-      const currentMilestone = milestoneProgress.find(mp => mp.status === 'in_progress');
+      const completedMilestones = milestoneProgress.filter(
+        (mp) => mp.status === "completed",
+      ).length;
+      const currentMilestone = milestoneProgress.find(
+        (mp) => mp.status === "in_progress",
+      );
 
       enrollmentsWithProgress.push({
         ...enrollment,
         milestone_progress: {
           total_milestones: totalMilestones,
           completed_milestones: completedMilestones,
-          current_milestone: currentMilestone ? {
-            id: currentMilestone.milestone.id,
-            name: currentMilestone.milestone.name,
-            progress_percentage: currentMilestone.progress_percentage
-          } : undefined
-        }
+          current_milestone: currentMilestone
+            ? {
+                id: currentMilestone.milestone.id,
+                name: currentMilestone.milestone.name,
+                progress_percentage: currentMilestone.progress_percentage,
+              }
+            : undefined,
+        },
       });
     }
 
@@ -212,7 +229,7 @@ export default async function handler(
       data: enrollmentsWithProgress,
     });
   } catch (error: any) {
-    console.error("Error fetching user enrollments:", error);
+    log.error("Error fetching user enrollments:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch enrollments",

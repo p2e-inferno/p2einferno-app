@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("hooks:useUserEnrollments");
 
 interface EnrollmentWithDetails {
   id: string;
@@ -88,7 +91,7 @@ export const useUserEnrollments = (): UseUserEnrollmentsResult => {
       const result = await response.json();
       setEnrollments(result.data || []);
     } catch (err: any) {
-      console.error("Enrollments fetch error:", err);
+      log.error("Enrollments fetch error:", err);
       setError(err.message);
       toast.error("Failed to load enrollments");
     } finally {

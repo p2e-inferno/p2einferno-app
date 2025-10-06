@@ -4,6 +4,5 @@
 
 DROP TRIGGER IF EXISTS validate_cohort_dates_insert ON public.cohorts;
 DROP TRIGGER IF EXISTS validate_cohort_dates_update ON public.cohorts;
-
 -- Remove the validation function as well since we don't need it anymore
 DROP FUNCTION IF EXISTS validate_cohort_dates();

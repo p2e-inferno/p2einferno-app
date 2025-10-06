@@ -1,21 +1,24 @@
 import { WalletApiRpcResponseType } from "@privy-io/public-api";
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getLogger } from "@/lib/utils/logger";
 import {
   APIError,
   fetchAndVerifyAuthorization,
   createPrivyClient,
-} from "../../../lib/privyUtils";
+} from "../../../lib/utils/privyUtils";
+
+const log = getLogger("api:ethereum:personal_sign");
 
 const client = createPrivyClient();
 
 export default async function POST(
   req: NextApiRequest,
-  res: NextApiResponse<WalletApiRpcResponseType | APIError>
+  res: NextApiResponse<WalletApiRpcResponseType | APIError>,
 ) {
   const errorOrVerifiedClaims = await fetchAndVerifyAuthorization(
     req,
     res,
-    client
+    client,
   );
   const authorized = errorOrVerifiedClaims && "appId" in errorOrVerifiedClaims;
   if (!authorized) return errorOrVerifiedClaims;
@@ -42,7 +45,7 @@ export default async function POST(
       },
     });
   } catch (error) {
-    console.error(error);
+    log.error(error);
     let statusCode = 500;
 
     return res.status(statusCode).json({

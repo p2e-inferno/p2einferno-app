@@ -2,6 +2,7 @@ import React from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import AdminLayout from "@/components/layouts/AdminLayout"; // Assuming AdminLayout provides overall structure
+import { NetworkError } from "@/components/ui/network-error";
 
 interface AdminEditPageLayoutProps {
   title: string;
@@ -9,6 +10,8 @@ interface AdminEditPageLayoutProps {
   backLinkText: string;
   isLoading?: boolean;
   error?: string | null;
+  onRetry?: () => void;
+  isRetrying?: boolean;
   children?: React.ReactNode;
 }
 
@@ -18,6 +21,8 @@ const AdminEditPageLayout: React.FC<AdminEditPageLayoutProps> = ({
   backLinkText,
   isLoading = false,
   error = null,
+  onRetry,
+  isRetrying = false,
   children,
 }) => {
   return (
@@ -39,8 +44,12 @@ const AdminEditPageLayout: React.FC<AdminEditPageLayoutProps> = ({
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-flame-yellow"></div>
           </div>
         ) : error ? (
-          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-6">
-            {error}
+          <div className="mb-6">
+            <NetworkError
+              error={error}
+              onRetry={onRetry}
+              isRetrying={isRetrying}
+            />
           </div>
         ) : (
           <div className="bg-card border border-gray-800 rounded-lg p-6">

@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { AlertTriangle, CreditCard, Trash2, Settings } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("lobby:pending-applications-alert");
 
 interface PendingApplication {
   id: string;
@@ -39,7 +42,7 @@ export const PendingApplicationsAlert: React.FC<
   const [cancelingApp, setCancelingApp] = useState<string | null>(null);
   const [reconcilingApp, setReconcilingApp] = useState<string | null>(null);
   const [showConfirmDialog, setShowConfirmDialog] = useState<string | null>(
-    null
+    null,
   );
 
   const handleCancelApplication = async (applicationId: string) => {
@@ -59,12 +62,12 @@ export const PendingApplicationsAlert: React.FC<
       }
 
       // Success - refresh the data
-      console.log("Application cancelled successfully");
+      log.info("Application cancelled successfully");
       onRefresh?.();
     } catch (error) {
-      console.error("Failed to cancel application:", error);
+      log.error("Failed to cancel application:", error);
       alert(
-        error instanceof Error ? error.message : "Failed to cancel application"
+        error instanceof Error ? error.message : "Failed to cancel application",
       );
     } finally {
       setCancelingApp(null);
@@ -74,7 +77,7 @@ export const PendingApplicationsAlert: React.FC<
 
   const handleReconcileApplication = async (applicationId: string) => {
     if (!user) {
-      alert('User not authenticated');
+      alert("User not authenticated");
       return;
     }
 
@@ -82,7 +85,7 @@ export const PendingApplicationsAlert: React.FC<
 
     try {
       const token = await getAccessToken();
-      
+
       // Use the same pattern as dashboard data hook
       const requestData = {
         applicationId,
@@ -91,10 +94,10 @@ export const PendingApplicationsAlert: React.FC<
         walletAddress: user.wallet?.address,
       };
 
-      const response = await fetch('/api/user/applications/reconcile', {
-        method: 'POST',
+      const response = await fetch("/api/user/applications/reconcile", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(requestData),
@@ -102,21 +105,23 @@ export const PendingApplicationsAlert: React.FC<
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to reconcile application');
+        throw new Error(error.error || "Failed to reconcile application");
       }
 
       const result = await response.json();
-      
+
       if (result.success) {
-        console.log('Application reconciled successfully');
+        log.info("Application reconciled successfully");
         onRefresh?.();
       } else {
-        throw new Error(result.message || 'Reconciliation failed');
+        throw new Error(result.message || "Reconciliation failed");
       }
     } catch (error) {
-      console.error('Failed to reconcile application:', error);
+      log.error("Failed to reconcile application:", error);
       alert(
-        error instanceof Error ? error.message : 'Failed to reconcile application'
+        error instanceof Error
+          ? error.message
+          : "Failed to reconcile application",
       );
     } finally {
       setReconcilingApp(null);
@@ -172,7 +177,9 @@ export const PendingApplicationsAlert: React.FC<
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-red-200">
-                        Cohort: {app.applications.cohorts?.name || app.applications.cohort_id}
+                        Cohort:{" "}
+                        {app.applications.cohorts?.name ||
+                          app.applications.cohort_id}
                       </p>
                       <p className="text-sm text-red-300">
                         Level: {app.applications.experience_level}
@@ -207,13 +214,15 @@ export const PendingApplicationsAlert: React.FC<
                         </button>
                       )}
                       {!app.needsReconciliation && (
-                      <button
-                        onClick={() => setShowConfirmDialog(app.application_id)}
-                        disabled={cancelingApp === app.application_id}
-                        className="flex items-center space-x-1 bg-red-600/80 text-red-100 px-3 py-2 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
-                        title="Cancel application"
-                      >
-                        <Trash2 size={14} />
+                        <button
+                          onClick={() =>
+                            setShowConfirmDialog(app.application_id)
+                          }
+                          disabled={cancelingApp === app.application_id}
+                          className="flex items-center space-x-1 bg-red-600/80 text-red-100 px-3 py-2 rounded-lg hover:bg-red-600 transition-colors disabled:opacity-50"
+                          title="Cancel application"
+                        >
+                          <Trash2 size={14} />
                           <span className="text-sm">Cancel Application</span>
                         </button>
                       )}

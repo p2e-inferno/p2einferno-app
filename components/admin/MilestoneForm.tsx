@@ -6,6 +6,9 @@ import { Textarea } from "@/components/ui/textarea";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import { nanoid } from "nanoid";
 import { usePrivy } from "@privy-io/react-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:MilestoneForm");
 
 interface MilestoneFormProps {
   cohortId: string;
@@ -41,13 +44,13 @@ export default function MilestoneForm({
       end_date: "",
       lock_address: "",
       prerequisite_milestone_id: "",
-    }
+    },
   );
 
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    >,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -122,7 +125,7 @@ export default function MilestoneForm({
         onSubmitSuccess();
       }
     } catch (err: any) {
-      console.error("Error saving milestone:", err);
+      log.error("Error saving milestone:", err);
       setError(err.message || "Failed to save milestone");
       setIsSubmitting(false);
     }

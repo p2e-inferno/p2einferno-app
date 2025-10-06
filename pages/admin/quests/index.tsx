@@ -8,6 +8,12 @@ import Link from "next/link";
 import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { getLogger } from "@/lib/utils/logger";
+import { toast } from "react-hot-toast";
+import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+
+const log = getLogger("admin:quests:index");
 
 interface QuestWithStats extends Quest {
   stats?: {
@@ -31,15 +37,21 @@ export default function AdminQuestsPage() {
     questTitle: "",
   });
   const [isDeleting, setIsDeleting] = useState(false);
-  const { adminFetch, loading } = useAdminApi();
+  const [checkingDelete, setCheckingDelete] = useState<string | null>(null);
+  const { adminFetch, loading } = useAdminApi({ suppressToasts: true });
+  const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection();
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const fetchQuests = useCallback(async () => {
     try {
       setError(null);
 
       // Fetch quests via adminFetch
-      const result = await adminFetch<{success: boolean, data: Quest[]}>("/api/admin/quests");
-      
+      const result = await adminFetch<{ success: boolean; data: Quest[] }>(
+        "/api/admin/quests",
+      );
+
       if (result.error) {
         throw new Error(result.error);
       }
@@ -49,7 +61,7 @@ export default function AdminQuestsPage() {
 
       setQuests(Array.isArray(questsWithStats) ? questsWithStats : []);
     } catch (err: any) {
-      console.error("Error fetching quests:", err);
+      log.error("Error fetching quests:", err);
       setError(err.message || "Failed to load quests");
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -58,11 +70,20 @@ export default function AdminQuestsPage() {
     fetchQuests();
   }, [fetchQuests]);
 
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchQuests();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
   const toggleQuestStatus = async (quest: Quest) => {
     try {
       setError(null);
       const result = await adminFetch(`/api/admin/quests/${quest.id}`, {
-        method: 'PATCH',
+        method: "PATCH",
         body: JSON.stringify({ is_active: !quest.is_active }),
       });
 
@@ -73,17 +94,58 @@ export default function AdminQuestsPage() {
       // Refresh quests
       fetchQuests();
     } catch (err: any) {
-      console.error("Error toggling quest status:", err);
+      log.error("Error toggling quest status:", err);
       setError(err.message || "Failed to update quest status");
     }
   };
 
-  const openDeleteConfirmation = (quest: Quest) => {
-    setDeleteConfirmation({
-      isOpen: true,
-      questId: quest.id,
-      questTitle: quest.title,
-    });
+  const openDeleteConfirmation = async (quest: Quest) => {
+    setCheckingDelete(quest.id);
+    try {
+      // Get auth token for direct fetch (avoids triggering global loading state)
+      const accessToken = await getAccessToken();
+
+      if (!accessToken) {
+        toast.error("Authentication required");
+        return;
+      }
+
+      // Direct fetch - doesn't trigger global loading state
+      const response = await fetch(`/api/admin/quests/${quest.id}/can-delete`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
+        },
+        credentials: "include",
+      });
+
+      if (!response.ok) {
+        toast.error("Failed to verify delete status");
+        return;
+      }
+
+      const result = await response.json();
+
+      if (!result.canDelete) {
+        // Show error toast instead of modal
+        toast.error(result.message || "Cannot delete this quest", {
+          duration: 5000,
+        });
+        return;
+      }
+
+      // Deletion is allowed, show confirmation modal
+      setDeleteConfirmation({
+        isOpen: true,
+        questId: quest.id,
+        questTitle: quest.title,
+      });
+    } catch (err: any) {
+      log.error("Error checking delete status:", err);
+      toast.error("Failed to verify delete status");
+    } finally {
+      setCheckingDelete(null);
+    }
   };
 
   const closeDeleteConfirmation = () => {
@@ -98,21 +160,25 @@ export default function AdminQuestsPage() {
   const handleDeleteConfirm = async () => {
     try {
       setIsDeleting(true);
-      setError(null);
-      const result = await adminFetch(`/api/admin/quests/${deleteConfirmation.questId}`, {
-        method: 'DELETE',
-      });
+      const result = await adminFetch(
+        `/api/admin/quests/${deleteConfirmation.questId}`,
+        {
+          method: "DELETE",
+        },
+      );
 
       if (result.error) {
         throw new Error(result.error);
       }
 
-      // Refresh quests
+      toast.success("Quest deleted successfully!");
       await fetchQuests();
       closeDeleteConfirmation();
     } catch (err: any) {
-      console.error("Error deleting quest:", err);
-      setError(err.message || "Failed to delete quest");
+      log.error("Error deleting quest:", err);
+      toast.error(err.message || "Failed to delete quest");
+      closeDeleteConfirmation();
+    } finally {
       setIsDeleting(false);
     }
   };
@@ -143,6 +209,8 @@ export default function AdminQuestsPage() {
       newButtonLink="/admin/quests/new"
       isLoading={loading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
       isEmpty={!loading && !error && quests.length === 0}
       emptyStateTitle="No quests found"
       emptyStateMessage="Create your first quest to engage users"
@@ -169,9 +237,15 @@ export default function AdminQuestsPage() {
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-lg font-bold text-white mb-1 leading-tight">{quest.title}</h3>
+                  <h3 className="text-lg font-bold text-white mb-1 leading-tight">
+                    {quest.title}
+                  </h3>
                   <div className="flex flex-wrap gap-2">
-                    <Badge className={quest.is_active ? "bg-green-600" : "bg-gray-600"}>
+                    <Badge
+                      className={
+                        quest.is_active ? "bg-green-600" : "bg-gray-600"
+                      }
+                    >
                       {quest.is_active ? "Active" : "Inactive"}
                     </Badge>
                     {quest.stats && quest.stats.pending_submissions > 0 && (
@@ -187,7 +261,9 @@ export default function AdminQuestsPage() {
               <div className="flex justify-between items-center mb-3 p-3 bg-gray-800/50 rounded-lg">
                 <div className="flex items-center text-yellow-400">
                   <Coins className="w-4 h-4 mr-1" />
-                  <span className="font-bold text-base">{quest.total_reward} DG</span>
+                  <span className="font-bold text-base">
+                    {quest.total_reward} DG
+                  </span>
                 </div>
                 <div className="text-xs text-gray-400">
                   {quest.quest_tasks?.length || 0} tasks
@@ -195,8 +271,10 @@ export default function AdminQuestsPage() {
               </div>
 
               {/* Description */}
-              <p className="text-gray-400 text-sm mb-3 leading-relaxed">{quest.description}</p>
-              
+              <p className="text-gray-400 text-sm mb-3 leading-relaxed">
+                {quest.description}
+              </p>
+
               {/* Quest Tasks Preview */}
               <div className="flex flex-wrap gap-1 mb-3">
                 {quest.quest_tasks?.slice(0, 4).map((task) => (
@@ -225,18 +303,24 @@ export default function AdminQuestsPage() {
                     <div className="flex justify-center mb-1">
                       <Users className="w-3 h-3 text-gray-400" />
                     </div>
-                    <span className="text-gray-300 block">{quest.stats.total_users}</span>
+                    <span className="text-gray-300 block">
+                      {quest.stats.total_users}
+                    </span>
                     <span className="text-gray-500">users</span>
                   </div>
                   <div className="text-center">
                     <div className="flex justify-center mb-1">
                       <CheckCircle2 className="w-3 h-3 text-green-400" />
                     </div>
-                    <span className="text-gray-300 block">{quest.stats.completed_users}</span>
+                    <span className="text-gray-300 block">
+                      {quest.stats.completed_users}
+                    </span>
                     <span className="text-gray-500">completed</span>
                   </div>
                   <div className="text-center">
-                    <span className="text-gray-300 block">{quest.stats.completion_rate}%</span>
+                    <span className="text-gray-300 block">
+                      {quest.stats.completion_rate}%
+                    </span>
                     <span className="text-gray-500">completion</span>
                   </div>
                 </div>
@@ -254,7 +338,7 @@ export default function AdminQuestsPage() {
                     <span className="text-xs">View</span>
                   </Button>
                 </Link>
-                
+
                 <Link href={`/admin/quests/${quest.id}/edit`} className="flex">
                   <Button
                     size="sm"
@@ -280,8 +364,11 @@ export default function AdminQuestsPage() {
                   variant="outline"
                   className="border-gray-700 hover:border-red-500 hover:text-red-500 w-full justify-center"
                   onClick={() => openDeleteConfirmation(quest)}
+                  disabled={checkingDelete === quest.id}
                 >
-                  <Trash2 className="h-3 w-3" />
+                  <Trash2
+                    className={`h-3 w-3 ${checkingDelete === quest.id ? "animate-spin" : ""}`}
+                  />
                 </Button>
               </div>
             </div>
@@ -303,8 +390,14 @@ export default function AdminQuestsPage() {
                   )}
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <h3 className="text-xl font-bold text-white">{quest.title}</h3>
-                      <Badge className={quest.is_active ? "bg-green-600" : "bg-gray-600"}>
+                      <h3 className="text-xl font-bold text-white">
+                        {quest.title}
+                      </h3>
+                      <Badge
+                        className={
+                          quest.is_active ? "bg-green-600" : "bg-gray-600"
+                        }
+                      >
                         {quest.is_active ? "Active" : "Inactive"}
                       </Badge>
                       {quest.stats && quest.stats.pending_submissions > 0 && (
@@ -313,8 +406,10 @@ export default function AdminQuestsPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-gray-400 mb-3 line-clamp-2">{quest.description}</p>
-                    
+                    <p className="text-gray-400 mb-3 line-clamp-2">
+                      {quest.description}
+                    </p>
+
                     {/* Quest Tasks Preview */}
                     <div className="flex flex-wrap gap-2 mb-3">
                       {quest.quest_tasks?.slice(0, 5).map((task) => (
@@ -341,11 +436,15 @@ export default function AdminQuestsPage() {
                       <div className="flex items-center gap-6 text-sm">
                         <div className="flex items-center gap-2">
                           <Users className="w-4 h-4 text-gray-400" />
-                          <span className="text-gray-300">{quest.stats.total_users} users</span>
+                          <span className="text-gray-300">
+                            {quest.stats.total_users} users
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <CheckCircle2 className="w-4 h-4 text-green-400" />
-                          <span className="text-gray-300">{quest.stats.completed_users} completed</span>
+                          <span className="text-gray-300">
+                            {quest.stats.completed_users} completed
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-gray-300">
@@ -356,12 +455,14 @@ export default function AdminQuestsPage() {
                     )}
                   </div>
                 </div>
-                
+
                 {/* Total Reward */}
                 <div className="text-right ml-4">
                   <div className="flex items-center text-yellow-400 mb-2">
                     <Coins className="w-5 h-5 mr-1" />
-                    <span className="font-bold text-lg">{quest.total_reward} DG</span>
+                    <span className="font-bold text-lg">
+                      {quest.total_reward} DG
+                    </span>
                   </div>
                   <div className="text-xs text-gray-400">
                     {quest.quest_tasks?.length || 0} tasks
@@ -381,7 +482,7 @@ export default function AdminQuestsPage() {
                     View Details
                   </Button>
                 </Link>
-                
+
                 <Link href={`/admin/quests/${quest.id}/edit`}>
                   <Button
                     size="sm"
@@ -396,7 +497,11 @@ export default function AdminQuestsPage() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className={quest.is_active ? "border-gray-700 hover:border-orange-500" : "border-gray-700 hover:border-green-500"}
+                  className={
+                    quest.is_active
+                      ? "border-gray-700 hover:border-orange-500"
+                      : "border-gray-700 hover:border-green-500"
+                  }
                   onClick={() => toggleQuestStatus(quest)}
                 >
                   {quest.is_active ? "Deactivate" : "Activate"}
@@ -407,8 +512,11 @@ export default function AdminQuestsPage() {
                   variant="outline"
                   className="border-gray-700 hover:border-red-500 hover:text-red-500"
                   onClick={() => openDeleteConfirmation(quest)}
+                  disabled={checkingDelete === quest.id}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2
+                    className={`h-4 w-4 ${checkingDelete === quest.id ? "animate-spin" : ""}`}
+                  />
                 </Button>
               </div>
             </div>

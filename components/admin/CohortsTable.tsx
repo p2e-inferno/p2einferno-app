@@ -37,13 +37,11 @@ export default function CohortsTable({
       completed: { color: "bg-blue-600", label: "Completed" },
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.inactive;
+    const config =
+      statusConfig[status as keyof typeof statusConfig] ||
+      statusConfig.inactive;
 
-    return (
-      <Badge className={config.color}>
-        {config.label}
-      </Badge>
-    );
+    return <Badge className={config.color}>{config.label}</Badge>;
   };
 
   const formatDate = (dateString: string) => {
@@ -87,7 +85,9 @@ export default function CohortsTable({
       render: (_: any, row: Cohort) => (
         <div className="flex items-center">
           <Users className="w-4 h-4 mr-2 text-gray-400" />
-          <span>{formatParticipants(row.current_participants, row.max_participants)}</span>
+          <span>
+            {formatParticipants(row.current_participants, row.max_participants)}
+          </span>
         </div>
       ),
     },
@@ -98,7 +98,9 @@ export default function CohortsTable({
       render: (_: any, row: Cohort) => (
         <div className="flex items-center">
           <Calendar className="w-4 h-4 mr-2 text-gray-400" />
-          <span>{formatDate(row.start_date)} - {formatDate(row.end_date)}</span>
+          <span>
+            {formatDate(row.start_date)} - {formatDate(row.end_date)}
+          </span>
         </div>
       ),
     },

@@ -5,6 +5,9 @@ import {
   WalletWithMetadata,
 } from "@privy-io/react-auth";
 import axios from "axios";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("hooks:useMessageSigning");
 
 export function useMessageSigning(wallet: WalletWithMetadata) {
   const { signMessage: signMessageEthereum } = useSignMessage();
@@ -26,9 +29,9 @@ export function useMessageSigning(wallet: WalletWithMetadata) {
         });
         signature = result.signature;
       }
-      console.log("Message signed on client! Signature: ", signature);
+      log.info("Message signed on client! Signature: ", signature);
     } catch (error) {
-      console.error("Error signing message:", error);
+      log.error("Error signing message:", error);
     } finally {
       setIsClientSigning(false);
     }
@@ -53,20 +56,18 @@ export function useMessageSigning(wallet: WalletWithMetadata) {
           headers: {
             Authorization: `Bearer ${authToken}`,
           },
-        }
+        },
       );
 
       const data = response.data;
 
       if (response.status === 200) {
-        console.log(
-          "Message signed on server! Signature: " + data.data.signature
-        );
+        log.info("Message signed on server! Signature: " + data.data.signature);
       } else {
         throw new Error(data.error || "Failed to sign message");
       }
     } catch (error) {
-      console.error("Error signing message:", error);
+      log.error("Error signing message:", error);
     } finally {
       setIsRemoteSigning(false);
     }

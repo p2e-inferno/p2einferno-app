@@ -6,21 +6,35 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import ImageUpload from "@/components/ui/image-upload";
 import QuestTaskForm from "@/components/admin/QuestTaskForm";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import { PlusCircle, Coins, Save, X } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { unlockUtils } from "@/lib/unlock/lockUtils";
-import { generateQuestLockConfig, createLockConfigWithManagers } from "@/lib/blockchain/admin-lock-config";
-import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
-import { 
-  saveDraft, 
-  removeDraft, 
-  getDraft, 
-  savePendingDeployment
+import {
+  formatErrorMessageForToast,
+  showInfoToast,
+} from "@/lib/utils/toast-utils";
+import {
+  generateQuestLockConfig,
+  createLockConfigWithManagers,
+} from "@/lib/blockchain/legacy";
+import { getBlockExplorerUrl } from "@/lib/blockchain/services/transaction-service";
+import {
+  saveDraft,
+  removeDraft,
+  getDraft,
+  updateDraftWithDeploymentResult,
+  savePendingDeployment,
 } from "@/lib/utils/lock-deployment-state";
+import { resolveDraftById } from "@/lib/utils/draft";
 import type { Quest, QuestTask } from "@/lib/supabase/types";
 import { nanoid } from "nanoid";
+import { getLogger } from "@/lib/utils/logger";
+import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
+
+const log = getLogger("admin:QuestForm");
 
 interface QuestFormProps {
   quest?: Quest;
@@ -29,17 +43,31 @@ interface QuestFormProps {
 
 type TaskWithTempId = Partial<QuestTask> & { tempId?: string };
 
-export default function QuestForm({ quest, isEditing = false }: QuestFormProps) {
+export default function QuestForm({
+  quest,
+  isEditing = false,
+}: QuestFormProps) {
   const router = useRouter();
-  const { getAccessToken } = usePrivy();
+  const { adminFetch } = useAdminApi();
+  const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
+  const { isAdmin } = useAdminAuthContext();
+  const { deployAdminLock, isLoading: isDeployingFromHook } =
+    useDeployAdminLock({ isAdmin });
+
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState<string>("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
+  const [lockManagerGranted, setLockManagerGranted] = useState(
+    isEditing ? (quest?.lock_manager_granted ?? true) : true,
+  );
+  const [grantFailureReason, setGrantFailureReason] = useState<
+    string | undefined
+  >(isEditing ? (quest?.grant_failure_reason ?? undefined) : undefined);
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
@@ -51,27 +79,115 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
 
   // Load draft data on mount
   useEffect(() => {
-    if (!isEditing) {
-      const draft = getDraft('quest');
-      if (draft) {
-        setFormData(prev => ({ ...prev, ...draft.formData }));
-        toast.success("Restored draft data");
+    if (isEditing) return;
+
+    const draft = getDraft("quest");
+    if (!draft) return;
+
+    let cancelled = false;
+
+    const hydrateDraft = (showRestoreToast: boolean = true) => {
+      if (draft.formData?.questData && draft.formData.tasks) {
+        setFormData((prev) => ({ ...prev, ...draft.formData.questData }));
+        setTasks(draft.formData.tasks);
+
+        if (draft.formData.questData.lock_manager_granted === false) {
+          setLockManagerGranted(false);
+          setGrantFailureReason(draft.formData.questData.grant_failure_reason);
+        }
+
+        if (showRestoreToast) {
+          if (draft.formData.questData.lock_address) {
+            setShowAutoLockCreation(false);
+            toast.success("Restored draft data with deployed lock and tasks");
+          } else {
+            toast.success("Restored draft data with tasks");
+          }
+        }
+      } else {
+        setFormData((prev) => ({ ...prev, ...draft.formData }));
+
+        if (draft.formData?.lock_manager_granted === false) {
+          setLockManagerGranted(false);
+          setGrantFailureReason(draft.formData.grant_failure_reason);
+        }
+
+        if (showRestoreToast) {
+          if (draft.formData?.lock_address) {
+            setShowAutoLockCreation(false);
+            toast.success("Restored draft data with deployed lock");
+          } else {
+            toast.success("Restored draft data");
+          }
+        }
       }
+    };
+
+    const fetchExisting = async (id: string) => {
+      const response = await silentFetch<{ quest: Quest }>(
+        `/api/admin/quests/${id}`,
+      );
+      if (response.error) {
+        return null;
+      }
+      return response.data?.quest ?? null;
+    };
+
+    const resolveDraft = async () => {
+      const hadDraftId = Boolean(draft.formData?.id);
+      const resolution = await resolveDraftById({
+        draft,
+        fetchExisting,
+      });
+
+      if (cancelled) return;
+
+      if (resolution.mode === "existing") {
+        removeDraft("quest");
+        toast.success("Draft already saved — redirecting to quest editor.");
+        router.replace(`/admin/quests/${resolution.draftId}/edit`);
+        return;
+      }
+
+      if (hadDraftId) {
+        showInfoToast(
+          "Saved quest not found — continuing with draft as a new quest.",
+        );
+      }
+
+      hydrateDraft(!hadDraftId);
+    };
+
+    resolveDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditing, adminFetch, silentFetch, router]);
+
+  // Sync grant failure state from entity props when editing
+  useEffect(() => {
+    if (isEditing && quest) {
+      setLockManagerGranted(quest.lock_manager_granted ?? true);
+      setGrantFailureReason(quest.grant_failure_reason ?? undefined);
     }
-  }, [isEditing]);
+  }, [isEditing, quest]);
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
       return quest.quest_tasks.map((task, index) => ({
         ...task,
         tempId: `existing-${task.id}`,
-        order_index: index
+        order_index: index,
       }));
     }
     return [];
   });
 
-  const totalReward = tasks.reduce((sum, task) => sum + (task.reward_amount || 0), 0);
+  const totalReward = tasks.reduce(
+    (sum, task) => sum + (task.reward_amount || 0),
+    0,
+  );
 
   const handleAddTask = () => {
     const newTask: TaskWithTempId = {
@@ -99,7 +215,7 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
     // Update order_index for remaining tasks
     const reorderedTasks = newTasks.map((task, i) => ({
       ...task,
-      order_index: i
+      order_index: i,
     }));
     setTasks(reorderedTasks);
   };
@@ -114,10 +230,10 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
 
     const newTasks = [...tasks];
     const targetIndex = direction === "up" ? index - 1 : index + 1;
-    
+
     // Ensure both indices are valid
     if (targetIndex < 0 || targetIndex >= newTasks.length) return;
-    
+
     // Swap tasks
     const temp = newTasks[index];
     const target = newTasks[targetIndex];
@@ -125,18 +241,25 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
       newTasks[index] = target;
       newTasks[targetIndex] = temp;
     }
-    
+
     // Update order_index
     const reorderedTasks = newTasks.map((task, i) => ({
       ...task,
-      order_index: i
+      order_index: i,
     }));
-    
+
     setTasks(reorderedTasks);
   };
 
   // Deploy lock for the quest
-  const deployLockForQuest = async (): Promise<string | undefined> => {
+  const deployLockForQuest = async (): Promise<
+    | {
+        lockAddress: string;
+        grantFailed?: boolean;
+        grantError?: string;
+      }
+    | undefined
+  > => {
     if (!wallet) {
       toast.error("Please connect your wallet to deploy the lock");
       return undefined;
@@ -157,66 +280,143 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
       const questData = { ...formData, total_reward: totalReward } as Quest;
       const lockConfig = generateQuestLockConfig(questData);
       const deployConfig = createLockConfigWithManagers(lockConfig);
-      
+
+      // Convert to AdminLockDeploymentParams
+      const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+
       setDeploymentStep("Deploying lock on blockchain...");
-      toast.loading("Deploying quest completion lock...", { id: "lock-deploy" });
+      toast.loading("Deploying quest completion lock...", {
+        id: "lock-deploy",
+      });
 
-      // Deploy the lock
-      const result = await unlockUtils.deployLock(deployConfig, wallet);
+      // Deploy the lock using admin hook
+      const result = await deployAdminLock(params);
 
-      if (!result.success) {
+      if (!result.success || !result.lockAddress) {
         throw new Error(result.error || "Lock deployment failed");
       }
 
-      // Get lock address from deployment result
-      if (!result.lockAddress) {
-        throw new Error("Lock deployment succeeded but no lock address returned");
-      }
+      setDeploymentStep("Granting server wallet manager role...");
 
       const lockAddress = result.lockAddress;
-      setDeploymentStep("Lock deployed successfully!");
 
-      // Save deployment state before database operation
+      // Check if grant failed
+      if (result.grantFailed) {
+        setDeploymentStep("Lock deployed but grant manager failed!");
+        log.warn("Lock deployed but grant manager transaction failed", {
+          lockAddress,
+          grantError: result.grantError,
+        });
+      } else {
+        setDeploymentStep("Lock deployed and configured successfully!");
+        setLockManagerGranted(true);
+        setGrantFailureReason(undefined);
+      }
+
+      // Update draft with deployment result to preserve it in case of database failure
+      updateDraftWithDeploymentResult("quest", {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      });
+
+      // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
-        entityType: 'quest',
+        entityType: "quest",
         entityData: { ...formData, total_reward: totalReward },
         transactionHash: result.transactionHash,
-        blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
+        grantTransactionHash: result.grantTransactionHash,
+        serverWalletAddress: result.serverWalletAddress,
+        blockExplorerUrl: result.transactionHash
+          ? getBlockExplorerUrl(result.transactionHash)
+          : undefined,
       });
 
-      toast.success(
-        <>
-          Lock deployed successfully!
-          <br />
-          {result.transactionHash && (
-            <a 
-              href={getBlockExplorerUrl(result.transactionHash)} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              View transaction
-            </a>
-          )}
-        </>,
-        { 
-          id: "lock-deploy",
-          duration: 5000 
-        }
-      );
+      if (result.grantFailed) {
+        toast(
+          <>
+            Lock deployed successfully!
+            <br />
+            ⚠️ Grant manager role failed - you can retry from quest details
+            page.
+            <br />
+            {result.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+          </>,
+          {
+            id: "lock-deploy",
+            duration: 8000,
+            icon: "⚠️",
+          },
+        );
+      } else {
+        toast.success(
+          <>
+            Lock deployed successfully!
+            <br />
+            Server wallet granted manager role.
+            <br />
+            {result.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+            {result.grantTransactionHash && (
+              <>
+                {" | "}
+                <a
+                  href={getBlockExplorerUrl(result.grantTransactionHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  View grant
+                </a>
+              </>
+            )}
+          </>,
+          {
+            id: "lock-deploy",
+            duration: 5000,
+          },
+        );
+      }
 
-      console.log("Lock deployed:", {
+      log.info("Lock deployed:", {
         lockAddress,
         transactionHash: result.transactionHash,
+        grantTransactionHash: result.grantTransactionHash,
+        serverWalletAddress: result.serverWalletAddress,
         deploymentId,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
       });
 
-      return lockAddress;
-
+      return {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      };
     } catch (error: any) {
-      console.error("Lock deployment failed:", error);
-      toast.error(error.message || "Failed to deploy lock", { id: "lock-deploy" });
+      log.error("Lock deployment failed:", error);
+      const errorMessage = error.message || "Failed to deploy lock";
+      toast.error(formatErrorMessageForToast(errorMessage), {
+        id: "lock-deploy",
+      });
       setDeploymentStep("");
       throw error;
     } finally {
@@ -273,19 +473,41 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
     try {
       // Save draft before starting deployment (for new quests)
       if (!isEditing) {
-        saveDraft('quest', { ...formData, total_reward: totalReward });
+        saveDraft("quest", {
+          questData: { ...formData, total_reward: totalReward },
+          tasks: tasks,
+        });
       }
 
       let lockAddress: string | undefined = formData.lock_address || undefined;
 
       // Deploy lock if not editing and auto-creation is enabled and no lock address provided
-      if (!isEditing && showAutoLockCreation && !lockAddress && totalReward > 0) {
+      if (
+        !isEditing &&
+        showAutoLockCreation &&
+        !lockAddress &&
+        totalReward > 0
+      ) {
         try {
-          console.log("Auto-deploying lock for quest...");
-          lockAddress = await deployLockForQuest();
-          
-          if (!lockAddress) {
+          log.info("Auto-deploying lock for quest...");
+          const deploymentResult = await deployLockForQuest();
+
+          if (!deploymentResult || !deploymentResult.lockAddress) {
             throw new Error("Lock deployment failed");
+          }
+
+          lockAddress = deploymentResult.lockAddress;
+
+          // Track grant failure if it occurred
+          if (deploymentResult.grantFailed) {
+            setLockManagerGranted(false);
+            setGrantFailureReason(
+              deploymentResult.grantError || "Grant manager transaction failed",
+            );
+            log.warn("Quest will be created with grant failure flag", {
+              lockAddress,
+              grantError: deploymentResult.grantError,
+            });
           }
         } catch (deployError: any) {
           // If lock deployment fails, don't create the quest
@@ -293,22 +515,25 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
         }
       }
 
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
       const endpoint = isEditing
         ? `/api/admin/quests/${quest?.id}`
         : "/api/admin/quests";
-      
+
       const method = isEditing ? "PUT" : "POST";
+
+      // Remove UI-only fields from formData before sending to database
+      const { auto_lock_creation, ...cleanFormData } =
+        formData as typeof formData & {
+          auto_lock_creation?: boolean;
+        };
 
       // Prepare quest data
       const questData = {
-        ...formData,
+        ...cleanFormData,
         lock_address: lockAddress,
         total_reward: totalReward,
+        lock_manager_granted: lockManagerGranted,
+        grant_failure_reason: grantFailureReason,
       };
 
       // Prepare tasks data
@@ -320,37 +545,39 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
         };
       });
 
-      const response = await fetch(endpoint, {
+      const result = await adminFetch(endpoint, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
-          quest: questData,
+          ...questData,
           tasks: tasksData,
+          xp_reward: questData.total_reward, // Map field name for API
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to save quest");
+      if (result.error) {
+        throw new Error(result.error);
       }
 
-      const result = await response.json();
-      
       // Clean up drafts and pending deployments on success
       if (!isEditing) {
-        removeDraft('quest');
+        removeDraft("quest");
         // Note: removePendingDeployment will be called by the recovery endpoint if used
       }
-      
-      toast.success(isEditing ? "Quest updated successfully!" : "Quest created successfully!");
+
+      toast.success(
+        isEditing
+          ? "Quest updated successfully!"
+          : "Quest created successfully!",
+      );
 
       // Redirect to quest details page
-      router.push(`/admin/quests/${result.quest.id}`);
+      if (result.data?.quest?.id) {
+        router.push(`/admin/quests/${result.data.quest.id}`);
+      } else {
+        router.push("/admin/quests");
+      }
     } catch (err: any) {
-      console.error("Error saving quest:", err);
+      log.error("Error saving quest:", err);
       setError(err.message || "Failed to save quest");
     } finally {
       setIsSubmitting(false);
@@ -377,7 +604,9 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
             <Input
               id="title"
               value={formData.title}
-              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, title: e.target.value })
+              }
               placeholder="e.g., Web3 Warrior Training"
               className="bg-transparent border-gray-700 text-gray-100"
               disabled={isSubmitting}
@@ -391,7 +620,9 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
             <Textarea
               id="description"
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               placeholder="Describe the quest objectives and what users will learn..."
               className="bg-transparent border-gray-700 text-gray-100"
               rows={4}
@@ -402,7 +633,9 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
           <div className="space-y-2 md:col-span-2">
             <ImageUpload
               value={formData.image_url}
-              onChange={(url) => setFormData({ ...formData, image_url: url || "" })}
+              onChange={(url) =>
+                setFormData({ ...formData, image_url: url || "" })
+              }
               disabled={isSubmitting}
               bucketName="quest-images"
             />
@@ -422,35 +655,49 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
                     onChange={(e) => setShowAutoLockCreation(e.target.checked)}
                     className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
                   />
-                  <Label htmlFor="auto_lock_creation" className="text-sm text-gray-300 cursor-pointer">
+                  <Label
+                    htmlFor="auto_lock_creation"
+                    className="text-sm text-gray-300 cursor-pointer"
+                  >
                     Auto-create lock
                   </Label>
                 </div>
               )}
             </div>
-            
+
             <Input
               id="lock_address"
               name="lock_address"
               value={formData.lock_address}
-              onChange={(e) => setFormData({ ...formData, lock_address: e.target.value })}
-              placeholder={showAutoLockCreation && !isEditing ? "Will be auto-generated..." : "e.g., 0x1234..."}
+              onChange={(e) =>
+                setFormData({ ...formData, lock_address: e.target.value })
+              }
+              placeholder={
+                showAutoLockCreation && !isEditing
+                  ? "Will be auto-generated..."
+                  : "e.g., 0x1234..."
+              }
               className="bg-transparent border-gray-700 text-gray-100"
-              disabled={showAutoLockCreation && !isEditing || isSubmitting}
+              disabled={(showAutoLockCreation && !isEditing) || isSubmitting}
             />
-            
-            {showAutoLockCreation && !isEditing && !formData.lock_address && totalReward > 0 && (
-              <p className="text-sm text-blue-400 mt-1">
-                ✨ A new completion lock will be automatically deployed for this quest using your connected wallet
-              </p>
-            )}
-            
+
+            {showAutoLockCreation &&
+              !isEditing &&
+              !formData.lock_address &&
+              totalReward > 0 && (
+                <p className="text-sm text-blue-400 mt-1">
+                  ✨ A new completion lock will be automatically deployed for
+                  this quest using your connected wallet
+                </p>
+              )}
+
             {!showAutoLockCreation && (
               <p className="text-sm text-gray-400 mt-1">
-                Optional: Unlock Protocol lock address for quest completion certificates
+                Optional: Unlock Protocol lock address for quest completion
+                certificates
               </p>
             )}
-            
+
             {isDeployingLock && (
               <div className="bg-blue-900/20 border border-blue-700 text-blue-300 px-3 py-2 rounded mt-2">
                 <div className="flex items-center space-x-2">
@@ -466,7 +713,9 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
               type="checkbox"
               id="is_active"
               checked={formData.is_active}
-              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              onChange={(e) =>
+                setFormData({ ...formData, is_active: e.target.checked })
+              }
               className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
               disabled={isSubmitting}
             />
@@ -549,13 +798,13 @@ export default function QuestForm({ quest, isEditing = false }: QuestFormProps) 
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isDeployingFromHook}
           className="bg-steel-red hover:bg-steel-red/90 text-white"
         >
-          {isSubmitting ? (
+          {isSubmitting || isDeployingFromHook ? (
             <>
               <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
-              Saving...
+              {isDeployingLock ? "Deploying Lock..." : "Saving..."}
             </>
           ) : (
             <>

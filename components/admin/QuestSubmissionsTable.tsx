@@ -2,12 +2,17 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { Eye, Filter } from "lucide-react";
 import SubmissionReviewModal from "./SubmissionReviewModal";
 import type {
   UserTaskCompletion,
   SubmissionStatus,
 } from "@/lib/supabase/types";
+import { NetworkError } from "@/components/ui/network-error";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:QuestSubmissionsTable");
 
 interface QuestSubmissionsTableProps {
   questId: string;
@@ -46,11 +51,13 @@ export default function QuestSubmissionsTable({
   onStatusUpdate,
 }: QuestSubmissionsTableProps) {
   const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection() as any;
   const [submissions, setSubmissions] = useState<SubmissionWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | "all">(
-    "all"
+    "all",
   );
   const [selectedSubmission, setSelectedSubmission] =
     useState<SubmissionWithDetails | null>(null);
@@ -82,8 +89,9 @@ export default function QuestSubmissionsTable({
           method: "GET",
           headers: {
             Authorization: `Bearer ${token}`,
+            "X-Active-Wallet": selectedWallet?.address || "",
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -95,10 +103,19 @@ export default function QuestSubmissionsTable({
       };
       setSubmissions(json.submissions || []);
     } catch (err: any) {
-      console.error("Error fetching submissions:", err);
+      log.error("Error fetching submissions:", err);
       setError(err.message || "Failed to load submissions");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchSubmissions();
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -110,7 +127,7 @@ export default function QuestSubmissionsTable({
   const handleStatusUpdate = async (
     submissionId: string,
     newStatus: SubmissionStatus,
-    feedback?: string
+    feedback?: string,
   ) => {
     try {
       const token = await getAccessToken();
@@ -123,6 +140,7 @@ export default function QuestSubmissionsTable({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           submissionId,
@@ -145,7 +163,7 @@ export default function QuestSubmissionsTable({
 
       setIsReviewModalOpen(false);
     } catch (err: any) {
-      console.error("Error updating submission:", err);
+      log.error("Error updating submission:", err);
       setError(err.message || "Failed to update submission");
     }
   };
@@ -185,9 +203,11 @@ export default function QuestSubmissionsTable({
 
   if (error) {
     return (
-      <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-        <p className="text-red-300">{error}</p>
-      </div>
+      <NetworkError
+        error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
+      />
     );
   }
 

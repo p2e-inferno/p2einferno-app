@@ -4,10 +4,14 @@ import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "../ui/button";
 import Link from "next/link";
 import { RefreshCcw, User, Copy, LogOut, Plus, Unlink } from "lucide-react";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
-import { lockManagerService } from "@/lib/blockchain/lock-manager";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
+import { useHasValidKey } from "@/hooks/unlock";
 import { type Address } from "viem";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:AdminAccessRequired");
 
 interface AdminAccessRequiredProps {
   message?: string;
@@ -16,11 +20,30 @@ interface AdminAccessRequiredProps {
 export default function AdminAccessRequired({
   message,
 }: AdminAccessRequiredProps) {
-  const { user, authenticated, login, logout, linkWallet, unlinkWallet } =
-    usePrivy();
-  const { refreshAdminStatus } = useLockManagerAdminAuth();
-  const selectedWallet = useSmartWalletSelection();
-  const [providerAddress, setProviderAddress] = useState<string | null>(null);
+  const {
+    user: privyUser,
+    login,
+    logout,
+    linkWallet,
+    unlinkWallet,
+  } = usePrivy();
+  const {
+    authenticated: isAuthenticated,
+    user: adminUser,
+    walletAddress: contextWalletAddress,
+    refreshAdminStatus,
+  } = useAdminAuthContext();
+
+  // Use the consistent wallet address detection hook
+  const effectiveUser = (privyUser ?? adminUser) as any;
+  const { walletAddress: detectedWalletAddress } =
+    useDetectConnectedWalletAddress(effectiveUser);
+  const walletAddress = detectedWalletAddress || contextWalletAddress;
+  const user = effectiveUser;
+  const { checkHasValidKey } = useHasValidKey({
+    enabled: isAuthenticated && !!walletAddress,
+  });
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [accessStatus, setAccessStatus] = useState<{
@@ -34,101 +57,55 @@ export default function AdminAccessRequired({
   });
   const adminLockAddress = process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS;
 
-  // Read the active account from window.ethereum on mount and when it changes
-  useEffect(() => {
-    let mounted = true;
-
-    const getAccounts = async () => {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const accounts: string[] | undefined = await (
-            window as any
-          ).ethereum.request({
-            method: "eth_accounts",
-          });
-          if (mounted) {
-            const addr: string | null =
-              Array.isArray(accounts) && accounts.length > 0
-                ? (accounts[0] as string)
-                : null;
-            setProviderAddress(addr);
-          }
-        } catch (err) {
-          console.warn("Unable to fetch accounts from provider", err);
-        }
-      }
-    };
-
-    getAccounts();
-
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const handler = (accounts: string[]) => {
-        const addr: string | null =
-          Array.isArray(accounts) && accounts.length > 0
-            ? (accounts[0] as string)
-            : null;
-        setProviderAddress(addr);
-      };
-      (window as any).ethereum.on("accountsChanged", handler);
-      return () => {
-        (window as any).ethereum.removeListener("accountsChanged", handler);
-        mounted = false;
-      };
-    }
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   // Function to check if user has access and get expiration date
-  const checkAccessStatus = useCallback(async (addr: string, forceRefresh = false) => {
-    if (!addr || !adminLockAddress) return;
+  const checkAccessStatus = useCallback(
+    async (addr: string) => {
+      if (!addr || !adminLockAddress) return;
 
-    setAccessStatus((prev) => ({ ...prev, isChecking: true }));
+      setAccessStatus((prev) => ({ ...prev, isChecking: true }));
 
-    try {
-      const keyInfo = await lockManagerService.checkUserHasValidKey(
-        addr as Address,
-        adminLockAddress as Address,
-        forceRefresh
-      );
+      try {
+        const keyInfo = await checkHasValidKey(
+          addr as Address,
+          adminLockAddress as Address,
+        );
 
-      if (keyInfo && keyInfo.isValid) {
-        // Convert timestamp to readable date
-        const expirationDate = new Date(
-          Number(keyInfo.expirationTimestamp) * 1000
-        ).toLocaleDateString();
-        setAccessStatus({
-          hasAccess: true,
-          expirationDate,
-          isChecking: false,
-        });
-      } else {
+        if (keyInfo && keyInfo.isValid) {
+          // Convert timestamp to readable date
+          const expirationDate = new Date(
+            Number(keyInfo.expirationTimestamp) * 1000,
+          ).toLocaleDateString();
+          setAccessStatus({
+            hasAccess: true,
+            expirationDate,
+            isChecking: false,
+          });
+        } else {
+          setAccessStatus({
+            hasAccess: false,
+            expirationDate: null,
+            isChecking: false,
+          });
+        }
+      } catch (error) {
+        log.error("Error checking access status:", error);
         setAccessStatus({
           hasAccess: false,
           expirationDate: null,
           isChecking: false,
         });
       }
-    } catch (error) {
-      console.error("Error checking access status:", error);
-      setAccessStatus({
-        hasAccess: false,
-        expirationDate: null,
-        isChecking: false,
-      });
-    }
 
-    // No further actions here; avoid recursive calls.
-  }, [adminLockAddress]);
+      // No further actions here; avoid recursive calls.
+    },
+    [adminLockAddress, checkHasValidKey],
+  );
 
-  // Run access check whenever any wallet changes - prioritize smart wallet selection
+  // Run access check whenever wallet address changes
   useEffect(() => {
-    const addressToCheck = selectedWallet?.address || providerAddress;
-    if (!addressToCheck || !adminLockAddress) return;
+    if (!walletAddress || !adminLockAddress) return;
 
-    console.log('[ADMIN_ACCESS_DEBUG] Checking access for wallet:', addressToCheck, 'Type:', selectedWallet?.walletClientType || 'provider');
+    log.info("[ADMIN_ACCESS_DEBUG] Checking access for wallet:", walletAddress);
 
     // Reset status while checking
     setAccessStatus({
@@ -137,8 +114,8 @@ export default function AdminAccessRequired({
       isChecking: true,
     });
 
-    checkAccessStatus(addressToCheck, true);
-  }, [selectedWallet, providerAddress, adminLockAddress, checkAccessStatus]);
+    checkAccessStatus(walletAddress);
+  }, [walletAddress, adminLockAddress, checkAccessStatus]);
 
   // Handler for refreshing wallet status
   const handleRefreshStatus = async () => {
@@ -150,28 +127,22 @@ export default function AdminAccessRequired({
       // Then manually check admin access status
       await refreshAdminStatus();
 
-      // Also update the local access status display - check any available wallet
-      const addressToCheck = selectedWallet?.address || providerAddress;
-      if (addressToCheck) {
-        await checkAccessStatus(addressToCheck, true);
+      // Also update the local access status display
+      if (walletAddress) {
+        await checkAccessStatus(walletAddress);
       }
 
       // Add a small delay to ensure UI updates are visible
       await new Promise((resolve) => setTimeout(resolve, 500));
     } catch (error) {
-      console.error("Error refreshing user status:", error);
+      log.error("Error refreshing user status:", error);
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  // Get wallet information if available - prioritize smart wallet selection over provider address
-  const walletAddress = selectedWallet?.address || providerAddress || null;
-  const shortAddress = walletAddress
-    ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(
-        walletAddress.length - 4
-      )}`
-    : selectedWallet ? "Embedded Wallet" : "No wallet";
+  // Format wallet address consistently
+  const shortAddress = formatWalletAddress(walletAddress);
 
   const numAccounts = user?.linkedAccounts?.length || 0;
   const canRemoveAccount = numAccounts > 1;
@@ -190,7 +161,7 @@ export default function AdminAccessRequired({
     try {
       await linkWallet();
     } catch (error) {
-      console.error("Failed to link wallet:", error);
+      log.error("Failed to link wallet:", error);
     }
   };
 
@@ -200,7 +171,7 @@ export default function AdminAccessRequired({
       try {
         await unlinkWallet(walletAddress);
       } catch (error) {
-        console.error("Failed to unlink wallet:", error);
+        log.error("Failed to unlink wallet:", error);
       }
     }
   };
@@ -218,7 +189,7 @@ export default function AdminAccessRequired({
         </div>
 
         <div className="mt-8 space-y-6">
-          {!authenticated ? (
+          {!isAuthenticated ? (
             <div className="space-y-4">
               <p className="text-sm text-gray-400">
                 Please connect your wallet first
@@ -282,8 +253,8 @@ export default function AdminAccessRequired({
                       {isRefreshing
                         ? "Refreshing..."
                         : accessStatus.isChecking
-                        ? "Checking access..."
-                        : "Refresh Connection"}
+                          ? "Checking access..."
+                          : "Refresh Connection"}
                     </span>
                   </Button>
 
@@ -342,7 +313,8 @@ export default function AdminAccessRequired({
               adminLockAddress ? (
                 <div className="space-y-4">
                   <p className="text-sm text-gray-400">
-                    You need a key for the admin lock to access this area, contact support if you need access.
+                    You need a key for the admin lock to access this area,
+                    contact support if you need access.
                   </p>
                   {/* <UnlockPurchaseButton
                     lockAddress={adminLockAddress}
@@ -369,7 +341,9 @@ export default function AdminAccessRequired({
 
           <div className="text-xs text-gray-500 text-center mt-4">
             <p>
-              Already have an admin key? Make sure your wallet is connected with the correct account. You can connect a different wallet or try refreshing your connection.
+              Already have an admin key? Make sure your wallet is connected with
+              the correct account. You can connect a different wallet or try
+              refreshing your connection.
             </p>
           </div>
         </div>

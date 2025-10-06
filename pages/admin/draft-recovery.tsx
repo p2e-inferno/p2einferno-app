@@ -3,7 +3,13 @@ import AdminLayout from "@/components/layouts/AdminLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Clock, Database, ExternalLink, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Clock,
+  Database,
+  ExternalLink,
+  Trash2,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   getPendingDeployments,
@@ -14,12 +20,17 @@ import {
   clearAllDeploymentState,
   incrementDeploymentRetry,
   type PendingDeployment,
-  type DeploymentDraft
+  type DeploymentDraft,
 } from "@/lib/utils/lock-deployment-state";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:draft-recovery");
 
 export default function DraftRecoveryPage() {
-  const [pendingDeployments, setPendingDeployments] = useState<PendingDeployment[]>([]);
+  const [pendingDeployments, setPendingDeployments] = useState<
+    PendingDeployment[]
+  >([]);
   const [drafts, setDrafts] = useState<DeploymentDraft[]>([]);
   const [isRecovering, setIsRecovering] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
@@ -45,10 +56,10 @@ export default function DraftRecoveryPage() {
     setDrafts(draftData);
     setStats(statistics);
 
-    console.log("Draft recovery data loaded:", {
+    log.info("Draft recovery data loaded:", {
       pending: pending.length,
       drafts: draftData.length,
-      stats: statistics
+      stats: statistics,
     });
   };
 
@@ -64,20 +75,20 @@ export default function DraftRecoveryPage() {
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
-    if (hours > 0) return `${hours} hour${hours > 1 ? 's' : ''} ago`;
-    return `${minutes} minute${minutes > 1 ? 's' : ''} ago`;
+    if (days > 0) return `${days} day${days > 1 ? "s" : ""} ago`;
+    if (hours > 0) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+    return `${minutes} minute${minutes > 1 ? "s" : ""} ago`;
   };
 
   const recoverPendingDeployment = async (deployment: PendingDeployment) => {
     if (isRecovering) return;
-    
+
     setIsRecovering(deployment.id);
-    
+
     try {
       // Generate new UUID for the entity if needed
       const entityData = { ...deployment.entityData };
-      if (deployment.entityType === 'bootcamp' && !entityData.id) {
+      if (deployment.entityType === "bootcamp" && !entityData.id) {
         entityData.id = crypto.randomUUID();
       }
 
@@ -90,10 +101,10 @@ export default function DraftRecoveryPage() {
       };
 
       const endpoints = {
-        bootcamp: '/api/admin/bootcamps',
-        cohort: '/api/admin/cohorts', 
-        quest: '/api/admin/quests',
-        milestone: '/api/admin/milestones',
+        bootcamp: "/api/admin/bootcamps",
+        cohort: "/api/admin/cohorts",
+        quest: "/api/admin/quests",
+        milestone: "/api/admin/milestones",
       };
 
       const endpoint = endpoints[deployment.entityType];
@@ -101,14 +112,18 @@ export default function DraftRecoveryPage() {
         throw new Error(`Unknown entity type: ${deployment.entityType}`);
       }
 
-      console.log(`Attempting to recover ${deployment.entityType}:`, {
+      log.info(`Attempting to recover ${deployment.entityType}:`, {
         deploymentId: deployment.id,
         lockAddress: deployment.lockAddress,
-        apiData
+        apiData,
       });
 
-      const response = await adminApi.adminFetch(endpoint, {
-        method: 'POST',
+      const response = await adminApi.adminFetch<{
+        success: boolean;
+        data?: any;
+        error?: string;
+      }>(endpoint, {
+        method: "POST",
         body: JSON.stringify(apiData),
       });
 
@@ -118,19 +133,23 @@ export default function DraftRecoveryPage() {
         throw new Error(response.error);
       }
 
+      if (!response.data?.success) {
+        incrementDeploymentRetry(deployment.id);
+        throw new Error(response.data?.error || "Failed to recover deployment");
+      }
+
       if (response.data) {
         // Success! Remove pending deployment
         removePendingDeployment(deployment.id);
         toast.success(`Successfully recovered ${deployment.entityType}!`);
-        
+
         // Refresh data
         loadData();
       }
-
     } catch (error: any) {
-      console.error('Recovery failed:', error);
+      log.error("Recovery failed:", error);
       toast.error(`Recovery failed: ${error.message}`);
-      
+
       // Refresh data to update retry count
       loadData();
     } finally {
@@ -139,9 +158,13 @@ export default function DraftRecoveryPage() {
   };
 
   const deletePendingDeployment = (deploymentId: string) => {
-    if (confirm('Are you sure you want to delete this pending deployment? This will NOT affect the deployed lock on the blockchain.')) {
+    if (
+      confirm(
+        "Are you sure you want to delete this pending deployment? This will NOT affect the deployed lock on the blockchain.",
+      )
+    ) {
       removePendingDeployment(deploymentId);
-      toast.success('Pending deployment removed');
+      toast.success("Pending deployment removed");
       loadData();
     }
   };
@@ -149,33 +172,40 @@ export default function DraftRecoveryPage() {
   const deleteDraft = (entityType: string) => {
     if (confirm(`Are you sure you want to delete the ${entityType} draft?`)) {
       removeDraft(entityType as any);
-      toast.success('Draft removed');
+      toast.success("Draft removed");
       loadData();
     }
   };
 
   const clearAllData = () => {
-    if (confirm('Are you sure you want to clear ALL drafts and pending deployments? This action cannot be undone.')) {
+    if (
+      confirm(
+        "Are you sure you want to clear ALL drafts and pending deployments? This action cannot be undone.",
+      )
+    ) {
       clearAllDeploymentState();
-      toast.success('All deployment state cleared');
+      toast.success("All deployment state cleared");
       loadData();
     }
   };
 
   return (
     <AdminLayout>
-      <div className="w-full max-w-6xl mx-auto space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-2xl font-bold text-white">Draft Recovery</h1>
-            <p className="text-gray-400 mt-1">
+      <div className="w-full max-w-6xl mx-auto space-y-4 lg:space-y-6 px-4 lg:px-0">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl lg:text-2xl font-bold text-white">
+              Draft Recovery
+            </h1>
+            <p className="text-gray-400 mt-1 text-sm lg:text-base">
               Manage orphaned locks and recover from failed database operations
             </p>
           </div>
-          <Button 
-            onClick={clearAllData} 
+          <Button
+            onClick={clearAllData}
             variant="destructive"
-            className="bg-red-600 hover:bg-red-700"
+            className="bg-red-600 hover:bg-red-700 flex-shrink-0"
+            size="sm"
           >
             <Trash2 className="h-4 w-4 mr-2" />
             Clear All
@@ -184,38 +214,54 @@ export default function DraftRecoveryPage() {
 
         {/* Statistics */}
         {stats && (
-          <Card className="bg-card border border-gray-800 p-6">
-            <h2 className="text-lg font-semibold text-white mb-4">Statistics</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-card border border-gray-800 p-4 lg:p-6">
+            <h2 className="text-base lg:text-lg font-semibold text-white mb-4">
+              Statistics
+            </h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-red-400">{stats.pendingCount}</div>
-                <div className="text-sm text-gray-400">Pending Deployments</div>
+                <div className="text-xl lg:text-2xl font-bold text-red-400">
+                  {stats.pendingCount}
+                </div>
+                <div className="text-xs lg:text-sm text-gray-400">
+                  Pending Deployments
+                </div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-yellow-400">{stats.draftCount}</div>
-                <div className="text-sm text-gray-400">Drafts</div>
+                <div className="text-xl lg:text-2xl font-bold text-yellow-400">
+                  {stats.draftCount}
+                </div>
+                <div className="text-xs lg:text-sm text-gray-400">Drafts</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-400">{stats.pendingByType.bootcamp}</div>
-                <div className="text-sm text-gray-400">Bootcamp Locks</div>
+                <div className="text-xl lg:text-2xl font-bold text-blue-400">
+                  {stats.pendingByType.bootcamp}
+                </div>
+                <div className="text-xs lg:text-sm text-gray-400">
+                  Bootcamp Locks
+                </div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold text-green-400">{stats.pendingByType.quest}</div>
-                <div className="text-sm text-gray-400">Quest Locks</div>
+                <div className="text-xl lg:text-2xl font-bold text-green-400">
+                  {stats.pendingByType.quest}
+                </div>
+                <div className="text-xs lg:text-sm text-gray-400">
+                  Quest Locks
+                </div>
               </div>
             </div>
           </Card>
         )}
 
         {/* Pending Deployments */}
-        <Card className="bg-card border border-gray-800 p-6">
+        <Card className="bg-card border border-gray-800 p-4 lg:p-6">
           <div className="flex items-center mb-4">
-            <AlertTriangle className="h-5 w-5 text-red-400 mr-2" />
-            <h2 className="text-lg font-semibold text-white">
+            <AlertTriangle className="h-4 lg:h-5 w-4 lg:w-5 text-red-400 mr-2" />
+            <h2 className="text-base lg:text-lg font-semibold text-white">
               Pending Deployments ({pendingDeployments.length})
             </h2>
           </div>
-          
+
           {pendingDeployments.length === 0 ? (
             <p className="text-gray-400">No pending deployments found.</p>
           ) : (
@@ -223,38 +269,52 @@ export default function DraftRecoveryPage() {
               {pendingDeployments.map((deployment) => (
                 <div
                   key={deployment.id}
-                  className="border border-gray-700 rounded-lg p-4 space-y-3"
+                  className="border border-gray-700 rounded-lg p-3 lg:p-4 space-y-3"
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center space-x-2 mb-2">
-                        <Badge variant="outline" className="bg-red-900/20 border-red-700 text-red-300">
+                  <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <Badge
+                          variant="outline"
+                          className="bg-red-900/20 border-red-700 text-red-300 text-xs"
+                        >
                           {deployment.entityType}
                         </Badge>
                         {deployment.retryCount > 0 && (
-                          <Badge variant="outline" className="bg-yellow-900/20 border-yellow-700 text-yellow-300">
+                          <Badge
+                            variant="outline"
+                            className="bg-yellow-900/20 border-yellow-700 text-yellow-300 text-xs"
+                          >
                             {deployment.retryCount} retries
                           </Badge>
                         )}
                       </div>
-                      <h3 className="font-medium text-white">
-                        {deployment.entityData?.name || `${deployment.entityType} deployment`}
+                      <h3 className="font-medium text-white text-sm lg:text-base">
+                        {deployment.entityData?.name ||
+                          `${deployment.entityType} deployment`}
                       </h3>
-                      <p className="text-sm text-gray-400 mt-1">
-                        Lock: <span className="font-mono text-blue-300">{deployment.lockAddress}</span>
+                      <p className="text-xs lg:text-sm text-gray-400 mt-1 break-all">
+                        Lock:{" "}
+                        <span className="font-mono text-blue-300">
+                          {deployment.lockAddress}
+                        </span>
                       </p>
-                      <p className="text-sm text-gray-400">
-                        Created: {formatTimestamp(deployment.timestamp)} ({getTimeSince(deployment.timestamp)})
+                      <p className="text-xs lg:text-sm text-gray-400">
+                        Created: {formatTimestamp(deployment.timestamp)} (
+                        {getTimeSince(deployment.timestamp)})
                       </p>
                     </div>
-                    
-                    <div className="flex items-center space-x-2">
+
+                    <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
                       {deployment.blockExplorerUrl && (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => window.open(deployment.blockExplorerUrl, '_blank')}
-                          className="border-gray-700 text-gray-300 hover:bg-gray-800"
+                          onClick={() =>
+                            window.open(deployment.blockExplorerUrl, "_blank")
+                          }
+                          className="border-gray-700 text-gray-300 hover:bg-gray-800 p-2 lg:px-3"
+                          title="View on block explorer"
                         >
                           <ExternalLink className="h-4 w-4" />
                         </Button>
@@ -263,17 +323,21 @@ export default function DraftRecoveryPage() {
                         size="sm"
                         onClick={() => recoverPendingDeployment(deployment)}
                         disabled={isRecovering === deployment.id}
-                        className="bg-green-600 hover:bg-green-700"
+                        className="bg-green-600 hover:bg-green-700 text-xs lg:text-sm"
+                        title="Recover deployment to database"
                       >
                         {isRecovering === deployment.id ? (
                           <>
-                            <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-t-transparent"></div>
-                            Recovering...
+                            <div className="mr-1 lg:mr-2 h-3 w-3 animate-spin rounded-full border-2 border-t-transparent"></div>
+                            <span className="hidden sm:inline">
+                              Recovering...
+                            </span>
+                            <span className="sm:hidden">...</span>
                           </>
                         ) : (
                           <>
-                            <Database className="h-4 w-4 mr-2" />
-                            Recover
+                            <Database className="h-4 w-4 mr-1 lg:mr-2" />
+                            <span className="hidden sm:inline">Recover</span>
                           </>
                         )}
                       </Button>
@@ -281,19 +345,20 @@ export default function DraftRecoveryPage() {
                         size="sm"
                         variant="destructive"
                         onClick={() => deletePendingDeployment(deployment.id)}
-                        className="bg-red-600 hover:bg-red-700"
+                        className="bg-red-600 hover:bg-red-700 p-2 lg:px-3"
+                        title="Delete pending deployment (won't affect blockchain lock)"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
-                  
+
                   {deployment.entityData && (
-                    <details className="text-sm">
+                    <details className="text-xs lg:text-sm">
                       <summary className="cursor-pointer text-gray-400 hover:text-white">
                         View entity data
                       </summary>
-                      <pre className="mt-2 p-3 bg-gray-900 rounded text-xs text-gray-300 overflow-auto">
+                      <pre className="mt-2 p-2 lg:p-3 bg-gray-900 rounded text-xs text-gray-300 overflow-x-auto">
                         {JSON.stringify(deployment.entityData, null, 2)}
                       </pre>
                     </details>
@@ -305,53 +370,60 @@ export default function DraftRecoveryPage() {
         </Card>
 
         {/* Drafts */}
-        <Card className="bg-card border border-gray-800 p-6">
+        <Card className="bg-card border border-gray-800 p-4 lg:p-6">
           <div className="flex items-center mb-4">
-            <Clock className="h-5 w-5 text-yellow-400 mr-2" />
-            <h2 className="text-lg font-semibold text-white">
+            <Clock className="h-4 lg:h-5 w-4 lg:w-5 text-yellow-400 mr-2" />
+            <h2 className="text-base lg:text-lg font-semibold text-white">
               Drafts ({drafts.length})
             </h2>
           </div>
-          
+
           {drafts.length === 0 ? (
-            <p className="text-gray-400">No drafts found.</p>
+            <p className="text-gray-400 text-sm lg:text-base">
+              No drafts found.
+            </p>
           ) : (
             <div className="space-y-4">
               {drafts.map((draft) => (
                 <div
                   key={draft.id}
-                  className="border border-gray-700 rounded-lg p-4 space-y-3"
+                  className="border border-gray-700 rounded-lg p-3 lg:p-4 space-y-3"
                 >
-                  <div className="flex justify-between items-start">
-                    <div>
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <Badge variant="outline" className="bg-yellow-900/20 border-yellow-700 text-yellow-300">
+                        <Badge
+                          variant="outline"
+                          className="bg-yellow-900/20 border-yellow-700 text-yellow-300 text-xs"
+                        >
                           {draft.entityType}
                         </Badge>
                       </div>
-                      <h3 className="font-medium text-white">
+                      <h3 className="font-medium text-white text-sm lg:text-base">
                         {draft.formData?.name || `${draft.entityType} draft`}
                       </h3>
-                      <p className="text-sm text-gray-400">
-                        Created: {formatTimestamp(draft.timestamp)} ({getTimeSince(draft.timestamp)})
+                      <p className="text-xs lg:text-sm text-gray-400">
+                        Created: {formatTimestamp(draft.timestamp)} (
+                        {getTimeSince(draft.timestamp)})
                       </p>
                     </div>
-                    
+
                     <Button
                       size="sm"
                       variant="destructive"
                       onClick={() => deleteDraft(draft.entityType)}
-                      className="bg-red-600 hover:bg-red-700"
+                      className="bg-red-600 hover:bg-red-700 p-2 lg:px-3 flex-shrink-0"
+                      title="Delete draft"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>
-                  
-                  <details className="text-sm">
+
+                  <details className="text-xs lg:text-sm">
                     <summary className="cursor-pointer text-gray-400 hover:text-white">
                       View draft data
                     </summary>
-                    <pre className="mt-2 p-3 bg-gray-900 rounded text-xs text-gray-300 overflow-auto">
+                    <pre className="mt-2 p-2 lg:p-3 bg-gray-900 rounded text-xs text-gray-300 overflow-x-auto">
                       {JSON.stringify(draft.formData, null, 2)}
                     </pre>
                   </details>

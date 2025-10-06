@@ -51,18 +51,32 @@ PRIVY_VERIFICATION_KEY="-----BEGIN PUBLIC KEY-----...-----END PUBLIC KEY-----"
 # Database
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+NEXT_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
 
 # Blockchain Configuration
 NEXT_PUBLIC_BLOCKCHAIN_NETWORK=base-sepolia
 NEXT_PUBLIC_ADMIN_LOCK_ADDRESS=0x...
 LOCK_MANAGER_PRIVATE_KEY=0x...
-NEXT_ALCHEMY_API_KEY=your_alchemy_api_key
-BASE_MAINNET_RPC_URL=https://base-mainnet.g.alchemy.com/v2/
-BASE_SEPOLIA_RPC_URL=https://base-sepolia.g.alchemy.com/v2/
+NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key
+NEXT_PUBLIC_BASE_MAINNET_RPC_URL=https://base-mainnet.g.alchemy.com/v2/
+NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL=https://base-sepolia.g.alchemy.com/v2/
 
 # Development
 DEV_ADMIN_ADDRESSES=0x... # Comma-separated admin addresses for development
+
+# Admin Session & API tuning (optional)
+# Short‑lived admin session TTL (seconds)
+ADMIN_SESSION_TTL_SECONDS=60
+# RPC timeout for admin on‑chain checks (ms)
+ADMIN_RPC_TIMEOUT_MS=10000
+# Maximum page size for admin list endpoints
+ADMIN_MAX_PAGE_SIZE=200
+# Enable admin session middleware (default false to avoid breaking changes)
+ADMIN_SESSION_ENABLED=false
+# Secret used to sign admin session JWTs (HS256). Set to a strong random value in production.
+ADMIN_SESSION_JWT_SECRET=replace-with-a-long-random-secret
+# Admin session issuance rate limit (per minute)
+ADMIN_SESSION_RATE_LIMIT_PER_MINUTE=30
 ```
 
 4. **Database Setup**:
@@ -134,7 +148,7 @@ This project uses Supabase as its database. Follow these steps to set up the dat
    ```
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
-   SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
+   NEXT_SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_key
    ```
 
 2. Install the required packages if they're not already installed:

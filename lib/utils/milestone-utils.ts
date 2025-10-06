@@ -8,16 +8,19 @@ export interface MilestoneTimingInfo {
     minutes: number;
     seconds: number;
   };
-  status: 'not_started' | 'active' | 'expired';
+  status: "not_started" | "active" | "expired";
 }
 
-export function getMilestoneTimingInfo(startDate?: string, endDate?: string): MilestoneTimingInfo {
+export function getMilestoneTimingInfo(
+  startDate?: string,
+  endDate?: string,
+): MilestoneTimingInfo {
   if (!endDate) {
     return {
       isExpired: false,
       isActive: true,
       isNotStarted: false,
-      status: 'active'
+      status: "active",
     };
   }
 
@@ -30,7 +33,7 @@ export function getMilestoneTimingInfo(startDate?: string, endDate?: string): Mi
       isExpired: false,
       isActive: false,
       isNotStarted: true,
-      status: 'not_started'
+      status: "not_started",
     };
   }
 
@@ -39,14 +42,16 @@ export function getMilestoneTimingInfo(startDate?: string, endDate?: string): Mi
       isExpired: true,
       isActive: false,
       isNotStarted: false,
-      status: 'expired'
+      status: "expired",
     };
   }
 
   // Calculate time left
   const difference = endTime - now;
   const days = Math.floor(difference / (1000 * 60 * 60 * 24));
-  const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const hours = Math.floor(
+    (difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60),
+  );
   const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
   const seconds = Math.floor((difference % (1000 * 60)) / 1000);
 
@@ -55,7 +60,7 @@ export function getMilestoneTimingInfo(startDate?: string, endDate?: string): Mi
     isActive: true,
     isNotStarted: false,
     timeLeft: { days, hours, minutes, seconds },
-    status: 'active'
+    status: "active",
   };
 }
 

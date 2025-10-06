@@ -3,18 +3,22 @@ import {
   APIError,
   createPrivyClient,
   fetchAndVerifyAuthorization,
-} from "../../../lib/privyUtils";
+} from "../../../lib/utils/privyUtils";
 import { WalletApiRpcResponseType } from "@privy-io/public-api";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:solana:sign_message");
+
 const client = createPrivyClient();
 
 export default async function POST(
   req: NextApiRequest,
-  res: NextApiResponse<WalletApiRpcResponseType | APIError>
+  res: NextApiResponse<WalletApiRpcResponseType | APIError>,
 ) {
   const errorOrVerifiedClaims = await fetchAndVerifyAuthorization(
     req,
     res,
-    client
+    client,
   );
   const authorized = errorOrVerifiedClaims && "appId" in errorOrVerifiedClaims;
   if (!authorized) return errorOrVerifiedClaims;
@@ -43,7 +47,7 @@ export default async function POST(
       },
     });
   } catch (error) {
-    console.error("Error signing message:", error);
+    log.error("Error signing message:", error);
     return res.status(500).json({
       error: (error as Error).message,
       cause: (error as Error).stack,

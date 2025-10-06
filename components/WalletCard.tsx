@@ -1,6 +1,9 @@
 import { useCallback, useState } from "react";
 import { useSessionSigners, WalletWithMetadata } from "@privy-io/react-auth";
 import { useMessageSigning } from "@/hooks/useMessageSigning";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("WalletCard");
 
 const SESSION_SIGNER_ID = process.env.NEXT_PUBLIC_SESSION_SIGNER_ID;
 
@@ -24,7 +27,7 @@ export default function WalletCard({ wallet }: WalletCardProps) {
   const addSessionSigner = useCallback(
     async (walletAddress: string) => {
       if (!SESSION_SIGNER_ID) {
-        console.error("SESSION_SIGNER_ID must be defined to addSessionSigner");
+        log.error("SESSION_SIGNER_ID must be defined to addSessionSigner");
         return;
       }
 
@@ -41,12 +44,12 @@ export default function WalletCard({ wallet }: WalletCardProps) {
           ],
         });
       } catch (error) {
-        console.error("Error adding session signer:", error);
+        log.error("Error adding session signer:", error);
       } finally {
         setIsLoading(false);
       }
     },
-    [addSessionSigners]
+    [addSessionSigners],
   );
 
   const removeSessionSigner = useCallback(
@@ -55,12 +58,12 @@ export default function WalletCard({ wallet }: WalletCardProps) {
       try {
         await removeSessionSigners({ address: walletAddress });
       } catch (error) {
-        console.error("Error removing session signer:", error);
+        log.error("Error removing session signer:", error);
       } finally {
         setIsLoading(false);
       }
     },
-    [removeSessionSigners]
+    [removeSessionSigners],
   );
 
   return (

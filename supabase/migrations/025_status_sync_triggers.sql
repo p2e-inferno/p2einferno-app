@@ -34,7 +34,6 @@ BEGIN
   RETURN 'payment_pending';
 END;
 $$ LANGUAGE plpgsql;
-
 -- Function to sync application status after changes
 CREATE OR REPLACE FUNCTION sync_application_status() RETURNS TRIGGER AS $$
 DECLARE
@@ -134,7 +133,6 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create triggers for automatic status synchronization
 DROP TRIGGER IF EXISTS sync_status_on_application_update ON applications;
 CREATE TRIGGER sync_status_on_application_update
@@ -143,20 +141,17 @@ CREATE TRIGGER sync_status_on_application_update
   WHEN (OLD.payment_status IS DISTINCT FROM NEW.payment_status OR 
         OLD.application_status IS DISTINCT FROM NEW.application_status)
   EXECUTE FUNCTION sync_application_status();
-
 DROP TRIGGER IF EXISTS sync_status_on_user_app_status_update ON user_application_status;
 CREATE TRIGGER sync_status_on_user_app_status_update
   AFTER UPDATE OF status ON user_application_status
   FOR EACH ROW
   WHEN (OLD.status IS DISTINCT FROM NEW.status)
   EXECUTE FUNCTION sync_application_status();
-
 DROP TRIGGER IF EXISTS sync_status_on_enrollment_change ON bootcamp_enrollments;
 CREATE TRIGGER sync_status_on_enrollment_change
   AFTER INSERT OR UPDATE OF enrollment_status ON bootcamp_enrollments
   FOR EACH ROW
   EXECUTE FUNCTION sync_application_status();
-
 -- Function to reconcile all inconsistent statuses (for one-time cleanup)
 CREATE OR REPLACE FUNCTION reconcile_all_application_statuses() RETURNS TABLE(
   application_id UUID,
@@ -213,17 +208,13 @@ BEGIN
   END LOOP;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Add helpful indexes for performance
 CREATE INDEX IF NOT EXISTS idx_user_application_status_sync 
 ON user_application_status(application_id, user_profile_id, status);
-
 CREATE INDEX IF NOT EXISTS idx_bootcamp_enrollments_sync 
 ON bootcamp_enrollments(user_profile_id, cohort_id, enrollment_status);
-
 CREATE INDEX IF NOT EXISTS idx_applications_status_sync 
 ON applications(id, payment_status, application_status);
-
 -- Grant necessary permissions
 GRANT EXECUTE ON FUNCTION compute_user_application_status(TEXT, TEXT, TEXT) TO authenticated;
 GRANT EXECUTE ON FUNCTION reconcile_all_application_statuses() TO service_role;

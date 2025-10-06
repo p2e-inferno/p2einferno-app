@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS public.quests (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Add image_url column to quests table if it doesn't exist
 DO $$
 BEGIN
@@ -21,7 +20,6 @@ BEGIN
         ALTER TABLE public.quests ADD COLUMN image_url TEXT;
     END IF;
 END $$;
-
 -- Create quest tasks table
 CREATE TABLE IF NOT EXISTS public.quest_tasks (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -34,7 +32,6 @@ CREATE TABLE IF NOT EXISTS public.quest_tasks (
     order_index INTEGER NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create user quest progress table
 CREATE TABLE IF NOT EXISTS public.user_quest_progress (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -45,7 +42,6 @@ CREATE TABLE IF NOT EXISTS public.user_quest_progress (
     total_reward_claimed INTEGER DEFAULT 0,
     UNIQUE(user_id, quest_id)
 );
-
 -- Create user task completions table
 CREATE TABLE IF NOT EXISTS public.user_task_completions (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -58,7 +54,6 @@ CREATE TABLE IF NOT EXISTS public.user_task_completions (
     reward_claimed_at TIMESTAMP WITH TIME ZONE,
     UNIQUE(user_id, task_id)
 );
-
 -- Create terms of service signatures table
 CREATE TABLE IF NOT EXISTS public.tos_signatures (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -70,7 +65,6 @@ CREATE TABLE IF NOT EXISTS public.tos_signatures (
     signed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(user_id, tos_version)
 );
-
 -- Create indexes for better performance (with conditional checks)
 DO $$
 BEGIN
@@ -117,14 +111,12 @@ BEGIN
         CREATE INDEX idx_tos_signatures_wallet_address ON public.tos_signatures(wallet_address);
     END IF;
 END $$;
-
 -- Enable Row Level Security
 ALTER TABLE public.quests ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.quest_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_quest_progress ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_task_completions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tos_signatures ENABLE ROW LEVEL SECURITY;
-
 -- Create RLS policies with conditional checks
 DO $$
 BEGIN
@@ -140,58 +132,47 @@ BEGIN
     DROP POLICY IF EXISTS "Users can view own TOS signatures" ON public.tos_signatures;
     DROP POLICY IF EXISTS "Users can create own TOS signatures" ON public.tos_signatures;
 END $$;
-
 -- Create RLS policies
 -- Quests are viewable by all authenticated users
 CREATE POLICY "Quests are viewable by authenticated users" ON public.quests
     FOR SELECT
     USING (auth.role() = 'authenticated');
-
 -- Quest tasks are viewable by all authenticated users
 CREATE POLICY "Quest tasks are viewable by authenticated users" ON public.quest_tasks
     FOR SELECT
     USING (auth.role() = 'authenticated');
-
 -- Users can view their own quest progress
 CREATE POLICY "Users can view own quest progress" ON public.user_quest_progress
     FOR SELECT
     USING (auth.uid()::text = user_id);
-
 -- Users can insert their own quest progress
 CREATE POLICY "Users can create own quest progress" ON public.user_quest_progress
     FOR INSERT
     WITH CHECK (auth.uid()::text = user_id);
-
 -- Users can update their own quest progress
 CREATE POLICY "Users can update own quest progress" ON public.user_quest_progress
     FOR UPDATE
     USING (auth.uid()::text = user_id);
-
 -- Users can view their own task completions
 CREATE POLICY "Users can view own task completions" ON public.user_task_completions
     FOR SELECT
     USING (auth.uid()::text = user_id);
-
 -- Users can insert their own task completions
 CREATE POLICY "Users can create own task completions" ON public.user_task_completions
     FOR INSERT
     WITH CHECK (auth.uid()::text = user_id);
-
 -- Users can update their own task completions
 CREATE POLICY "Users can update own task completions" ON public.user_task_completions
     FOR UPDATE
     USING (auth.uid()::text = user_id);
-
 -- Users can view their own TOS signatures
 CREATE POLICY "Users can view own TOS signatures" ON public.tos_signatures
     FOR SELECT
     USING (auth.uid()::text = user_id);
-
 -- Users can insert their own TOS signatures
 CREATE POLICY "Users can create own TOS signatures" ON public.tos_signatures
     FOR INSERT
     WITH CHECK (auth.uid()::text = user_id);
-
 -- Check if the quest already exists before inserting
 DO $$
 DECLARE

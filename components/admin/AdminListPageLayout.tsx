@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { PlusCircle } from "lucide-react";
 import AdminLayout from "@/components/layouts/AdminLayout";
+import { NetworkError } from "@/components/ui/network-error";
 
 interface AdminListPageLayoutProps {
   title: string;
@@ -10,6 +11,8 @@ interface AdminListPageLayoutProps {
   newButtonLink: string;
   isLoading: boolean;
   error?: string | null;
+  onRetry?: () => void;
+  isRetrying?: boolean;
   isEmpty: boolean;
   emptyStateTitle: string;
   emptyStateMessage: string;
@@ -22,6 +25,8 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
   newButtonLink,
   isLoading,
   error,
+  onRetry,
+  isRetrying = false,
   isEmpty,
   emptyStateTitle,
   emptyStateMessage,
@@ -34,7 +39,9 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
         <div className="mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">{title}</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+                {title}
+              </h1>
             </div>
             <div className="flex-shrink-0">
               <Link href={newButtonLink}>
@@ -51,9 +58,11 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
         <div className="space-y-6">
           {/* Error State */}
           {error && (
-            <div className="bg-red-900/20 border border-red-700 rounded-lg p-4">
-              <p className="text-red-300">{error}</p>
-            </div>
+            <NetworkError
+              error={error}
+              onRetry={onRetry}
+              isRetrying={isRetrying}
+            />
           )}
 
           {/* Loading State */}
@@ -70,7 +79,9 @@ const AdminListPageLayout: React.FC<AdminListPageLayoutProps> = ({
                 <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
                   <PlusCircle className="w-8 h-8 text-gray-400" />
                 </div>
-                <h3 className="text-lg font-medium text-white mb-2">{emptyStateTitle}</h3>
+                <h3 className="text-lg font-medium text-white mb-2">
+                  {emptyStateTitle}
+                </h3>
                 <p className="text-gray-400 mb-6">{emptyStateMessage}</p>
                 <Link href={newButtonLink}>
                   <Button>

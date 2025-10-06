@@ -9,7 +9,7 @@ import {
   Flame,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { formatCurrency } from "@/lib/bootcamp-data";
+import { formatCurrency } from "@/lib/utils/payment-utils";
 import type { CohortHeroProps } from "./types";
 
 /**
@@ -126,7 +126,7 @@ export const CohortHero: React.FC<CohortHeroProps> = ({
                 month: "short",
                 day: "numeric",
                 year: "numeric",
-              }
+              },
             )}{" "}
             ({timeRemaining})
           </span>

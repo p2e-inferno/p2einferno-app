@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/wallet-change";
 import {
   FlameIcon,
   CrystalIcon,
@@ -96,7 +96,7 @@ export const BottomDock: React.FC = () => {
                     "group relative flex flex-col items-center p-3 rounded-xl transition-all duration-300 ease-out",
                     "hover:scale-110 hover:-translate-y-1",
                     "active:scale-95",
-                    isActive && "scale-110 -translate-y-1"
+                    isActive && "scale-110 -translate-y-1",
                   )}
                 >
                   {/* Icon background */}
@@ -110,7 +110,7 @@ export const BottomDock: React.FC = () => {
                         "shadow-lg",
                         item.pulseColor,
                         "from-white/20 to-white/10",
-                      ]
+                      ],
                     )}
                   >
                     {/* Active indicator */}
@@ -125,7 +125,7 @@ export const BottomDock: React.FC = () => {
                         className={cn(
                           "transition-colors duration-300",
                           isActive ? item.activeColor : item.color,
-                          "group-hover:drop-shadow-lg"
+                          "group-hover:drop-shadow-lg",
                         )}
                       />
                     </div>
@@ -138,7 +138,7 @@ export const BottomDock: React.FC = () => {
                       isActive
                         ? "text-white opacity-100"
                         : "text-faded-grey opacity-70",
-                      "group-hover:text-white group-hover:opacity-100"
+                      "group-hover:text-white group-hover:opacity-100",
                     )}
                   >
                     {item.label}
@@ -149,7 +149,7 @@ export const BottomDock: React.FC = () => {
                     className={cn(
                       "absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300",
                       "group-hover:opacity-100",
-                      "bg-gradient-to-r from-transparent via-white/5 to-transparent"
+                      "bg-gradient-to-r from-transparent via-white/5 to-transparent",
                     )}
                   />
                 </Link>

@@ -3,7 +3,7 @@
  * Single source of truth for all smart contract ABIs
  */
 
-import { PUBLIC_LOCK_CONTRACT } from "../../../constants";
+import { PUBLIC_LOCK_CONTRACT } from "@/constants";
 
 // ============================================================================
 // UNLOCK PROTOCOL ABIS
@@ -15,8 +15,8 @@ import { PUBLIC_LOCK_CONTRACT } from "../../../constants";
 export const UNLOCK_FACTORY_ABI = [
   {
     inputs: [
-      { internalType: "bytes", name: "calldata", type: "bytes" },
-      { internalType: "uint16", name: "version", type: "uint16" },
+      { internalType: "bytes", name: "data", type: "bytes" },
+      { internalType: "uint16", name: "lockVersion", type: "uint16" },
     ],
     name: "createUpgradeableLockAtVersion",
     outputs: [{ internalType: "address", name: "", type: "address" }],
@@ -83,12 +83,23 @@ export const ADDITIONAL_LOCK_ABI = [
     stateMutability: "view",
     type: "function",
   },
+  // Renounce lock manager function
+  {
+    inputs: [],
+    name: "renounceLockManager",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
 ] as const;
 
 /**
  * Complete Public Lock ABI combining base and additional functions
  */
-export const COMPLETE_LOCK_ABI = [...PUBLIC_LOCK_CONTRACT.abi, ...ADDITIONAL_LOCK_ABI];
+export const COMPLETE_LOCK_ABI = [
+  ...PUBLIC_LOCK_CONTRACT.abi,
+  ...ADDITIONAL_LOCK_ABI,
+];
 
 // ============================================================================
 // ERC20 ABIS
@@ -136,6 +147,16 @@ export const ERC20_ABI = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    inputs: [
+      { internalType: "address", name: "owner", type: "address" },
+      { internalType: "address", name: "spender", type: "address" },
+    ],
+    name: "allowance",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
 // ============================================================================
@@ -146,9 +167,12 @@ export const ERC20_ABI = [
  * Common event signatures for log parsing
  */
 export const EVENT_SIGNATURES = {
-  TRANSFER: "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
-  NEW_LOCK: "0x01017ed19df0c7f8acc436147b234b09664a9fb4797b4fa3fb9e599c2eb67be7",
-  APPROVAL: "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
+  TRANSFER:
+    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+  NEW_LOCK:
+    "0x01017ed19df0c7f8acc436147b234b09664a9fb4797b4fa3fb9e599c2eb67be7",
+  APPROVAL:
+    "0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925",
 } as const;
 
 /**
@@ -177,13 +201,13 @@ export const UNLOCK_FACTORY_ADDRESSES = {
 /**
  * Get the appropriate ABI for a given contract type
  */
-export const getContractABI = (contractType: 'lock' | 'factory' | 'erc20') => {
+export const getContractABI = (contractType: "lock" | "factory" | "erc20") => {
   switch (contractType) {
-    case 'lock':
+    case "lock":
       return COMPLETE_LOCK_ABI;
-    case 'factory':
+    case "factory":
       return UNLOCK_FACTORY_ABI;
-    case 'erc20':
+    case "erc20":
       return ERC20_ABI;
     default:
       throw new Error(`Unknown contract type: ${contractType}`);

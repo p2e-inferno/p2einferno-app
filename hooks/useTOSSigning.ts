@@ -2,6 +2,9 @@ import { useCallback } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSignMessage } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("hooks:useTOSSigning");
 
 export const useTOSSigning = () => {
   const { user } = usePrivy();
@@ -45,16 +48,16 @@ export const useTOSSigning = () => {
 
         return signature;
       } catch (error) {
-        console.error("Error signing TOS:", error);
+        log.error("Error signing TOS:", error);
         toast.error(
           error instanceof Error
             ? error.message
-            : "Failed to sign Terms of Service"
+            : "Failed to sign Terms of Service",
         );
         return false;
       }
     },
-    [user, wallets, signMessage]
+    [user, wallets, signMessage],
   );
 
   const checkTOSSigned = useCallback(
@@ -63,7 +66,7 @@ export const useTOSSigning = () => {
 
       try {
         const response = await fetch(
-          `/api/quests/check-tos?userId=${user.id}&tosVersion=${tosVersion}`
+          `/api/quests/check-tos?userId=${user.id}&tosVersion=${tosVersion}`,
         );
         const data = await response.json();
 
@@ -73,11 +76,11 @@ export const useTOSSigning = () => {
 
         return data.signed;
       } catch (error) {
-        console.error("Error checking TOS status:", error);
+        log.error("Error checking TOS status:", error);
         return false;
       }
     },
-    [user]
+    [user],
   );
 
   return {

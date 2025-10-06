@@ -2,16 +2,16 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:admin:program-requirements");
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!,
 );
 
-async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "POST") {
     return createRequirements(req, res);
   } else if (req.method === "GET") {
@@ -28,10 +28,13 @@ async function handler(
 
 async function createRequirements(req: NextApiRequest, res: NextApiResponse) {
   try {
-
     const { requirements, cohortId } = req.body;
 
-    if (!requirements || !Array.isArray(requirements) || requirements.length === 0) {
+    if (
+      !requirements ||
+      !Array.isArray(requirements) ||
+      requirements.length === 0
+    ) {
       return res.status(400).json({ error: "Requirements array is required" });
     }
 
@@ -49,13 +52,19 @@ async function createRequirements(req: NextApiRequest, res: NextApiResponse) {
     }
 
     // Delete existing requirements for this cohort
-    await supabaseAdmin.from("program_requirements").delete().eq("cohort_id", cohortId);
+    await supabaseAdmin
+      .from("program_requirements")
+      .delete()
+      .eq("cohort_id", cohortId);
 
     // Insert new requirements
-    const { data, error } = await supabaseAdmin.from("program_requirements").insert(requirements).select();
+    const { data, error } = await supabaseAdmin
+      .from("program_requirements")
+      .insert(requirements)
+      .select();
 
     if (error) {
-      console.error("Error creating requirements:", error);
+      log.error("Error creating requirements:", error);
       return res.status(500).json({ error: "Failed to create requirements" });
     }
 
@@ -64,7 +73,7 @@ async function createRequirements(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in createRequirements:", error);
+    log.error("Error in createRequirements:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
@@ -84,7 +93,7 @@ async function getRequirements(req: NextApiRequest, res: NextApiResponse) {
       .order("order_index");
 
     if (error) {
-      console.error("Error fetching requirements:", error);
+      log.error("Error fetching requirements:", error);
       return res.status(500).json({ error: "Failed to fetch requirements" });
     }
 
@@ -93,14 +102,13 @@ async function getRequirements(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in getRequirements:", error);
+    log.error("Error in getRequirements:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
 
 async function updateRequirement(req: NextApiRequest, res: NextApiResponse) {
   try {
-
     const { id, ...updateData } = req.body;
 
     if (!id) {
@@ -118,7 +126,7 @@ async function updateRequirement(req: NextApiRequest, res: NextApiResponse) {
       .single();
 
     if (error) {
-      console.error("Error updating requirement:", error);
+      log.error("Error updating requirement:", error);
       return res.status(500).json({ error: "Failed to update requirement" });
     }
 
@@ -127,14 +135,13 @@ async function updateRequirement(req: NextApiRequest, res: NextApiResponse) {
       data,
     });
   } catch (error) {
-    console.error("Error in updateRequirement:", error);
+    log.error("Error in updateRequirement:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
 
 async function deleteRequirement(req: NextApiRequest, res: NextApiResponse) {
   try {
-
     const { id } = req.query;
 
     if (!id) {
@@ -147,7 +154,7 @@ async function deleteRequirement(req: NextApiRequest, res: NextApiResponse) {
       .eq("id", id);
 
     if (error) {
-      console.error("Error deleting requirement:", error);
+      log.error("Error deleting requirement:", error);
       return res.status(500).json({ error: "Failed to delete requirement" });
     }
 
@@ -156,7 +163,7 @@ async function deleteRequirement(req: NextApiRequest, res: NextApiResponse) {
       message: "Requirement deleted successfully",
     });
   } catch (error) {
-    console.error("Error in deleteRequirement:", error);
+    log.error("Error in deleteRequirement:", error);
     return res.status(500).json({ error: "Internal server error" });
   }
 }

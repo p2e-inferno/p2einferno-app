@@ -1,9 +1,13 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
-import { grantKeyService } from "@/lib/blockchain/grant-key-service";
-import { isServerBlockchainConfigured } from "@/lib/blockchain/server-config";
-import { isValidEthereumAddress } from "@/lib/blockchain/transaction-helpers";
+import { grantKeyService } from "@/lib/blockchain/services/grant-key-service";
+import { isServerBlockchainConfigured } from "@/lib/blockchain/legacy/server-config";
+import { isValidEthereumAddress } from "@/lib/blockchain/services/transaction-service";
+import { getLogger } from "@/lib/utils/logger";
+import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
+
+const log = getLogger("api:admin:reconcile-key-grants");
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
@@ -11,9 +15,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
   }
 
   if (!isServerBlockchainConfigured()) {
-    return res.status(503).json({ 
+    return res.status(503).json({
       error: "Blockchain configuration not available",
-      message: "Server blockchain config is required for key reconciliation"
+      message: "Server blockchain config is required for key reconciliation",
     });
   }
 
@@ -32,9 +36,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return res.status(400).json({ error: "Invalid operation" });
     }
   } catch (error: any) {
-    console.error("Reconciliation API error:", error);
-    return res.status(500).json({ 
-      error: error.message || "Internal server error" 
+    log.error("Reconciliation API error:", error);
+    return res.status(500).json({
+      error: error.message || "Internal server error",
     });
   }
 }
@@ -44,12 +48,13 @@ export default withAdminAuth(handler);
 async function listFailedKeyGrants(
   res: NextApiResponse,
   supabase: any,
-  filters: any = {}
+  filters: any = {},
 ) {
   try {
     let query = supabase
-      .from('user_activities')
-      .select(`
+      .from("user_activities")
+      .select(
+        `
         id,
         user_profile_id,
         activity_type,
@@ -62,16 +67,17 @@ async function listFailedKeyGrants(
           display_name,
           privy_user_id
         )
-      `)
-      .eq('activity_type', 'key_grant_failed')
-      .order('created_at', { ascending: false });
+      `,
+      )
+      .eq("activity_type", "key_grant_failed")
+      .order("created_at", { ascending: false });
 
     // Apply date filters
     if (filters.since) {
-      query = query.gte('created_at', filters.since);
+      query = query.gte("created_at", filters.since);
     }
     if (filters.until) {
-      query = query.lte('created_at', filters.until);
+      query = query.lte("created_at", filters.until);
     }
 
     const { data: failedGrants, error } = await query;
@@ -79,37 +85,37 @@ async function listFailedKeyGrants(
     if (error) throw error;
 
     // Process the data to make it more readable
-    const processedGrants = failedGrants?.map((grant: any) => ({
-      id: grant.id,
-      userProfileId: grant.user_profile_id,
-      userInfo: {
-        walletAddress: grant.user_profiles.wallet_address,
-        email: grant.user_profiles.email,
-        displayName: grant.user_profiles.display_name,
-        privyUserId: grant.user_profiles.privy_user_id,
-      },
-      failureDetails: {
-        cohortId: grant.activity_data?.cohortId,
-        lockAddress: grant.activity_data?.lockAddress,
-        error: grant.activity_data?.error,
-        attempts: grant.activity_data?.attempts,
-        requiresReconciliation: grant.activity_data?.requiresReconciliation,
-      },
-      failedAt: grant.created_at,
-    })) || [];
+    const processedGrants =
+      failedGrants?.map((grant: any) => ({
+        id: grant.id,
+        userProfileId: grant.user_profile_id,
+        userInfo: {
+          walletAddress: grant.user_profiles.wallet_address,
+          email: grant.user_profiles.email,
+          displayName: grant.user_profiles.display_name,
+          privyUserId: grant.user_profiles.privy_user_id,
+        },
+        failureDetails: {
+          cohortId: grant.activity_data?.cohortId,
+          lockAddress: grant.activity_data?.lockAddress,
+          error: grant.activity_data?.error,
+          attempts: grant.activity_data?.attempts,
+          requiresReconciliation: grant.activity_data?.requiresReconciliation,
+        },
+        failedAt: grant.created_at,
+      })) || [];
 
     return res.status(200).json({
       success: true,
       data: {
         failedGrants: processedGrants,
         total: processedGrants.length,
-      }
+      },
     });
-
   } catch (error: any) {
-    console.error("Error listing failed key grants:", error);
-    return res.status(500).json({ 
-      error: error.message || "Failed to list failed grants" 
+    log.error("Error listing failed key grants:", error);
+    return res.status(500).json({
+      error: error.message || "Failed to list failed grants",
     });
   }
 }
@@ -117,13 +123,14 @@ async function listFailedKeyGrants(
 async function retryFailedKeyGrants(
   res: NextApiResponse,
   supabase: any,
-  filters: any = {}
+  filters: any = {},
 ) {
   try {
     // Get failed grants to retry
     let query = supabase
-      .from('user_activities')
-      .select(`
+      .from("user_activities")
+      .select(
+        `
         id,
         user_profile_id,
         activity_data,
@@ -131,21 +138,24 @@ async function retryFailedKeyGrants(
           wallet_address,
           privy_user_id
         )
-      `)
-      .eq('activity_type', 'key_grant_failed');
+      `,
+      )
+      .eq("activity_type", "key_grant_failed");
 
     // Apply filters
     if (filters.since) {
-      query = query.gte('created_at', filters.since);
+      query = query.gte("created_at", filters.since);
     }
     if (filters.userProfileId) {
-      query = query.eq('user_profile_id', filters.userProfileId);
+      query = query.eq("user_profile_id", filters.userProfileId);
     }
     if (filters.cohortId) {
-      query = query.contains('activity_data', { cohortId: filters.cohortId });
+      query = query.contains("activity_data", { cohortId: filters.cohortId });
     }
 
-    const { data: failedGrants, error } = await query.limit(filters.limit || 10);
+    const { data: failedGrants, error } = await query.limit(
+      filters.limit || 10,
+    );
 
     if (error) throw error;
 
@@ -158,12 +168,16 @@ async function retryFailedKeyGrants(
 
     for (const grant of failedGrants || []) {
       results.attempted++;
-      
+
       const cohortId = grant.activity_data?.cohortId;
       const lockAddress = grant.activity_data?.lockAddress;
       const walletAddress = grant.user_profiles.wallet_address;
 
-      if (!lockAddress || !walletAddress || !isValidEthereumAddress(walletAddress)) {
+      if (
+        !lockAddress ||
+        !walletAddress ||
+        !isValidEthereumAddress(walletAddress)
+      ) {
         results.failed++;
         results.details.push({
           userProfileId: grant.user_profile_id,
@@ -176,43 +190,46 @@ async function retryFailedKeyGrants(
       }
 
       try {
-        console.log(`Reconciliation: Retrying key grant for user ${walletAddress}, cohort ${cohortId}`);
+        log.info(
+          `Reconciliation: Retrying key grant for user ${walletAddress}, cohort ${cohortId}`,
+        );
         const grantResult = await grantKeyService.grantKeyToUser({
           walletAddress: walletAddress,
           lockAddress: lockAddress as `0x${string}`,
-          keyManagers: [],
+          keyManagers: getKeyManagersForContext(
+            walletAddress as `0x${string}`,
+            "reconciliation",
+          ),
         });
 
         if (grantResult.success) {
           results.successful++;
-          
+
           // Log successful reconciliation
-          await supabase
-            .from('user_activities')
-            .insert({
-              user_profile_id: grant.user_profile_id,
-              activity_type: 'key_grant_reconciled',
-              activity_data: {
-                cohortId,
-                lockAddress,
-                transactionHash: grantResult.transactionHash,
-                originalFailureId: grant.id,
-                reconciledAt: new Date().toISOString(),
-              },
-              points_earned: 0,
-            });
+          await supabase.from("user_activities").insert({
+            user_profile_id: grant.user_profile_id,
+            activity_type: "key_grant_reconciled",
+            activity_data: {
+              cohortId,
+              lockAddress,
+              transactionHash: grantResult.transactionHash,
+              originalFailureId: grant.id,
+              reconciledAt: new Date().toISOString(),
+            },
+            points_earned: 0,
+          });
 
           // Mark original failure as reconciled
           await supabase
-            .from('user_activities')
+            .from("user_activities")
             .update({
               activity_data: {
                 ...grant.activity_data,
                 reconciledAt: new Date().toISOString(),
-                reconciledBy: 'admin_reconciliation',
-              }
+                reconciledBy: "admin_reconciliation",
+              },
             })
-            .eq('id', grant.id);
+            .eq("id", grant.id);
 
           results.details.push({
             userProfileId: grant.user_profile_id,
@@ -222,7 +239,6 @@ async function retryFailedKeyGrants(
             walletAddress,
             transactionHash: grantResult.transactionHash,
           });
-
         } else {
           results.failed++;
           results.details.push({
@@ -233,7 +249,6 @@ async function retryFailedKeyGrants(
             walletAddress,
           });
         }
-
       } catch (error: any) {
         results.failed++;
         results.details.push({
@@ -246,18 +261,17 @@ async function retryFailedKeyGrants(
       }
 
       // Add small delay between attempts to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
     return res.status(200).json({
       success: true,
       data: results,
     });
-
   } catch (error: any) {
-    console.error("Error retrying failed key grants:", error);
-    return res.status(500).json({ 
-      error: error.message || "Failed to retry key grants" 
+    log.error("Error retrying failed key grants:", error);
+    return res.status(500).json({
+      error: error.message || "Failed to retry key grants",
     });
   }
 }
@@ -265,29 +279,35 @@ async function retryFailedKeyGrants(
 async function retrySingleKeyGrant(
   res: NextApiResponse,
   supabase: any,
-  requestBody: any
+  requestBody: any,
 ) {
   const { userProfileId, cohortId, lockAddress, walletAddress } = requestBody;
 
   if (!userProfileId || !cohortId || !lockAddress || !walletAddress) {
-    return res.status(400).json({ 
-      error: "Missing required fields: userProfileId, cohortId, lockAddress, walletAddress" 
+    return res.status(400).json({
+      error:
+        "Missing required fields: userProfileId, cohortId, lockAddress, walletAddress",
     });
   }
 
-  if (!isValidEthereumAddress(walletAddress) || !isValidEthereumAddress(lockAddress)) {
-    return res.status(400).json({ 
-      error: "Invalid wallet or lock address format" 
+  if (
+    !isValidEthereumAddress(walletAddress) ||
+    !isValidEthereumAddress(lockAddress)
+  ) {
+    return res.status(400).json({
+      error: "Invalid wallet or lock address format",
     });
   }
 
   try {
-    console.log(`Manual reconciliation: Granting key to user ${walletAddress} for cohort ${cohortId}`);
-    
+    log.info(
+      `Manual reconciliation: Granting key to user ${walletAddress} for cohort ${cohortId}`,
+    );
+
     // Check if user already has a valid key
     const hasValidKey = await grantKeyService.userHasValidKey(
       walletAddress,
-      lockAddress as `0x${string}`
+      lockAddress as `0x${string}`,
     );
 
     if (hasValidKey) {
@@ -301,32 +321,33 @@ async function retrySingleKeyGrant(
     const grantResult = await grantKeyService.grantKeyToUser({
       walletAddress: walletAddress,
       lockAddress: lockAddress as `0x${string}`,
-      keyManagers: [],
+      keyManagers: getKeyManagersForContext(
+        walletAddress as `0x${string}`,
+        "reconciliation",
+      ),
     });
 
     if (grantResult.success) {
       // Log successful manual reconciliation
-      await supabase
-        .from('user_activities')
-        .insert({
-          user_profile_id: userProfileId,
-          activity_type: 'key_grant_manual_reconciliation',
-          activity_data: {
-            cohortId,
-            lockAddress,
-            transactionHash: grantResult.transactionHash,
-            reconciledAt: new Date().toISOString(),
-            reconciledBy: 'manual_admin_action',
-          },
-          points_earned: 0,
-        });
+      await supabase.from("user_activities").insert({
+        user_profile_id: userProfileId,
+        activity_type: "key_grant_manual_reconciliation",
+        activity_data: {
+          cohortId,
+          lockAddress,
+          transactionHash: grantResult.transactionHash,
+          reconciledAt: new Date().toISOString(),
+          reconciledBy: "manual_admin_action",
+        },
+        points_earned: 0,
+      });
 
       return res.status(200).json({
         success: true,
         message: "Key granted successfully",
         data: {
           transactionHash: grantResult.transactionHash,
-        }
+        },
       });
     } else {
       return res.status(200).json({
@@ -334,11 +355,10 @@ async function retrySingleKeyGrant(
         error: grantResult.error || "Key granting failed",
       });
     }
-
   } catch (error: any) {
-    console.error("Manual key grant error:", error);
-    return res.status(500).json({ 
-      error: error.message || "Failed to grant key manually" 
+    log.error("Manual key grant error:", error);
+    return res.status(500).json({
+      error: error.message || "Failed to grant key manually",
     });
   }
 }

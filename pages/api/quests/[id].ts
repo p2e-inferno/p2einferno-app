@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:[id]");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -40,14 +43,14 @@ export default async function handler(
           requires_admin_review,
           created_at
         )
-      `
+      `,
       )
       .eq("id", id)
       .eq("is_active", true)
       .single();
 
     if (questError) {
-      console.error("Error fetching quest:", questError);
+      log.error("Error fetching quest:", questError);
       return res.status(500).json({
         error: "Failed to fetch quest",
         details: questError.message,
@@ -89,7 +92,7 @@ export default async function handler(
       completions,
     });
   } catch (error) {
-    console.error("Error in quest details API:", error);
+    log.error("Error in quest details API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

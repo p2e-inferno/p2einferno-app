@@ -1,11 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
+import { getLogger } from "@/lib/utils/logger";
 
-async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse
-) {
+const log = getLogger("api:admin:quests:submissions");
+
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const supabase = createAdminClient();
 
@@ -18,7 +18,7 @@ async function handler(
         return res.status(405).json({ error: "Method not allowed" });
     }
   } catch (error: any) {
-    console.error("API error:", error);
+    log.error("API error:", error);
     return res
       .status(500)
       .json({ error: error.message || "Internal server error" });
@@ -28,7 +28,7 @@ async function handler(
 async function getSubmissions(
   req: NextApiRequest,
   res: NextApiResponse,
-  supabase: any
+  supabase: any,
 ) {
   const { questId, status, limit = 50, offset = 0 } = req.query;
 
@@ -51,7 +51,7 @@ async function getSubmissions(
           display_name,
           privy_user_id
         )
-      `
+      `,
       )
       .order("completed_at", { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1);
@@ -70,7 +70,7 @@ async function getSubmissions(
 
     return res.status(200).json({ submissions: data || [] });
   } catch (error: any) {
-    console.error("Error fetching submissions:", error);
+    log.error("Error fetching submissions:", error);
     return res.status(500).json({ error: "Failed to fetch submissions" });
   }
 }
@@ -78,7 +78,7 @@ async function getSubmissions(
 async function updateSubmissionStatus(
   req: NextApiRequest,
   res: NextApiResponse,
-  supabase: any
+  supabase: any,
 ) {
   const { submissionId, status, feedback } = req.body;
 
@@ -102,7 +102,8 @@ async function updateSubmissionStatus(
     // Get the current submission with task details
     const { data: currentSubmission, error: fetchError } = await supabase
       .from("user_task_completions")
-      .select(`
+      .select(
+        `
         *,
         task:quest_tasks!user_task_completions_task_id_fkey (
           title
@@ -110,7 +111,8 @@ async function updateSubmissionStatus(
         user:user_profiles!user_task_completions_user_id_fkey (
           id
         )
-      `)
+      `,
+      )
       .eq("id", submissionId)
       .single();
 
@@ -126,7 +128,7 @@ async function updateSubmissionStatus(
     const updateData: any = {
       submission_status: status,
       admin_feedback: feedback?.trim() || null,
-      reviewed_by: 'admin', // Admin user since we're using withAdminAuth
+      reviewed_by: "admin", // Admin user since we're using withAdminAuth
       reviewed_at: now,
     };
 
@@ -145,7 +147,7 @@ async function updateSubmissionStatus(
     // Create a notification for the user
     const notificationTitle = `Task submission reviewed: ${status}`;
     let notificationMessage = `Your submission for the task "${currentSubmission.task.title}" has been reviewed.`;
-    
+
     if (status === "completed") {
       notificationMessage = `Congratulations! Your submission for "${currentSubmission.task.title}" has been approved. You can now claim your reward.`;
     } else if (status === "failed") {
@@ -160,11 +162,11 @@ async function updateSubmissionStatus(
         user_profile_id: currentSubmission.user.id,
         title: notificationTitle,
         message: notificationMessage,
-        link: `/lobby/quests/${currentSubmission.quest_id}`
+        link: `/lobby/quests/${currentSubmission.quest_id}`,
       });
 
     if (notificationError) {
-      console.error("Failed to create notification:", notificationError);
+      log.error("Failed to create notification:", notificationError);
       // Don't fail the main operation if notification creation fails
     }
 
@@ -176,7 +178,7 @@ async function updateSubmissionStatus(
           p_quest_id: currentSubmission.quest_id,
         });
       } catch (progressError) {
-        console.error("Error recalculating progress:", progressError);
+        log.error("Error recalculating progress:", progressError);
         // Don't fail the main operation if progress update fails
       }
     }
@@ -186,7 +188,7 @@ async function updateSubmissionStatus(
       message: "Submission status updated successfully",
     });
   } catch (error: any) {
-    console.error("Error updating submission status:", error);
+    log.error("Error updating submission status:", error);
     return res
       .status(500)
       .json({ error: "Failed to update submission status" });

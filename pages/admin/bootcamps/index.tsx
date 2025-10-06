@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 
 import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
@@ -7,42 +7,65 @@ import Link from "next/link";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { getLogger } from "@/lib/utils/logger";
 
-function BootcampsPage() {
+const log = getLogger("admin:bootcamps:index");
 
+export default function BootcampsPage() {
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const [bootcamps, setBootcamps] = useState<BootcampProgram[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const { adminFetch, loading } = useAdminApi();
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch, loading } = useAdminApi(apiOptions);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [bootcampToDelete, setBootcampToDelete] =
     useState<BootcampProgram | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  useEffect(() => {
-    async function fetchBootcamps() {
-      try {
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: BootcampProgram[]}>("/api/admin/bootcamps");
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
+  const fetchBootcamps = useCallback(async () => {
+    try {
+      setError(null);
 
-        // Extract the data from the nested response structure
-        const bootcampData = result.data?.data || [];
-        setBootcamps(Array.isArray(bootcampData) ? bootcampData : []);
-      } catch (err: any) {
-        console.error("Error fetching bootcamps:", err);
-        setError(err.message || "Failed to load bootcamps");
+      const result = await adminFetch<{
+        success: boolean;
+        data: BootcampProgram[];
+      }>("/api/admin/bootcamps");
+
+      if (result.error) {
+        throw new Error(result.error);
       }
-    }
 
-    fetchBootcamps();
+      if (!result.data?.success) {
+        throw new Error("Failed to load bootcamps");
+      }
+
+      const bootcampData = result.data.data ?? [];
+      setBootcamps(Array.isArray(bootcampData) ? bootcampData : []);
+    } catch (err: any) {
+      log.error("Error fetching bootcamps:", err);
+      setError(err.message || "Failed to load bootcamps");
+    }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    fetcher: fetchBootcamps,
+  });
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchBootcamps();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   async function handleConfirmDelete() {
     if (!bootcampToDelete) return;
@@ -51,23 +74,27 @@ function BootcampsPage() {
       setIsDeleting(true);
 
       // Call API to delete the bootcamp using adminFetch
-      const result = await adminFetch(
+      const result = await adminFetch<{ success: boolean }>(
         `/api/admin/bootcamps/${bootcampToDelete.id}`,
         {
           method: "DELETE",
-        }
+        },
       );
 
       if (result.error) {
         throw new Error(result.error);
       }
 
+      if (!result.data?.success) {
+        throw new Error("Failed to delete bootcamp");
+      }
+
       // Remove from UI
       setBootcamps((prev) =>
-        prev.filter((bootcamp) => bootcamp.id !== bootcampToDelete.id)
+        prev.filter((bootcamp) => bootcamp.id !== bootcampToDelete.id),
       );
     } catch (err: any) {
-      console.error("Error deleting bootcamp:", err);
+      log.error("Error deleting bootcamp:", err);
     } finally {
       setIsDeleting(false);
       setDeleteDialogOpen(false);
@@ -81,8 +108,10 @@ function BootcampsPage() {
         title="Bootcamp Programs"
         newButtonText="New Bootcamp"
         newButtonLink="/admin/bootcamps/new"
-        isLoading={loading}
+        isLoading={isLoadingAuth || loading}
         error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
         isEmpty={!loading && !error && bootcamps.length === 0}
         emptyStateTitle="No bootcamps found"
         emptyStateMessage="Create your first bootcamp to get started"
@@ -176,9 +205,3 @@ function BootcampsPage() {
     </>
   );
 }
-
-// Export the page wrapped in admin authentication
-export default withAdminAuth(
-  BootcampsPage,
-  { message: "You need admin access to manage bootcamps" }
-);

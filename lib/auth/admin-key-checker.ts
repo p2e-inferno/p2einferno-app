@@ -4,8 +4,12 @@
  * Runtime: Server-side only
  */
 
-import { Address } from "viem";
-import { lockManagerService } from "../blockchain/lock-manager";
+import { Address, zeroAddress } from "viem";
+import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
+import { getLogger } from "@/lib/utils/logger";
+import type { KeyInfo } from "@/lib/blockchain/services/lock-manager";
+
+const log = getLogger("auth:key-check");
 
 export interface AdminKeyResult {
   hasValidKey: boolean;
@@ -26,79 +30,98 @@ export interface WalletKeyCheck {
 /**
  * Check multiple wallet addresses for admin keys in parallel
  * Significantly faster than sequential checking for users with multiple wallets
- * 
+ *
  * @param walletAddresses Array of wallet addresses to check
  * @param adminLockAddress The admin lock contract address
  * @returns Promise with validation results
  */
 export const checkMultipleWalletsForAdminKey = async (
   walletAddresses: string[],
-  adminLockAddress: string
+  adminLockAddress: string,
+  client: any,
 ): Promise<AdminKeyResult> => {
   if (walletAddresses.length === 0) {
     return {
       hasValidKey: false,
       checkedAddresses: [],
-      errors: []
+      errors: [],
     };
   }
 
-  console.log(`[PARALLEL_KEY_CHECK] Checking ${walletAddresses.length} wallet(s) in parallel for admin access`);
+  log.info(
+    `Checking ${walletAddresses.length} wallet(s) in parallel for admin access`,
+  );
 
   // Create parallel key check promises
-  const keyCheckPromises = walletAddresses.map(async (address): Promise<WalletKeyCheck> => {
-    try {
-      console.log(`[PARALLEL_KEY_CHECK] Checking wallet ${address}...`);
-      
-      const keyInfo = await lockManagerService.checkUserHasValidKey(
-        address as Address,
-        adminLockAddress as Address
-      );
+  const keyCheckPromises = walletAddresses.map(
+    async (address): Promise<WalletKeyCheck> => {
+      try {
+        log.debug(`Checking wallet ${address}...`);
+        let keyInfo: KeyInfo | null = {
+          tokenId: 0n,
+          owner: zeroAddress,
+          expirationTimestamp: 0n,
+          isValid: false,
+        };
 
-      console.log(`[PARALLEL_KEY_CHECK] Wallet ${address}: ${keyInfo?.isValid ? 'VALID' : 'INVALID'}`);
+        const hasValidKey = await client.readContract({
+          address: adminLockAddress,
+          abi: COMPLETE_LOCK_ABI,
+          functionName: "getHasValidKey",
+          args: [address],
+        });
+        keyInfo.isValid = hasValidKey;
+        keyInfo.owner = address as Address;
+       
+        log.debug(
+          `Wallet ${address}: ${keyInfo?.isValid ? "VALID" : "INVALID"}`,
+        );
 
-      return {
-        address,
-        keyInfo
-      };
-    } catch (error: any) {
-      console.error(`[PARALLEL_KEY_CHECK] Key check failed for ${address}:`, error.message);
-      
-      return {
-        address,
-        keyInfo: null,
-        error: error.message || 'Unknown error during key check'
-      };
-    }
-  });
+        return {
+          address,
+          keyInfo,
+        };
+      } catch (error: any) {
+        log.error(`Key check failed for ${address}`, { error: error.message });
+
+        return {
+          address,
+          keyInfo: null,
+          error: error.message || "Unknown error during key check",
+        };
+      }
+    },
+  );
 
   // Execute all key checks in parallel
   const startTime = Date.now();
   const keyCheckResults = await Promise.allSettled(keyCheckPromises);
   const endTime = Date.now();
 
-  console.log(`[PARALLEL_KEY_CHECK] Completed ${walletAddresses.length} key checks in ${endTime - startTime}ms`);
+  log.info(
+    `Completed ${walletAddresses.length} key checks in ${endTime - startTime}ms`,
+  );
 
   // Process results
   const errors: Array<{ address: string; error: string }> = [];
   let validAddress: string | undefined;
 
   for (const result of keyCheckResults) {
-    if (result.status === 'fulfilled') {
+    if (result.status === "fulfilled") {
       const { address, keyInfo, error } = result.value;
-      
+
       if (error) {
         errors.push({ address, error });
       } else if (keyInfo?.isValid && !validAddress) {
         // Use the first valid address found
         validAddress = address;
-        console.log(`[PARALLEL_KEY_CHECK] ✅ Admin access granted for wallet ${address}`);
+        log.info(`✅ Admin access granted for wallet ${address}`);
       }
     } else {
       // Promise was rejected - this should be rare due to individual error handling
       errors.push({
-        address: 'unknown',
-        error: result.reason?.message || 'Promise rejection during key check'
+        address: "unknown",
+        error: result.reason?.message || "Promise rejection during key check",
       });
     }
   }
@@ -107,15 +130,15 @@ export const checkMultipleWalletsForAdminKey = async (
     hasValidKey: !!validAddress,
     validAddress,
     checkedAddresses: walletAddresses,
-    errors
+    errors,
   };
 
   if (result.hasValidKey) {
-    console.log(`[PARALLEL_KEY_CHECK] ✅ Access GRANTED - found valid admin key`);
+    log.info(`✅ Access GRANTED - found valid admin key`);
   } else {
-    console.log(`[PARALLEL_KEY_CHECK] ❌ Access DENIED - no valid admin keys found`);
+    log.info(`❌ Access DENIED - no valid admin keys found`);
     if (errors.length > 0) {
-      console.log(`[PARALLEL_KEY_CHECK] Encountered ${errors.length} errors during validation`);
+      log.warn(`Encountered ${errors.length} errors during validation`);
     }
   }
 
@@ -125,31 +148,44 @@ export const checkMultipleWalletsForAdminKey = async (
 /**
  * Check a single development admin address
  * Used as fallback in development environments
- * 
+ *
  * @param devAddress Development admin address
  * @param adminLockAddress Admin lock contract address
  * @returns Promise with validation result
  */
 export const checkDevelopmentAdminAddress = async (
   devAddress: string,
-  adminLockAddress: string
+  adminLockAddress: string,
+  client: any,
 ): Promise<{ isValid: boolean; error?: string }> => {
   try {
-    console.log(`[DEV_ADMIN_CHECK] Checking development admin address: ${devAddress}`);
+    log.info(`Checking development admin address: ${devAddress}`);
+    let keyInfo: KeyInfo | null = {
+      tokenId: 0n,
+      owner: zeroAddress,
+      expirationTimestamp: 0n,
+      isValid: false,
+    };
+   
+      const hasValidKey = await client.readContract({
+        address: adminLockAddress,
+        abi: COMPLETE_LOCK_ABI,
+        functionName: "getHasValidKey",
+        args: [devAddress],
+      });
+      keyInfo.isValid = hasValidKey;
+      keyInfo.owner = devAddress as Address;
     
-    const keyInfo = await lockManagerService.checkUserHasValidKey(
-      devAddress as Address,
-      adminLockAddress as Address
-    );
 
     const isValid = keyInfo?.isValid || false;
-    console.log(`[DEV_ADMIN_CHECK] Development admin check: ${isValid ? 'VALID' : 'INVALID'}`);
-    
+    log.info(`Development admin check: ${isValid ? "VALID" : "INVALID"}`);
+
     return { isValid };
   } catch (error: any) {
-    const errorMessage = error.message || 'Unknown error during dev admin check';
-    console.error(`[DEV_ADMIN_CHECK] Development admin check failed:`, errorMessage);
-    
+    const errorMessage =
+      error.message || "Unknown error during dev admin check";
+    log.error(`Development admin check failed`, { error: errorMessage });
+
     return { isValid: false, error: errorMessage };
   }
 };
@@ -160,23 +196,24 @@ export const checkDevelopmentAdminAddress = async (
  */
 export const compareKeyCheckPerformance = async (
   walletAddresses: string[],
-  adminLockAddress: string
+  adminLockAddress: string,
+  client: any,
 ): Promise<{
   parallelTime: number;
   estimatedSequentialTime: number;
   performanceGain: string;
 }> => {
   const startTime = Date.now();
-  await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress);
+  await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress, client);
   const parallelTime = Date.now() - startTime;
 
   // Estimate sequential time (this is approximate)
   const estimatedSequentialTime = parallelTime * walletAddresses.length;
   const gainFactor = estimatedSequentialTime / parallelTime;
-  
+
   return {
     parallelTime,
     estimatedSequentialTime,
-    performanceGain: `${gainFactor.toFixed(1)}x faster`
+    performanceGain: `${gainFactor.toFixed(1)}x faster`,
   };
 };

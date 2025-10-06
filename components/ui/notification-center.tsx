@@ -1,6 +1,6 @@
 import React from "react";
 import { CheckCircle, XCircle, AlertCircle, Info, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/wallet-change";
 
 export type NotificationType = "success" | "error" | "warning" | "info";
 
@@ -60,7 +60,7 @@ export const Notification: React.FC<NotificationProps> = ({
       className={cn(
         getNotificationStyles(type),
         "p-4 transition-all duration-300 ease-in-out",
-        className
+        className,
       )}
       role="alert"
       aria-live="polite"
@@ -92,17 +92,17 @@ export const Notification: React.FC<NotificationProps> = ({
 
 // Preset notification components for common use cases
 export const SuccessNotification: React.FC<Omit<NotificationProps, "type">> = (
-  props
+  props,
 ) => <Notification type="success" {...props} />;
 
 export const ErrorNotification: React.FC<Omit<NotificationProps, "type">> = (
-  props
+  props,
 ) => <Notification type="error" {...props} />;
 
 export const WarningNotification: React.FC<Omit<NotificationProps, "type">> = (
-  props
+  props,
 ) => <Notification type="warning" {...props} />;
 
 export const InfoNotification: React.FC<Omit<NotificationProps, "type">> = (
-  props
+  props,
 ) => <Notification type="info" {...props} />;

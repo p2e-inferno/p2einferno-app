@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/router";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { toast } from "react-hot-toast";
 import AdminLayout from "@/components/layouts/AdminLayout";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
-import AdminAccessRequired from "@/components/admin/AdminAccessRequired";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, AlertCircle, ExternalLink } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { RefreshCw, ExternalLink } from "lucide-react";
+import { NetworkError } from "@/components/ui/network-error";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:payments:index");
 
 interface PaymentTransaction {
   id: string;
@@ -31,103 +32,74 @@ interface PaymentTransaction {
 }
 
 const AdminPaymentsPage: React.FC = () => {
-  const { isAdmin, loading: authLoading, authenticated } = useLockManagerAdminAuth();
-  const { getAccessToken } = usePrivy();
-  const router = useRouter();
-  const [isClient, setIsClient] = useState(false);
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reconcilingIds, setReconcilingIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isClient || authLoading) return;
-    if (!authenticated || !isAdmin) {
-      router.push("/");
-    }
-  }, [authenticated, isAdmin, authLoading, router, isClient]);
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(apiOptions);
 
   const fetchTransactions = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      const accessToken = await getAccessToken();
-      const response = await fetch("/api/admin/payments", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-      });
+      const result = await adminFetch<{ transactions: PaymentTransaction[] }>(
+        "/api/admin/payments",
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch transactions");
+      if (result.error) {
+        throw new Error(result.error);
       }
 
-      const data = await response.json();
-      setTransactions(data.transactions || []);
+      setTransactions(result.data?.transactions || []);
     } catch (err) {
-      console.error("Error fetching transactions:", err);
+      log.error("Error fetching transactions:", err);
       setError(
-        err instanceof Error ? err.message : "Failed to fetch transactions"
+        err instanceof Error ? err.message : "Failed to fetch transactions",
       );
     } finally {
       setIsLoading(false);
     }
-  }, [getAccessToken]);
+  }, [adminFetch]);
 
   useEffect(() => {
-    if (authenticated && isAdmin && isClient) {
-      fetchTransactions();
-    }
-  }, [authenticated, isAdmin, isClient, fetchTransactions]);
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   const handleReconcile = async (applicationId: string) => {
     try {
       setReconcilingIds((prev) => new Set(prev).add(applicationId));
 
-      const accessToken = await getAccessToken();
-      if (!accessToken) {
-        throw new Error("Failed to get access token");
-      }
-
       // Use the comprehensive reconcile endpoint that handles all scenarios
-      const response = await fetch("/api/admin/applications/reconcile", {
+      const result = await adminFetch("/api/admin/applications/reconcile", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           applicationId,
           // Let the service determine what actions are needed
-          actions: []
+          actions: [],
         }),
       });
 
-      const result = await response.json();
-      console.log("Reconcile response:", { status: response.status, result });
+      log.info("Reconcile response:", result);
 
-      if (!response.ok) {
-        console.error("Reconcile failed:", result);
+      if (result.error) {
+        log.error("Reconcile failed:", result);
         throw new Error(result.error || "Reconciliation failed");
       }
 
-      if (result.success) {
-        toast.success(result.message || "Payment reconciled successfully!");
+      if (result.data?.success) {
+        toast.success(
+          result.data.message || "Payment reconciled successfully!",
+        );
         // Refresh the list
         await fetchTransactions();
       } else {
-        toast.error(result.message || "Reconciliation failed");
+        toast.error(result.data?.message || "Reconciliation failed");
       }
     } catch (err) {
-      console.error("Reconciliation error:", err);
+      log.error("Reconciliation error:", err);
       toast.error(err instanceof Error ? err.message : "Reconciliation failed");
     } finally {
       setReconcilingIds((prev) => {
@@ -163,24 +135,6 @@ const AdminPaymentsPage: React.FC = () => {
     return `${explorerUrl}/tx/${txHash}`;
   };
 
-  // Show loading while auth is being checked
-  if (authLoading || !isClient) {
-    return (
-      <AdminLayout>
-        <div className="w-full flex justify-center items-center min-h-[400px]">
-          <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
-        </div>
-      </AdminLayout>
-    );
-  }
-
-  // Show access required if not authenticated or not admin
-  if (!authenticated || !isAdmin) {
-    return (
-      <AdminAccessRequired message="You need admin access to view payment transactions" />
-    );
-  }
-
   return (
     <AdminLayout>
       <div className="w-full">
@@ -210,9 +164,12 @@ const AdminPaymentsPage: React.FC = () => {
             <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-flame-yellow"></div>
           </div>
         ) : error ? (
-          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-6 flex items-center">
-            <AlertCircle className="w-5 h-5 mr-2" />
-            {error}
+          <div className="mb-6">
+            <NetworkError
+              error={error}
+              onRetry={fetchTransactions}
+              isRetrying={isLoading}
+            />
           </div>
         ) : transactions.length === 0 ? (
           <div className="bg-card border border-gray-800 rounded-lg p-12 text-center">
@@ -268,24 +225,29 @@ const AdminPaymentsPage: React.FC = () => {
                           {transaction.applications.user_email}
                         </div>
                         {(() => {
-                          const userProfile = Array.isArray(transaction.applications.user_profiles) 
-                            ? transaction.applications.user_profiles[0] 
+                          const userProfile = Array.isArray(
+                            transaction.applications.user_profiles,
+                          )
+                            ? transaction.applications.user_profiles[0]
                             : transaction.applications.user_profiles;
-                          return userProfile?.wallet_address && (
-                            <div className="text-xs font-mono text-gray-500">
-                              {userProfile.wallet_address.slice(0, 6)}
-                              ...
-                              {userProfile.wallet_address.slice(-4)}
-                            </div>
+                          return (
+                            userProfile?.wallet_address && (
+                              <div className="text-xs font-mono text-gray-500">
+                                {userProfile.wallet_address.slice(0, 6)}
+                                ...
+                                {userProfile.wallet_address.slice(-4)}
+                              </div>
+                            )
                           );
                         })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-300">
-                          {Array.isArray(transaction.applications.cohorts) 
-                            ? transaction.applications.cohorts[0]?.name || "Unknown"
-                            : transaction.applications.cohorts?.name || "Unknown"
-                          }
+                          {Array.isArray(transaction.applications.cohorts)
+                            ? transaction.applications.cohorts[0]?.name ||
+                              "Unknown"
+                            : transaction.applications.cohorts?.name ||
+                              "Unknown"}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -303,7 +265,7 @@ const AdminPaymentsPage: React.FC = () => {
                               <a
                                 href={getBlockExplorerUrl(
                                   transaction.transaction_hash,
-                                  transaction.network_chain_id
+                                  transaction.network_chain_id,
                                 )}
                                 target="_blank"
                                 rel="noopener noreferrer"
@@ -326,7 +288,7 @@ const AdminPaymentsPage: React.FC = () => {
                             handleReconcile(transaction.application_id)
                           }
                           disabled={reconcilingIds.has(
-                            transaction.application_id
+                            transaction.application_id,
                           )}
                           size="sm"
                           className="bg-flame-yellow hover:bg-flame-yellow/90 text-black"

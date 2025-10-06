@@ -1,5 +1,5 @@
 import React from "react";
-import { cn } from "@/lib/utils";
+import { cn } from "@/lib/utils/wallet-change";
 import { Check } from "lucide-react";
 
 interface Step {
@@ -39,7 +39,7 @@ export function ProgressSteps({
                       "bg-steel-red text-white": isCompleted,
                       "bg-flame-yellow text-black": isCurrent,
                       "bg-faded-grey/20 text-faded-grey": isUpcoming,
-                    }
+                    },
                   )}
                 >
                   {isCompleted ? <Check className="w-5 h-5" /> : stepNumber}
@@ -67,7 +67,7 @@ export function ProgressSteps({
                       "text-steel-red": isCompleted,
                       "text-flame-yellow": isCurrent,
                       "text-faded-grey": isUpcoming,
-                    }
+                    },
                   )}
                 >
                   {step.title}

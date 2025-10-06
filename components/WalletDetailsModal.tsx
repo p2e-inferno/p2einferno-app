@@ -1,23 +1,17 @@
-import React from 'react';
-import Image from 'next/image';
+import React from "react";
+import Image from "next/image";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { useWalletBalances } from '@/hooks/useWalletBalances';
-import { CURRENT_NETWORK } from '@/lib/blockchain/frontend-config';
-import {
-  Copy,
-  ExternalLink,
-  RefreshCcw,
-  Wallet,
-  Download,
-} from 'lucide-react';
-import { toast } from 'react-hot-toast';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useWalletBalances } from "@/hooks/useWalletBalances";
+import { CURRENT_NETWORK } from "@/lib/blockchain/legacy/frontend-config";
+import { Copy, ExternalLink, RefreshCcw, Wallet, Download } from "lucide-react";
+import { toast } from "react-hot-toast";
 
 interface WalletDetailsModalProps {
   isOpen: boolean;
@@ -26,17 +20,17 @@ interface WalletDetailsModalProps {
 }
 
 // Simple QR Code generator using a service (you can replace with a library if preferred)
-const QRCodeDisplay: React.FC<{ address: string; size?: number }> = ({ 
-  address, 
-  size = 140 
+const QRCodeDisplay: React.FC<{ address: string; size?: number }> = ({
+  address,
+  size = 140,
 }) => {
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${address}&format=png&bgcolor=1a1b23&color=f97316&qzone=2`;
-  
+
   return (
     <div className="flex flex-col items-center space-y-3">
       <div className="bg-white p-3 sm:p-4 rounded-lg">
-        <Image 
-          src={qrUrl} 
+        <Image
+          src={qrUrl}
           alt="Wallet Address QR Code"
           width={size}
           height={size}
@@ -55,23 +49,24 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
   onClose,
   walletAddress,
 }) => {
-  const { balances, loading, error, refreshBalances, networkName } = useWalletBalances();
+  const { balances, loading, error, refreshBalances, networkName } =
+    useWalletBalances({ enabled: isOpen });
 
   const shortAddress = `${walletAddress.substring(0, 8)}...${walletAddress.substring(walletAddress.length - 6)}`;
 
   const copyAddress = () => {
     navigator.clipboard.writeText(walletAddress);
-    toast.success('Address copied to clipboard!');
+    toast.success("Address copied to clipboard!");
   };
 
   const viewOnExplorer = () => {
     const explorerUrl = `${CURRENT_NETWORK.explorerUrl}/address/${walletAddress}`;
-    window.open(explorerUrl, '_blank');
+    window.open(explorerUrl, "_blank");
   };
 
   const downloadQR = () => {
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${walletAddress}&format=png&bgcolor=1a1b23&color=f97316&qzone=2`;
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = qrUrl;
     link.download = `wallet-qr-${shortAddress}.png`;
     link.click();
@@ -79,7 +74,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-md sm:max-w-lg bg-card border-border text-foreground">
+      <DialogContent className="bg-card border-border text-foreground">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <Wallet className="w-5 h-5 text-flame-yellow" />
@@ -137,7 +132,9 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                 disabled={loading}
                 className="h-8 w-8 p-0"
               >
-                <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCcw
+                  className={`w-4 h-4 ${loading ? "animate-spin" : ""}`}
+                />
               </Button>
             </div>
 
@@ -171,7 +168,9 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                         balances.usdc.formatted
                       )}
                     </div>
-                    <div className="text-xs text-gray-400">{balances.usdc.symbol}</div>
+                    <div className="text-xs text-gray-400">
+                      {balances.usdc.symbol}
+                    </div>
                   </div>
                 </Card>
               </div>
@@ -199,7 +198,11 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
 
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-2">
-            <Button variant="outline" onClick={onClose} className="flex-1 order-2 sm:order-1">
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="flex-1 order-2 sm:order-1"
+            >
               Close
             </Button>
             <Button onClick={copyAddress} className="flex-1 order-1 sm:order-2">

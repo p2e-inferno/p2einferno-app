@@ -1,49 +1,71 @@
-import { useState, useEffect } from "react";
-// useRouter is not directly used by the page anymore
-import AdminListPageLayout from "@/components/admin/AdminListPageLayout"; // Import the new layout
+import { useState, useCallback, useMemo } from "react";
+import AdminListPageLayout from "@/components/admin/AdminListPageLayout";
 import { Button } from "@/components/ui/button";
-import { Pencil, Calendar, Trash2, Star } from "lucide-react"; // PlusCircle is in AdminListPageLayout, Eye not used
+import { Pencil, Calendar, Trash2, Star } from "lucide-react";
 import Link from "next/link";
+import { toast } from "react-hot-toast";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
-// useLockManagerAdminAuth is now used by AdminListPageLayout
-import { formatDate } from "@/lib/dateUtils"; // + Import shared function
-import { Badge } from "@/components/ui/badge"; // Keep Badge for status display
+import { formatDate } from "@/lib/utils/dateUtils";
+import { Badge } from "@/components/ui/badge";
+import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:index");
 
 export default function CohortListPage() {
-  // Auth and client checks are handled by AdminListPageLayout
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const [cohorts, setCohorts] = useState<
     (Cohort & { bootcamp_program: BootcampProgram })[]
   >([]);
   const [error, setError] = useState<string | null>(null);
-  const { adminFetch, loading } = useAdminApi();
-  console.log("Cohorts loaded:", cohorts.length, "items")
-  // Fetch cohorts - This logic remains in the page
-  useEffect(() => {
-    // AdminListPageLayout handles auth check
-    async function fetchCohorts() {
-      try {
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: (Cohort & { bootcamp_program: BootcampProgram })[]}>("/api/admin/cohorts");
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
+  const apiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch, loading } = useAdminApi(apiOptions);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [cohortToDelete, setCohortToDelete] = useState<
+    (Cohort & { bootcamp_program: BootcampProgram }) | null
+  >(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const fetchCohorts = useCallback(async () => {
+    try {
+      setError(null);
 
-        // Extract the data from the nested response structure
-        const cohortData = result.data?.data || [];
-        setCohorts(Array.isArray(cohortData) ? cohortData : []);
-      } catch (err: any) {
-        console.error("Error fetching cohorts:", err);
-        setError(err.message || "Failed to load cohorts");
+      const result = await adminFetch<{
+        success: boolean;
+        data: (Cohort & { bootcamp_program: BootcampProgram })[];
+      }>("/api/admin/cohorts");
+
+      if (result.error) {
+        throw new Error(result.error);
       }
+
+      // Extract the data from the nested response structure
+      const cohortData = result.data?.data || [];
+      setCohorts(Array.isArray(cohortData) ? cohortData : []);
+    } catch (err: any) {
+      log.error("Error fetching cohorts:", err);
+      setError(err.message || "Failed to load cohorts");
     }
+  }, [adminFetch]);
 
-    fetchCohorts();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    fetcher: fetchCohorts,
+  });
 
-  // formatDate is now imported
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchCohorts();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // Function to get status badge
   const getStatusBadge = (status: string) => {
@@ -64,8 +86,10 @@ export default function CohortListPage() {
       title="Cohorts"
       newButtonText="New Cohort"
       newButtonLink="/admin/cohorts/new"
-      isLoading={loading} // Pass the data loading state
+      isLoading={isLoadingAuth || loading} // Wait for auth + data
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
       isEmpty={!loading && !error && cohorts.length === 0}
       emptyStateTitle="No cohorts found"
       emptyStateMessage="Create your first cohort to get started"
@@ -101,8 +125,11 @@ export default function CohortListPage() {
                 className="border-b border-gray-800 hover:bg-gray-900"
               >
                 <td className="py-4 px-4 text-sm text-white">
-                  <Link href={`/admin/cohorts/${cohort.id}/applications`} className="hover:text-flame-yellow">
-                      {cohort.name}
+                  <Link
+                    href={`/admin/cohorts/${cohort.id}/applications`}
+                    className="hover:text-flame-yellow"
+                  >
+                    {cohort.name}
                   </Link>
                 </td>
                 <td className="py-4 px-4 text-sm text-white">
@@ -155,8 +182,10 @@ export default function CohortListPage() {
                       variant="outline"
                       className="border-gray-700 hover:border-red-500 hover:text-red-500"
                       title="Delete cohort"
-                      // TODO: Implement delete functionality
-                      onClick={() => alert("Delete functionality not yet implemented.")}
+                      onClick={() => {
+                        setCohortToDelete(cohort);
+                        setDeleteDialogOpen(true);
+                      }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -167,6 +196,50 @@ export default function CohortListPage() {
           </tbody>
         </table>
       </div>
+      <ConfirmationDialog
+        isOpen={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        onConfirm={async () => {
+          if (!cohortToDelete) return;
+
+          try {
+            setIsDeleting(true);
+            const result = await adminFetch<{ success: boolean }>(
+              `/api/admin/cohorts?id=${cohortToDelete.id}`,
+              { method: "DELETE" },
+            );
+
+            if (result.error) {
+              throw new Error(result.error);
+            }
+
+            if (!result.data?.success) {
+              throw new Error("Failed to delete cohort");
+            }
+
+            setCohorts((prev) =>
+              prev.filter((item) => item.id !== cohortToDelete.id),
+            );
+            toast.success("Cohort deleted successfully");
+          } catch (err: any) {
+            log.error("Error deleting cohort:", err);
+            toast.error(err?.message || "Failed to delete cohort");
+          } finally {
+            setIsDeleting(false);
+            setDeleteDialogOpen(false);
+            setCohortToDelete(null);
+          }
+        }}
+        title="Delete Cohort"
+        description={
+          cohortToDelete
+            ? `Are you sure you want to delete ${cohortToDelete.name}? This action cannot be undone.`
+            : ""
+        }
+        confirmText="Delete"
+        cancelText="Cancel"
+        isLoading={isDeleting}
+      />
     </AdminListPageLayout>
   );
 }

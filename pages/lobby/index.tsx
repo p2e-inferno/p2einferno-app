@@ -15,6 +15,9 @@ import {
 import LobbyConfirmationModal from "../../components/lobby/LobbyConfirmationModal";
 import { LobbyLayout } from "../../components/layouts/lobby-layout";
 import { Application } from "@/lib/supabase";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("lobby:index");
 
 // Add interface to match component requirements
 interface PendingApplication {
@@ -36,7 +39,9 @@ export default function LobbyPage() {
   const { getAccessToken, authenticated, ready } = usePrivy();
   const { data: dashboardData, loading, error, refetch } = useDashboardData();
   const [showRemoveModal, setShowRemoveModal] = useState(false);
-  const [enrollmentToRemove, setEnrollmentToRemove] = useState<string | null>(null);
+  const [enrollmentToRemove, setEnrollmentToRemove] = useState<string | null>(
+    null,
+  );
   const [isRemoving, setIsRemoving] = useState(false);
 
   const handleCompletePayment = async (applicationId: string) => {
@@ -48,7 +53,7 @@ export default function LobbyPage() {
 
       toast.dismiss();
     } catch (error) {
-      console.error("Failed to redirect to payment:", error);
+      log.error("Failed to redirect to payment:", error);
       toast.error("Failed to redirect to payment page");
     }
   };
@@ -65,13 +70,16 @@ export default function LobbyPage() {
       setIsRemoving(true);
 
       const token = await getAccessToken();
-      const response = await fetch(`/api/user/enrollment/${enrollmentToRemove}/remove`, {
-        method: "DELETE",
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const response = await fetch(
+        `/api/user/enrollment/${enrollmentToRemove}/remove`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
         },
-      });
+      );
 
       const result = await response.json();
 
@@ -80,16 +88,15 @@ export default function LobbyPage() {
       }
 
       toast.success("Journey removed from lobby");
-      
+
       // Refresh the dashboard data to update the UI
       await refetch();
-      
+
       // Close modal and reset state
       setShowRemoveModal(false);
       setEnrollmentToRemove(null);
-      
     } catch (error: any) {
-      console.error("Failed to remove journey:", error);
+      log.error("Failed to remove journey:", error);
       toast.error(error.message || "Failed to remove journey");
     } finally {
       setIsRemoving(false);
@@ -115,7 +122,11 @@ export default function LobbyPage() {
 
   // If user is not authenticated or data not loaded, render LobbyLayout which will show wallet connection
   if (!ready || !authenticated || !dashboardData) {
-    return <LobbyLayout><div /></LobbyLayout>;
+    return (
+      <LobbyLayout>
+        <div />
+      </LobbyLayout>
+    );
   }
 
   const { profile, applications, enrollments, stats } = dashboardData;
@@ -165,8 +176,11 @@ export default function LobbyPage() {
 
       <QuickActionsGrid />
 
-      <CurrentEnrollments enrollments={enrollments} onRemoveJourney={handleRemoveJourney} />
-      
+      <CurrentEnrollments
+        enrollments={enrollments}
+        onRemoveJourney={handleRemoveJourney}
+      />
+
       <LobbyConfirmationModal
         isOpen={showRemoveModal}
         onClose={handleCloseRemoveModal}

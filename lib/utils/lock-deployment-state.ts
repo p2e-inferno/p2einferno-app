@@ -1,17 +1,21 @@
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("utils:lock-deployment-state");
+
 // ============================================================================
 // LOCAL STORAGE KEYS
 // ============================================================================
 
 const STORAGE_KEYS = {
-  PENDING_DEPLOYMENTS: 'p2e_pending_lock_deployments',
-  DEPLOYMENT_DRAFTS: 'p2e_deployment_drafts',
+  PENDING_DEPLOYMENTS: "p2e_pending_lock_deployments",
+  DEPLOYMENT_DRAFTS: "p2e_deployment_drafts",
 } as const;
 
 // ============================================================================
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type EntityType = 'bootcamp' | 'cohort' | 'quest' | 'milestone';
+export type EntityType = "bootcamp" | "cohort" | "quest" | "milestone";
 
 export interface PendingDeployment {
   id: string;
@@ -21,6 +25,8 @@ export interface PendingDeployment {
   timestamp: number;
   retryCount: number;
   transactionHash?: string;
+  grantTransactionHash?: string;
+  serverWalletAddress?: string;
   blockExplorerUrl?: string;
 }
 
@@ -39,12 +45,14 @@ export interface DeploymentDraft {
  * Save deployment state before attempting database creation
  * Call this immediately after successful lock deployment
  */
-export const savePendingDeployment = (deployment: Omit<PendingDeployment, 'id' | 'timestamp' | 'retryCount'>): string => {
+export const savePendingDeployment = (
+  deployment: Omit<PendingDeployment, "id" | "timestamp" | "retryCount">,
+): string => {
   try {
-    if (typeof window === 'undefined') return '';
+    if (typeof window === "undefined") return "";
 
     const deploymentId = `${deployment.entityType}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
+
     const pendingDeployment: PendingDeployment = {
       id: deploymentId,
       ...deployment,
@@ -54,14 +62,17 @@ export const savePendingDeployment = (deployment: Omit<PendingDeployment, 'id' |
 
     const existing = getPendingDeployments();
     const updated = [...existing, pendingDeployment];
-    
-    localStorage.setItem(STORAGE_KEYS.PENDING_DEPLOYMENTS, JSON.stringify(updated));
-    console.log('Saved pending deployment:', deploymentId);
-    
+
+    localStorage.setItem(
+      STORAGE_KEYS.PENDING_DEPLOYMENTS,
+      JSON.stringify(updated),
+    );
+    log.info("Saved pending deployment:", deploymentId);
+
     return deploymentId;
   } catch (error) {
-    console.error('Error saving pending deployment:', error);
-    return '';
+    log.error("Error saving pending deployment:", error);
+    return "";
   }
 };
 
@@ -70,25 +81,30 @@ export const savePendingDeployment = (deployment: Omit<PendingDeployment, 'id' |
  */
 export const getPendingDeployments = (): PendingDeployment[] => {
   try {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === "undefined") return [];
 
     const stored = localStorage.getItem(STORAGE_KEYS.PENDING_DEPLOYMENTS);
     if (!stored) return [];
 
     const deployments = JSON.parse(stored) as PendingDeployment[];
-    
+
     // Filter out old deployments (older than 24 hours)
-    const cutoffTime = Date.now() - (24 * 60 * 60 * 1000);
-    const validDeployments = deployments.filter(d => d.timestamp > cutoffTime);
-    
+    const cutoffTime = Date.now() - 24 * 60 * 60 * 1000;
+    const validDeployments = deployments.filter(
+      (d) => d.timestamp > cutoffTime,
+    );
+
     // Update storage if we filtered any out
     if (validDeployments.length !== deployments.length) {
-      localStorage.setItem(STORAGE_KEYS.PENDING_DEPLOYMENTS, JSON.stringify(validDeployments));
+      localStorage.setItem(
+        STORAGE_KEYS.PENDING_DEPLOYMENTS,
+        JSON.stringify(validDeployments),
+      );
     }
-    
+
     return validDeployments;
   } catch (error) {
-    console.error('Error getting pending deployments:', error);
+    log.error("Error getting pending deployments:", error);
     return [];
   }
 };
@@ -98,15 +114,18 @@ export const getPendingDeployments = (): PendingDeployment[] => {
  */
 export const removePendingDeployment = (deploymentId: string): void => {
   try {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     const existing = getPendingDeployments();
-    const updated = existing.filter(d => d.id !== deploymentId);
-    
-    localStorage.setItem(STORAGE_KEYS.PENDING_DEPLOYMENTS, JSON.stringify(updated));
-    console.log('Removed pending deployment:', deploymentId);
+    const updated = existing.filter((d) => d.id !== deploymentId);
+
+    localStorage.setItem(
+      STORAGE_KEYS.PENDING_DEPLOYMENTS,
+      JSON.stringify(updated),
+    );
+    log.info("Removed pending deployment:", deploymentId);
   } catch (error) {
-    console.error('Error removing pending deployment:', error);
+    log.error("Error removing pending deployment:", error);
   }
 };
 
@@ -115,18 +134,19 @@ export const removePendingDeployment = (deploymentId: string): void => {
  */
 export const incrementDeploymentRetry = (deploymentId: string): void => {
   try {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     const existing = getPendingDeployments();
-    const updated = existing.map(d => 
-      d.id === deploymentId 
-        ? { ...d, retryCount: d.retryCount + 1 }
-        : d
+    const updated = existing.map((d) =>
+      d.id === deploymentId ? { ...d, retryCount: d.retryCount + 1 } : d,
     );
-    
-    localStorage.setItem(STORAGE_KEYS.PENDING_DEPLOYMENTS, JSON.stringify(updated));
+
+    localStorage.setItem(
+      STORAGE_KEYS.PENDING_DEPLOYMENTS,
+      JSON.stringify(updated),
+    );
   } catch (error) {
-    console.error('Error incrementing retry count:', error);
+    log.error("Error incrementing retry count:", error);
   }
 };
 
@@ -135,8 +155,8 @@ export const incrementDeploymentRetry = (deploymentId: string): void => {
  */
 export const hasPendingDeployments = (entityType?: EntityType): boolean => {
   const pending = getPendingDeployments();
-  return entityType 
-    ? pending.some(d => d.entityType === entityType)
+  return entityType
+    ? pending.some((d) => d.entityType === entityType)
     : pending.length > 0;
 };
 
@@ -149,10 +169,10 @@ export const hasPendingDeployments = (entityType?: EntityType): boolean => {
  */
 export const saveDraft = (entityType: EntityType, formData: any): string => {
   try {
-    if (typeof window === 'undefined') return '';
+    if (typeof window === "undefined") return "";
 
     const draftId = `${entityType}_draft_${Date.now()}`;
-    
+
     const draft: DeploymentDraft = {
       id: draftId,
       entityType,
@@ -161,15 +181,21 @@ export const saveDraft = (entityType: EntityType, formData: any): string => {
     };
 
     const existing = getDrafts();
-    const updated = [...existing.filter(d => d.entityType !== entityType), draft]; // Keep only latest draft per type
-    
-    localStorage.setItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS, JSON.stringify(updated));
-    console.log('Saved draft:', draftId);
-    
+    const updated = [
+      ...existing.filter((d) => d.entityType !== entityType),
+      draft,
+    ]; // Keep only latest draft per type
+
+    localStorage.setItem(
+      STORAGE_KEYS.DEPLOYMENT_DRAFTS,
+      JSON.stringify(updated),
+    );
+    log.info("Saved draft:", draftId);
+
     return draftId;
   } catch (error) {
-    console.error('Error saving draft:', error);
-    return '';
+    log.error("Error saving draft:", error);
+    return "";
   }
 };
 
@@ -178,25 +204,28 @@ export const saveDraft = (entityType: EntityType, formData: any): string => {
  */
 export const getDrafts = (): DeploymentDraft[] => {
   try {
-    if (typeof window === 'undefined') return [];
+    if (typeof window === "undefined") return [];
 
     const stored = localStorage.getItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS);
     if (!stored) return [];
 
     const drafts = JSON.parse(stored) as DeploymentDraft[];
-    
+
     // Filter out old drafts (older than 7 days)
-    const cutoffTime = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    const validDrafts = drafts.filter(d => d.timestamp > cutoffTime);
-    
+    const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const validDrafts = drafts.filter((d) => d.timestamp > cutoffTime);
+
     // Update storage if we filtered any out
     if (validDrafts.length !== drafts.length) {
-      localStorage.setItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS, JSON.stringify(validDrafts));
+      localStorage.setItem(
+        STORAGE_KEYS.DEPLOYMENT_DRAFTS,
+        JSON.stringify(validDrafts),
+      );
     }
-    
+
     return validDrafts;
   } catch (error) {
-    console.error('Error getting drafts:', error);
+    log.error("Error getting drafts:", error);
     return [];
   }
 };
@@ -206,7 +235,99 @@ export const getDrafts = (): DeploymentDraft[] => {
  */
 export const getDraft = (entityType: EntityType): DeploymentDraft | null => {
   const drafts = getDrafts();
-  return drafts.find(d => d.entityType === entityType) || null;
+  return drafts.find((d) => d.entityType === entityType) || null;
+};
+
+/**
+ * Update existing draft with deployment result after successful lock deployment
+ * This ensures the lock address and grant failure info are preserved even if database save fails
+ */
+export const updateDraftWithDeploymentResult = (
+  entityType: EntityType,
+  result: {
+    lockAddress: string;
+    grantFailed?: boolean;
+    grantError?: string;
+  },
+): void => {
+  try {
+    if (typeof window === "undefined") return;
+
+    const existing = getDrafts();
+    const draftIndex = existing.findIndex((d) => d.entityType === entityType);
+
+    if (draftIndex === -1) {
+      log.warn("No existing draft found to update with deployment result:", {
+        entityType,
+        lockAddress: result.lockAddress,
+      });
+      return;
+    }
+
+    // Update the existing draft with deployment result and disable auto-creation
+    const currentDraft = existing[draftIndex];
+    if (!currentDraft) {
+      log.error("Draft at index is undefined", { entityType, draftIndex });
+      return;
+    }
+
+    // Handle quest's nested structure vs other entities' flat structure
+    let updatedFormData;
+    if (entityType === "quest" && currentDraft.formData.questData) {
+      // Quest with new nested structure
+      updatedFormData = {
+        ...currentDraft.formData,
+        questData: {
+          ...currentDraft.formData.questData,
+          lock_address: result.lockAddress,
+          auto_lock_creation: false,
+          lock_manager_granted: !result.grantFailed,
+          grant_failure_reason: result.grantError || null,
+        },
+      };
+    } else {
+      // Other entities with flat structure (bootcamp, cohort, milestone) or old quest format
+      updatedFormData = {
+        ...currentDraft.formData,
+        lock_address: result.lockAddress,
+        auto_lock_creation: false,
+        lock_manager_granted: !result.grantFailed,
+        grant_failure_reason: result.grantError || null,
+      };
+    }
+
+    const updatedDraft: DeploymentDraft = {
+      id: currentDraft.id,
+      entityType: currentDraft.entityType,
+      formData: updatedFormData,
+      timestamp: Date.now(), // Update timestamp to reflect latest change
+    };
+
+    const updated = [...existing];
+    updated[draftIndex] = updatedDraft;
+
+    localStorage.setItem(
+      STORAGE_KEYS.DEPLOYMENT_DRAFTS,
+      JSON.stringify(updated),
+    );
+    log.info("Updated draft with deployment result:", {
+      entityType,
+      lockAddress: result.lockAddress,
+      grantFailed: result.grantFailed,
+    });
+  } catch (error) {
+    log.error("Error updating draft with deployment result:", error);
+  }
+};
+
+/**
+ * @deprecated Use updateDraftWithDeploymentResult instead
+ */
+export const updateDraftWithLockAddress = (
+  entityType: EntityType,
+  lockAddress: string,
+): void => {
+  updateDraftWithDeploymentResult(entityType, { lockAddress });
 };
 
 /**
@@ -214,15 +335,18 @@ export const getDraft = (entityType: EntityType): DeploymentDraft | null => {
  */
 export const removeDraft = (entityType: EntityType): void => {
   try {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     const existing = getDrafts();
-    const updated = existing.filter(d => d.entityType !== entityType);
-    
-    localStorage.setItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS, JSON.stringify(updated));
-    console.log('Removed draft for:', entityType);
+    const updated = existing.filter((d) => d.entityType !== entityType);
+
+    localStorage.setItem(
+      STORAGE_KEYS.DEPLOYMENT_DRAFTS,
+      JSON.stringify(updated),
+    );
+    log.info("Removed draft for:", entityType);
   } catch (error) {
-    console.error('Error removing draft:', error);
+    log.error("Error removing draft:", error);
   }
 };
 
@@ -235,13 +359,13 @@ export const removeDraft = (entityType: EntityType): void => {
  */
 export const clearAllDeploymentState = (): void => {
   try {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     localStorage.removeItem(STORAGE_KEYS.PENDING_DEPLOYMENTS);
     localStorage.removeItem(STORAGE_KEYS.DEPLOYMENT_DRAFTS);
-    console.log('Cleared all deployment state');
+    log.info("Cleared all deployment state");
   } catch (error) {
-    console.error('Error clearing deployment state:', error);
+    log.error("Error clearing deployment state:", error);
   }
 };
 
@@ -251,18 +375,17 @@ export const clearAllDeploymentState = (): void => {
 export const getDeploymentStats = () => {
   const pending = getPendingDeployments();
   const drafts = getDrafts();
-  
+
   return {
     pendingCount: pending.length,
     draftCount: drafts.length,
     pendingByType: {
-      bootcamp: pending.filter(d => d.entityType === 'bootcamp').length,
-      cohort: pending.filter(d => d.entityType === 'cohort').length,
-      quest: pending.filter(d => d.entityType === 'quest').length,
-      milestone: pending.filter(d => d.entityType === 'milestone').length,
+      bootcamp: pending.filter((d) => d.entityType === "bootcamp").length,
+      cohort: pending.filter((d) => d.entityType === "cohort").length,
+      quest: pending.filter((d) => d.entityType === "quest").length,
+      milestone: pending.filter((d) => d.entityType === "milestone").length,
     },
-    oldestPending: pending.length > 0 
-      ? Math.min(...pending.map(d => d.timestamp))
-      : null,
+    oldestPending:
+      pending.length > 0 ? Math.min(...pending.map((d) => d.timestamp)) : null,
   };
 };

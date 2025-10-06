@@ -4,13 +4,8 @@ import { usePrivy } from "@privy-io/react-auth";
 import Head from "next/head";
 import Link from "next/link";
 import { LobbyLayout } from "@/components/layouts/lobby-layout";
-import {
-  FlameIcon,
-} from "@/components/icons/dashboard-icons";
-import {
-  ArrowRight,
-  Search,
-} from "lucide-react";
+import { FlameIcon } from "@/components/icons/dashboard-icons";
+import { ArrowRight, Search } from "lucide-react";
 import { BootcampCohortCard } from "@/components/bootcamps/BootcampCohortCard";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useBootcamps } from "@/hooks/useBootcamps";
@@ -23,7 +18,11 @@ export default function LobbyBootcampListingPage() {
   const router = useRouter();
   const { ready, authenticated } = usePrivy();
   const { data: dashboardData } = useDashboardData();
-  const { bootcamps, loading: bootcampsLoading, error: bootcampsError } = useBootcamps();
+  const {
+    bootcamps,
+    loading: bootcampsLoading,
+    error: bootcampsError,
+  } = useBootcamps();
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
@@ -44,7 +43,10 @@ export default function LobbyBootcampListingPage() {
         </Head>
         <LobbyLayout>
           <div className="text-center">
-            <FlameIcon size={80} className="text-flame-yellow animate-pulse mx-auto mb-4" />
+            <FlameIcon
+              size={80}
+              className="text-flame-yellow animate-pulse mx-auto mb-4"
+            />
             <h1 className="text-3xl font-bold mb-4">Loading Bootcamps...</h1>
             <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin mx-auto"></div>
           </div>
@@ -61,7 +63,9 @@ export default function LobbyBootcampListingPage() {
         </Head>
         <LobbyLayout>
           <div className="text-center">
-            <h1 className="text-3xl font-bold mb-4 text-red-400">Error Loading Bootcamps</h1>
+            <h1 className="text-3xl font-bold mb-4 text-red-400">
+              Error Loading Bootcamps
+            </h1>
             <p className="text-faded-grey mb-6">{bootcampsError}</p>
             <Link
               href="/lobby"
@@ -81,24 +85,27 @@ export default function LobbyBootcampListingPage() {
     if (dashboardData && dashboardData.applications) {
       return dashboardData.applications.find(
         (app) =>
-          app?.cohort_id === cohortId && app.payment_status === "pending"
+          app?.cohort_id === cohortId && app.payment_status === "pending",
       );
     }
     return null;
   };
 
   // Filter bootcamps based on search query
-  const filteredBootcamps = bootcamps.filter((bootcamp) =>
-    bootcamp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    bootcamp.description.toLowerCase().includes(searchQuery.toLowerCase())
+  const filteredBootcamps = bootcamps.filter(
+    (bootcamp) =>
+      bootcamp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      bootcamp.description.toLowerCase().includes(searchQuery.toLowerCase()),
   );
-
 
   return (
     <>
       <Head>
         <title>Join Bootcamp - Infernal Lobby</title>
-        <meta name="description" content="Join our Web3 bootcamps and start your infernal journey" />
+        <meta
+          name="description"
+          content="Join our Web3 bootcamps and start your infernal journey"
+        />
       </Head>
 
       <LobbyLayout>
@@ -108,14 +115,18 @@ export default function LobbyBootcampListingPage() {
             Join the Infernal Journey
           </h1>
           <p className="text-xl text-faded-grey max-w-2xl mx-auto">
-            Transform your Web3 knowledge through our intensive bootcamps designed for every skill level
+            Transform your Web3 knowledge through our intensive bootcamps
+            designed for every skill level
           </p>
         </div>
 
         {/* Search Bar */}
         <div className="max-w-md mx-auto mb-8">
           <div className="relative">
-            <Search size={20} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-faded-grey" />
+            <Search
+              size={20}
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-faded-grey"
+            />
             <input
               type="text"
               placeholder="Search bootcamps..."
@@ -135,7 +146,9 @@ export default function LobbyBootcampListingPage() {
                 {searchQuery ? "No bootcamps found" : "No Bootcamps Available"}
               </h3>
               <p className="text-faded-grey">
-                {searchQuery ? "Try adjusting your search terms" : "Check back soon for new bootcamp programs!"}
+                {searchQuery
+                  ? "Try adjusting your search terms"
+                  : "Check back soon for new bootcamp programs!"}
               </p>
             </div>
           ) : (

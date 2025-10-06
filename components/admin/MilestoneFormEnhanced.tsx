@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -6,20 +7,36 @@ import { Textarea } from "@/components/ui/textarea";
 import { Plus, Trash2, Zap } from "lucide-react";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
-import { usePrivy } from "@privy-io/react-auth";
-import { useWallets } from "@privy-io/react-auth";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { toast } from "react-hot-toast";
-import { unlockUtils } from "@/lib/unlock/lockUtils";
-import { generateMilestoneLockConfig, createLockConfigWithManagers } from "@/lib/blockchain/admin-lock-config";
-import { getBlockExplorerUrl } from "@/lib/blockchain/transaction-helpers";
+import {
+  formatErrorMessageForToast,
+  showInfoToast,
+} from "@/lib/utils/toast-utils";
+import {
+  generateMilestoneLockConfig,
+  createLockConfigWithManagers,
+} from "@/lib/blockchain/legacy";
+import { getBlockExplorerUrl } from "@/lib/blockchain/services/transaction-service";
+import { getLogger } from "@/lib/utils/logger";
 import {
   savePendingDeployment,
   getDraft,
   saveDraft,
   removeDraft,
+  updateDraftWithDeploymentResult,
 } from "@/lib/utils/lock-deployment-state";
+import { resolveDraftById } from "@/lib/utils/draft";
+import ConfirmationDialog from "@/components/ui/confirmation-dialog";
+import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
+import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 
-type TaskType = 'file_upload' | 'url_submission' | 'contract_interaction';
+const log = getLogger("admin:MilestoneFormEnhanced");
+
+type TaskType = "file_upload" | "url_submission" | "contract_interaction";
 
 interface TaskForm {
   id: string;
@@ -31,17 +48,30 @@ interface TaskForm {
   contract_network?: string;
   contract_address?: string;
   contract_method?: string;
+  _isFromDatabase?: boolean; // Track if task came from database
 }
 
 const AVAILABLE_NETWORKS = [
-  { value: 'base', label: 'Base Mainnet', chainId: 8453 },
-  { value: 'base-sepolia', label: 'Base Sepolia', chainId: 84532 },
+  { value: "base", label: "Base Mainnet", chainId: 8453 },
+  { value: "base-sepolia", label: "Base Sepolia", chainId: 84532 },
 ];
 
 const TASK_TYPES = [
-  { value: 'file_upload' as TaskType, label: 'File Upload', description: 'User uploads a file for review' },
-  { value: 'url_submission' as TaskType, label: 'URL Submission', description: 'User submits a URL link' },
-  { value: 'contract_interaction' as TaskType, label: 'Contract Interaction', description: 'User interacts with a smart contract' },
+  {
+    value: "file_upload" as TaskType,
+    label: "File Upload",
+    description: "User uploads a file for review",
+  },
+  {
+    value: "url_submission" as TaskType,
+    label: "URL Submission",
+    description: "User submits a URL link",
+  },
+  {
+    value: "contract_interaction" as TaskType,
+    label: "Contract Interaction",
+    description: "User interacts with a smart contract",
+  },
 ];
 
 interface MilestoneFormEnhancedProps {
@@ -59,15 +89,25 @@ export default function MilestoneFormEnhanced({
   onSubmitSuccess,
   onCancel,
 }: MilestoneFormEnhancedProps) {
+  const router = useRouter();
   const isEditing = !!milestone;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeployingLock, setIsDeployingLock] = useState(false);
-  const [deploymentStep, setDeploymentStep] = useState('');
+  const [deploymentStep, setDeploymentStep] = useState("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(!isEditing);
   const [error, setError] = useState<string | null>(null);
-  const { getAccessToken } = usePrivy();
-  const { wallets } = useWallets();
-  const wallet = wallets[0];
+  const [lockManagerGranted, setLockManagerGranted] = useState(
+    isEditing ? (milestone?.lock_manager_granted ?? true) : true,
+  );
+  const [grantFailureReason, setGrantFailureReason] = useState<
+    string | undefined
+  >(isEditing ? (milestone?.grant_failure_reason ?? undefined) : undefined);
+  const { adminFetch } = useAdminApi();
+  const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
+  const wallet = useSmartWalletSelection();
+  const { authenticated, isAdmin, user } = useAdminAuthContext();
+  const { deployAdminLock, isLoading: isDeployingFromHook } =
+    useDeployAdminLock({ isAdmin });
 
   const [formData, setFormData] = useState<Partial<CohortMilestone>>(
     milestone || {
@@ -85,7 +125,7 @@ export default function MilestoneFormEnhanced({
       prerequisite_milestone_id: "",
       duration_hours: 8,
       total_reward: 0,
-    }
+    },
   );
 
   const [tasks, setTasks] = useState<TaskForm[]>([
@@ -95,63 +135,182 @@ export default function MilestoneFormEnhanced({
       description: "",
       reward_amount: 0,
       order_index: 0,
-      task_type: 'file_upload',
-      contract_network: '',
-      contract_address: '',
-      contract_method: '',
+      task_type: "file_upload",
+      contract_network: "",
+      contract_address: "",
+      contract_method: "",
+      _isFromDatabase: false, // Mark initial task as new
     },
   ]);
 
-  // Load existing tasks when editing a milestone
-  useEffect(() => {
-    if (isEditing && milestone?.id) {
-      fetchExistingTasks();
-    }
-  }, [isEditing, milestone?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [deletedTasks, setDeletedTasks] = useState<string[]>([]);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
 
   // Load draft data on mount for new milestones
   useEffect(() => {
-    if (!isEditing) {
-      const draft = getDraft('milestone');
-      if (draft) {
-        setFormData(prev => ({ ...prev, ...draft.formData }));
-        if (draft.formData.tasks) {
-          setTasks(draft.formData.tasks);
-        }
-        toast.success("Restored draft data");
-      }
-    }
-  }, [isEditing]);
+    if (isEditing) return;
 
-  const fetchExistingTasks = async () => {
-    try {
-      const response = await fetch(`/api/admin/milestone-tasks?milestoneId=${milestone?.id}`);
-      if (response.ok) {
-        const result = await response.json();
-        if (result.data && result.data.length > 0) {
-          const existingTasks = result.data.map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description || "",
-            reward_amount: task.reward_amount,
-            order_index: task.order_index,
-            task_type: task.task_type || 'file_upload',
-            contract_network: task.contract_network || '',
-            contract_address: task.contract_address || '',
-            contract_method: task.contract_method || '',
-          }));
-          setTasks(existingTasks);
+    const draft = getDraft("milestone");
+    if (!draft?.formData || typeof draft.formData !== "object") return;
+
+    let cancelled = false;
+
+    const hydrateDraft = (showRestoreToast: boolean = true) => {
+      const {
+        tasks: draftTasks,
+        auto_lock_creation: draftAutoLockCreation,
+        ...sanitizedDraftForm
+      } = draft.formData as Partial<CohortMilestone> & {
+        tasks?: TaskForm[];
+        auto_lock_creation?: boolean;
+        lock_manager_granted?: boolean;
+        grant_failure_reason?: string;
+      };
+
+      if (draftTasks) {
+        if (Array.isArray(draftTasks)) {
+          log.debug("Restored milestone draft tasks", {
+            taskCount: draftTasks.length,
+          });
+          setTasks(draftTasks);
+        } else {
+          log.warn("Ignoring malformed tasks payload on milestone draft", {
+            valueType: typeof draftTasks,
+          });
         }
+      }
+
+      if (typeof draftAutoLockCreation === "boolean") {
+        setShowAutoLockCreation(draftAutoLockCreation);
+      }
+
+      setFormData((prev) => ({ ...prev, ...sanitizedDraftForm }));
+
+      if (sanitizedDraftForm.lock_manager_granted === false) {
+        setLockManagerGranted(false);
+        setGrantFailureReason(sanitizedDraftForm.grant_failure_reason);
+      }
+
+      if (showRestoreToast) {
+        if (sanitizedDraftForm.lock_address) {
+          setShowAutoLockCreation(false);
+          toast.success("Restored draft data with deployed lock");
+        } else {
+          toast.success("Restored draft data");
+        }
+      }
+    };
+
+    const fetchExisting = async (id: string) => {
+      const response = await silentFetch<{
+        success: boolean;
+        data?: CohortMilestone;
+      }>(`/api/admin/milestones?milestone_id=${id}`);
+      if (response.error || !response.data?.data) {
+        return null;
+      }
+      return response.data.data;
+    };
+
+    const resolveDraft = async () => {
+      const hadDraftId = Boolean(draft.formData?.id);
+      const resolution = await resolveDraftById({
+        draft,
+        fetchExisting,
+      });
+
+      if (cancelled) return;
+
+      if (resolution.mode === "existing") {
+        removeDraft("milestone");
+        toast.success(
+          "Draft already saved — redirecting to milestone details.",
+        );
+        router.replace(
+          `/admin/cohorts/${cohortId}/milestones/${resolution.draftId}`,
+        );
+        return;
+      }
+
+      if (hadDraftId) {
+        showInfoToast(
+          "Saved milestone not found — continuing with draft as a new milestone.",
+        );
+      }
+
+      hydrateDraft(!hadDraftId);
+    };
+
+    resolveDraft();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isEditing, adminFetch, silentFetch, router, cohortId]);
+
+  // Sync grant failure state from entity props when editing
+  useEffect(() => {
+    if (isEditing && milestone) {
+      setLockManagerGranted(milestone.lock_manager_granted ?? true);
+      setGrantFailureReason(milestone.grant_failure_reason ?? undefined);
+    }
+  }, [isEditing, milestone]);
+
+  const fetchExistingTasks = useCallback(async () => {
+    if (!milestone?.id) {
+      log.debug("[DEBUG] fetchExistingTasks: No milestone ID, returning early");
+      return;
+    }
+
+    const apiUrl = `/api/admin/tasks/by-milestone?milestone_id=${milestone.id}`;
+
+    try {
+      const result = await adminFetch(apiUrl);
+
+      if (result.error) {
+        return;
+      }
+
+      // Access the nested data structure: result.data.data contains the actual task array
+      const tasksData = result.data?.data || [];
+
+      if (tasksData && tasksData.length > 0) {
+        const existingTasks = tasksData.map((task: any) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description || "",
+          reward_amount: task.reward_amount,
+          order_index: task.order_index,
+          task_type: task.task_type || "file_upload",
+          contract_network: task.contract_network || "",
+          contract_address: task.contract_address || "",
+          contract_method: task.contract_method || "",
+          _isFromDatabase: true, // Mark as from database
+        }));
+        setTasks(existingTasks);
+      } else {
+        // No existing tasks, ensure we have at least one empty task
       }
     } catch (err) {
-      console.error("Error fetching existing tasks:", err);
+      log.error("Error fetching existing tasks:", err);
     }
-  };
+  }, [milestone?.id, adminFetch]);
+
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [milestone?.id],
+    fetcher: fetchExistingTasks,
+    enabled: isEditing && !!milestone?.id,
+  });
 
   const handleChange = (
     e: React.ChangeEvent<
       HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
+    >,
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
@@ -169,34 +328,60 @@ export default function MilestoneFormEnhanced({
         description: "",
         reward_amount: 0,
         order_index: prev.length,
-        task_type: 'file_upload',
-        contract_network: '',
-        contract_address: '',
-        contract_method: '',
+        task_type: "file_upload",
+        contract_network: "",
+        contract_address: "",
+        contract_method: "",
+        _isFromDatabase: false, // Mark as new task
       },
     ]);
   };
 
-  const removeTask = (taskId: string) => {
-    setTasks((prev) => prev.filter((task) => task.id !== taskId));
+  const handleRemoveTask = (taskId: string) => {
+    // Show confirmation dialog before removing
+    setTaskToDelete(taskId);
+    setShowDeleteConfirmation(true);
+  };
+
+  const confirmTaskDeletion = async () => {
+    if (!taskToDelete) return;
+
+    setIsDeletingTask(true);
+    try {
+      // If it's an existing task from database, add to deleted list
+      const taskToDeleteObj = tasks.find((task) => task.id === taskToDelete);
+      if (taskToDeleteObj && taskToDeleteObj._isFromDatabase === true) {
+        setDeletedTasks((prev) => [...prev, taskToDelete]);
+      }
+
+      // Remove from current tasks
+      setTasks((prev) => prev.filter((task) => task.id !== taskToDelete));
+      setShowDeleteConfirmation(false);
+      setTaskToDelete(null);
+    } catch (error) {
+      log.error("Error removing task:", error);
+    } finally {
+      setIsDeletingTask(false);
+    }
   };
 
   const updateTask = (taskId: string, field: keyof TaskForm, value: any) => {
     setTasks((prev) =>
       prev.map((task) =>
-        task.id === taskId
-          ? {
-              ...task,
-              [field]:
-                field === "reward_amount" ? parseInt(value) || 0 : value,
-            }
-          : task
-      )
+        task.id === taskId ? { ...task, [field]: value } : task,
+      ),
     );
   };
 
   // Deploy lock for the milestone
-  const deployLockForMilestone = async (): Promise<string | undefined> => {
+  const deployLockForMilestone = async (): Promise<
+    | {
+        lockAddress: string;
+        grantFailed?: boolean;
+        grantError?: string;
+      }
+    | undefined
+  > => {
     if (!wallet) {
       toast.error("Please connect your wallet to deploy the lock");
       return undefined;
@@ -214,68 +399,148 @@ export default function MilestoneFormEnhanced({
       setDeploymentStep("Preparing lock configuration...");
 
       // Generate lock config from milestone data
-      const lockConfig = generateMilestoneLockConfig(formData as CohortMilestone, totalTaskReward);
+      const lockConfig = generateMilestoneLockConfig(
+        formData as CohortMilestone,
+        totalTaskReward,
+      );
       const deployConfig = createLockConfigWithManagers(lockConfig);
-      
+
+      // Convert to AdminLockDeploymentParams
+      const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+
       setDeploymentStep("Deploying lock on blockchain...");
-      toast.loading("Deploying milestone access lock...", { id: "milestone-lock-deploy" });
+      toast.loading("Deploying milestone access lock...", {
+        id: "milestone-lock-deploy",
+      });
 
-      // Deploy the lock
-      const result = await unlockUtils.deployLock(deployConfig, wallet);
+      // Deploy the lock using admin hook
+      const result = await deployAdminLock(params);
 
-      if (!result.success) {
+      if (!result.success || !result.lockAddress) {
         throw new Error(result.error || "Lock deployment failed");
       }
 
-      // Get lock address from deployment result
-      if (!result.lockAddress) {
-        throw new Error("Lock deployment succeeded but no lock address returned");
-      }
+      setDeploymentStep("Granting server wallet manager role...");
 
       const lockAddress = result.lockAddress;
-      setDeploymentStep("Lock deployed successfully!");
 
-      // Save deployment state before database operation
+      // Check if grant failed
+      if (result.grantFailed) {
+        setDeploymentStep("Lock deployed but grant manager failed!");
+        log.warn("Lock deployed but grant manager transaction failed", {
+          lockAddress,
+          grantError: result.grantError,
+        });
+      } else {
+        setDeploymentStep("Lock deployed and configured successfully!");
+        setLockManagerGranted(true);
+        setGrantFailureReason(undefined);
+      }
+
+      // Update draft with deployment result to preserve it in case of database failure
+      updateDraftWithDeploymentResult("milestone", {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      });
+
+      // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
-        entityType: 'milestone',
+        entityType: "milestone",
         entityData: formData,
         transactionHash: result.transactionHash,
-        blockExplorerUrl: result.transactionHash ? getBlockExplorerUrl(result.transactionHash) : undefined,
+        grantTransactionHash: result.grantTransactionHash,
+        serverWalletAddress: result.serverWalletAddress,
+        blockExplorerUrl: result.transactionHash
+          ? getBlockExplorerUrl(result.transactionHash)
+          : undefined,
       });
 
-      toast.success(
-        <>
-          Milestone lock deployed successfully!
-          <br />
-          {result.transactionHash && (
-            <a 
-              href={getBlockExplorerUrl(result.transactionHash)} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="underline"
-            >
-              View transaction
-            </a>
-          )}
-        </>,
-        { 
-          id: "milestone-lock-deploy",
-          duration: 5000 
-        }
-      );
+      if (result.grantFailed) {
+        toast(
+          <>
+            Milestone lock deployed successfully!
+            <br />
+            ⚠️ Grant manager role failed - you can retry from milestone details
+            page.
+            <br />
+            {result.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+          </>,
+          {
+            id: "milestone-lock-deploy",
+            duration: 8000,
+            icon: "⚠️",
+          },
+        );
+      } else {
+        toast.success(
+          <>
+            Milestone lock deployed successfully!
+            <br />
+            Server wallet granted manager role.
+            <br />
+            {result.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+            {result.grantTransactionHash && (
+              <>
+                {" | "}
+                <a
+                  href={getBlockExplorerUrl(result.grantTransactionHash)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline"
+                >
+                  View grant
+                </a>
+              </>
+            )}
+          </>,
+          {
+            id: "milestone-lock-deploy",
+            duration: 5000,
+          },
+        );
+      }
 
-      console.log("Milestone lock deployed:", {
+      log.info("Milestone lock deployed:", {
         lockAddress,
         transactionHash: result.transactionHash,
+        grantTransactionHash: result.grantTransactionHash,
+        serverWalletAddress: result.serverWalletAddress,
         deploymentId,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
       });
 
-      return lockAddress;
-
+      return {
+        lockAddress,
+        grantFailed: result.grantFailed,
+        grantError: result.grantError,
+      };
     } catch (error: any) {
-      console.error("Milestone lock deployment failed:", error);
-      toast.error(error.message || "Failed to deploy lock", { id: "milestone-lock-deploy" });
+      log.error("Milestone lock deployment failed:", error);
+      const errorMessage = error.message || "Failed to deploy lock";
+      toast.error(formatErrorMessageForToast(errorMessage), {
+        id: "milestone-lock-deploy",
+      });
       setDeploymentStep("");
       throw error;
     } finally {
@@ -286,7 +551,7 @@ export default function MilestoneFormEnhanced({
   // Calculate total reward from tasks
   const totalTaskReward = tasks.reduce(
     (sum, task) => sum + (task.reward_amount || 0),
-    0
+    0,
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -301,35 +566,52 @@ export default function MilestoneFormEnhanced({
       }
 
       // Validate tasks
-      const validTasks = tasks.filter((task) => task.title && task.title.trim());
-      
+      const validTasks = tasks.filter(
+        (task) => task.title && task.title.trim(),
+      );
+
       if (validTasks.length === 0) {
         throw new Error("At least one task with a title is required");
       }
 
       // Validate task reward amounts
       const hasInvalidRewards = validTasks.some(
-        (task) => task.reward_amount === undefined || task.reward_amount === null || task.reward_amount < 0
+        (task) =>
+          task.reward_amount === undefined ||
+          task.reward_amount === null ||
+          task.reward_amount < 0,
       );
       if (hasInvalidRewards) {
-        throw new Error("All tasks must have a valid reward amount (0 or greater)");
+        throw new Error(
+          "All tasks must have a valid reward amount (0 or greater)",
+        );
       }
 
       // Validate contract interaction tasks
-      const contractTasks = validTasks.filter(task => task.task_type === 'contract_interaction');
+      const contractTasks = validTasks.filter(
+        (task) => task.task_type === "contract_interaction",
+      );
       for (const task of contractTasks) {
         if (!task.contract_network) {
-          throw new Error(`Contract interaction task "${task.title}" requires a network selection`);
+          throw new Error(
+            `Contract interaction task "${task.title}" requires a network selection`,
+          );
         }
         if (!task.contract_address) {
-          throw new Error(`Contract interaction task "${task.title}" requires a contract address`);
+          throw new Error(
+            `Contract interaction task "${task.title}" requires a contract address`,
+          );
         }
         if (!task.contract_method) {
-          throw new Error(`Contract interaction task "${task.title}" requires a contract method`);
+          throw new Error(
+            `Contract interaction task "${task.title}" requires a contract method`,
+          );
         }
         // Validate Ethereum address format
         if (!/^0x[a-fA-F0-9]{40}$/.test(task.contract_address)) {
-          throw new Error(`Contract interaction task "${task.title}" has an invalid contract address format`);
+          throw new Error(
+            `Contract interaction task "${task.title}" has an invalid contract address format`,
+          );
         }
       }
 
@@ -348,20 +630,42 @@ export default function MilestoneFormEnhanced({
 
       // Save draft before starting deployment (for new milestones)
       if (!isEditing) {
-        saveDraft('milestone', { ...formData, tasks });
+        const draftPayload = {
+          ...formData,
+          auto_lock_creation: showAutoLockCreation,
+          tasks,
+        };
+        saveDraft("milestone", draftPayload);
       }
 
       // Deploy lock if not editing and auto-creation is enabled and no lock address provided
-      if (!isEditing && showAutoLockCreation && !lockAddress && totalTaskReward > 0) {
+      if (
+        !isEditing &&
+        showAutoLockCreation &&
+        !lockAddress &&
+        totalTaskReward > 0
+      ) {
         try {
-          console.log("Auto-deploying lock for milestone...");
-          const deployedLockAddress = await deployLockForMilestone();
-          
-          if (!deployedLockAddress) {
+          log.info("Auto-deploying lock for milestone...");
+          const deploymentResult = await deployLockForMilestone();
+
+          if (!deploymentResult || !deploymentResult.lockAddress) {
             throw new Error("Lock deployment failed");
           }
-          
-          lockAddress = deployedLockAddress;
+
+          lockAddress = deploymentResult.lockAddress;
+
+          // Track grant failure if it occurred
+          if (deploymentResult.grantFailed) {
+            setLockManagerGranted(false);
+            setGrantFailureReason(
+              deploymentResult.grantError || "Grant manager transaction failed",
+            );
+            log.warn("Milestone will be created with grant failure flag", {
+              lockAddress,
+              grantError: deploymentResult.grantError,
+            });
+          }
         } catch (deployError: any) {
           // If lock deployment fails, don't create the milestone
           throw new Error(`Lock deployment failed: ${deployError.message}`);
@@ -369,94 +673,205 @@ export default function MilestoneFormEnhanced({
       }
 
       // Prepare milestone data
-      const milestoneData = {
-        ...formData,
-        name: formData.name || "",
-        description: formData.description || "",
-        start_date: formData.start_date || null,
-        end_date: formData.end_date || null,
-        lock_address: lockAddress,
-        prerequisite_milestone_id: formData.prerequisite_milestone_id || null,
-        duration_hours: formData.duration_hours || 0,
-        total_reward: totalTaskReward,
-        updated_at: now,
+      const {
+        tasks: formTasks,
+        auto_lock_creation: formAutoLockCreation,
+        ...formDataWithoutTasks
+      } = (formData || {}) as Partial<CohortMilestone> & {
+        tasks?: TaskForm[];
+        auto_lock_creation?: boolean;
       };
 
-      // Get Privy access token for authorization header
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
+      if (formTasks) {
+        log.debug("Omitting tasks from milestone payload", {
+          taskCount: Array.isArray(formTasks)
+            ? formTasks.length
+            : typeof formTasks,
+        });
+      }
+
+      if (typeof formAutoLockCreation !== "undefined") {
+        log.debug("Dropping auto_lock_creation flag from milestone payload");
+      }
+
+      const milestoneData = {
+        ...formDataWithoutTasks,
+        name: formDataWithoutTasks.name || "",
+        description: formDataWithoutTasks.description || "",
+        start_date: formDataWithoutTasks.start_date || null,
+        end_date: formDataWithoutTasks.end_date || null,
+        lock_address: lockAddress,
+        prerequisite_milestone_id:
+          formDataWithoutTasks.prerequisite_milestone_id || null,
+        duration_hours: formDataWithoutTasks.duration_hours || 0,
+        total_reward: totalTaskReward,
+        lock_manager_granted: lockManagerGranted,
+        grant_failure_reason: grantFailureReason,
+        updated_at: now,
+      };
 
       // Include created_at when creating new milestone
       if (!isEditing) {
         (milestoneData as any).created_at = now;
       }
 
-      // Submit milestone
-      const milestoneResponse = await fetch("/api/admin/milestones", {
-        method: isEditing ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(milestoneData),
-      });
+      const allowedMilestoneKeys = new Set<string>([
+        "id",
+        "cohort_id",
+        "name",
+        "description",
+        "order_index",
+        "start_date",
+        "end_date",
+        "lock_address",
+        "prerequisite_milestone_id",
+        "duration_hours",
+        "total_reward",
+        "created_at",
+        "updated_at",
+        "old_id_text",
+      ]);
 
-      if (!milestoneResponse.ok) {
-        const errorData = await milestoneResponse.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to save milestone");
+      const invalidKeys = Object.keys(milestoneData).filter(
+        (key) => !allowedMilestoneKeys.has(key),
+      );
+
+      if (invalidKeys.length > 0) {
+        log.warn("Removing unsupported milestone payload keys", {
+          invalidKeys,
+        });
       }
 
-      const milestoneResult = await milestoneResponse.json();
-      const milestoneId = milestoneResult.id || milestoneResult.data?.id || formData.id;
+      const sanitizedMilestoneData = Object.fromEntries(
+        Object.entries(milestoneData).filter(([key]) =>
+          allowedMilestoneKeys.has(key),
+        ),
+      );
 
-      // Submit tasks
-      const tasksData = validTasks.map((task, index) => ({
-        id: task.id.startsWith("temp_") || task.id.length <= 10 ? getRecordId(false) : task.id,
-        title: task.title,
-        description: task.description || "",
-        reward_amount: task.reward_amount,
-        task_type: task.task_type,
-        contract_network: task.task_type === 'contract_interaction' ? task.contract_network : null,
-        contract_address: task.task_type === 'contract_interaction' ? task.contract_address : null,
-        contract_method: task.task_type === 'contract_interaction' ? task.contract_method : null,
-        milestone_id: milestoneId,
-        order_index: index,
-        created_at: now,
-        updated_at: now,
-      }));
+      // Submit milestone
+      const milestoneResult = await adminFetch("/api/admin/milestones", {
+        method: isEditing ? "PUT" : "POST",
+        body: JSON.stringify(sanitizedMilestoneData),
+      });
 
+      if (milestoneResult.error) {
+        throw new Error(milestoneResult.error);
+      }
+      const milestoneId = milestoneResult.data?.id || formData.id;
 
-      // Only submit tasks if there are valid tasks and a milestone ID
-      if (validTasks.length > 0 && milestoneId) {
-        const tasksResponse = await fetch("/api/admin/milestone-tasks", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ tasks: tasksData, milestoneId }),
+      // Delete removed tasks first
+      if (deletedTasks.length > 0) {
+        for (const taskId of deletedTasks) {
+          const deleteResult = await adminFetch(
+            `/api/admin/milestone-tasks?id=${taskId}`,
+            {
+              method: "DELETE",
+            },
+          );
+
+          if (deleteResult.error) {
+            log.error("Failed to delete task:", deleteResult.error);
+            // Continue with other operations but log the error
+          }
+        }
+      }
+
+      // Process tasks: separate existing tasks from new tasks
+      const existingTasks = validTasks.filter(
+        (task) => task._isFromDatabase === true,
+      );
+      const newTasks = validTasks.filter(
+        (task) => task._isFromDatabase !== true,
+      );
+
+      // Update existing tasks using PUT
+      for (const task of existingTasks) {
+        const taskData = {
+          id: task.id,
+          title: task.title,
+          description: task.description || "",
+          reward_amount: task.reward_amount,
+          task_type: task.task_type,
+          contract_network:
+            task.task_type === "contract_interaction"
+              ? task.contract_network
+              : null,
+          contract_address:
+            task.task_type === "contract_interaction"
+              ? task.contract_address
+              : null,
+          contract_method:
+            task.task_type === "contract_interaction"
+              ? task.contract_method
+              : null,
+          milestone_id: milestoneId,
+          order_index: validTasks.indexOf(task),
+          updated_at: now,
+        };
+
+        const updateResult = await adminFetch("/api/admin/milestone-tasks", {
+          method: "PUT",
+          body: JSON.stringify(taskData),
         });
 
-        if (!tasksResponse.ok) {
-          const errorData = await tasksResponse.json().catch(() => null);
-          throw new Error(errorData?.error || "Failed to save tasks");
+        if (updateResult.error) {
+          throw new Error(`Failed to update task: ${updateResult.error}`);
+        }
+      }
+
+      // Create new tasks using POST
+      if (newTasks.length > 0) {
+        const newTasksData = newTasks.map((task) => ({
+          id: getRecordId(false),
+          title: task.title,
+          description: task.description || "",
+          reward_amount: task.reward_amount,
+          task_type: task.task_type,
+          contract_network:
+            task.task_type === "contract_interaction"
+              ? task.contract_network
+              : null,
+          contract_address:
+            task.task_type === "contract_interaction"
+              ? task.contract_address
+              : null,
+          contract_method:
+            task.task_type === "contract_interaction"
+              ? task.contract_method
+              : null,
+          milestone_id: milestoneId,
+          order_index: validTasks.indexOf(task),
+          created_at: now,
+          updated_at: now,
+        }));
+
+        const createResult = await adminFetch("/api/admin/milestone-tasks", {
+          method: "POST",
+          body: JSON.stringify({ tasks: newTasksData, milestoneId }),
+        });
+
+        if (createResult.error) {
+          throw new Error(`Failed to create tasks: ${createResult.error}`);
         }
       }
 
       // Wait a moment for database to commit
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Clean up drafts on success (for new milestones)
       if (!isEditing) {
-        removeDraft('milestone');
+        removeDraft("milestone");
       }
+
+      // Clean up deleted tasks list after successful submission
+      setDeletedTasks([]);
 
       // Call success handler
       if (onSubmitSuccess) {
         onSubmitSuccess();
       }
     } catch (err: any) {
-      console.error("Error saving milestone:", err);
+      log.error("Error saving milestone:", err);
       setError(err.message || "Failed to save milestone");
     } finally {
       setIsSubmitting(false);
@@ -478,7 +893,7 @@ export default function MilestoneFormEnhanced({
       {/* Milestone Basic Info */}
       <div className="space-y-6">
         <h3 className="text-lg font-semibold text-white">Milestone Details</h3>
-        
+
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-white">
@@ -621,7 +1036,7 @@ export default function MilestoneFormEnhanced({
                 {tasks.length > 1 && (
                   <Button
                     type="button"
-                    onClick={() => removeTask(task.id)}
+                    onClick={() => handleRemoveTask(task.id)}
                     variant="ghost"
                     size="sm"
                     className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
@@ -638,7 +1053,11 @@ export default function MilestoneFormEnhanced({
                   <select
                     value={task.task_type}
                     onChange={(e) =>
-                      updateTask(task.id, "task_type", e.target.value as TaskType)
+                      updateTask(
+                        task.id,
+                        "task_type",
+                        e.target.value as TaskType,
+                      )
                     }
                     className={`${inputClass} w-full h-10 rounded-md px-3 mt-1`}
                   >
@@ -649,7 +1068,10 @@ export default function MilestoneFormEnhanced({
                     ))}
                   </select>
                   <p className="text-xs text-gray-400 mt-1">
-                    {TASK_TYPES.find(t => t.value === task.task_type)?.description}
+                    {
+                      TASK_TYPES.find((t) => t.value === task.task_type)
+                        ?.description
+                    }
                   </p>
                 </div>
 
@@ -683,20 +1105,24 @@ export default function MilestoneFormEnhanced({
                 </div>
 
                 {/* Contract Interaction Fields - Only show for contract_interaction tasks */}
-                {task.task_type === 'contract_interaction' && (
+                {task.task_type === "contract_interaction" && (
                   <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
                     <h5 className="text-blue-300 font-medium mb-3 flex items-center">
                       <Zap className="h-4 w-4 mr-2" />
                       Contract Interaction Configuration
                     </h5>
-                    
+
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <div>
                         <Label className="text-white text-sm">Network *</Label>
                         <select
-                          value={task.contract_network || ''}
+                          value={task.contract_network || ""}
                           onChange={(e) =>
-                            updateTask(task.id, "contract_network", e.target.value)
+                            updateTask(
+                              task.id,
+                              "contract_network",
+                              e.target.value,
+                            )
                           }
                           className={`${inputClass} w-full h-10 rounded-md px-3 mt-1`}
                           required
@@ -711,11 +1137,17 @@ export default function MilestoneFormEnhanced({
                       </div>
 
                       <div>
-                        <Label className="text-white text-sm">Contract Address *</Label>
+                        <Label className="text-white text-sm">
+                          Contract Address *
+                        </Label>
                         <Input
-                          value={task.contract_address || ''}
+                          value={task.contract_address || ""}
                           onChange={(e) =>
-                            updateTask(task.id, "contract_address", e.target.value)
+                            updateTask(
+                              task.id,
+                              "contract_address",
+                              e.target.value,
+                            )
                           }
                           placeholder="0x1234..."
                           className={`${inputClass} mt-1`}
@@ -726,18 +1158,25 @@ export default function MilestoneFormEnhanced({
                       </div>
 
                       <div className="md:col-span-2">
-                        <Label className="text-white text-sm">Contract Method *</Label>
+                        <Label className="text-white text-sm">
+                          Contract Method *
+                        </Label>
                         <Input
-                          value={task.contract_method || ''}
+                          value={task.contract_method || ""}
                           onChange={(e) =>
-                            updateTask(task.id, "contract_method", e.target.value)
+                            updateTask(
+                              task.id,
+                              "contract_method",
+                              e.target.value,
+                            )
                           }
                           placeholder="e.g., mint, approve, transfer"
                           className={`${inputClass} mt-1`}
                           required
                         />
                         <p className="text-xs text-gray-400 mt-1">
-                          The function name from the contract&apos;s ABI that users should interact with
+                          The function name from the contract&apos;s ABI that
+                          users should interact with
                         </p>
                       </div>
                     </div>
@@ -753,7 +1192,7 @@ export default function MilestoneFormEnhanced({
                       updateTask(task.id, "description", e.target.value)
                     }
                     placeholder="Provide instructions for completing this task..."
-                    rows={task.task_type === 'contract_interaction' ? 3 : 2}
+                    rows={task.task_type === "contract_interaction" ? 3 : 2}
                     className={`${inputClass} mt-1`}
                   />
                 </div>
@@ -766,14 +1205,17 @@ export default function MilestoneFormEnhanced({
       {/* Lock Configuration */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-white">Lock Configuration</h3>
-        
+
         {!isEditing && (
           <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h4 className="text-white font-medium">Automatic Lock Deployment</h4>
+                <h4 className="text-white font-medium">
+                  Automatic Lock Deployment
+                </h4>
                 <p className="text-sm text-gray-400">
-                  Deploy an Unlock Protocol lock for this milestone&apos;s NFT badges
+                  Deploy an Unlock Protocol lock for this milestone&apos;s NFT
+                  badges
                 </p>
               </div>
               <div className="flex items-center space-x-3">
@@ -786,39 +1228,48 @@ export default function MilestoneFormEnhanced({
                   />
                   <span className="text-white text-sm">Auto-deploy</span>
                 </label>
-                {showAutoLockCreation && !formData.lock_address && totalTaskReward > 0 && (
-                  <Button
-                    type="button"
-                    onClick={deployLockForMilestone}
-                    disabled={isDeployingLock || !wallet}
-                    variant="outline"
-                    size="sm"
-                    className="border-flame-yellow text-flame-yellow hover:bg-flame-yellow/10"
-                  >
-                    {isDeployingLock ? (
-                      <>
-                        <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-t-transparent"></div>
-                        Deploying...
-                      </>
-                    ) : (
-                      <>Deploy Now</>
-                    )}
-                  </Button>
-                )}
+                {showAutoLockCreation &&
+                  !formData.lock_address &&
+                  totalTaskReward > 0 && (
+                    <Button
+                      type="button"
+                      onClick={deployLockForMilestone}
+                      disabled={isDeployingLock || !wallet}
+                      variant="outline"
+                      size="sm"
+                      className="border-flame-yellow text-flame-yellow hover:bg-flame-yellow/10"
+                    >
+                      {isDeployingLock ? (
+                        <>
+                          <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-t-transparent"></div>
+                          Deploying...
+                        </>
+                      ) : (
+                        <>Deploy Now</>
+                      )}
+                    </Button>
+                  )}
               </div>
             </div>
 
             {isDeployingLock && deploymentStep && (
               <div className="bg-blue-900/20 border border-blue-700 rounded p-3 mb-3">
-                <p className="text-blue-300 text-sm font-medium">{deploymentStep}</p>
+                <p className="text-blue-300 text-sm font-medium">
+                  {deploymentStep}
+                </p>
               </div>
             )}
 
             {showAutoLockCreation && totalTaskReward > 0 && (
               <div className="text-xs text-gray-400 bg-gray-900/50 rounded p-3">
-                <p className="mb-1">✨ A new lock will be automatically deployed for this milestone using your connected wallet</p>
+                <p className="mb-1">
+                  ✨ A new lock will be automatically deployed for this
+                  milestone using your connected wallet
+                </p>
                 <p>• Lock will be configured for milestone NFT badges</p>
-                <p>• Total reward amount: {totalTaskReward.toLocaleString()} DG</p>
+                <p>
+                  • Total reward amount: {totalTaskReward.toLocaleString()} DG
+                </p>
                 <p>• Price: Free (0 ETH) - rewards distributed manually</p>
               </div>
             )}
@@ -827,22 +1278,26 @@ export default function MilestoneFormEnhanced({
 
         <div className="space-y-2">
           <Label htmlFor="lock_address" className="text-white">
-            Lock Address {!isEditing && showAutoLockCreation ? '(Auto-generated)' : ''}
+            Lock Address{" "}
+            {!isEditing && showAutoLockCreation ? "(Auto-generated)" : ""}
           </Label>
           <Input
             id="lock_address"
             name="lock_address"
             value={formData.lock_address || ""}
             onChange={handleChange}
-            placeholder={!isEditing && showAutoLockCreation ? "Will be auto-generated on creation" : "e.g., 0x1234..."}
+            placeholder={
+              !isEditing && showAutoLockCreation
+                ? "Will be auto-generated on creation"
+                : "e.g., 0x1234..."
+            }
             className={inputClass}
             disabled={!isEditing && showAutoLockCreation}
           />
           <p className="text-sm text-gray-400">
-            {!isEditing && showAutoLockCreation 
-              ? "Lock address will be automatically generated during milestone creation" 
-              : "Optional: Unlock Protocol lock address for milestone NFT badges"
-            }
+            {!isEditing && showAutoLockCreation
+              ? "Lock address will be automatically generated during milestone creation"
+              : "Optional: Unlock Protocol lock address for milestone NFT badges"}
           </p>
         </div>
       </div>
@@ -858,19 +1313,34 @@ export default function MilestoneFormEnhanced({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting}
+          disabled={isSubmitting || isDeployingFromHook}
           className="bg-steel-red hover:bg-steel-red/90 text-white"
         >
-          {isSubmitting ? (
+          {isSubmitting || isDeployingFromHook ? (
             <>
               <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-              {isEditing ? "Updating..." : "Creating..."}
+              {isDeployingFromHook
+                ? "Deploying Lock..."
+                : isEditing
+                  ? "Updating..."
+                  : "Creating..."}
             </>
           ) : (
             <>{isEditing ? "Update Milestone" : "Create Milestone"}</>
           )}
         </Button>
       </div>
+
+      <ConfirmationDialog
+        isOpen={showDeleteConfirmation}
+        onClose={() => setShowDeleteConfirmation(false)}
+        onConfirm={confirmTaskDeletion}
+        isLoading={isDeletingTask}
+        title="Confirm Task Deletion"
+        description="Are you sure you want to delete this task? This action cannot be undone."
+        confirmText="Delete Task"
+        variant="danger"
+      />
     </form>
   );
 }

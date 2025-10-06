@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/lib/supabase/client";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import type { ApiResponse } from "@/lib/api";
+import type { ApiResponse } from "@/lib/helpers/api";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:bootcamps");
 
 interface BootcampWithCohorts {
   id: string;
@@ -12,6 +15,9 @@ interface BootcampWithCohorts {
   image_url?: string;
   created_at: string;
   updated_at: string;
+  // Enrollment-aware flags (per bootcamp)
+  enrolled_in_bootcamp?: boolean;
+  enrolled_cohort_id?: string;
   cohorts: {
     id: string;
     name: string;
@@ -30,16 +36,17 @@ interface BootcampWithCohorts {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<BootcampWithCohorts[]>>
+  res: NextApiResponse<ApiResponse<BootcampWithCohorts[]>>,
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
   try {
+    const supabase = createAdminClient();
     // Get user to check enrollment status
     let userProfileId: string | null = null;
     try {
@@ -60,7 +67,8 @@ export default async function handler(
     // Fetch all bootcamp programs with their cohorts
     const { data: bootcamps, error: bootcampsError } = await supabase
       .from("bootcamp_programs")
-      .select(`
+      .select(
+        `
         id,
         name,
         description,
@@ -69,7 +77,8 @@ export default async function handler(
         image_url,
         created_at,
         updated_at
-      `)
+      `,
+      )
       .order("created_at", { ascending: false });
 
     if (bootcampsError) {
@@ -79,7 +88,8 @@ export default async function handler(
     // Fetch cohorts for all bootcamps
     const { data: cohorts, error: cohortsError } = await supabase
       .from("cohorts")
-      .select(`
+      .select(
+        `
         id,
         bootcamp_program_id,
         name,
@@ -91,7 +101,8 @@ export default async function handler(
         status,
         usdt_amount,
         naira_amount
-      `)
+      `,
+      )
       .order("start_date", { ascending: false });
 
     if (cohortsError) {
@@ -105,32 +116,41 @@ export default async function handler(
         .from("bootcamp_enrollments")
         .select("id, cohort_id")
         .eq("user_profile_id", userProfileId);
-      
+
       userEnrollments = enrollments || [];
     }
 
     // Combine bootcamps with their cohorts and enrollment status
-    const bootcampsWithCohorts: BootcampWithCohorts[] = (bootcamps || []).map((bootcamp) => {
-      const bootcampCohorts = (cohorts || [])
-        .filter((cohort) => cohort.bootcamp_program_id === bootcamp.id)
-        .map((cohort) => {
-          // Check if user is enrolled in this cohort
-          const enrollment = userEnrollments.find(
-            (enrollment) => enrollment.cohort_id === cohort.id
-          );
+    const userEnrolledCohortIds = new Set(
+      (userEnrollments || []).map((e: any) => e.cohort_id),
+    );
 
-          return {
-            ...cohort,
-            is_enrolled: !!enrollment,
-            user_enrollment_id: enrollment?.id || undefined,
-          };
-        });
+    const bootcampsWithCohorts: BootcampWithCohorts[] = (bootcamps || []).map(
+      (bootcamp) => {
+        const bootcampCohorts = (cohorts || [])
+          .filter((cohort) => cohort.bootcamp_program_id === bootcamp.id)
+          .map((cohort) => {
+            const isEnrolled = userEnrolledCohortIds.has(cohort.id);
+            const enrollment = isEnrolled
+              ? userEnrollments.find((en) => en.cohort_id === cohort.id)
+              : null;
+            return {
+              ...cohort,
+              is_enrolled: isEnrolled,
+              user_enrollment_id: enrollment?.id || undefined,
+            };
+          });
 
-      return {
-        ...bootcamp,
-        cohorts: bootcampCohorts,
-      };
-    });
+        const enrolledCohort = bootcampCohorts.find((c) => c.is_enrolled);
+
+        return {
+          ...bootcamp,
+          enrolled_in_bootcamp: !!enrolledCohort,
+          enrolled_cohort_id: enrolledCohort?.id,
+          cohorts: bootcampCohorts,
+        };
+      },
+    );
 
     // Filter out bootcamps that have no cohorts (optional)
     // const bootcampsWithActiveCohorts = bootcampsWithCohorts.filter(
@@ -142,7 +162,7 @@ export default async function handler(
       data: bootcampsWithCohorts,
     });
   } catch (error: any) {
-    console.error("Error fetching bootcamps:", error);
+    log.error("Error fetching bootcamps:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch bootcamps",

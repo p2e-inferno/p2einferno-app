@@ -75,7 +75,7 @@ export const useApiCall = (options: UseApiCallOptions = {}) => {
         throw error;
       }
     },
-    [onSuccess, onError, showSuccessToast, showErrorToast, successMessage]
+    [onSuccess, onError, showSuccessToast, showErrorToast, successMessage],
   );
 
   return {

@@ -1,0 +1,5 @@
+# Edge Function Configuration for verify-blockchain-payment
+# Explicitly require JWT verification in production
+
+[functions.verify-blockchain-payment]
+verify_jwt = true

@@ -3,11 +3,30 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ExternalLink, Calendar, User, MessageSquare, CheckCircle, XCircle, RotateCcw } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ExternalLink,
+  Calendar,
+  User,
+  MessageSquare,
+  CheckCircle,
+  XCircle,
+  RotateCcw,
+} from "lucide-react";
 import type { MilestoneTask } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { NetworkError } from "@/components/ui/network-error";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:TaskSubmissions");
 
 interface TaskSubmissionsProps {
   taskId: string;
@@ -30,17 +49,27 @@ interface SubmissionWithUser {
   user_name?: string;
 }
 
-export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) {
+export default function TaskSubmissions({
+  taskId,
+  task,
+}: TaskSubmissionsProps) {
   const [submissions, setSubmissions] = useState<SubmissionWithUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [gradingStates, setGradingStates] = useState<Record<string, {
-    status: string;
-    feedback: string;
-    isSubmitting: boolean;
-  }>>({});
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [gradingStates, setGradingStates] = useState<
+    Record<
+      string,
+      {
+        status: string;
+        feedback: string;
+        isSubmitting: boolean;
+      }
+    >
+  >({});
   const { getAccessToken, user } = usePrivy();
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
+  const selectedWallet = useSmartWalletSelection() as any;
 
   useEffect(() => {
     fetchSubmissions();
@@ -51,17 +80,20 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
       setIsLoading(true);
       setError(null);
 
-      const result = await adminFetch<{success: boolean, data: SubmissionWithUser[]}>(`/api/admin/task-submissions?taskId=${taskId}`);
-      
+      const result = await adminFetch<{
+        success: boolean;
+        data: SubmissionWithUser[];
+      }>(`/api/admin/task-submissions?taskId=${taskId}`);
+
       if (result.error) {
         throw new Error(result.error);
       }
-      
+
       const data = result.data?.data || [];
 
       // Initialize grading states
       const initialStates: Record<string, any> = {};
-      data.forEach(submission => {
+      data.forEach((submission) => {
         initialStates[submission.id] = {
           status: submission.status,
           feedback: submission.feedback || "",
@@ -71,50 +103,64 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
       setGradingStates(initialStates);
       setSubmissions(data);
     } catch (err: any) {
-      console.error("Error fetching submissions:", err);
+      log.error("Error fetching submissions:", err);
       setError(err.message || "Failed to fetch submissions");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const updateGradingState = (submissionId: string, field: string, value: string) => {
-    setGradingStates(prev => ({
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchSubmissions();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  const updateGradingState = (
+    submissionId: string,
+    field: string,
+    value: string,
+  ) => {
+    setGradingStates((prev) => ({
       ...prev,
       [submissionId]: {
         status: prev[submissionId]?.status || "pending",
         feedback: prev[submissionId]?.feedback || "",
         isSubmitting: prev[submissionId]?.isSubmitting || false,
         [field]: value,
-      }
+      },
     }));
   };
 
   const gradeSubmission = async (submissionId: string) => {
     try {
-      setGradingStates(prev => ({
+      setGradingStates((prev) => ({
         ...prev,
         [submissionId]: {
           status: prev[submissionId]?.status || "pending",
           feedback: prev[submissionId]?.feedback || "",
           isSubmitting: true,
-        }
+        },
       }));
 
       const token = await getAccessToken();
       if (!token) throw new Error("Authentication required");
 
       const gradingData = gradingStates[submissionId];
-      
+
       if (!gradingData) {
         throw new Error("Grading data not found");
       }
-      
+
       const response = await fetch("/api/admin/task-submissions", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           id: submissionId,
@@ -133,16 +179,16 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
       // Refresh submissions
       await fetchSubmissions();
     } catch (err: any) {
-      console.error("Error grading submission:", err);
+      log.error("Error grading submission:", err);
       setError(err.message || "Failed to grade submission");
     } finally {
-      setGradingStates(prev => ({
+      setGradingStates((prev) => ({
         ...prev,
         [submissionId]: {
           status: prev[submissionId]?.status || "pending",
           feedback: prev[submissionId]?.feedback || "",
           isSubmitting: false,
-        }
+        },
       }));
     }
   };
@@ -194,9 +240,11 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
 
   if (error) {
     return (
-      <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-        Error: {error}
-      </div>
+      <NetworkError
+        error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
+      />
     );
   }
 
@@ -214,7 +262,8 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
               Reward: {task.reward_amount.toLocaleString()} DG
             </span>
             <Badge variant="outline" className="text-gray-300 border-gray-600">
-              {submissions.length} submission{submissions.length !== 1 ? "s" : ""}
+              {submissions.length} submission
+              {submissions.length !== 1 ? "s" : ""}
             </Badge>
           </div>
         </CardHeader>
@@ -242,8 +291,8 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
                           User: {submission.user_id}
                         </span>
                       </div>
-                      <Badge 
-                        variant="outline" 
+                      <Badge
+                        variant="outline"
                         className={`${getStatusColor(submission.status)} flex items-center gap-1`}
                       >
                         {getStatusIcon(submission.status)}
@@ -253,19 +302,23 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
                     <div className="flex items-center gap-4 text-sm text-gray-400">
                       <div className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        Submitted: {new Date(submission.submitted_at).toLocaleDateString()}
+                        Submitted:{" "}
+                        {new Date(submission.submitted_at).toLocaleDateString()}
                       </div>
                       {submission.reviewed_at && (
                         <div className="flex items-center gap-1">
                           <Calendar className="w-3 h-3" />
-                          Reviewed: {new Date(submission.reviewed_at).toLocaleDateString()}
+                          Reviewed:{" "}
+                          {new Date(
+                            submission.reviewed_at,
+                          ).toLocaleDateString()}
                         </div>
                       )}
                     </div>
                   </div>
                 </div>
               </CardHeader>
-              
+
               <CardContent className="space-y-4">
                 {/* Submission URL */}
                 <div>
@@ -283,7 +336,9 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
                         variant="outline"
                         size="sm"
                         className="border-gray-700 text-gray-300 hover:bg-gray-800"
-                        onClick={() => window.open(submission.submission_url, "_blank")}
+                        onClick={() =>
+                          window.open(submission.submission_url, "_blank")
+                        }
                       >
                         <ExternalLink className="w-4 h-4" />
                       </Button>
@@ -299,8 +354,13 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
                         Status
                       </label>
                       <Select
-                        value={gradingStates[submission.id]?.status || submission.status}
-                        onValueChange={(value: string) => updateGradingState(submission.id, "status", value)}
+                        value={
+                          gradingStates[submission.id]?.status ||
+                          submission.status
+                        }
+                        onValueChange={(value: string) =>
+                          updateGradingState(submission.id, "status", value)
+                        }
                       >
                         <SelectTrigger className="bg-transparent border-gray-700 text-gray-100">
                           <SelectValue />
@@ -313,7 +373,7 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
                         </SelectContent>
                       </Select>
                     </div>
-                    
+
                     <div className="flex items-end">
                       <Button
                         onClick={() => gradeSubmission(submission.id)}
@@ -331,14 +391,20 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
                       </Button>
                     </div>
                   </div>
-                  
+
                   <div className="mt-4">
                     <label className="text-sm font-medium text-gray-300 block mb-2">
                       Feedback (Optional)
                     </label>
                     <Textarea
                       value={gradingStates[submission.id]?.feedback || ""}
-                      onChange={(e) => updateGradingState(submission.id, "feedback", e.target.value)}
+                      onChange={(e) =>
+                        updateGradingState(
+                          submission.id,
+                          "feedback",
+                          e.target.value,
+                        )
+                      }
                       placeholder="Provide feedback for the user..."
                       rows={3}
                       className="bg-transparent border-gray-700 text-gray-100 placeholder-gray-500 focus:border-flame-yellow/50"
@@ -347,8 +413,12 @@ export default function TaskSubmissions({ taskId, task }: TaskSubmissionsProps) 
 
                   {submission.feedback && (
                     <div className="mt-4 p-3 bg-gray-800 rounded-md border border-gray-700">
-                      <p className="text-sm font-medium text-gray-300 mb-1">Current Feedback:</p>
-                      <p className="text-gray-400 text-sm">{submission.feedback}</p>
+                      <p className="text-sm font-medium text-gray-300 mb-1">
+                        Current Feedback:
+                      </p>
+                      <p className="text-gray-400 text-sm">
+                        {submission.feedback}
+                      </p>
                     </div>
                   )}
                 </div>

@@ -1,6 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:admin:debug");
 
 /**
  * Debug endpoint to help diagnose admin setup issues
@@ -8,7 +11,7 @@ import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
  */
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   // Only allow in development
   if (process.env.NODE_ENV === "production") {
@@ -81,7 +84,7 @@ export default async function handler(
 
     const isDevAdmin =
       envCheck.devAdminAddresses?.some((devAdmin) =>
-        uniqueUserWallets.some((wallet) => wallet === devAdmin.toLowerCase())
+        uniqueUserWallets.some((wallet) => wallet === devAdmin.toLowerCase()),
       ) || false;
 
     const debugInfo = {
@@ -114,7 +117,7 @@ export default async function handler(
       debugInfo.recommendations.push(
         "User profile not found in database - this needs to be created",
         "Try visiting /lobby first to create your profile",
-        "Contact admin to manually create your profile"
+        "Contact admin to manually create your profile",
       );
     }
 
@@ -122,14 +125,14 @@ export default async function handler(
       debugInfo.recommendations.push(
         "No admin permissions found in database or dev list",
         "Add your wallet to DEV_ADMIN_ADDRESSES environment variable",
-        "Or have an admin grant you database admin role"
+        "Or have an admin grant you database admin role",
       );
     }
 
     if (adminErr) {
       debugInfo.recommendations.push(
         "Database admin function error - check database setup",
-        "Ensure is_admin() function exists in database"
+        "Ensure is_admin() function exists in database",
       );
     }
 
@@ -137,13 +140,13 @@ export default async function handler(
       debugInfo.recommendations.push(
         "Current wallet differs from profile wallet",
         "This might cause authentication issues",
-        "Try refreshing or reconnecting wallet"
+        "Try refreshing or reconnecting wallet",
       );
     }
 
     return res.status(200).json(debugInfo);
   } catch (error: any) {
-    console.error("Debug API error:", error);
+    log.error("Debug API error:", error);
     return res.status(500).json({
       debug: "Admin Debug Information",
       error: error.message,

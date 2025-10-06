@@ -3,7 +3,6 @@
 
 -- Ensure uuid extension exists
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
 -- 1) Notifications table
 CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -15,15 +14,12 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   metadata JSONB DEFAULT '{}'::jsonb,
   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
-
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_notifications_user_profile_id ON public.notifications(user_profile_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON public.notifications(created_at);
 CREATE INDEX IF NOT EXISTS idx_notifications_read ON public.notifications(read);
-
 -- Enable RLS
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
-
 -- RLS policies
 DO $$
 BEGIN
@@ -31,11 +27,9 @@ BEGIN
   DROP POLICY IF EXISTS "Service role can manage all notifications" ON public.notifications;
   DROP POLICY IF EXISTS "Users can read their notifications" ON public.notifications;
 END $$;
-
 CREATE POLICY "Service role can manage all notifications"
 ON public.notifications FOR ALL
 USING (auth.role() = 'service_role');
-
 -- If non-admin clients ever need to read notifications
 CREATE POLICY "Users can read their notifications"
 ON public.notifications FOR SELECT
@@ -46,7 +40,6 @@ USING (
       AND up.privy_user_id = auth.uid()::text
   )
 );
-
 -- 2) Helper function to insert a notification
 CREATE OR REPLACE FUNCTION public.create_notification(
   p_user_profile_id UUID,
@@ -60,9 +53,7 @@ BEGIN
   VALUES (p_user_profile_id, p_type, p_title, p_body, COALESCE(p_metadata, '{}'::jsonb));
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
 GRANT EXECUTE ON FUNCTION public.create_notification(UUID, TEXT, TEXT, TEXT, JSONB) TO authenticated, service_role;
-
 -- 3) Trigger: on user_task_progress changes → notify task completion
 CREATE OR REPLACE FUNCTION public.notify_on_task_progress()
 RETURNS TRIGGER AS $$
@@ -84,13 +75,11 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS trigger_notify_on_task_progress ON public.user_task_progress;
 CREATE TRIGGER trigger_notify_on_task_progress
 AFTER INSERT OR UPDATE OF status ON public.user_task_progress
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_task_progress();
-
 -- 4) Trigger: on user_milestone_progress completion → notify milestone completion
 CREATE OR REPLACE FUNCTION public.notify_on_milestone_progress()
 RETURNS TRIGGER AS $$
@@ -111,13 +100,11 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS trigger_notify_on_milestone_progress ON public.user_milestone_progress;
 CREATE TRIGGER trigger_notify_on_milestone_progress
 AFTER INSERT OR UPDATE OF status ON public.user_milestone_progress
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_milestone_progress();
-
 -- 5) Trigger: on bootcamp_enrollments changes → notify enroll/complete
 CREATE OR REPLACE FUNCTION public.notify_on_enrollment_change()
 RETURNS TRIGGER AS $$
@@ -152,13 +139,11 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS trigger_notify_on_enrollment_change ON public.bootcamp_enrollments;
 CREATE TRIGGER trigger_notify_on_enrollment_change
 AFTER INSERT OR UPDATE OF enrollment_status ON public.bootcamp_enrollments
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_enrollment_change();
-
 -- 6) Trigger: on user_application_status update → notify application status changes
 CREATE OR REPLACE FUNCTION public.notify_on_application_status()
 RETURNS TRIGGER AS $$
@@ -181,11 +166,8 @@ BEGIN
   RETURN COALESCE(NEW, OLD);
 END;
 $$ LANGUAGE plpgsql;
-
 DROP TRIGGER IF EXISTS trigger_notify_on_application_status ON public.user_application_status;
 CREATE TRIGGER trigger_notify_on_application_status
 AFTER INSERT OR UPDATE OF status ON public.user_application_status
 FOR EACH ROW
 EXECUTE FUNCTION public.notify_on_application_status();
-
-

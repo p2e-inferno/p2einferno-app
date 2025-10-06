@@ -65,7 +65,7 @@ export const QuestList = ({
                 isStarted={isStarted}
                 isCompleted={isCompleted}
               />
-            )
+            ),
           )}
         </div>
 

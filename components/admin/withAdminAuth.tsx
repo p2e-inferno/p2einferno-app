@@ -1,8 +1,7 @@
 import { useRouter } from "next/router";
-import { useEffect, useState } from "react";
-import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+import { useEffect } from "react";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import AdminAccessRequired from "./AdminAccessRequired";
-import { listenForWalletChanges } from "@/lib/utils";
 
 /**
  * Higher Order Component that wraps components requiring admin authentication
@@ -15,47 +14,28 @@ export function withAdminAuth<P extends object>(
   options?: {
     redirectTo?: string;
     message?: string;
-  }
+  },
 ) {
   return function WithAdminAuth(props: P) {
-    const { isAdmin, loading, refreshAdminStatus } = useLockManagerAdminAuth();
+    const { isAdmin, isLoadingAuth, authStatus } = useAdminAuthContext();
     const router = useRouter();
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const redirectTo = options?.redirectTo;
 
-    // Listen for wallet changes
+    const isLoading = authStatus === "loading" || isLoadingAuth;
+
+    // Handle redirect if specified in options once auth state resolves
     useEffect(() => {
-      const cleanup = listenForWalletChanges(async () => {
-        // When wallet changes, show refresh state and update admin status
-        setIsRefreshing(true);
-        try {
-          // Refresh admin status when wallet changes
-          await refreshAdminStatus();
-        } catch (error) {
-          console.error("Error refreshing admin status:", error);
-        } finally {
-          // Add a small delay to ensure the UI updates are visible
-          setTimeout(() => setIsRefreshing(false), 500);
-        }
-      });
-
-      return cleanup;
-    }, [refreshAdminStatus]);
-
-    // Handle redirect if specified in options
-    useEffect(() => {
-      if (!loading && !isAdmin && options?.redirectTo) {
-        router.replace(options.redirectTo);
+      if (!isLoading && !isAdmin && redirectTo) {
+        router.replace(redirectTo);
       }
-    }, [isAdmin, loading, router]);
+    }, [isLoading, isAdmin, redirectTo, router]);
 
     // Show loading state
-    if (loading || isRefreshing) {
+    if (isLoading) {
       return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-black">
           <div className="w-16 h-16 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
-          <p className="mt-4 text-white text-sm">
-            {isRefreshing ? "Refreshing admin status..." : "Loading..."}
-          </p>
+          <p className="mt-4 text-white text-sm">Loading...</p>
         </div>
       );
     }

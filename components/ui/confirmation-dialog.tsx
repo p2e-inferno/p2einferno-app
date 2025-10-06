@@ -54,13 +54,15 @@ export default function ConfirmationDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
-      
+
       {/* Modal */}
-      <div className={`relative bg-gray-900 border ${styles.border} rounded-lg shadow-xl max-w-md w-full mx-4 p-6`}>
+      <div
+        className={`relative bg-gray-900 border ${styles.border} rounded-lg shadow-xl max-w-md w-full mx-4 p-6`}
+      >
         {/* Close button */}
         <button
           onClick={onClose}
@@ -75,11 +77,9 @@ export default function ConfirmationDialog({
           <div className={`flex-shrink-0 ${styles.icon}`}>
             <AlertTriangle className="h-6 w-6" />
           </div>
-          
+
           <div className="flex-1 min-w-0">
-            <h3 className="text-lg font-semibold text-white mb-2">
-              {title}
-            </h3>
+            <h3 className="text-lg font-semibold text-white mb-2">{title}</h3>
             <p className="text-gray-300 text-sm leading-relaxed">
               {description}
             </p>

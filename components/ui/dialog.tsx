@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 
 type DialogContextType = {
   open: boolean;
@@ -9,21 +10,21 @@ type DialogContextType = {
 
 const DialogContext = createContext<DialogContextType | undefined>(undefined);
 
-export function Dialog({ 
-  children, 
-  open: controlledOpen, 
-  onOpenChange 
-}: { 
+export function Dialog({
+  children,
+  open: controlledOpen,
+  onOpenChange,
+}: {
   children: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
-  
+
   // Use controlled state if provided, otherwise use internal state
   const open = controlledOpen !== undefined ? controlledOpen : internalOpen;
   const setOpen: React.Dispatch<React.SetStateAction<boolean>> = (newOpen) => {
-    const value = typeof newOpen === 'function' ? newOpen(open) : newOpen;
+    const value = typeof newOpen === "function" ? newOpen(open) : newOpen;
     if (onOpenChange) {
       onOpenChange(value);
     } else {
@@ -89,17 +90,17 @@ export function DialogContent({
     if (open) {
       // Save current scroll position
       const scrollY = window.scrollY;
-      
+
       // Lock body scroll
-      document.body.style.position = 'fixed';
+      document.body.style.position = "fixed";
       document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-      
+      document.body.style.width = "100%";
+
       return () => {
         // Restore body scroll and position
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
+        document.body.style.position = "";
+        document.body.style.top = "";
+        document.body.style.width = "";
         window.scrollTo(0, scrollY);
       };
     }
@@ -109,32 +110,29 @@ export function DialogContent({
     return null;
   }
 
-  return (
+  const modal = (
     <>
-      {/* Backdrop with proper z-index and scroll lock */}
+      {/* Backdrop with elevated z-index and scroll lock */}
       <div
-        className="fixed inset-0 bg-black/50 z-50 overflow-hidden"
+        className="fixed inset-0 bg-black/50 z-[100] overflow-hidden"
         onClick={() => setOpen(false)}
-        style={{ position: 'fixed' }}
+        style={{ position: "fixed" }}
       />
-      
-      {/* Modal container with proper positioning and responsiveness */}
-      <div 
-        className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+
+      {/* Modal container with viewport-based positioning */}
+      <div
+        className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 overflow-y-auto"
         onClick={() => setOpen(false)}
       >
         <div
-          className={`relative w-full max-w-md mx-auto my-8 rounded-lg shadow-xl ${className}`}
-          style={{ 
-            maxHeight: 'calc(100vh - 4rem)',
-            position: 'relative'
-          }}
+          className={`relative w-screen h-[100dvh] sm:w-full sm:h-auto sm:max-w-md mx-auto my-0 sm:my-8 rounded-none sm:rounded-lg shadow-xl ${className}`}
+          style={{ position: "relative" }}
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="p-6 overflow-y-auto max-h-full">
+          <div className="p-4 sm:p-6 overflow-y-auto h-full sm:h-auto">
             {children}
           </div>
-          
+
           {/* Close button */}
           <button
             onClick={() => setOpen(false)}
@@ -158,6 +156,13 @@ export function DialogContent({
       </div>
     </>
   );
+
+  // Render via portal to avoid clipping by transformed/overflow-hidden ancestors
+  if (typeof window !== "undefined" && typeof document !== "undefined") {
+    return createPortal(modal, document.body);
+  }
+
+  return modal;
 }
 
 export function DialogHeader({

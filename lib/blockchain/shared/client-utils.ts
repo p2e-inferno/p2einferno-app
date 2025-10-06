@@ -5,7 +5,7 @@
 
 import { ethers } from "ethers";
 import { type PublicClient, type WalletClient } from "viem";
-import { UNIFIED_BLOCKCHAIN_CONFIG } from "../config/unified-config";
+import { UNIFIED_BLOCKCHAIN_CONFIG } from "../config";
 
 // ============================================================================
 // TYPES
@@ -31,16 +31,14 @@ export interface PrivyWalletInfo {
 /**
  * Create read-only ethers provider for server-side operations
  */
-export const createEthersReadOnlyProvider = (): ethers.JsonRpcProvider => {
-  return new ethers.JsonRpcProvider(UNIFIED_BLOCKCHAIN_CONFIG.rpcUrl);
-};
+// Removed read-only provider creation; use unified provider module instead
 
 /**
  * Create ethers provider and signer from Privy wallet
  * Handles both user.wallet and wallets[0] wallet types
  */
 export const createEthersFromPrivyWallet = async (
-  wallet: PrivyWalletInfo
+  wallet: PrivyWalletInfo,
 ): Promise<EthersClients> => {
   if (!wallet || !wallet.address) {
     throw new Error("No wallet provided or not connected.");
@@ -49,7 +47,7 @@ export const createEthersFromPrivyWallet = async (
   // Handle both wallet types:
   // - wallets[0] from useWallets() has getEthereumProvider()
   // - user.wallet from usePrivy() might have a different structure
-  let provider;
+  let provider: any;
 
   if (typeof wallet.getEthereumProvider === "function") {
     // This is from useWallets() - has getEthereumProvider method
@@ -59,17 +57,27 @@ export const createEthersFromPrivyWallet = async (
     provider = wallet.provider;
   } else {
     throw new Error(
-      "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected."
+      "Unable to access Ethereum provider from wallet. Please ensure wallet is properly connected.",
     );
   }
 
-  const ethersProvider = new ethers.BrowserProvider(provider);
+  // If provider is already an ethers BrowserProvider, use it directly to avoid recursive wrapping
+  const ethersProvider =
+    provider instanceof ethers.BrowserProvider
+      ? provider
+      : new ethers.BrowserProvider(provider);
   const signer = await ethersProvider.getSigner();
 
-  return { 
-    provider: ethersProvider, 
-    signer, 
-    rawProvider: provider 
+  // Normalize rawProvider to EIP-1193 for network switching
+  const rawProviderNormalized = (provider as any)?.request
+    ? provider
+    : ((provider as any)?.provider ??
+      (typeof window !== "undefined" ? (window as any).ethereum : provider));
+
+  return {
+    provider: ethersProvider,
+    signer,
+    rawProvider: rawProviderNormalized,
   };
 };
 
@@ -96,5 +104,4 @@ export const createWalletClient = (): WalletClient | null => {
 // BACKWARDS COMPATIBILITY
 // ============================================================================
 
-// Legacy function name for gradual migration
-export const getReadOnlyProvider = createEthersReadOnlyProvider;
+// Note: read-only provider is available via '../provider'

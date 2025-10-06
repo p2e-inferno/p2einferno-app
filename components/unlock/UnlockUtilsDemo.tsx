@@ -115,10 +115,7 @@ export function UnlockUtilsDemo() {
     setLoading(true);
 
     try {
-      const result = await unlockUtils.purchaseKey(
-        lockAddress,
-        selectedWallet
-      );
+      const result = await unlockUtils.purchaseKey(lockAddress, selectedWallet);
 
       setResults({
         purchaseResult: result,
@@ -149,7 +146,7 @@ export function UnlockUtilsDemo() {
           ...lockConfig,
           price: parseFloat(lockConfig.keyPrice),
         },
-        selectedWallet
+        selectedWallet,
       );
 
       setResults({
@@ -193,7 +190,7 @@ export function UnlockUtilsDemo() {
         lockAddress,
         recipients,
         expirationTimestamps,
-        selectedWallet
+        selectedWallet,
       );
 
       setResults({
@@ -223,7 +220,7 @@ export function UnlockUtilsDemo() {
       const result = await unlockUtils.addLockManager(
         lockAddress,
         managerAddress,
-        selectedWallet
+        selectedWallet,
       );
 
       setResults({
@@ -249,18 +246,31 @@ export function UnlockUtilsDemo() {
       <Card className="p-4 mb-6 bg-blue-50 border-blue-200">
         <h3 className="font-semibold mb-2">Wallet Status</h3>
         <div className="text-sm space-y-1">
-          <p><strong>Selected Wallet:</strong> {selectedWallet ? `${selectedWallet.walletClientType || 'unknown'} - ${selectedWallet.address}` : 'None'}</p>
-          <p><strong>Connected Address:</strong> {connectedAddress || 'None'}</p>
-          <p><strong>Linked Accounts:</strong> {user?.linkedAccounts?.filter(acc => acc.type === 'wallet').length || 0} wallets</p>
+          <p>
+            <strong>Selected Wallet:</strong>{" "}
+            {selectedWallet
+              ? `${selectedWallet.walletClientType || "unknown"} - ${selectedWallet.address}`
+              : "None"}
+          </p>
+          <p>
+            <strong>Connected Address:</strong> {connectedAddress || "None"}
+          </p>
+          <p>
+            <strong>Linked Accounts:</strong>{" "}
+            {user?.linkedAccounts?.filter((acc) => acc.type === "wallet")
+              .length || 0}{" "}
+            wallets
+          </p>
           {user?.linkedAccounts && (
             <div className="mt-2">
               <p className="font-medium">Linked Wallets:</p>
               <ul className="list-disc list-inside ml-2">
                 {user.linkedAccounts
-                  .filter(acc => acc.type === 'wallet')
+                  .filter((acc) => acc.type === "wallet")
                   .map((acc, idx) => (
                     <li key={idx}>
-                      {'address' in acc ? acc.address : 'No address'} ({acc.connectorType || 'unknown'})
+                      {"address" in acc ? acc.address : "No address"} (
+                      {acc.connectorType || "unknown"})
                     </li>
                   ))}
               </ul>

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
-
-
 
 import { NetworkError } from "@/components/ui/network-error";
 import { BootcampsComingSoon, BootcampCard } from "@/components/bootcamps";
 import { Carousel } from "@/components/ui/carousel";
-import {
-  Flame,
-} from "lucide-react";
+import { getLogger } from "@/lib/utils/logger";
+import { Flame } from "lucide-react";
+
+const log = getLogger("home:Bootcamps");
 
 interface BootcampWithCohorts extends BootcampProgram {
   cohorts: Cohort[];
@@ -20,9 +20,12 @@ export function Bootcamps() {
   const [error, setError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
 
+  const { authenticated, getAccessToken } = usePrivy();
+
   useEffect(() => {
     fetchBootcamps();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authenticated]);
 
   const fetchBootcamps = async (isRetry = false) => {
     try {
@@ -32,13 +35,21 @@ export function Bootcamps() {
       } else {
         setLoading(true);
       }
-      
+
       // Use Next.js API route instead of direct Supabase calls
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      try {
+        if (authenticated) {
+          const token = await getAccessToken();
+          if (token) headers.Authorization = `Bearer ${token}`;
+        }
+      } catch {}
+
       const response = await fetch("/api/bootcamps", {
         method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -50,7 +61,7 @@ export function Bootcamps() {
       setBootcamps(result.data || []);
       setError(null);
     } catch (err: any) {
-      console.error("Error fetching bootcamps:", err);
+      log.error("Error fetching bootcamps:", err);
       setError(err.message || "Failed to load bootcamps");
     } finally {
       setLoading(false);
@@ -65,7 +76,6 @@ export function Bootcamps() {
   const handleClearError = () => {
     setError(null);
   };
-
 
   if (loading) {
     return (
@@ -94,7 +104,7 @@ export function Bootcamps() {
               thriving community.
             </p>
           </div>
-          
+
           <div className="max-w-4xl mx-auto">
             <NetworkError
               error={error}
@@ -108,8 +118,8 @@ export function Bootcamps() {
     );
   }
 
-    // Get bootcamps with cohorts (active bootcamps)
-  const activeBootcamps = bootcamps.filter(b => b.cohorts.length > 0);
+  // Get bootcamps with cohorts (active bootcamps)
+  const activeBootcamps = bootcamps.filter((b) => b.cohorts.length > 0);
 
   return (
     <section id="bootcamps" className="py-20 md:py-32 bg-background">
@@ -139,10 +149,7 @@ export function Bootcamps() {
                 showArrows={true}
               >
                 {activeBootcamps.map((bootcamp) => (
-                  <BootcampCard
-                    key={bootcamp.id}
-                    bootcamp={bootcamp}
-                  />
+                  <BootcampCard key={bootcamp.id} bootcamp={bootcamp} />
                 ))}
               </Carousel>
             </div>
@@ -151,8 +158,12 @@ export function Bootcamps() {
               <div className="p-4 bg-faded-grey/10 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
                 <Flame className="w-8 h-8 text-faded-grey" />
               </div>
-              <h3 className="text-xl font-bold text-faded-grey mb-2">No Active Bootcamps</h3>
-              <p className="text-faded-grey">Check back soon for upcoming programs!</p>
+              <h3 className="text-xl font-bold text-faded-grey mb-2">
+                No Active Bootcamps
+              </h3>
+              <p className="text-faded-grey">
+                Check back soon for upcoming programs!
+              </p>
             </div>
           )}
 

@@ -3,9 +3,7 @@ import { useRouter } from "next/router";
 import { usePrivy } from "@privy-io/react-auth";
 import Head from "next/head";
 import { MainLayout } from "../../components/layouts/MainLayout";
-import {
-  FlameIcon,
-} from "../../components/icons/dashboard-icons";
+import { FlameIcon } from "../../components/icons/dashboard-icons";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { useBootcamps } from "@/hooks/useBootcamps";
 import { BootcampCohortCard } from "@/components/bootcamps/BootcampCohortCard";
@@ -18,7 +16,11 @@ export default function BootcampListingPage() {
   const router = useRouter();
   const { ready, authenticated } = usePrivy();
   const { data: dashboardData } = useDashboardData();
-  const { bootcamps, loading: bootcampsLoading, error: bootcampsError } = useBootcamps();
+  const {
+    bootcamps,
+    loading: bootcampsLoading,
+    error: bootcampsError,
+  } = useBootcamps();
 
   useEffect(() => {
     if (ready && !authenticated) {
@@ -75,7 +77,7 @@ export default function BootcampListingPage() {
     if (dashboardData && dashboardData.applications) {
       return dashboardData.applications.find(
         (app) =>
-          app?.cohort_id === cohortId && app.payment_status === "pending"
+          app?.cohort_id === cohortId && app.payment_status === "pending",
       );
     }
     return null;
@@ -96,8 +98,7 @@ export default function BootcampListingPage() {
           <div className="container mx-auto px-4">
             {/* Hero Section */}
             <div className="text-center mb-12">
-              <div className="flex justify-center mb-6">
-              </div>
+              <div className="flex justify-center mb-6"></div>
               <h1 className="text-4xl lg:text-5xl font-bold font-heading mb-4">
                 Join the Infernal Journey
               </h1>
@@ -115,9 +116,16 @@ export default function BootcampListingPage() {
 
               {bootcamps.length === 0 ? (
                 <div className="text-center py-12">
-                  <FlameIcon size={60} className="text-faded-grey mx-auto mb-4" />
-                  <h3 className="text-xl font-bold mb-2">No Bootcamps Available</h3>
-                  <p className="text-faded-grey">Check back soon for new bootcamp programs!</p>
+                  <FlameIcon
+                    size={60}
+                    className="text-faded-grey mx-auto mb-4"
+                  />
+                  <h3 className="text-xl font-bold mb-2">
+                    No Bootcamps Available
+                  </h3>
+                  <p className="text-faded-grey">
+                    Check back soon for new bootcamp programs!
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-8">

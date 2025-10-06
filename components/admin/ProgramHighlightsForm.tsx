@@ -5,6 +5,10 @@ import { Plus, Trash2 } from "lucide-react";
 import type { ProgramHighlight } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:ProgramHighlightsForm");
 
 interface HighlightForm {
   id: string;
@@ -31,6 +35,7 @@ export default function ProgramHighlightsForm({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { getAccessToken } = usePrivy();
+  const selectedWallet = useSmartWalletSelection() as any;
 
   useEffect(() => {
     fetchExistingHighlights();
@@ -39,23 +44,27 @@ export default function ProgramHighlightsForm({
   const fetchExistingHighlights = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(`/api/admin/program-highlights?cohortId=${cohortId}`);
-      
+      const response = await fetch(
+        `/api/admin/program-highlights?cohortId=${cohortId}`,
+      );
+
       if (response.ok) {
         const result = await response.json();
         if (result.data && result.data.length > 0) {
           setExistingHighlights(result.data);
           // Populate form with existing highlights
-          const formHighlights = result.data.map((highlight: ProgramHighlight) => ({
-            id: highlight.id,
-            content: highlight.content,
-            order_index: highlight.order_index,
-          }));
+          const formHighlights = result.data.map(
+            (highlight: ProgramHighlight) => ({
+              id: highlight.id,
+              content: highlight.content,
+              order_index: highlight.order_index,
+            }),
+          );
           setHighlights(formHighlights);
         }
       }
     } catch (err: any) {
-      console.error("Error fetching highlights:", err);
+      log.error("Error fetching highlights:", err);
     } finally {
       setIsLoading(false);
     }
@@ -73,14 +82,16 @@ export default function ProgramHighlightsForm({
   };
 
   const removeHighlight = (highlightId: string) => {
-    setHighlights((prev) => prev.filter((highlight) => highlight.id !== highlightId));
+    setHighlights((prev) =>
+      prev.filter((highlight) => highlight.id !== highlightId),
+    );
   };
 
   const updateHighlight = (highlightId: string, content: string) => {
     setHighlights((prev) =>
       prev.map((highlight) =>
-        highlight.id === highlightId ? { ...highlight, content } : highlight
-      )
+        highlight.id === highlightId ? { ...highlight, content } : highlight,
+      ),
     );
   };
 
@@ -91,7 +102,9 @@ export default function ProgramHighlightsForm({
 
     try {
       // Filter out empty highlights
-      const validHighlights = highlights.filter((highlight) => highlight.content.trim());
+      const validHighlights = highlights.filter((highlight) =>
+        highlight.content.trim(),
+      );
 
       if (validHighlights.length === 0) {
         throw new Error("At least one highlight is required");
@@ -105,7 +118,9 @@ export default function ProgramHighlightsForm({
 
       // Prepare highlights data
       const highlightsData = validHighlights.map((highlight, index) => ({
-        id: highlight.id.startsWith("temp_") ? getRecordId(false) : highlight.id,
+        id: highlight.id.startsWith("temp_")
+          ? getRecordId(false)
+          : highlight.id,
         cohort_id: cohortId,
         content: highlight.content.trim(),
         order_index: index,
@@ -118,6 +133,7 @@ export default function ProgramHighlightsForm({
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({ highlights: highlightsData, cohortId }),
       });
@@ -132,7 +148,7 @@ export default function ProgramHighlightsForm({
         onSubmitSuccess();
       }
     } catch (err: any) {
-      console.error("Error saving highlights:", err);
+      log.error("Error saving highlights:", err);
       setError(err.message || "Failed to save highlights");
       setIsSubmitting(false);
     }
@@ -159,7 +175,9 @@ export default function ProgramHighlightsForm({
 
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Program Highlights</h3>
+          <h3 className="text-lg font-semibold text-white">
+            Program Highlights
+          </h3>
           <Button
             type="button"
             onClick={addHighlight}
@@ -184,7 +202,9 @@ export default function ProgramHighlightsForm({
               <div className="flex-1">
                 <Input
                   value={highlight.content}
-                  onChange={(e) => updateHighlight(highlight.id, e.target.value)}
+                  onChange={(e) =>
+                    updateHighlight(highlight.id, e.target.value)
+                  }
                   placeholder="e.g., Hands-on blockchain development experience"
                   className={inputClass}
                 />
@@ -205,7 +225,8 @@ export default function ProgramHighlightsForm({
         </div>
 
         <p className="text-sm text-gray-400">
-          Add key highlights or benefits that participants will gain from this program.
+          Add key highlights or benefits that participants will gain from this
+          program.
         </p>
       </div>
 

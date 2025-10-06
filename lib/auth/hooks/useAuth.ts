@@ -1,11 +1,16 @@
+"use client";
+
 import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { lockManagerService } from "@/lib/blockchain/lock-manager";
+import { useHasValidKey } from "@/hooks/unlock";
 import { type Address } from "viem";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("client:auth");
 
 // Define types inline since the import file doesn't exist
-type AuthLevel = 'user' | 'admin';
-type AdminStrategy = 'auto' | 'blockchain' | 'database';
+type AuthLevel = "user" | "admin";
+type AdminStrategy = "auto" | "blockchain" | "database";
 
 interface UseAuthOptions {
   adminStrategy?: AdminStrategy;
@@ -18,12 +23,12 @@ interface UseAuthReturn {
   loading: boolean;
   error: string | null;
   user: any;
-  
+
   // Admin-specific state
-  adminStrategy?: 'blockchain' | 'database';
+  adminStrategy?: "blockchain" | "database";
   expirationDate?: string;
   walletAddress?: string;
-  
+
   // Actions
   refreshAuth: () => Promise<void>;
   login: () => Promise<void>;
@@ -36,19 +41,24 @@ interface UseAuthReturn {
  */
 export function useAuth(
   authLevel: AuthLevel,
-  options: UseAuthOptions = {}
+  options: UseAuthOptions = {},
 ): UseAuthReturn {
   const { user, authenticated, ready, login, logout } = usePrivy();
+  const { checkHasValidKey } = useHasValidKey({
+    enabled: authenticated && authLevel === "admin",
+  });
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [adminStrategy, setAdminStrategy] = useState<'blockchain' | 'database'>();
+  const [adminStrategy, setAdminStrategy] = useState<
+    "blockchain" | "database"
+  >();
   const [expirationDate, setExpirationDate] = useState<string>();
   const [walletAddress, setWalletAddress] = useState<string>();
 
   // Function to check admin access (blockchain on frontend, API for database)
   const checkAdminAccess = useCallback(async () => {
-    if (authLevel === 'user') {
+    if (authLevel === "user") {
       setIsAdmin(false);
       setLoading(false);
       return;
@@ -64,20 +74,20 @@ export function useAuth(
     setError(null);
 
     try {
-      const strategy = options.adminStrategy || 'auto';
-      
-      if (strategy === 'database') {
+      const strategy = options.adminStrategy || "auto";
+
+      if (strategy === "database") {
         // Database strategy: Use API endpoint
-        const response = await fetch('/api/admin/check-admin-status', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
+        const response = await fetch("/api/admin/check-admin-status", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
         });
 
         if (response.ok) {
           const data = await response.json();
           setIsAdmin(data.hasAccess || false);
-          setAdminStrategy('database');
+          setAdminStrategy("database");
         } else {
           setIsAdmin(false);
           setError("Database admin check failed");
@@ -85,9 +95,9 @@ export function useAuth(
       } else {
         // Blockchain strategy: Direct frontend checking (like original useLockManagerAdminAuth)
         const adminLockAddress = process.env.NEXT_PUBLIC_ADMIN_LOCK_ADDRESS;
-        
+
         if (!adminLockAddress) {
-          console.warn("NEXT_PUBLIC_ADMIN_LOCK_ADDRESS not set, no admin access");
+          log.warn("NEXT_PUBLIC_ADMIN_LOCK_ADDRESS not set, no admin access");
           setIsAdmin(false);
           setLoading(false);
           return;
@@ -95,7 +105,7 @@ export function useAuth(
 
         // Get wallet address from provider or Privy user
         let walletAddress: string | undefined;
-        
+
         if (typeof window !== "undefined" && (window as any).ethereum) {
           try {
             const accounts: string[] = await (window as any).ethereum.request({
@@ -105,7 +115,7 @@ export function useAuth(
               walletAddress = accounts[0];
             }
           } catch (err) {
-            console.warn("Unable to read accounts from provider", err);
+            log.warn("Unable to read accounts from provider", { err });
           }
         }
 
@@ -120,35 +130,38 @@ export function useAuth(
         }
 
         // Check blockchain admin key
-        const keyInfo = await lockManagerService.checkUserHasValidKey(
+        const keyInfo = await checkHasValidKey(
           walletAddress as Address,
           adminLockAddress as Address,
-          false
         );
 
         const hasValidKey = keyInfo !== null && keyInfo.isValid;
         setIsAdmin(hasValidKey);
-        setAdminStrategy('blockchain');
+        setAdminStrategy("blockchain");
         setWalletAddress(walletAddress);
-        
+
         if (keyInfo?.expirationTimestamp) {
-          const expirationDate = keyInfo.expirationTimestamp > BigInt(Number.MAX_SAFE_INTEGER)
-            ? "Never (infinite)"
-            : new Date(Number(keyInfo.expirationTimestamp) * 1000).toLocaleDateString();
+          const expirationDate =
+            keyInfo.expirationTimestamp > BigInt(Number.MAX_SAFE_INTEGER)
+              ? "Never (infinite)"
+              : new Date(
+                  Number(keyInfo.expirationTimestamp) * 1000,
+                ).toLocaleDateString();
           setExpirationDate(expirationDate);
         }
 
-        console.log(`[USE_AUTH] Blockchain admin access: ${hasValidKey ? 'GRANTED' : 'DENIED'} for ${walletAddress}`);
+        log.info(
+          `Blockchain admin access: ${hasValidKey ? "GRANTED" : "DENIED"} for ${walletAddress}`,
+        );
       }
-
     } catch (err) {
-      console.error('[USE_AUTH] Error checking auth:', err);
+      log.error("Error checking auth", { err });
       setError(err instanceof Error ? err.message : "Auth check failed");
       setIsAdmin(false);
     } finally {
       setLoading(false);
     }
-  }, [authLevel, user, authenticated, options.adminStrategy]);
+  }, [authLevel, user, authenticated, options.adminStrategy, checkHasValidKey]);
 
   // Manual refresh function
   const refreshAuth = useCallback(async () => {
@@ -163,16 +176,19 @@ export function useAuth(
 
   // Listen for wallet account changes (for blockchain auth)
   useEffect(() => {
-    if (authLevel === 'admin' && options.adminStrategy !== 'database') {
+    if (authLevel === "admin" && options.adminStrategy !== "database") {
       if (typeof window !== "undefined" && window.ethereum) {
         const handleAccountsChanged = async () => {
-          console.log('[USE_AUTH] Wallet accounts changed, refreshing auth');
+          log.info("Wallet accounts changed, refreshing auth");
           await checkAdminAccess();
         };
 
         window.ethereum.on("accountsChanged", handleAccountsChanged);
         return () => {
-          window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+          window.ethereum.removeListener(
+            "accountsChanged",
+            handleAccountsChanged,
+          );
         };
       }
     }
@@ -180,7 +196,7 @@ export function useAuth(
 
   return {
     isAuthenticated: authenticated,
-    isAdmin: authLevel === 'admin' ? isAdmin : false,
+    isAdmin: authLevel === "admin" ? isAdmin : false,
     loading,
     error,
     user,
@@ -188,19 +204,23 @@ export function useAuth(
     expirationDate,
     walletAddress,
     refreshAuth,
-    login: async () => { login(); },
-    logout: async () => { logout(); },
+    login: async () => {
+      login();
+    },
+    logout: async () => {
+      logout();
+    },
   };
 }
 
 // Convenience hooks for common patterns
-export const useUserAuth = () => useAuth('user');
+export const useUserAuth = () => useAuth("user");
 
-export const useAdminAuth = (strategy?: AdminStrategy) => 
-  useAuth('admin', { adminStrategy: strategy || 'auto' });
+export const useAdminAuth = (strategy?: AdminStrategy) =>
+  useAuth("admin", { adminStrategy: strategy || "auto" });
 
-export const useBlockchainAdminAuth = () => 
-  useAuth('admin', { adminStrategy: 'blockchain' });
+export const useBlockchainAdminAuth = () =>
+  useAuth("admin", { adminStrategy: "blockchain" });
 
-export const useBackendAdminAuth = () => 
-  useAuth('admin', { adminStrategy: 'database' });
+export const useBackendAdminAuth = () =>
+  useAuth("admin", { adminStrategy: "database" });

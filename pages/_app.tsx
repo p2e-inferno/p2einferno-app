@@ -4,8 +4,10 @@ import Head from "next/head";
 import React from "react";
 import dynamic from "next/dynamic";
 import { Toaster } from "react-hot-toast";
+import { useRouter } from "next/router";
+import type { ClientSideWrapperProps } from "../components/ClientSideWrapper";
 
-const DynamicClientSideWrapper = dynamic(
+const DynamicClientSideWrapper = dynamic<ClientSideWrapperProps>(
   () => import("../components/ClientSideWrapper"),
   {
     ssr: false,
@@ -17,10 +19,13 @@ const DynamicClientSideWrapper = dynamic(
         </div>
       </div>
     ),
-  }
+  },
 );
 
 function MyApp({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+  const isAdminRoute = router.pathname.startsWith("/admin");
+
   return (
     <>
       <Head>
@@ -30,8 +35,10 @@ function MyApp({ Component, pageProps }: AppProps) {
           content="Engage with the onchain economy through a gamified experience. Join our bootcamp to master Web3."
         />
         <link rel="icon" href="/favicon.ico" />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/favicon.svg" />
       </Head>
-      <DynamicClientSideWrapper>
+      <DynamicClientSideWrapper isAdminRoute={isAdminRoute}>
         <Toaster
           position="top-right"
           toastOptions={{
@@ -44,6 +51,10 @@ function MyApp({ Component, pageProps }: AppProps) {
               borderRadius: "8px",
               fontSize: "14px",
               padding: "12px 16px",
+              maxWidth: "400px",
+              wordWrap: "break-word",
+              overflowWrap: "break-word",
+              whiteSpace: "pre-wrap",
               boxShadow:
                 "0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)",
             },
@@ -53,6 +64,10 @@ function MyApp({ Component, pageProps }: AppProps) {
                 background: "hsl(142 76% 36%)",
                 color: "white",
                 border: "1px solid hsl(142 76% 30%)",
+                maxWidth: "400px",
+                wordWrap: "break-word",
+                overflowWrap: "break-word",
+                whiteSpace: "pre-wrap",
               },
               iconTheme: {
                 primary: "white",
@@ -65,6 +80,10 @@ function MyApp({ Component, pageProps }: AppProps) {
                 background: "hsl(0 84% 60%)",
                 color: "white",
                 border: "1px solid hsl(0 84% 50%)",
+                maxWidth: "400px",
+                wordWrap: "break-word",
+                overflowWrap: "break-word",
+                whiteSpace: "pre-wrap",
               },
               iconTheme: {
                 primary: "white",
@@ -77,6 +96,10 @@ function MyApp({ Component, pageProps }: AppProps) {
                 background: "hsl(var(--muted))",
                 color: "hsl(var(--muted-foreground))",
                 border: "1px solid hsl(var(--border))",
+                maxWidth: "400px",
+                wordWrap: "break-word",
+                overflowWrap: "break-word",
+                whiteSpace: "pre-wrap",
               },
             },
           }}

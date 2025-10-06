@@ -1,19 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/router';
-import { toast } from 'react-hot-toast';
-import { usePrivy } from '@privy-io/react-auth';
-import { 
-  Users, 
-  CreditCard, 
-  CheckCircle, 
-  AlertCircle, 
-  Clock, 
+import React, { useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/router";
+import { toast } from "react-hot-toast";
+import { NetworkError } from "@/components/ui/network-error";
+import { useAdminApi } from "@/hooks/useAdminApi";
+import {
+  Users,
+  CreditCard,
+  CheckCircle,
+  AlertCircle,
+  Clock,
   RefreshCw,
   Settings,
-  RefreshCcw
-} from 'lucide-react';
-import AdminLayout from '../../../../components/layouts/AdminLayout';
-import { withAdminAuth } from '../../../../components/admin/withAdminAuth';
+} from "lucide-react";
+import AdminLayout from "../../../../components/layouts/AdminLayout";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:[cohortId]:applications");
 
 interface CohortApplication {
   id: string;
@@ -56,117 +60,130 @@ interface CohortStats {
   needs_reconciliation: number;
 }
 
-const CohortDetailPage: React.FC = () => {
+export default function CohortDetailPage() {
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { cohortId } = router.query;
-  const { getAccessToken } = usePrivy();
-  
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
+
   const [cohort, setCohort] = useState<CohortDetails | null>(null);
   const [applications, setApplications] = useState<CohortApplication[]>([]);
   const [stats, setStats] = useState<CohortStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [error, setError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [refreshing, setRefreshing] = useState(false);
 
-  // Authenticated fetch function using unified auth system
-  const adminFetch = useCallback(async (url: string, options: RequestInit = {}) => {
-    const accessToken = await getAccessToken();
-    if (!accessToken) {
-      throw new Error("No access token available");
-    }
+  // Removed local adminFetch in favor of shared useAdminApi for consistency
 
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        ...options.headers,
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `HTTP ${response.status}`);
-    }
-
-    return response.json();
-  }, [getAccessToken]);
-  
   const fetchCohortData = useCallback(async () => {
-    if (!cohortId || typeof cohortId !== 'string') return;
-    
+    if (!cohortId || typeof cohortId !== "string") return;
+
     try {
       setLoading(true);
-      
+      setError(null);
+
       // Fetch cohort details and applications in parallel using unified auth
       const [cohortRes, applicationsRes] = await Promise.all([
-        adminFetch(`/api/admin/cohorts/${cohortId}`),
-        adminFetch(`/api/admin/cohorts/${cohortId}/applications`)
+        adminFetch<{ success: boolean; data: CohortDetails }>(
+          `/api/admin/cohorts/${cohortId}`,
+        ),
+        adminFetch<{
+          success: boolean;
+          data: { applications: CohortApplication[]; stats: CohortStats };
+        }>(`/api/admin/cohorts/${cohortId}/applications`),
       ]);
-      
-      setCohort(cohortRes.data);
-      setApplications(applicationsRes.data?.applications || []);
-      setStats(applicationsRes.data?.stats);
-    } catch (error) {
-      console.error('Error fetching cohort data:', error);
-      toast.error('Failed to load cohort data');
+
+      if (cohortRes.error) {
+        throw new Error(cohortRes.error);
+      }
+
+      const cohortPayload = cohortRes.data?.data;
+      if (!cohortPayload) {
+        throw new Error("Cohort not found");
+      }
+      setCohort(cohortPayload);
+
+      if (applicationsRes.error) {
+        throw new Error(applicationsRes.error);
+      }
+
+      const applicationsPayload = applicationsRes.data?.data;
+      setApplications(applicationsPayload?.applications || []);
+      setStats(applicationsPayload?.stats || null);
+    } catch (err: any) {
+      log.error("Error fetching cohort data:", err);
+      setError(err?.message || "Failed to load cohort data");
     } finally {
       setLoading(false);
     }
-  }, [cohortId, adminFetch]);
-  
+  }, [adminFetch, cohortId]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchCohortData();
     setRefreshing(false);
-    toast.success('Data refreshed');
+    toast.success("Data refreshed");
   }, [fetchCohortData]);
-  
-  const handleReconcileApplication = useCallback(async (applicationId: string) => {
-    try {
-      await adminFetch('/api/admin/applications/reconcile', {
-        method: 'POST',
-        body: JSON.stringify({ applicationId })
-      });
-      
-      toast.success('Application reconciled successfully');
-      await fetchCohortData(); // Refresh data
-    } catch (error) {
-      console.error('Reconciliation error:', error);
-      toast.error('Failed to reconcile application');
-    }
-  }, [adminFetch, fetchCohortData]);
-  
+
+  const handleReconcileApplication = useCallback(
+    async (applicationId: string) => {
+      try {
+        await adminFetch("/api/admin/applications/reconcile", {
+          method: "POST",
+          body: JSON.stringify({ applicationId }),
+        });
+
+        toast.success("Application reconciled successfully");
+        await fetchCohortData(); // Refresh data
+      } catch (error) {
+        log.error("Reconciliation error:", error);
+        toast.error("Failed to reconcile application");
+      }
+    },
+    [fetchCohortData], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
   const handleBulkReconcile = useCallback(async () => {
-    const applicationsNeedingReconciliation = applications.filter(app => app.needs_reconciliation);
-    
+    const applicationsNeedingReconciliation = applications.filter(
+      (app) => app.needs_reconciliation,
+    );
+
     if (applicationsNeedingReconciliation.length === 0) {
-      toast('No applications need reconciliation');
+      toast("No applications need reconciliation");
       return;
     }
-    
+
     try {
-      const promises = applicationsNeedingReconciliation.map(app =>
-        adminFetch('/api/admin/applications/reconcile', {
-          method: 'POST',
-          body: JSON.stringify({ applicationId: app.id })
-        })
+      const promises = applicationsNeedingReconciliation.map((app) =>
+        adminFetch("/api/admin/applications/reconcile", {
+          method: "POST",
+          body: JSON.stringify({ applicationId: app.id }),
+        }),
       );
-      
+
       await Promise.all(promises);
-      toast.success(`Reconciled ${applicationsNeedingReconciliation.length} applications`);
+      toast.success(
+        `Reconciled ${applicationsNeedingReconciliation.length} applications`,
+      );
       await fetchCohortData();
     } catch (error) {
-      console.error('Bulk reconciliation error:', error);
-      toast.error('Some reconciliations failed');
+      log.error("Bulk reconciliation error:", error);
+      toast.error("Some reconciliations failed");
     }
-  }, [applications, adminFetch, fetchCohortData]);
-  
-  useEffect(() => {
-    fetchCohortData();
-  }, [fetchCohortData]);
-  
-  if (loading) {
+  }, [applications, fetchCohortData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [cohortId as string | undefined],
+    fetcher: fetchCohortData,
+  });
+
+  if (isLoadingAuth || loading) {
     return (
       <AdminLayout>
         <div className="flex items-center justify-center h-64">
@@ -175,30 +192,31 @@ const CohortDetailPage: React.FC = () => {
       </AdminLayout>
     );
   }
-  
+
   if (!cohort) {
     return (
       <AdminLayout>
-        <div className="text-center py-12">
-          <h2 className="text-xl font-semibold text-gray-900">Cohort not found</h2>
-          <button
-            onClick={handleRefresh}
-            className="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            <RefreshCcw className="w-4 h-4 mr-2" />
-            Retry
-          </button>
+        <div className="max-w-xl mx-auto py-12">
+          <NetworkError
+            error={error || "Cohort not found"}
+            onRetry={handleRefresh}
+            isRetrying={refreshing || isLoadingAuth || loading}
+          />
         </div>
       </AdminLayout>
     );
   }
-  const filteredApplications = applications.filter(app => {
-    if (statusFilter === 'all') return true;
-    if (statusFilter === 'needs_reconciliation') return app.needs_reconciliation;
+  const filteredApplications = applications.filter((app) => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "needs_reconciliation")
+      return app.needs_reconciliation;
     return app.user_application_status === statusFilter;
   });
-  
-  const getStatusBadge = (status: string, needsReconciliation: boolean = false) => {
+
+  const getStatusBadge = (
+    status: string,
+    needsReconciliation: boolean = false,
+  ) => {
     if (needsReconciliation) {
       return (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
@@ -207,28 +225,30 @@ const CohortDetailPage: React.FC = () => {
         </span>
       );
     }
-    
+
     const statusColors: Record<string, string> = {
-      'draft': 'bg-gray-100 text-gray-800',
-      'payment_pending': 'bg-yellow-100 text-yellow-800',
-      'payment_processing': 'bg-blue-100 text-blue-800',
-      'payment_failed': 'bg-red-100 text-red-800',
-      'under_review': 'bg-purple-100 text-purple-800',
-      'approved': 'bg-green-100 text-green-800',
-      'enrolled': 'bg-emerald-100 text-emerald-800',
-      'rejected': 'bg-red-100 text-red-800',
-      'withdrawn': 'bg-gray-100 text-gray-800',
+      draft: "bg-gray-100 text-gray-800",
+      payment_pending: "bg-yellow-100 text-yellow-800",
+      payment_processing: "bg-blue-100 text-blue-800",
+      payment_failed: "bg-red-100 text-red-800",
+      under_review: "bg-purple-100 text-purple-800",
+      approved: "bg-green-100 text-green-800",
+      enrolled: "bg-emerald-100 text-emerald-800",
+      rejected: "bg-red-100 text-red-800",
+      withdrawn: "bg-gray-100 text-gray-800",
     };
-    
-    const colorClass = statusColors[status] || 'bg-gray-100 text-gray-800';
-    
+
+    const colorClass = statusColors[status] || "bg-gray-100 text-gray-800";
+
     return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-        {status.replace('_', ' ')}
+      <span
+        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}
+      >
+        {status.replace("_", " ")}
       </span>
     );
   };
-  
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -236,13 +256,30 @@ const CohortDetailPage: React.FC = () => {
         <div className="bg-white shadow rounded-lg p-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{cohort.name}</h1>
-              <p className="text-gray-600 mt-1">{cohort.bootcamp_program.name}</p>
-              <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                <span>Start: {new Date(cohort.start_date).toLocaleDateString()}</span>
-                <span>End: {new Date(cohort.end_date).toLocaleDateString()}</span>
-                <span>Capacity: {cohort.current_participants}/{cohort.max_participants}</span>
-              </div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {cohort?.name ?? "Cohort"}
+              </h1>
+              {cohort ? (
+                <>
+                  <p className="text-gray-600 mt-1">
+                    {cohort.bootcamp_program.name}
+                  </p>
+                  <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
+                    <span>
+                      Start: {new Date(cohort.start_date).toLocaleDateString()}
+                    </span>
+                    <span>
+                      End: {new Date(cohort.end_date).toLocaleDateString()}
+                    </span>
+                    <span>
+                      Capacity: {cohort.current_participants}/
+                      {cohort.max_participants}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <p className="text-gray-500 mt-1">Loading cohort details…</p>
+              )}
             </div>
             <div className="flex items-center space-x-3">
               <button
@@ -250,7 +287,9 @@ const CohortDetailPage: React.FC = () => {
                 disabled={refreshing}
                 className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                <RefreshCw
+                  className={`w-4 h-4 mr-2 ${refreshing ? "animate-spin" : ""}`}
+                />
                 Refresh
               </button>
               {stats && stats.needs_reconciliation > 0 && (
@@ -265,7 +304,7 @@ const CohortDetailPage: React.FC = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-6">
@@ -277,14 +316,18 @@ const CohortDetailPage: React.FC = () => {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Total Applications</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.total_applications}</dd>
+                      <dt className="text-sm font-medium text-gray-500 truncate">
+                        Total Applications
+                      </dt>
+                      <dd className="text-lg font-medium text-gray-900">
+                        {stats.total_applications}
+                      </dd>
                     </dl>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white overflow-hidden shadow rounded-lg">
               <div className="p-5">
                 <div className="flex items-center">
@@ -293,14 +336,18 @@ const CohortDetailPage: React.FC = () => {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Pending Payment</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.pending_payment}</dd>
+                      <dt className="text-sm font-medium text-gray-500 truncate">
+                        Pending Payment
+                      </dt>
+                      <dd className="text-lg font-medium text-gray-900">
+                        {stats.pending_payment}
+                      </dd>
                     </dl>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white overflow-hidden shadow rounded-lg">
               <div className="p-5">
                 <div className="flex items-center">
@@ -309,14 +356,18 @@ const CohortDetailPage: React.FC = () => {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Payment Completed</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.payment_completed}</dd>
+                      <dt className="text-sm font-medium text-gray-500 truncate">
+                        Payment Completed
+                      </dt>
+                      <dd className="text-lg font-medium text-gray-900">
+                        {stats.payment_completed}
+                      </dd>
                     </dl>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white overflow-hidden shadow rounded-lg">
               <div className="p-5">
                 <div className="flex items-center">
@@ -325,14 +376,18 @@ const CohortDetailPage: React.FC = () => {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Enrolled</dt>
-                      <dd className="text-lg font-medium text-gray-900">{stats.enrolled}</dd>
+                      <dt className="text-sm font-medium text-gray-500 truncate">
+                        Enrolled
+                      </dt>
+                      <dd className="text-lg font-medium text-gray-900">
+                        {stats.enrolled}
+                      </dd>
                     </dl>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             <div className="bg-white overflow-hidden shadow rounded-lg">
               <div className="p-5">
                 <div className="flex items-center">
@@ -341,14 +396,18 @@ const CohortDetailPage: React.FC = () => {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">Revenue</dt>
-                      <dd className="text-lg font-medium text-gray-900">₦{stats.revenue.toLocaleString()}</dd>
+                      <dt className="text-sm font-medium text-gray-500 truncate">
+                        Revenue
+                      </dt>
+                      <dd className="text-lg font-medium text-gray-900">
+                        ₦{stats.revenue.toLocaleString()}
+                      </dd>
                     </dl>
                   </div>
                 </div>
               </div>
             </div>
-            
+
             {stats.needs_reconciliation > 0 && (
               <div className="bg-white overflow-hidden shadow rounded-lg">
                 <div className="p-5">
@@ -358,8 +417,12 @@ const CohortDetailPage: React.FC = () => {
                     </div>
                     <div className="ml-5 w-0 flex-1">
                       <dl>
-                        <dt className="text-sm font-medium text-gray-500 truncate">Need Reconciliation</dt>
-                        <dd className="text-lg font-medium text-gray-900">{stats.needs_reconciliation}</dd>
+                        <dt className="text-sm font-medium text-gray-500 truncate">
+                          Need Reconciliation
+                        </dt>
+                        <dd className="text-lg font-medium text-gray-900">
+                          {stats.needs_reconciliation}
+                        </dd>
                       </dl>
                     </div>
                   </div>
@@ -368,12 +431,14 @@ const CohortDetailPage: React.FC = () => {
             )}
           </div>
         )}
-        
+
         {/* Applications Table */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-6 py-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-medium text-gray-900">Applications</h3>
+              <h3 className="text-lg font-medium text-gray-900">
+                Applications
+              </h3>
               <div className="flex items-center space-x-3">
                 <select
                   value={statusFilter}
@@ -381,7 +446,9 @@ const CohortDetailPage: React.FC = () => {
                   className="border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Applications</option>
-                  <option value="needs_reconciliation">Needs Reconciliation</option>
+                  <option value="needs_reconciliation">
+                    Needs Reconciliation
+                  </option>
                   <option value="payment_pending">Payment Pending</option>
                   <option value="payment_completed">Payment Completed</option>
                   <option value="enrolled">Enrolled</option>
@@ -389,7 +456,7 @@ const CohortDetailPage: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -431,7 +498,10 @@ const CohortDetailPage: React.FC = () => {
                       {application.experience_level}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {getStatusBadge(application.user_application_status, application.needs_reconciliation)}
+                      {getStatusBadge(
+                        application.user_application_status,
+                        application.needs_reconciliation,
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {application.amount_paid ? (
@@ -446,14 +516,18 @@ const CohortDetailPage: React.FC = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       {application.needs_reconciliation && (
                         <button
-                          onClick={() => handleReconcileApplication(application.id)}
+                          onClick={() =>
+                            handleReconcileApplication(application.id)
+                          }
                           className="text-red-600 hover:text-red-900 mr-3"
                         >
                           Reconcile
                         </button>
                       )}
                       <button
-                        onClick={() => router.push(`/admin/applications/${application.id}`)}
+                        onClick={() =>
+                          router.push(`/admin/applications/${application.id}`)
+                        }
                         className="text-blue-600 hover:text-blue-900"
                       >
                         View Details
@@ -468,6 +542,4 @@ const CohortDetailPage: React.FC = () => {
       </div>
     </AdminLayout>
   );
-};
-
-export default withAdminAuth(CohortDetailPage);
+}

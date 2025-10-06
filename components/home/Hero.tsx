@@ -2,6 +2,9 @@ import React from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Gamepad2, DoorOpen } from "lucide-react";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("home:Hero");
 
 export function Hero() {
   const { login, authenticated, ready } = usePrivy();
@@ -14,7 +17,7 @@ export function Hero() {
     try {
       window.location.href = "/#bootcamps";
     } catch (error) {
-      console.error("Navigation error:", error);
+      log.error("Navigation error:", error);
     }
   };
 
@@ -22,7 +25,7 @@ export function Hero() {
     try {
       window.location.href = "/lobby";
     } catch (error) {
-      console.error("Navigation error:", error);
+      log.error("Navigation error:", error);
     }
   };
 

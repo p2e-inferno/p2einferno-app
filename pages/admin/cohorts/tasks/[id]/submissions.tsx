@@ -1,10 +1,14 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskSubmissions from "@/components/admin/TaskSubmissions";
 import type { MilestoneTask, CohortMilestone } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:tasks:[id]:submissions");
 
 interface TaskWithMilestone extends MilestoneTask {
   milestone: CohortMilestone & {
@@ -15,90 +19,102 @@ interface TaskWithMilestone extends MilestoneTask {
   };
 }
 
-function TaskSubmissionsPage() {
+export default function TaskSubmissionsPage() {
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { id } = router.query;
-  const { adminFetch } = useAdminApi();
+  const taskId = typeof id === "string" ? id : undefined;
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
 
   const [task, setTask] = useState<TaskWithMilestone | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   const fetchTask = useCallback(async () => {
+    if (!taskId) return;
     try {
       setIsLoading(true);
-      
-      // Get the task using API endpoint
-      const taskResult = await adminFetch<{success: boolean, data: MilestoneTask[]}>(`/api/admin/milestone-tasks?taskId=${id}`);
-      
-      if (taskResult.error) {
-        throw new Error(taskResult.error);
-      }
-      
-      const taskData = taskResult.data?.data;
-      if (!taskData || taskData.length === 0) {
-        throw new Error("Task not found");
-      }
 
-      const task = taskData[0];
-      if (!task || !task.id) {
-        throw new Error("Invalid task data");
-      }
-
-      // Get the milestone
-      const milestoneResult = await adminFetch<{success: boolean, data: CohortMilestone}>(`/api/admin/milestone-tasks?milestone_id=${task?.milestone_id}`);
-      
-      if (milestoneResult.error) {
-        throw new Error(milestoneResult.error);
-      }
-      
-      const milestone = milestoneResult.data?.data;
-      if (!milestone) {
-        throw new Error("Milestone not found");
-      }
-
-      // Get the cohort
-      const cohortResult = await adminFetch<{success: boolean, data: {id: string, name: string}}>(`/api/admin/cohorts/${milestone.cohort_id}`);
-      
-      if (cohortResult.error) {
-        throw new Error(cohortResult.error);
-      }
-      
-      const cohort = cohortResult.data?.data;
-      if (!cohort) {
-        throw new Error("Cohort not found");
-      }
-
-      // Combine the data
+      // Use consolidated bundle endpoint for task + milestone + cohort
+      const detailsUrl = `/api/admin/tasks/details?task_id=${taskId}&include=milestone,cohort`;
+      const result = await adminFetch<{
+        success: boolean;
+        data: {
+          task: MilestoneTask;
+          milestone: CohortMilestone;
+          cohort: { id: string; name: string };
+        };
+      }>(detailsUrl);
+      if (result.error) throw new Error(result.error);
+      const data = result.data?.data as any;
+      if (!data?.task || !data?.milestone || !data?.cohort)
+        throw new Error("Failed to load task details");
       const combinedTask: TaskWithMilestone = {
-        ...task,
+        ...data.task,
         milestone: {
-          ...milestone,
-          cohort: cohort
-        }
-      };
-
+          ...data.milestone,
+          cohort: data.cohort,
+        },
+      } as any;
       setTask(combinedTask);
     } catch (err: any) {
-      console.error("Error fetching task:", err);
+      log.error("Error fetching task:", err);
       setError(err.message || "Failed to load task");
     } finally {
       setIsLoading(false);
     }
-  }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [taskId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => {
-    if (!id) return;
-    fetchTask();
-  }, [id, fetchTask]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [taskId],
+    fetcher: fetchTask,
+  });
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchTask();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  // Safety net: ensure retry button is shown even if layout props are not picked up
+  if (!isLoading && error) {
+    return (
+      <AdminEditPageLayout
+        title={"Task Submissions"}
+        backLinkHref={"/admin/cohorts"}
+        backLinkText="Back to milestone"
+        isLoading={isLoadingAuth || false}
+        error={error}
+        onRetry={handleRetry}
+        isRetrying={isRetrying}
+      >
+        {/* no children when in error */}
+      </AdminEditPageLayout>
+    );
+  }
 
   return (
     <AdminEditPageLayout
       title={task ? `Task Submissions: ${task.title}` : "Task Submissions"}
-      backLinkHref={task ? `/admin/cohorts/${task.milestone?.cohort?.id}/milestones/${task.milestone?.id}` : "/admin/cohorts"}
+      backLinkHref={
+        task
+          ? `/admin/cohorts/${task.milestone?.cohort?.id}/milestones/${task.milestone?.id}`
+          : "/admin/cohorts"
+      }
       backLinkText="Back to milestone"
-      isLoading={isLoading}
+      isLoading={isLoadingAuth || isLoading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
       {task && (
         <>
@@ -115,8 +131,3 @@ function TaskSubmissionsPage() {
     </AdminEditPageLayout>
   );
 }
-
-export default withAdminAuth(
-  TaskSubmissionsPage,
-  { message: "You need admin access to view task submissions" }
-);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
@@ -10,7 +10,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { supabase } from "@/lib/supabase/client";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
-import { applicationApi, type ApplicationData } from "@/lib/api";
+import { applicationApi, type ApplicationData } from "@/lib/helpers/api";
 import { useApiCall } from "@/hooks/useApiCall";
 import toast from "react-hot-toast";
 import {
@@ -28,12 +28,19 @@ import PersonalInfoStep from "@/components/apply/steps/PersonalInfoStep";
 import ExperienceStep from "@/components/apply/steps/ExperienceStep";
 import MotivationStep from "@/components/apply/steps/MotivationStep";
 import ReviewStep from "@/components/apply/steps/ReviewStep";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("apply:[cohortId]");
 
 interface ApplicationPageProps {
   cohortId: string;
   cohort: Cohort;
   bootcamp: BootcampProgram;
-  registrationStatus: { isOpen: boolean; reason?: string | null; timeRemaining?: string };
+  registrationStatus: {
+    isOpen: boolean;
+    reason?: string | null;
+    timeRemaining?: string;
+  };
 }
 
 // FormData remains the single source of truth for the form
@@ -120,7 +127,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
       },
     };
   } catch (error) {
-    console.error("Error fetching cohort/bootcamp data:", error);
+    log.error("Error fetching cohort/bootcamp data:", error);
     return {
       notFound: true,
     };
@@ -135,12 +142,17 @@ export default function ApplicationPage({
 }: ApplicationPageProps) {
   const router = useRouter();
   const { getAccessToken } = usePrivy();
+  const [isEnrollGuardLoading, setIsEnrollGuardLoading] = useState(true);
+  const [enrolledGuard, setEnrolledGuard] = useState<{
+    enrolled: boolean;
+    enrolledCohortId?: string;
+  } | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     user_name: "",
     user_email: "",
-    phone_number: "",
+    phone_number: "0",
     experience_level: "beginner",
     motivation: "",
     goals: [],
@@ -155,9 +167,51 @@ export default function ApplicationPage({
   let pendingApplication = null;
   if (dashboardData && dashboardData.applications) {
     pendingApplication = dashboardData.applications.find(
-      (app) => app?.cohort_id === cohortId && app?.payment_status === "pending"
+      (app) => app?.cohort_id === cohortId && app?.payment_status === "pending",
     );
   }
+
+  // Early guard: verify enrollment via API to prevent reaching payment step
+  useEffect(() => {
+    let cancelled = false;
+    async function checkEnrollment() {
+      try {
+        setIsEnrollGuardLoading(true);
+        let headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
+        try {
+          const token = await getAccessToken();
+          if (token) headers.Authorization = `Bearer ${token}`;
+        } catch {}
+        const resp = await fetch(`/api/cohorts/${cohortId}`, {
+          method: "GET",
+          headers,
+        });
+        if (!resp.ok) throw new Error("Failed to check enrollment");
+        const result = await resp.json();
+        const userEnrollment = result?.data?.userEnrollment;
+        if (!cancelled) {
+          if (userEnrollment?.isEnrolledInBootcamp) {
+            setEnrolledGuard({
+              enrolled: true,
+              enrolledCohortId: userEnrollment.enrolledCohortId,
+            });
+          } else {
+            setEnrolledGuard({ enrolled: false });
+          }
+        }
+      } catch (e) {
+        if (!cancelled) setEnrolledGuard({ enrolled: false });
+      } finally {
+        if (!cancelled) setIsEnrollGuardLoading(false);
+      }
+    }
+    checkEnrollment();
+    return () => {
+      cancelled = true;
+    };
+  }, [cohortId, getAccessToken]);
 
   const updateFormData = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -207,10 +261,12 @@ export default function ApplicationPage({
     switch (step) {
       case 1:
         return !!(
-          formData.user_name &&
-          formData.user_email &&
-          !fieldErrors.user_email && // Ensure no active email format error
-          formData.phone_number
+          (
+            formData.user_name &&
+            formData.user_email &&
+            !fieldErrors.user_email // Ensure no active email format error
+          )
+          // phone_number is now optional
         );
       case 2:
         return !!formData.experience_level;
@@ -250,7 +306,7 @@ export default function ApplicationPage({
       router.push(`/payment/${data.applicationId}`);
     },
     onError: (error) => {
-      console.error("Application submission failed:", error);
+      log.error("Application submission failed:", error);
       // Error toast is handled by useApiCall by default if showErrorToast is true
       setIsLoading(false);
     },
@@ -269,8 +325,7 @@ export default function ApplicationPage({
         errors.user_email = "Please enter a valid email address";
       }
     }
-    if (!formData.phone_number.trim())
-      errors.phone_number = "Phone number is required";
+    // phone_number is now optional - no validation needed
     if (!formData.motivation.trim())
       errors.motivation = "Motivation is required";
     if (formData.goals.length === 0)
@@ -279,11 +334,10 @@ export default function ApplicationPage({
     if (Object.keys(errors).length > 0) {
       setFieldErrors(errors);
       toast.error(
-        "Please fix the errors in your application before submitting."
+        "Please fix the errors in your application before submitting.",
       );
       // Try to navigate to the first step with an error
-      if (errors.user_name || errors.user_email || errors.phone_number)
-        setCurrentStep(1);
+      if (errors.user_name || errors.user_email) setCurrentStep(1);
       else if (errors.motivation || errors.goals) setCurrentStep(3);
       return;
     }
@@ -294,7 +348,7 @@ export default function ApplicationPage({
         cohort_id: cohortId,
         user_email: formData.user_email.trim(),
         user_name: formData.user_name.trim(),
-        phone_number: formData.phone_number.trim(),
+        phone_number: formData.phone_number.trim() || "0", // Use "0" placeholder if empty
         experience_level: formData.experience_level,
         motivation: formData.motivation.trim(),
         goals: formData.goals,
@@ -307,14 +361,14 @@ export default function ApplicationPage({
         accessToken = await getAccessToken();
       } catch (err) {
         // If unable to fetch token (e.g., user not logged-in), proceed without it
-        console.warn("Unable to fetch Privy access token", err);
+        log.warn("Unable to fetch Privy access token", err);
       }
 
       await submitApplication(() =>
-        applicationApi.submit(applicationData, accessToken ?? undefined)
+        applicationApi.submit(applicationData, accessToken ?? undefined),
       );
     } catch (error) {
-      console.error("Application submission failed (catch block):", error);
+      log.error("Application submission failed (catch block):", error);
     }
   };
 
@@ -368,31 +422,41 @@ export default function ApplicationPage({
                 {bootcamp.name} - {cohort.name}
               </h2>
             </div>
-            
+
             <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 mb-6">
               <p className="text-red-400 font-medium mb-2">
                 {registrationStatus.reason}
               </p>
               <div className="text-sm text-faded-grey space-y-1">
-                <p>Registration Deadline: {new Date(cohort.registration_deadline).toLocaleDateString()} at {new Date(cohort.registration_deadline).toLocaleTimeString()}</p>
-                <p>Available Spots: {cohort.max_participants - cohort.current_participants} of {cohort.max_participants}</p>
+                <p>
+                  Registration Deadline:{" "}
+                  {new Date(cohort.registration_deadline).toLocaleDateString()}{" "}
+                  at{" "}
+                  {new Date(cohort.registration_deadline).toLocaleTimeString()}
+                </p>
+                <p>
+                  Available Spots:{" "}
+                  {cohort.max_participants - cohort.current_participants} of{" "}
+                  {cohort.max_participants}
+                </p>
                 <p>Cohort Status: {cohort.status}</p>
               </div>
             </div>
 
             <p className="text-faded-grey mb-8">
-              Unfortunately, registration for this cohort is no longer available. 
-              You can browse other available bootcamps or check back for future cohorts.
+              Unfortunately, registration for this cohort is no longer
+              available. You can browse other available bootcamps or check back
+              for future cohorts.
             </p>
 
             <div className="space-y-4">
-              <Button 
-                onClick={() => router.push('/apply')}
+              <Button
+                onClick={() => router.push("/apply")}
                 className="w-full bg-flame-yellow text-black hover:bg-flame-orange font-medium text-lg py-3 rounded-xl"
               >
                 Browse Available Bootcamps
               </Button>
-              <Button 
+              <Button
                 onClick={() => router.back()}
                 variant="outline"
                 className="w-full border-faded-grey/30 text-white hover:border-faded-grey/60 font-medium text-lg py-3 rounded-xl"
@@ -437,6 +501,55 @@ export default function ApplicationPage({
     );
   }
 
+  // Guard priority: API-confirmed enrollment; fallback to dashboard data
+  const dashboardEnrolled =
+    dashboardData?.enrollments?.some(
+      (enr) => (enr.cohort as any)?.bootcamp_program?.id === bootcamp.id,
+    ) || false;
+  const dashboardEnrolledCohortId = dashboardData?.enrollments?.find(
+    (enr) => (enr.cohort as any)?.bootcamp_program?.id === bootcamp.id,
+  )?.cohort?.id;
+  const shouldGuard = enrolledGuard?.enrolled === true || dashboardEnrolled;
+  const guardCohortId =
+    enrolledGuard?.enrolledCohortId || dashboardEnrolledCohortId;
+
+  if (shouldGuard && !isEnrollGuardLoading) {
+    return (
+      <MainLayout>
+        <Head>
+          <title>Already Enrolled - {bootcamp.name}</title>
+        </Head>
+        <div className="min-h-screen flex flex-col items-center justify-center bg-background py-12">
+          <Card className="max-w-lg w-full p-8 text-center bg-gradient-to-br from-green-900/30 to-emerald-900/20 border border-green-500/20">
+            <CheckCircle size={48} className="mx-auto mb-4 text-green-400" />
+            <h2 className="text-2xl font-bold mb-2 text-green-300">
+              Already Enrolled
+            </h2>
+            <p className="text-faded-grey mb-6">
+              You&apos;re already enrolled in this bootcamp and cannot apply to
+              another cohort at this time.
+            </p>
+            {guardCohortId ? (
+              <Button
+                className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-lg py-3 rounded-xl"
+                onClick={() => router.push(`/lobby/bootcamps/${guardCohortId}`)}
+              >
+                Continue Learning
+              </Button>
+            ) : (
+              <Button
+                className="w-full bg-flame-yellow text-black hover:bg-flame-orange font-bold text-lg py-3 rounded-xl"
+                onClick={() => router.push("/lobby")}
+              >
+                Go to Lobby
+              </Button>
+            )}
+          </Card>
+        </div>
+      </MainLayout>
+    );
+  }
+
   return (
     <>
       <Head>
@@ -457,17 +570,18 @@ export default function ApplicationPage({
                   Apply for {bootcamp.name}
                 </h1>
                 <p className="text-faded-grey mb-2">{cohort.name}</p>
-                
+
                 {/* Registration Status Banner */}
-                {registrationStatus.isOpen && registrationStatus.timeRemaining && (
-                  <div className="inline-flex items-center space-x-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-2 mb-4">
-                    <span className="text-green-400 text-sm">🟢</span>
-                    <span className="text-green-400 text-sm font-medium">
-                      Registration Open - {registrationStatus.timeRemaining}
-                    </span>
-                  </div>
-                )}
-                
+                {registrationStatus.isOpen &&
+                  registrationStatus.timeRemaining && (
+                    <div className="inline-flex items-center space-x-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-2 mb-4">
+                      <span className="text-green-400 text-sm">🟢</span>
+                      <span className="text-green-400 text-sm font-medium">
+                        Registration Open - {registrationStatus.timeRemaining}
+                      </span>
+                    </div>
+                  )}
+
                 <p className="text-faded-grey">
                   Join the next generation of Web3 enthusiasts
                 </p>

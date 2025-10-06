@@ -3,20 +3,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
-import { 
-  Mail, 
-  Wallet, 
-  Share2, 
-  FileSignature, 
-  Link2, 
-  FileText, 
-  Camera, 
-  CheckCircle, 
+import {
+  Mail,
+  Wallet,
+  Share2,
+  FileSignature,
+  Link2,
+  FileText,
+  Camera,
+  CheckCircle,
   Sparkles,
   GripVertical,
-  Trash2
+  Trash2,
 } from "lucide-react";
-import type { QuestTask, TaskType, InputValidationType } from "@/lib/supabase/types";
+import type {
+  QuestTask,
+  TaskType,
+  InputValidationType,
+} from "@/lib/supabase/types";
 
 interface QuestTaskFormProps {
   task: Partial<QuestTask> & { tempId?: string };
@@ -29,61 +33,66 @@ interface QuestTaskFormProps {
   canMoveDown: boolean;
 }
 
-const taskTypeOptions: { value: TaskType; label: string; icon: React.ReactNode; description: string }[] = [
-  { 
-    value: "link_email", 
-    label: "Link Email", 
+const taskTypeOptions: {
+  value: TaskType;
+  label: string;
+  icon: React.ReactNode;
+  description: string;
+}[] = [
+  {
+    value: "link_email",
+    label: "Link Email",
     icon: <Mail className="w-4 h-4" />,
-    description: "User links their email address"
+    description: "User links their email address",
   },
-  { 
-    value: "link_wallet", 
-    label: "Link Wallet", 
+  {
+    value: "link_wallet",
+    label: "Link Wallet",
     icon: <Wallet className="w-4 h-4" />,
-    description: "User connects their Web3 wallet"
+    description: "User connects their Web3 wallet",
   },
-  { 
-    value: "link_farcaster", 
-    label: "Link Farcaster", 
+  {
+    value: "link_farcaster",
+    label: "Link Farcaster",
     icon: <Share2 className="w-4 h-4" />,
-    description: "User connects their Farcaster account"
+    description: "User connects their Farcaster account",
   },
-  { 
-    value: "sign_tos", 
-    label: "Sign Terms", 
+  {
+    value: "sign_tos",
+    label: "Sign Terms",
     icon: <FileSignature className="w-4 h-4" />,
-    description: "User signs terms of service"
+    description: "User signs terms of service",
   },
-  { 
-    value: "submit_url", 
-    label: "Submit URL", 
+  {
+    value: "submit_url",
+    label: "Submit URL",
     icon: <Link2 className="w-4 h-4" />,
-    description: "User submits a URL (e.g., social post)"
+    description: "User submits a URL (e.g., social post)",
   },
-  { 
-    value: "submit_text", 
-    label: "Submit Text", 
+  {
+    value: "submit_text",
+    label: "Submit Text",
     icon: <FileText className="w-4 h-4" />,
-    description: "User submits text response"
+    description: "User submits text response",
   },
-  { 
-    value: "submit_proof", 
-    label: "Submit Proof", 
+  {
+    value: "submit_proof",
+    label: "Submit Proof",
     icon: <Camera className="w-4 h-4" />,
-    description: "User submits proof (screenshot, etc.)"
+    description: "User submits proof (screenshot, etc.)",
   },
-  { 
-    value: "complete_external", 
-    label: "External Task", 
+  {
+    value: "complete_external",
+    label: "External Task",
     icon: <CheckCircle className="w-4 h-4" />,
-    description: "User completes external task"
+    description: "User completes external task",
   },
-  { 
-    value: "custom", 
-    label: "Custom Task", 
+  {
+    value: "custom",
+    label: "Custom Task",
     icon: <Sparkles className="w-4 h-4" />,
-    description: "Custom verification logic"
-  }
+    description: "Custom verification logic",
+  },
 ];
 
 const validationOptions: { value: InputValidationType; label: string }[] = [
@@ -91,7 +100,7 @@ const validationOptions: { value: InputValidationType; label: string }[] = [
   { value: "url", label: "URL" },
   { value: "email", label: "Email" },
   { value: "number", label: "Number" },
-  { value: "textarea", label: "Long Text" }
+  { value: "textarea", label: "Long Text" },
 ];
 
 export default function QuestTaskForm({
@@ -102,15 +111,23 @@ export default function QuestTaskForm({
   onMoveUp,
   onMoveDown,
   canMoveUp,
-  canMoveDown
+  canMoveDown,
 }: QuestTaskFormProps) {
   const [localTask, setLocalTask] = useState(task);
   const [showInputConfig, setShowInputConfig] = useState(false);
 
   useEffect(() => {
     // Show input config for task types that typically require input
-    const inputTaskTypes: TaskType[] = ["submit_url", "submit_text", "submit_proof", "complete_external", "custom"];
-    setShowInputConfig(inputTaskTypes.includes(localTask.task_type as TaskType));
+    const inputTaskTypes: TaskType[] = [
+      "submit_url",
+      "submit_text",
+      "submit_proof",
+      "complete_external",
+      "custom",
+    ];
+    setShowInputConfig(
+      inputTaskTypes.includes(localTask.task_type as TaskType),
+    );
   }, [localTask.task_type]);
 
   const handleChange = (field: keyof QuestTask, value: any) => {
@@ -120,17 +137,23 @@ export default function QuestTaskForm({
   };
 
   const handleTaskTypeChange = (taskType: TaskType) => {
-    const inputTaskTypes: TaskType[] = ["submit_url", "submit_text", "submit_proof", "complete_external", "custom"];
+    const inputTaskTypes: TaskType[] = [
+      "submit_url",
+      "submit_text",
+      "submit_proof",
+      "complete_external",
+      "custom",
+    ];
     const requiresInput = inputTaskTypes.includes(taskType);
-    
+
     const updated = {
       ...localTask,
       task_type: taskType,
       input_required: requiresInput,
       requires_admin_review: requiresInput,
-      verification_method: requiresInput ? "manual_review" : "automatic"
+      verification_method: requiresInput ? "manual_review" : "automatic",
     };
-    
+
     // Set default input config based on task type
     if (taskType === "submit_url") {
       updated.input_validation = "url";
@@ -141,12 +164,14 @@ export default function QuestTaskForm({
       updated.input_label = "Your Response";
       updated.input_placeholder = "Enter your response here...";
     }
-    
+
     setLocalTask(updated);
     onUpdate(updated);
   };
 
-  const selectedTaskType = taskTypeOptions.find(t => t.value === localTask.task_type);
+  const selectedTaskType = taskTypeOptions.find(
+    (t) => t.value === localTask.task_type,
+  );
 
   return (
     <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-6 space-y-4">
@@ -169,7 +194,7 @@ export default function QuestTaskForm({
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-2">
           {canMoveUp && (
             <Button
@@ -226,7 +251,9 @@ export default function QuestTaskForm({
           ))}
         </div>
         {selectedTaskType && (
-          <p className="text-sm text-gray-400 mt-1">{selectedTaskType.description}</p>
+          <p className="text-sm text-gray-400 mt-1">
+            {selectedTaskType.description}
+          </p>
         )}
       </div>
 
@@ -253,7 +280,9 @@ export default function QuestTaskForm({
             id={`task-reward-${index}`}
             type="number"
             value={localTask.reward_amount || 0}
-            onChange={(e) => handleChange("reward_amount", parseInt(e.target.value) || 0)}
+            onChange={(e) =>
+              handleChange("reward_amount", parseInt(e.target.value) || 0)
+            }
             placeholder="1000"
             className="bg-transparent border-gray-700 text-gray-100"
           />
@@ -281,7 +310,7 @@ export default function QuestTaskForm({
             <FileText className="w-4 h-4" />
             Input Configuration
           </h4>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor={`input-label-${index}`} className="text-white">
@@ -297,17 +326,29 @@ export default function QuestTaskForm({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor={`input-validation-${index}`} className="text-white">
+              <Label
+                htmlFor={`input-validation-${index}`}
+                className="text-white"
+              >
                 Validation Type
               </Label>
               <select
                 id={`input-validation-${index}`}
                 value={localTask.input_validation || "text"}
-                onChange={(e) => handleChange("input_validation", e.target.value as InputValidationType)}
+                onChange={(e) =>
+                  handleChange(
+                    "input_validation",
+                    e.target.value as InputValidationType,
+                  )
+                }
                 className="w-full px-3 py-2 bg-transparent border border-gray-700 rounded-md text-gray-100 focus:border-flame-yellow"
               >
                 {validationOptions.map((option) => (
-                  <option key={option.value} value={option.value} className="bg-gray-900">
+                  <option
+                    key={option.value}
+                    value={option.value}
+                    className="bg-gray-900"
+                  >
                     {option.label}
                   </option>
                 ))}
@@ -316,13 +357,18 @@ export default function QuestTaskForm({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor={`input-placeholder-${index}`} className="text-white">
+            <Label
+              htmlFor={`input-placeholder-${index}`}
+              className="text-white"
+            >
               Placeholder Text
             </Label>
             <Input
               id={`input-placeholder-${index}`}
               value={localTask.input_placeholder || ""}
-              onChange={(e) => handleChange("input_placeholder", e.target.value)}
+              onChange={(e) =>
+                handleChange("input_placeholder", e.target.value)
+              }
               placeholder="e.g., https://twitter.com/..."
               className="bg-transparent border-gray-700 text-gray-100"
             />
@@ -336,7 +382,10 @@ export default function QuestTaskForm({
               onChange={(e) => handleChange("input_required", e.target.checked)}
               className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
             />
-            <Label htmlFor={`input-required-${index}`} className="text-white cursor-pointer">
+            <Label
+              htmlFor={`input-required-${index}`}
+              className="text-white cursor-pointer"
+            >
               Input Required
             </Label>
           </div>
@@ -346,10 +395,15 @@ export default function QuestTaskForm({
               type="checkbox"
               id={`admin-review-${index}`}
               checked={localTask.requires_admin_review || false}
-              onChange={(e) => handleChange("requires_admin_review", e.target.checked)}
+              onChange={(e) =>
+                handleChange("requires_admin_review", e.target.checked)
+              }
               className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
             />
-            <Label htmlFor={`admin-review-${index}`} className="text-white cursor-pointer">
+            <Label
+              htmlFor={`admin-review-${index}`}
+              className="text-white cursor-pointer"
+            >
               Requires Admin Review
             </Label>
           </div>

@@ -12,6 +12,8 @@ export interface BootcampProgram {
   duration_weeks: number;
   max_reward_dgt: number;
   lock_address?: string;
+  lock_manager_granted?: boolean;
+  grant_failure_reason?: string;
   image_url?: string;
   created_at: string;
   updated_at: string;
@@ -28,6 +30,8 @@ export interface Cohort {
   registration_deadline: string;
   status: "open" | "closed" | "upcoming";
   lock_address?: string;
+  lock_manager_granted?: boolean;
+  grant_failure_reason?: string;
   key_managers?: string[];
   usdt_amount?: number;
   naira_amount?: number;
@@ -44,6 +48,8 @@ export interface CohortMilestone {
   start_date?: string;
   end_date?: string;
   lock_address: string;
+  lock_manager_granted?: boolean;
+  grant_failure_reason?: string;
   prerequisite_milestone_id?: string;
   duration_hours?: number;
   total_reward?: number;
@@ -78,6 +84,8 @@ export interface Quest {
   total_reward: number;
   is_active: boolean;
   lock_address?: string;
+  lock_manager_granted?: boolean;
+  grant_failure_reason?: string;
   created_at: string;
   updated_at: string;
   quest_tasks: QuestTask[];
@@ -220,7 +228,12 @@ export interface UserTaskProgress {
 }
 
 export interface EnhancedMilestoneTask extends MilestoneTask {
-  task_type: "file_upload" | "url_submission" | "contract_interaction" | "text_submission" | "external_verification";
+  task_type:
+    | "file_upload"
+    | "url_submission"
+    | "contract_interaction"
+    | "text_submission"
+    | "external_verification";
   submission_requirements?: any;
   validation_criteria?: any;
   requires_admin_review: boolean;
@@ -242,10 +255,15 @@ export interface BootcampWithCohorts {
   image_url?: string;
   created_at: string;
   updated_at: string;
-  cohorts: Array<Cohort & {
-    is_enrolled?: boolean;
-    user_enrollment_id?: string;
-  }>;
+  // Optional enrollment-aware flags provided by API routes
+  enrolled_in_bootcamp?: boolean;
+  enrolled_cohort_id?: string;
+  cohorts: Array<
+    Cohort & {
+      is_enrolled?: boolean;
+      user_enrollment_id?: string;
+    }
+  >;
 }
 
 export interface Enrollment {

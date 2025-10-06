@@ -1,76 +1,92 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { getLogger } from "@/lib/utils/logger";
 
-function EditCohortPage() {
+const log = getLogger("admin:cohorts:[cohortId]:index");
+
+export default function EditCohortPage() {
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi();
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
 
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch cohort data
-  useEffect(() => {
-    async function fetchCohort() {
-      if (!cohortId) return;
+  const fetchCohort = useCallback(async () => {
+    if (!cohortId) return;
 
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: Cohort}>(`/api/admin/cohorts/${cohortId}`);
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        if (!result.data?.data) {
-          throw new Error("Cohort not found");
-        }
+      const result = await adminFetch<{ success: boolean; data: Cohort }>(
+        `/api/admin/cohorts/${cohortId}`,
+      );
 
-        setCohort(result.data.data);
-      } catch (err: any) {
-        console.error("Error fetching cohort:", err);
-        setError(err.message || "Failed to load cohort");
-      } finally {
-        setIsLoading(false);
+      if (result.error) {
+        throw new Error(result.error);
       }
-    }
 
-    if (cohortId) {
-      fetchCohort();
+      if (!result.data?.data) {
+        throw new Error("Cohort not found");
+      }
+
+      setCohort(result.data.data);
+    } catch (err: any) {
+      log.error("Error fetching cohort:", err);
+      setError(err.message || "Failed to load cohort");
+    } finally {
+      setIsLoading(false);
     }
-  }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cohortId, adminFetch]); // adminFetch is now stable due to memoized options
+
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [cohortId as string | undefined],
+    fetcher: fetchCohort,
+  });
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchCohort();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <AdminEditPageLayout
       title="Edit Cohort"
       backLinkHref="/admin/cohorts"
       backLinkText="Back to cohorts"
-      isLoading={isLoading} // This is for data loading, auth loading is handled above
+      isLoading={isLoadingAuth || isLoading} // This is for data loading, auth loading is handled above
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
-      {cohort ? (
-        <CohortForm cohort={cohort} isEditing />
-      ) : (
-        !isLoading && !error && !cohort ?
+      {
+        cohort ? (
+          <CohortForm cohort={cohort} isEditing />
+        ) : !isLoading && !error && !cohort ? (
           <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
             Cohort not found. It may have been deleted or the ID is incorrect.
           </div>
-        : null // Loading/Error is handled by AdminEditPageLayout based on props
-      )}
+        ) : null // Loading/Error is handled by AdminEditPageLayout based on props
+      }
     </AdminEditPageLayout>
   );
 }
-
-// Export the page wrapped in admin authentication
-export default withAdminAuth(
-  EditCohortPage,
-  { message: "You need admin access to manage cohorts" }
-);

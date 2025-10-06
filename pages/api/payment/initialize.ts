@@ -1,17 +1,20 @@
 import { NextApiRequest, NextApiResponse } from "next";
-// Use the admin Supabase client – this API route runs on the server and
-// needs elevated privileges to bypass RLS when inserting payment records.
 import { createAdminClient } from "@/lib/supabase/server";
-
-// Create a fresh instance for this request
-const supabase = createAdminClient();
-
+import { getLogger } from "@/lib/utils/logger";
+import {
+  fetchAndVerifyAuthorization,
+  createPrivyClient,
+} from "@/lib/utils/privyUtils";
+import { assertApplicationOwnership } from "@/lib/auth/ownership";
 import {
   generatePaymentReference,
   convertToSmallestUnit,
   validatePaymentAmount,
   type Currency,
-} from "../../../lib/payment-utils";
+} from "../../../lib/utils/payment-utils";
+
+const supabase = createAdminClient();
+const log = getLogger("api:payment:initialize");
 
 interface InitializePaymentRequest {
   applicationId: string;
@@ -22,13 +25,18 @@ interface InitializePaymentRequest {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
+    // Require user authentication (header or cookie) and ownership of application
+    const privy = createPrivyClient();
+    const claims = await fetchAndVerifyAuthorization(req, res, privy);
+    if (!claims) return; // response already sent
+
     const { applicationId, amount, currency, email }: InitializePaymentRequest =
       req.body;
 
@@ -38,6 +46,16 @@ export default async function handler(
         error:
           "Missing required fields: applicationId, amount, currency, email",
       });
+    }
+
+    // Ensure the authenticated user owns this application
+    const ownership = await assertApplicationOwnership(
+      supabase,
+      applicationId,
+      claims,
+    );
+    if (!ownership.ok) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     // Paystack only handles NGN payments
@@ -60,7 +78,7 @@ export default async function handler(
     // Check if application exists and fetch cohort data
     const { data: application, error: appError } = await supabase
       .from("applications")
-      .select("id, user_email, payment_status, cohort_id")
+      .select("id, user_email, user_profile_id, payment_status, cohort_id")
       .eq("id", applicationId)
       .single();
 
@@ -73,7 +91,7 @@ export default async function handler(
     // Fetch cohort data for pricing validation
     const { data: cohort, error: cohortError } = await supabase
       .from("cohorts")
-      .select("naira_amount, usdt_amount")
+      .select("naira_amount, usdt_amount, bootcamp_program_id")
       .eq("id", application.cohort_id)
       .single();
 
@@ -84,7 +102,8 @@ export default async function handler(
     }
 
     // Validate amount against cohort pricing
-    const expectedAmount = currency === "NGN" ? cohort.naira_amount : cohort.usdt_amount;
+    const expectedAmount =
+      currency === "NGN" ? cohort.naira_amount : cohort.usdt_amount;
     if (!expectedAmount || amount !== expectedAmount) {
       return res.status(400).json({
         error: `Invalid amount. Expected ${currency === "NGN" ? "₦" : "$"}${expectedAmount}`,
@@ -96,6 +115,44 @@ export default async function handler(
       return res.status(400).json({
         error: "Payment already completed for this application",
       });
+    }
+
+    // Prevent payment if user is already enrolled in this bootcamp (any cohort under same bootcamp_program_id)
+    // Resolve user profile id if missing by matching email
+    let userProfileId = application.user_profile_id as string | null;
+    if (!userProfileId && application.user_email) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("email", application.user_email)
+        .maybeSingle();
+      userProfileId = profile?.id || null;
+    }
+
+    if (userProfileId) {
+      const { data: enrollments, error: enrollErr } = await supabase
+        .from("bootcamp_enrollments")
+        .select("id, cohort:cohort_id ( id, bootcamp_program_id )")
+        .eq("user_profile_id", userProfileId);
+
+      if (enrollErr) {
+        log.error("Error checking existing enrollments", enrollErr);
+        return res
+          .status(500)
+          .json({ error: "Failed to validate enrollment status" });
+      }
+
+      const enrolledInBootcamp = (enrollments || []).some((en: any) => {
+        const c = Array.isArray(en.cohort) ? en.cohort[0] : en.cohort;
+        return c?.bootcamp_program_id === cohort.bootcamp_program_id;
+      });
+
+      if (enrolledInBootcamp) {
+        return res.status(409).json({
+          error:
+            "You are already enrolled in this bootcamp. No additional payment is required.",
+        });
+      }
     }
 
     // Generate payment reference
@@ -130,14 +187,20 @@ export default async function handler(
             process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
           }/payment/callback`,
         }),
-      }
+      },
     );
 
     const paystackData = await paystackResponse.json();
-    console.log("paystackData from initialize:: ", paystackData);
-    
+
+    log.info("Paystack initialize response (sanitized)", {
+      status: paystackData?.status,
+      hasData: Boolean(paystackData?.data),
+      hasAuthUrl: Boolean(paystackData?.data?.authorization_url),
+      hasReference: Boolean(paystackData?.data?.reference),
+    });
+
     if (!paystackData.status) {
-      console.error("Paystack initialization failed:", paystackData);
+      log.error("Paystack initialization failed:", paystackData);
       return res.status(400).json({
         error: "Payment initialization failed",
         details: paystackData.message,
@@ -145,7 +208,7 @@ export default async function handler(
     }
 
     const officialReference = paystackData.data.reference || reference;
-    console.log("officialReference being saved to database:: ", officialReference);
+    log.info("officialReference being saved to database:: ", officialReference);
 
     // Save payment transaction to database (use Paystack's confirmed reference)
     const { error: transactionError } = await supabase
@@ -165,7 +228,7 @@ export default async function handler(
       });
 
     if (transactionError) {
-      console.error("Failed to save payment transaction:", transactionError);
+      log.error("Failed to save payment transaction:", transactionError);
       return res.status(500).json({
         error: "Failed to save payment transaction",
       });
@@ -186,7 +249,7 @@ export default async function handler(
       },
     });
   } catch (error) {
-    console.error("Payment initialization error:", error);
+    log.error("Payment initialization error:", error);
     res.status(500).json({
       error: "Internal server error",
     });

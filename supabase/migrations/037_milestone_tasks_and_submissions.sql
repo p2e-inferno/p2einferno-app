@@ -9,7 +9,6 @@ CREATE TABLE IF NOT EXISTS public.milestone_tasks (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create task_submissions table  
 CREATE TABLE IF NOT EXISTS public.task_submissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -24,7 +23,6 @@ CREATE TABLE IF NOT EXISTS public.task_submissions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create program_highlights table
 CREATE TABLE IF NOT EXISTS public.program_highlights (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -34,7 +32,6 @@ CREATE TABLE IF NOT EXISTS public.program_highlights (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create program_requirements table
 CREATE TABLE IF NOT EXISTS public.program_requirements (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -44,12 +41,10 @@ CREATE TABLE IF NOT EXISTS public.program_requirements (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Add duration_hours and total_reward to cohort_milestones
 ALTER TABLE public.cohort_milestones
 ADD COLUMN IF NOT EXISTS duration_hours INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS total_reward INTEGER DEFAULT 0;
-
 -- Create indexes for better performance
 CREATE INDEX idx_milestone_tasks_milestone_id ON public.milestone_tasks(milestone_id);
 CREATE INDEX idx_task_submissions_task_id ON public.task_submissions(task_id);
@@ -57,67 +52,55 @@ CREATE INDEX idx_task_submissions_user_id ON public.task_submissions(user_id);
 CREATE INDEX idx_task_submissions_status ON public.task_submissions(status);
 CREATE INDEX idx_program_highlights_cohort_id ON public.program_highlights(cohort_id);
 CREATE INDEX idx_program_requirements_cohort_id ON public.program_requirements(cohort_id);
-
 -- Enable RLS on new tables
 ALTER TABLE public.milestone_tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_submissions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_highlights ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.program_requirements ENABLE ROW LEVEL SECURITY;
-
 -- RLS Policies for milestone_tasks
 CREATE POLICY "Authenticated users can read milestone tasks" 
     ON public.milestone_tasks
     FOR SELECT 
     USING (auth.role() = 'authenticated');
-
 CREATE POLICY "Authenticated users can manage milestone tasks" 
     ON public.milestone_tasks
     FOR ALL
     USING (auth.role() = 'authenticated');
-
 -- RLS Policies for task_submissions
 CREATE POLICY "Users can read their own submissions" 
     ON public.task_submissions
     FOR SELECT 
     USING (auth.role() = 'authenticated' AND (user_id = auth.uid()::text OR auth.role() = 'service_role'));
-
 CREATE POLICY "Users can create their own submissions" 
     ON public.task_submissions
     FOR INSERT
     WITH CHECK (auth.role() = 'authenticated' AND user_id = auth.uid()::text);
-
 CREATE POLICY "Authenticated users can update submissions" 
     ON public.task_submissions
     FOR UPDATE
     USING (auth.role() = 'authenticated');
-
 CREATE POLICY "Service role can manage all submissions" 
     ON public.task_submissions
     FOR ALL 
     USING (auth.role() = 'service_role');
-
 -- RLS Policies for program_highlights
 CREATE POLICY "Public can read program highlights" 
     ON public.program_highlights
     FOR SELECT 
     USING (true);
-
 CREATE POLICY "Authenticated users can manage highlights" 
     ON public.program_highlights
     FOR ALL
     USING (auth.role() = 'authenticated');
-
 -- RLS Policies for program_requirements
 CREATE POLICY "Public can read program requirements" 
     ON public.program_requirements
     FOR SELECT 
     USING (true);
-
 CREATE POLICY "Authenticated users can manage requirements" 
     ON public.program_requirements
     FOR ALL
     USING (auth.role() = 'authenticated');
-
 -- Create function to update total_reward when tasks change
 CREATE OR REPLACE FUNCTION update_milestone_total_reward()
 RETURNS TRIGGER AS $$
@@ -133,13 +116,11 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger to update total_reward
 CREATE TRIGGER update_milestone_reward_on_task_change
 AFTER INSERT OR UPDATE OR DELETE ON milestone_tasks
 FOR EACH ROW
 EXECUTE FUNCTION update_milestone_total_reward();
-
 -- Create function to prevent duplicate submissions
 CREATE OR REPLACE FUNCTION check_duplicate_submission()
 RETURNS TRIGGER AS $$
@@ -156,7 +137,6 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger to prevent duplicate submissions
 CREATE TRIGGER prevent_duplicate_submissions
 BEFORE INSERT OR UPDATE ON task_submissions

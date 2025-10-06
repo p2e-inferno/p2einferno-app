@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:[id]:start");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -61,7 +64,7 @@ export default async function handler(
       .single();
 
     if (progressError) {
-      console.error("Error creating quest progress:", progressError);
+      log.error("Error creating quest progress:", progressError);
       return res.status(500).json({
         error: "Failed to start quest",
         details: progressError.message,
@@ -74,7 +77,7 @@ export default async function handler(
       progress,
     });
   } catch (error) {
-    console.error("Error in start quest API:", error);
+    log.error("Error in start quest API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

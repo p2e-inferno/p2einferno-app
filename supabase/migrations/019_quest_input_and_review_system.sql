@@ -8,7 +8,6 @@ ADD COLUMN IF NOT EXISTS input_label TEXT,
 ADD COLUMN IF NOT EXISTS input_placeholder TEXT,
 ADD COLUMN IF NOT EXISTS input_validation TEXT CHECK (input_validation IN ('url', 'text', 'email', 'number', 'textarea')),
 ADD COLUMN IF NOT EXISTS requires_admin_review BOOLEAN DEFAULT false;
-
 -- Update task_type constraint to include new types
 ALTER TABLE public.quest_tasks DROP CONSTRAINT IF EXISTS quest_tasks_task_type_check;
 ALTER TABLE public.quest_tasks ADD CONSTRAINT quest_tasks_task_type_check 
@@ -23,7 +22,6 @@ CHECK (task_type IN (
   'complete_external', 
   'custom'
 ));
-
 -- Add submission status and review fields to user_task_completions
 ALTER TABLE public.user_task_completions 
 ADD COLUMN IF NOT EXISTS submission_status TEXT DEFAULT 'pending' 
@@ -32,14 +30,11 @@ ADD COLUMN IF NOT EXISTS submission_data JSONB,
 ADD COLUMN IF NOT EXISTS admin_feedback TEXT,
 ADD COLUMN IF NOT EXISTS reviewed_by TEXT,
 ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE;
-
 -- Create index for faster submission queries
 CREATE INDEX IF NOT EXISTS idx_user_task_completions_status 
 ON public.user_task_completions(submission_status);
-
 CREATE INDEX IF NOT EXISTS idx_user_task_completions_quest_status 
 ON public.user_task_completions(quest_id, submission_status);
-
 -- Update the existing user_task_completions table structure
 -- First, we need to fix the table structure to remove quest_progress_id dependency
 -- and link directly to quest_id
@@ -74,16 +69,13 @@ BEGIN
         DROP COLUMN IF EXISTS quest_progress_id;
     END IF;
 END $$;
-
 -- Ensure quest_id is not null
 ALTER TABLE public.user_task_completions 
 ALTER COLUMN quest_id SET NOT NULL;
-
 -- Update user_quest_progress to track completed tasks accurately
 ALTER TABLE public.user_quest_progress
 ADD COLUMN IF NOT EXISTS tasks_completed INTEGER DEFAULT 0,
 ADD COLUMN IF NOT EXISTS is_completed BOOLEAN DEFAULT false;
-
 -- Create a function to recalculate quest progress
 CREATE OR REPLACE FUNCTION recalculate_quest_progress(p_user_id TEXT, p_quest_id UUID)
 RETURNS void AS $$
@@ -118,7 +110,6 @@ BEGIN
     END IF;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create a trigger to update progress when task completion status changes
 CREATE OR REPLACE FUNCTION update_quest_progress_on_task_change()
 RETURNS TRIGGER AS $$
@@ -132,24 +123,20 @@ BEGIN
     RETURN NULL;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create the trigger
 DROP TRIGGER IF EXISTS trigger_update_quest_progress ON public.user_task_completions;
 CREATE TRIGGER trigger_update_quest_progress
 AFTER INSERT OR UPDATE OF submission_status OR DELETE ON public.user_task_completions
 FOR EACH ROW
 EXECUTE FUNCTION update_quest_progress_on_task_change();
-
 -- Create RLS policies for admin access to review submissions
 CREATE POLICY "Admins can view all task completions" ON public.user_task_completions
     FOR SELECT
     USING (auth.jwt() ->> 'role' = 'admin' OR auth.uid()::text = user_id);
-
 CREATE POLICY "Admins can update task completion status" ON public.user_task_completions
     FOR UPDATE
     USING (auth.jwt() ->> 'role' = 'admin')
     WITH CHECK (auth.jwt() ->> 'role' = 'admin');
-
 -- Create a view for quest statistics
 CREATE OR REPLACE VIEW quest_statistics AS
 SELECT 
@@ -170,6 +157,5 @@ FROM public.quests q
 LEFT JOIN public.user_quest_progress uqp ON q.id = uqp.quest_id
 LEFT JOIN public.user_task_completions utc ON q.id = utc.quest_id
 GROUP BY q.id, q.title;
-
 -- Grant access to the view
 GRANT SELECT ON quest_statistics TO authenticated;

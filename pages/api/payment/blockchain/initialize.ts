@@ -1,10 +1,18 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+import {
+  fetchAndVerifyAuthorization,
+  createPrivyClient,
+} from "@/lib/utils/privyUtils";
+import { assertApplicationOwnership } from "@/lib/auth/ownership";
 import {
   generatePaymentReference,
   validatePaymentAmount,
   type Currency,
-} from "../../../../lib/payment-utils";
+} from "../../../../lib/utils/payment-utils";
+
+const log = getLogger("api:payment:blockchain:initialize");
 
 interface BlockchainPaymentRequest {
   applicationId: string;
@@ -27,6 +35,11 @@ export default async function handler(
   const supabaseAdmin = createAdminClient();
 
   try {
+    // Require user authentication (header or cookie) and ownership of application
+    const privy = createPrivyClient();
+    const claims = await fetchAndVerifyAuthorization(req, res, privy);
+    if (!claims) return; // response already sent
+
     const {
       applicationId,
       cohortId,
@@ -34,7 +47,7 @@ export default async function handler(
       currency,
       email,
       walletAddress,
-      chainId, // NEW: Destructure chainId
+      chainId,
     }: BlockchainPaymentRequest = req.body;
 
     // Validate required fields
@@ -50,6 +63,16 @@ export default async function handler(
       return res.status(400).json({
         error: "Missing required fields, including chainId.",
       });
+    }
+
+    // Ensure the authenticated user owns this application
+    const ownership = await assertApplicationOwnership(
+      supabaseAdmin,
+      applicationId,
+      claims,
+    );
+    if (!ownership.ok) {
+      return res.status(403).json({ error: "Forbidden" });
     }
 
     // Blockchain only handles USD payments
@@ -68,18 +91,16 @@ export default async function handler(
 
     // Validate amount
     if (!validatePaymentAmount(amount, currency)) {
-      return res
-        .status(400)
-        .json({
-          error: `Invalid amount. Minimum is $1 for blockchain payments`,
-        });
+      return res.status(400).json({
+        error: `Invalid amount. Minimum is $1 for blockchain payments`,
+      });
     }
 
     // Check application and cohort details
     const { data: application, error: appError } = await supabaseAdmin
       .from("applications")
       .select(
-        `id, payment_status, cohorts!inner(id, lock_address, name, usdt_amount)`,
+        `id, user_email, user_profile_id, payment_status, cohort_id, cohorts!inner(id, lock_address, name, usdt_amount, bootcamp_program_id)`,
       )
       .eq("id", applicationId)
       .single();
@@ -93,16 +114,53 @@ export default async function handler(
         .json({ error: "Payment already completed for this application" });
     }
 
-    const cohort = Array.isArray(application.cohorts) ? application.cohorts[0] : application.cohorts;
+    const cohort = Array.isArray(application.cohorts)
+      ? application.cohorts[0]
+      : application.cohorts;
     if (!cohort || cohort.usdt_amount !== amount) {
       return res.status(400).json({ error: "Invalid amount for this cohort." });
     }
     if (!cohort.lock_address) {
-      return res
-        .status(400)
-        .json({
-          error: "Cohort lock address not configured. Contact support.",
+      return res.status(400).json({
+        error: "Cohort lock address not configured. Contact support.",
+      });
+    }
+
+    // Guard: Prevent payment if user is already enrolled in this bootcamp
+    let userProfileId = (application as any).user_profile_id as string | null;
+    if (!userProfileId && (application as any).user_email) {
+      const { data: profile } = await supabaseAdmin
+        .from("user_profiles")
+        .select("id")
+        .eq("email", (application as any).user_email)
+        .maybeSingle();
+      userProfileId = profile?.id || null;
+    }
+
+    if (userProfileId) {
+      const { data: enrollments, error: enrollErr } = await supabaseAdmin
+        .from("bootcamp_enrollments")
+        .select("id, cohort:cohort_id ( id, bootcamp_program_id )")
+        .eq("user_profile_id", userProfileId);
+
+      if (enrollErr) {
+        log.error("Error checking existing enrollments", enrollErr);
+        return res
+          .status(500)
+          .json({ error: "Failed to validate enrollment status" });
+      }
+
+      const enrolledInBootcamp = (enrollments || []).some((en: any) => {
+        const c = Array.isArray(en.cohort) ? en.cohort[0] : en.cohort;
+        return c?.bootcamp_program_id === cohort.bootcamp_program_id;
+      });
+
+      if (enrolledInBootcamp) {
+        return res.status(409).json({
+          error:
+            "You are already enrolled in this bootcamp. No additional payment is required.",
         });
+      }
     }
 
     // Generate payment reference
@@ -116,6 +174,7 @@ export default async function handler(
         payment_reference: reference,
         amount,
         currency,
+        amount_in_kobo: 0, // For blockchain (USD) payments, we don't use kobo — set 0.
         status: "pending",
         payment_method: "blockchain",
         network_chain_id: chainId, // NEW: Store the chainId
@@ -128,7 +187,7 @@ export default async function handler(
       });
 
     if (transactionError) {
-      console.error(
+      log.error(
         "Failed to save blockchain payment transaction:",
         transactionError,
       );
@@ -146,7 +205,7 @@ export default async function handler(
       },
     });
   } catch (error) {
-    console.error("Blockchain payment initialization error:", error);
+    log.error("Blockchain payment initialization error:", error);
     res.status(500).json({
       error: "Internal server error",
     });

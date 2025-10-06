@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:user:profile-simple");
 
 // Simplified user profile endpoint that doesn't rely on Privy token verification
 const supabase = createAdminClient();
@@ -38,13 +41,13 @@ interface UserDashboardData {
 
 async function createOrUpdateUserProfile(
   privyUserId: string,
-  userData: any
+  userData: any,
 ): Promise<UserProfile> {
   // Extract data from request body
   const email = userData.email || null;
   const walletAddress = userData.walletAddress || null;
   const linkedWallets = userData.linkedWallets || [];
-  
+
   const profileData = {
     privy_user_id: privyUserId,
     email: email,
@@ -61,7 +64,7 @@ async function createOrUpdateUserProfile(
   let existingProfile;
   let retryCount = 0;
   const maxRetries = 3;
-  
+
   while (retryCount < maxRetries) {
     try {
       const { data, error: profileError } = await supabase
@@ -70,52 +73,62 @@ async function createOrUpdateUserProfile(
         .eq("privy_user_id", privyUserId)
         .single();
 
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error("Error checking existing profile:", {
-          message: profileError.message || 'Unknown error',
-          code: profileError.code || 'NO_CODE',
-          details: profileError.details || 'No details'
+      if (profileError && profileError.code !== "PGRST116") {
+        log.error("Error checking existing profile:", {
+          message: profileError.message || "Unknown error",
+          code: profileError.code || "NO_CODE",
+          details: profileError.details || "No details",
         });
-        throw new Error(`Database error: ${profileError.message || 'Unknown database error'}`);
+        throw new Error(
+          `Database error: ${profileError.message || "Unknown database error"}`,
+        );
       }
-      
+
       existingProfile = data;
       break; // Success, exit retry loop
-      
     } catch (error) {
       retryCount++;
-      console.error(`Attempt ${retryCount} failed for profile check:`, {
-        message: error instanceof Error ? error.message : 'Unknown error',
-        isNetworkError: error instanceof Error && error.message.includes('fetch failed')
+      log.error(`Attempt ${retryCount} failed for profile check:`, {
+        message: error instanceof Error ? error.message : "Unknown error",
+        isNetworkError:
+          error instanceof Error && error.message.includes("fetch failed"),
       });
-      
+
       if (retryCount >= maxRetries) {
-        throw new Error(`Network error after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        throw new Error(
+          `Network error after ${maxRetries} attempts: ${error instanceof Error ? error.message : "Unknown error"}`,
+        );
       }
-      
+
       // Wait before retry (exponential backoff)
-      await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
     }
   }
 
   // Helper function to retry database operations
-  const executeWithRetry = async (operation: () => Promise<any>, operationName: string) => {
+  const executeWithRetry = async (
+    operation: () => Promise<any>,
+    operationName: string,
+  ) => {
     let retryCount = 0;
     while (retryCount < maxRetries) {
       try {
         return await operation();
       } catch (error) {
         retryCount++;
-        console.error(`${operationName} attempt ${retryCount} failed:`, {
-          message: error instanceof Error ? error.message : 'Unknown error',
-          isNetworkError: error instanceof Error && error.message.includes('fetch failed')
+        log.error(`${operationName} attempt ${retryCount} failed:`, {
+          message: error instanceof Error ? error.message : "Unknown error",
+          isNetworkError:
+            error instanceof Error && error.message.includes("fetch failed"),
         });
-        
+
         if (retryCount >= maxRetries) {
-          throw new Error(`${operationName} failed after ${maxRetries} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          throw new Error(
+            `${operationName} failed after ${maxRetries} attempts: ${error instanceof Error ? error.message : "Unknown error"}`,
+          );
         }
-        
-        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+
+        await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
       }
     }
   };
@@ -129,9 +142,11 @@ async function createOrUpdateUserProfile(
         .eq("privy_user_id", privyUserId)
         .select()
         .single();
-      
+
       if (result.error) {
-        throw new Error(`Failed to update profile: ${result.error.message || 'Unknown error'}`);
+        throw new Error(
+          `Failed to update profile: ${result.error.message || "Unknown error"}`,
+        );
       }
       return result;
     }, "Profile update");
@@ -145,9 +160,11 @@ async function createOrUpdateUserProfile(
         .insert([profileData])
         .select()
         .single();
-      
+
       if (result.error) {
-        throw new Error(`Failed to create profile: ${result.error.message || 'Unknown error'}`);
+        throw new Error(
+          `Failed to create profile: ${result.error.message || "Unknown error"}`,
+        );
       }
       return result;
     }, "Profile creation");
@@ -163,7 +180,7 @@ async function createOrUpdateUserProfile(
         },
       ]);
     } catch (activityError) {
-      console.error("Error logging registration activity:", activityError);
+      log.error("Error logging registration activity:", activityError);
     }
 
     return data;
@@ -171,7 +188,7 @@ async function createOrUpdateUserProfile(
 }
 
 async function getUserDashboardData(
-  userProfileId: string
+  userProfileId: string,
 ): Promise<UserDashboardData> {
   // Get user profile
   const { data: profile, error: profileError } = await supabase
@@ -181,7 +198,7 @@ async function getUserDashboardData(
     .single();
 
   if (profileError) {
-    console.error("Error fetching user profile:", profileError);
+    log.error("Error fetching user profile:", profileError);
     throw new Error(`Failed to fetch profile: ${profileError.message}`);
   }
 
@@ -209,7 +226,7 @@ async function getUserDashboardData(
           )
         )
       )
-    `
+    `,
     )
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
@@ -217,7 +234,8 @@ async function getUserDashboardData(
   // Get bootcamp enrollments with cohort details (graceful fallback)
   const { data: enrollments } = await supabase
     .from("bootcamp_enrollments")
-    .select(`
+    .select(
+      `
       *,
       cohorts (
         id,
@@ -226,7 +244,8 @@ async function getUserDashboardData(
           name
         )
       )
-    `)
+    `,
+    )
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
 
@@ -237,13 +256,17 @@ async function getUserDashboardData(
     .eq("user_profile_id", userProfileId);
 
   // Merge preferences into enrollments
-  const enrollmentsWithPreferences = (enrollments || []).map((enrollment: any) => {
-    const preference = preferences?.find((p: any) => p.enrollment_id === enrollment.id);
-    return {
-      ...enrollment,
-      user_journey_preferences: preference ? [preference] : []
-    };
-  });
+  const enrollmentsWithPreferences = (enrollments || []).map(
+    (enrollment: any) => {
+      const preference = preferences?.find(
+        (p: any) => p.enrollment_id === enrollment.id,
+      );
+      return {
+        ...enrollment,
+        user_journey_preferences: preference ? [preference] : [],
+      };
+    },
+  );
 
   // Get recent activities (graceful fallback)
   const { data: recentActivities } = await supabase
@@ -267,13 +290,17 @@ async function getUserDashboardData(
       enrollments?.filter((_e: any) => _e.enrollment_status === "completed")
         .length || 0,
     enrolledBootcamps:
-      enrollments?.filter((_e: any) => 
-        _e.enrollment_status === "enrolled" || _e.enrollment_status === "active"
+      enrollments?.filter(
+        (_e: any) =>
+          _e.enrollment_status === "enrolled" ||
+          _e.enrollment_status === "active",
       ).length || 0,
     totalPoints: profile.experience_points || 0,
     pendingPayments:
       applications?.filter((_a: any) => {
-        const application = Array.isArray(_a.applications) ? _a.applications[0] : _a.applications;
+        const application = Array.isArray(_a.applications)
+          ? _a.applications[0]
+          : _a.applications;
         return application?.payment_status === "pending";
       }).length || 0,
     questsCompleted: questProgress?.length || 0,
@@ -290,37 +317,40 @@ async function getUserDashboardData(
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   // Set a timeout for the entire request
   const timeoutPromise = new Promise((_, reject) => {
-    setTimeout(() => reject(new Error('Request timeout after 30 seconds')), 30000);
+    setTimeout(
+      () => reject(new Error("Request timeout after 30 seconds")),
+      30000,
+    );
   });
 
   try {
     // Race the actual handler against the timeout
     const result = await Promise.race([
       handleRequest(req, res),
-      timeoutPromise
+      timeoutPromise,
     ]);
     return result;
   } catch (error) {
-    console.error("Simple user profile API error:", {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : 'No stack trace',
-      privyUserId: req.body?.privyUserId
+    log.error("Simple user profile API error:", {
+      message: error instanceof Error ? error.message : "Unknown error",
+      stack: error instanceof Error ? error.stack : "No stack trace",
+      privyUserId: req.body?.privyUserId,
     });
 
-    if (error instanceof Error && error.message.includes('timeout')) {
-      return res.status(504).json({ 
-        error: "Request timeout - please try again", 
-        details: "The request took too long to complete" 
+    if (error instanceof Error && error.message.includes("timeout")) {
+      return res.status(504).json({
+        error: "Request timeout - please try again",
+        details: "The request took too long to complete",
       });
     }
 
-    return res.status(500).json({ 
-      error: "Internal server error", 
-      details: "Please try again later" 
+    return res.status(500).json({
+      error: "Internal server error",
+      details: "Please try again later",
     });
   }
 }
@@ -334,10 +364,12 @@ async function handleRequest(req: NextApiRequest, res: NextApiResponse) {
   const { privyUserId } = req.body;
 
   if (!privyUserId) {
-    return res.status(400).json({ error: "privyUserId is required in request body" });
+    return res
+      .status(400)
+      .json({ error: "privyUserId is required in request body" });
   }
 
-  console.log(`Processing profile request for user: ${privyUserId}`);
+  log.info(`Processing profile request for user: ${privyUserId}`);
 
   // Create or update user profile
   const profile = await createOrUpdateUserProfile(privyUserId, req.body);

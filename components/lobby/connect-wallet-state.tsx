@@ -22,7 +22,7 @@ export const LobbyConnectWalletState: React.FC = () => {
       style={{ backgroundColor: "#100F29" }}
     >
       <LobbyBackground />
-      
+
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4">
         <div className="text-center max-w-md mx-auto">
           {/* Flame icon with pulsing animation */}
@@ -35,9 +35,10 @@ export const LobbyConnectWalletState: React.FC = () => {
 
           {/* Title */}
           <h1 className="text-3xl md:text-4xl font-bold font-heading mb-4">
-            Welcome to the <span className="text-flame-yellow">Infernal Lobby</span>
+            Welcome to the{" "}
+            <span className="text-flame-yellow">Infernal Lobby</span>
           </h1>
-          
+
           {/* Description */}
           <p className="text-faded-grey text-lg mb-8 leading-relaxed">
             Connect your wallet to access the lobby

@@ -41,21 +41,17 @@ CREATE TABLE public.payment_transactions (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Create indexes for better performance
 CREATE INDEX idx_payment_transactions_application_id ON public.payment_transactions(application_id);
 CREATE INDEX idx_payment_transactions_payment_reference ON public.payment_transactions(payment_reference);
 CREATE INDEX idx_payment_transactions_status ON public.payment_transactions(status);
 CREATE INDEX idx_payment_transactions_created_at ON public.payment_transactions(created_at);
-
 -- Create updated_at trigger
 CREATE TRIGGER update_payment_transactions_updated_at 
   BEFORE UPDATE ON public.payment_transactions 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 -- Enable Row Level Security
 ALTER TABLE public.payment_transactions ENABLE ROW LEVEL SECURITY;
-
 -- Create RLS policies
 -- Users can view their own payment transactions through their applications
 CREATE POLICY "Users can view their own payment transactions" 
@@ -67,20 +63,16 @@ CREATE POLICY "Users can view their own payment transactions"
       AND (applications.user_email = auth.email() OR auth.uid()::text = applications.user_email)
     )
   );
-
 -- Service role can manage all payment transactions (for API operations)
 CREATE POLICY "Service role can manage payment transactions" 
   ON public.payment_transactions FOR ALL 
   USING (auth.role() = 'service_role');
-
 -- Grant permissions
 GRANT ALL ON public.payment_transactions TO authenticated;
 GRANT ALL ON public.payment_transactions TO service_role;
-
 -- Add payment_transaction_id to applications table for quick reference
 ALTER TABLE public.applications 
 ADD COLUMN current_payment_transaction_id UUID REFERENCES public.payment_transactions(id);
-
 -- Create index for the new foreign key
 CREATE INDEX idx_applications_current_payment_transaction_id 
   ON public.applications(current_payment_transaction_id);

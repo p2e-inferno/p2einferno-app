@@ -1,55 +1,120 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getPrivyUser } from "@/lib/auth/privy";
+import { createPrivyClient } from "@/lib/utils/privyUtils";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:complete-task");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId, questId, taskId, verificationData, inputData } = req.body;
+  const {
+    userId: _ignoreUserId,
+    questId,
+    taskId,
+    verificationData: clientVerificationData,
+    inputData,
+  } = req.body;
 
-  if (!userId || !questId || !taskId) {
+  if (!questId || !taskId) {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
   try {
     const supabase = createAdminClient();
 
-    // Check if task is already completed
+    // Verify Privy user from token in header or cookie
+    const authUser = await getPrivyUser(req);
+    if (!authUser?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const effectiveUserId = authUser.id;
+
+    // Check if task has an existing completion
     const { data: existingCompletion } = await supabase
       .from("user_task_completions")
       .select("*")
-      .eq("user_id", userId)
+      .eq("user_id", effectiveUserId)
       .eq("task_id", taskId)
       .single();
 
+    // Allow resubmission only if status is 'retry' or 'failed'
     if (existingCompletion) {
-      return res.status(400).json({ error: "Task already completed" });
+      const canResubmit = ["retry", "failed"].includes(
+        existingCompletion.submission_status,
+      );
+
+      if (!canResubmit) {
+        return res.status(400).json({
+          error: "Task already completed or under review",
+          currentStatus: existingCompletion.submission_status,
+        });
+      }
     }
 
-    // Get the task details to check if it requires admin review
+    // Get the task details to check type and review requirements
     const { data: task, error: taskError } = await supabase
       .from("quest_tasks")
-      .select("requires_admin_review, input_required")
+      .select("requires_admin_review, input_required, task_type")
       .eq("id", taskId)
       .single();
 
     if (taskError) {
-      console.error("Error fetching task:", taskError);
+      log.error("Error fetching task:", taskError);
       return res.status(500).json({ error: "Failed to fetch task details" });
     }
 
     // Determine initial status
     const initialStatus = task?.requires_admin_review ? "pending" : "completed";
 
-    // Complete the task
-    const { error: completionError } = await supabase
-      .from("user_task_completions")
-      .insert({
-        user_id: userId,
+    // Build verification data
+    let verificationData = clientVerificationData;
+    if (task?.task_type === "link_farcaster") {
+      // Verify Farcaster linkage via Privy server SDK and use server-trusted data
+      const privy = createPrivyClient();
+      const profile: any = await privy.getUserById(effectiveUserId);
+      const farcasterAccount = profile?.linkedAccounts?.find(
+        (a: any) => a?.type === "farcaster" && a?.fid,
+      );
+      if (!farcasterAccount) {
+        return res
+          .status(400)
+          .json({ error: "Farcaster not linked to your Privy account" });
+      }
+      verificationData = {
+        fid: farcasterAccount.fid,
+        username: farcasterAccount.username,
+      };
+    }
+
+    // Complete the task (INSERT new or UPDATE existing for resubmission)
+    let completionError;
+
+    if (existingCompletion) {
+      // UPDATE existing completion for retry/failed cases
+      const { error } = await supabase
+        .from("user_task_completions")
+        .update({
+          verification_data: verificationData,
+          submission_data: inputData,
+          submission_status: initialStatus,
+          admin_feedback: null, // Clear previous feedback
+          reviewed_at: null, // Clear review timestamp
+          reviewed_by: null, // Clear reviewer
+          completed_at: new Date().toISOString(), // Update submission time
+        })
+        .eq("id", existingCompletion.id);
+      completionError = error;
+    } else {
+      // INSERT new completion
+      const { error } = await supabase.from("user_task_completions").insert({
+        user_id: effectiveUserId,
         quest_id: questId,
         task_id: taskId,
         verification_data: verificationData,
@@ -57,9 +122,11 @@ export default async function handler(
         submission_status: initialStatus,
         reward_claimed: false,
       });
+      completionError = error;
+    }
 
     if (completionError) {
-      console.error("Error completing task:", completionError);
+      log.error("Error completing task:", completionError);
       return res.status(500).json({ error: "Failed to complete task" });
     }
 
@@ -68,11 +135,11 @@ export default async function handler(
       // Use the database function to recalculate progress
       try {
         await supabase.rpc("recalculate_quest_progress", {
-          p_user_id: userId,
+          p_user_id: effectiveUserId,
           p_quest_id: questId,
         });
       } catch (progressError) {
-        console.error("Error recalculating progress:", progressError);
+        log.error("Error recalculating progress:", progressError);
         // Don't fail the main operation if progress update fails
       }
     }
@@ -81,7 +148,7 @@ export default async function handler(
       .status(200)
       .json({ success: true, message: "Task completed successfully" });
   } catch (error) {
-    console.error("Error in complete task API:", error);
+    log.error("Error in complete task API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

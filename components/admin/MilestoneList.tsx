@@ -1,12 +1,24 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Pencil, Trash2, ArrowUp, ArrowDown, Eye } from "lucide-react";
+import {
+  PlusCircle,
+  Pencil,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Eye,
+} from "lucide-react";
 import Link from "next/link";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import MilestoneFormEnhanced from "./MilestoneFormEnhanced";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { usePrivy } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { NetworkError } from "@/components/ui/network-error";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:MilestoneList");
 
 interface MilestoneListProps {
   cohortId: string;
@@ -16,30 +28,45 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   const [milestones, setMilestones] = useState<CohortMilestone[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRetrying, setIsRetrying] = useState(false);
   const [editingMilestone, setEditingMilestone] =
     useState<CohortMilestone | null>(null);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
-  const [deletingMilestone, setDeletingMilestone] = useState<CohortMilestone | null>(null);
+  const [deletingMilestone, setDeletingMilestone] =
+    useState<CohortMilestone | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { getAccessToken } = usePrivy();
-  const { adminFetch } = useAdminApi();
+  const selectedWallet = useSmartWalletSelection() as any;
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   // Fetch milestones
   const fetchMilestones = async () => {
     try {
       setIsLoading(true);
-      const result = await adminFetch<{success: boolean, data: CohortMilestone[]}>(`/api/admin/milestones?cohort_id=${cohortId}`);
-      
+      const result = await adminFetch<{
+        success: boolean;
+        data: CohortMilestone[];
+      }>(`/api/admin/milestones?cohort_id=${cohortId}`);
+
       if (result.error) {
         throw new Error(result.error);
       }
-      
+
       setMilestones(result.data?.data || []);
     } catch (err: any) {
-      console.error("Error fetching milestones:", err);
+      log.error("Error fetching milestones:", err);
       setError(err.message || "Failed to load milestones");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchMilestones();
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -50,7 +77,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   // Update milestone order
   const updateMilestoneOrder = async (
     milestone: CohortMilestone,
-    direction: "up" | "down"
+    direction: "up" | "down",
   ) => {
     const currentIndex = milestones.findIndex((m) => m.id === milestone.id);
     if (
@@ -64,7 +91,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
     const targetMilestone = milestones[newIndex];
 
     if (!targetMilestone) {
-      console.error("Target milestone not found");
+      log.error("Target milestone not found");
       return;
     }
 
@@ -78,37 +105,39 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
       }
 
       // Update the target milestone order
-      await fetch('/api/admin/milestones', {
-        method: 'PUT',
+      await fetch("/api/admin/milestones", {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           id: targetMilestone.id,
           order_index: currentOrderIndex,
-          cohort_id: cohortId
-        })
+          cohort_id: cohortId,
+        }),
       });
 
       // Update the current milestone order
-      await fetch('/api/admin/milestones', {
-        method: 'PUT',
+      await fetch("/api/admin/milestones", {
+        method: "PUT",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "X-Active-Wallet": selectedWallet?.address || "",
         },
         body: JSON.stringify({
           id: milestone.id,
           order_index: targetMilestone.order_index,
-          cohort_id: cohortId
-        })
+          cohort_id: cohortId,
+        }),
       });
 
       // Refresh the milestone list
       fetchMilestones();
     } catch (err: any) {
-      console.error("Error updating milestone order:", err);
+      log.error("Error updating milestone order:", err);
       setError(err.message || "Failed to update milestone order");
     }
   };
@@ -123,21 +152,25 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
 
     try {
       setIsDeleting(true);
-      
+
       // Get Privy access token for authorization
       const token = await getAccessToken();
       if (!token) {
         throw new Error("Authentication required");
       }
 
-      const response = await fetch(`/api/admin/milestones?id=${deletingMilestone.id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `/api/admin/milestones?id=${deletingMilestone.id}`,
+        {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+            "X-Active-Wallet": selectedWallet?.address || "",
+          },
+          body: JSON.stringify({ cohort_id: cohortId }),
         },
-        body: JSON.stringify({ cohort_id: cohortId }),
-      });
+      );
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
@@ -148,7 +181,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
       fetchMilestones();
       setDeletingMilestone(null);
     } catch (err: any) {
-      console.error("Error deleting milestone:", err);
+      log.error("Error deleting milestone:", err);
       setError(err.message || "Failed to delete milestone");
     } finally {
       setIsDeleting(false);
@@ -169,9 +202,11 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   return (
     <div className="space-y-6">
       {error && (
-        <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-          {error}
-        </div>
+        <NetworkError
+          error={error}
+          onRetry={handleRetry}
+          isRetrying={isRetrying}
+        />
       )}
 
       {isLoading ? (
@@ -218,7 +253,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                 cohortId={cohortId}
                 milestone={editingMilestone}
                 existingMilestones={milestones.filter(
-                  (m) => m.id !== editingMilestone.id
+                  (m) => m.id !== editingMilestone.id,
                 )}
                 onSubmitSuccess={() => {
                   setEditingMilestone(null);
@@ -297,7 +332,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                       <td className="py-4 px-4 text-sm text-white">
                         {milestone.prerequisite_milestone_id ? (
                           milestones.find(
-                            (m) => m.id === milestone.prerequisite_milestone_id
+                            (m) => m.id === milestone.prerequisite_milestone_id,
                           )?.name || "Unknown milestone"
                         ) : (
                           <span className="text-gray-500">None</span>
@@ -305,7 +340,9 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                       </td>
                       <td className="py-4 px-4 text-right">
                         <div className="flex justify-end space-x-2">
-                          <Link href={`/admin/cohorts/${cohortId}/milestones/${milestone.id}`}>
+                          <Link
+                            href={`/admin/cohorts/${cohortId}/milestones/${milestone.id}`}
+                          >
                             <Button
                               size="sm"
                               variant="outline"
@@ -314,7 +351,7 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                               <Eye className="h-4 w-4" />
                             </Button>
                           </Link>
-                          
+
                           <Button
                             size="sm"
                             variant="outline"

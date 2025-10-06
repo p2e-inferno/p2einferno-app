@@ -1,10 +1,13 @@
 import { useMemo, useState, useCallback } from "react";
+import { getLogger } from "@/lib/utils/logger";
 import {
   useUser,
   useCreateWallet as useCreateEthereumWallet,
   useSolanaWallets,
   WalletWithMetadata,
 } from "@privy-io/react-auth";
+
+const log = getLogger("hooks:useWalletManagement");
 
 export function useWalletManagement() {
   const { user } = useUser();
@@ -18,9 +21,9 @@ export function useWalletManagement() {
         (account) =>
           account.type === "wallet" &&
           account.connectorType === "injected" &&
-          account.chainType === "ethereum"
+          account.chainType === "ethereum",
       ) as WalletWithMetadata[]) ?? [],
-    [user]
+    [user],
   );
 
   const solanaEmbeddedWallets = useMemo<WalletWithMetadata[]>(
@@ -29,9 +32,9 @@ export function useWalletManagement() {
         (account) =>
           account.type === "wallet" &&
           account.walletClientType === "privy" &&
-          account.chainType === "solana"
+          account.chainType === "solana",
       ) as WalletWithMetadata[]) ?? [],
-    [user]
+    [user],
   );
 
   const handleCreateWallet = useCallback(
@@ -44,12 +47,12 @@ export function useWalletManagement() {
           await createSolanaWallet();
         }
       } catch (error) {
-        console.error("Error creating wallet:", error);
+        log.error("Error creating wallet:", error);
       } finally {
         setIsCreating(false);
       }
     },
-    [createEthereumWallet, createSolanaWallet]
+    [createEthereumWallet, createSolanaWallet],
   );
 
   return {

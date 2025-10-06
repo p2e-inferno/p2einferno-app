@@ -1,7 +1,13 @@
 import { useState, useEffect } from "react";
-import { createPublicClient, http } from "viem";
-import { mainnet, base } from "viem/chains";
+import { mainnet } from "viem/chains";
+import {
+  createPublicClientUnified,
+  createPublicClientForChain,
+} from "@/lib/blockchain/config";
 import { getEnsName } from "viem/ens";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("hooks:useENSResolution");
 
 interface ENSResolutionResult {
   ensName: string | null;
@@ -17,7 +23,7 @@ interface ENSResolutionResult {
  * @returns Object containing resolved names, loading state, and error
  */
 export const useENSResolution = (
-  address: string | undefined
+  address: string | undefined,
 ): ENSResolutionResult => {
   const [result, setResult] = useState<ENSResolutionResult>({
     ensName: null,
@@ -37,16 +43,9 @@ export const useENSResolution = (
       setResult((prev) => ({ ...prev, loading: true, error: null }));
 
       try {
-        // Create public clients for mainnet and base
-        const mainnetClient = createPublicClient({
-          chain: mainnet,
-          transport: http(),
-        });
-
-        const baseClient = createPublicClient({
-          chain: base,
-          transport: http(),
-        });
+        // Create public clients via unified transports
+        const baseClient = createPublicClientUnified();
+        const mainnetClient = createPublicClientForChain(mainnet);
 
         // Resolve ENS name on mainnet
         let ensName: string | null = null;
@@ -55,7 +54,7 @@ export const useENSResolution = (
             address: address as `0x${string}`,
           });
         } catch (err) {
-          console.log("ENS resolution failed:", err);
+          log.info("ENS resolution failed:", err);
         }
 
         // Resolve basename on Base network
@@ -65,7 +64,7 @@ export const useENSResolution = (
             address: address as `0x${string}`,
           });
         } catch (err) {
-          console.log("Basename resolution failed:", err);
+          log.info("Basename resolution failed:", err);
         }
 
         // Determine display name priority: basename > ENS > null
@@ -79,7 +78,7 @@ export const useENSResolution = (
           error: null,
         });
       } catch (error) {
-        console.error("Name resolution error:", error);
+        log.error("Name resolution error:", error);
         setResult((prev) => ({
           ...prev,
           loading: false,

@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:user-progress");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -25,7 +28,7 @@ export default async function handler(
       .eq("user_id", userId);
 
     if (progressError) {
-      console.error("Error fetching progress:", progressError);
+      log.error("Error fetching progress:", progressError);
       return res.status(500).json({ error: "Failed to fetch progress" });
     }
 
@@ -36,13 +39,13 @@ export default async function handler(
       .eq("user_id", userId);
 
     if (tasksError) {
-      console.error("Error fetching completed tasks:", tasksError);
+      log.error("Error fetching completed tasks:", tasksError);
       return res.status(500).json({ error: "Failed to fetch completed tasks" });
     }
 
     res.status(200).json({ progress, completedTasks });
   } catch (error) {
-    console.error("Error in user progress API:", error);
+    log.error("Error in user progress API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

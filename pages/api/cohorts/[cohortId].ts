@@ -1,13 +1,17 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { supabase } from "@/lib/supabase/client";
-import type { 
-  BootcampProgram, 
-  Cohort, 
-  CohortMilestone, 
+import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+import { getPrivyUser } from "@/lib/auth/privy";
+import type {
+  BootcampProgram,
+  Cohort,
+  CohortMilestone,
   MilestoneTask,
   ProgramHighlight,
-  ProgramRequirement 
+  ProgramRequirement,
 } from "@/lib/supabase/types";
+
+const log = getLogger("api:cohorts:[cohortId]");
 
 interface MilestoneWithTasks extends CohortMilestone {
   milestone_tasks: MilestoneTask[];
@@ -19,6 +23,10 @@ interface CohortDetailsResponse {
   milestones: MilestoneWithTasks[];
   highlights: ProgramHighlight[];
   requirements: ProgramRequirement[];
+  userEnrollment?: {
+    isEnrolledInBootcamp: boolean;
+    enrolledCohortId?: string;
+  };
 }
 
 interface ApiResponse<T> {
@@ -29,12 +37,12 @@ interface ApiResponse<T> {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<CohortDetailsResponse>>
+  res: NextApiResponse<ApiResponse<CohortDetailsResponse>>,
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
@@ -43,11 +51,27 @@ export default async function handler(
   if (!cohortId || typeof cohortId !== "string") {
     return res.status(400).json({
       success: false,
-      error: "Invalid cohort ID"
+      error: "Invalid cohort ID",
     });
   }
 
   try {
+    const supabase = createAdminClient();
+    // Optional user context
+    let userProfileId: string | null = null;
+    try {
+      const user = await getPrivyUser(req);
+      if (user?.id) {
+        const { data: profile } = await supabase
+          .from("user_profiles")
+          .select("id")
+          .eq("privy_user_id", user.id)
+          .single();
+        userProfileId = profile?.id || null;
+      }
+    } catch {
+      // Proceed unauthenticated
+    }
     // Fetch cohort details first to get bootcamp_program_id
     const { data: cohortData, error: cohortError } = await supabase
       .from("cohorts")
@@ -62,7 +86,7 @@ export default async function handler(
     if (!cohortData) {
       return res.status(404).json({
         success: false,
-        error: "Cohort not found"
+        error: "Cohort not found",
       });
     }
 
@@ -80,17 +104,19 @@ export default async function handler(
     if (!bootcampData) {
       return res.status(404).json({
         success: false,
-        error: "Bootcamp not found"
+        error: "Bootcamp not found",
       });
     }
 
     // Fetch milestones with tasks
     const { data: milestonesData, error: milestonesError } = await supabase
       .from("cohort_milestones")
-      .select(`
+      .select(
+        `
         *,
         milestone_tasks (*)
-      `)
+      `,
+      )
       .eq("cohort_id", cohortId)
       .order("order_index", { ascending: true });
 
@@ -117,7 +143,30 @@ export default async function handler(
       .order("order_index", { ascending: true });
 
     if (requirementsError) {
-      throw new Error(`Failed to fetch requirements: ${requirementsError.message}`);
+      throw new Error(
+        `Failed to fetch requirements: ${requirementsError.message}`,
+      );
+    }
+
+    // User enrollment awareness (is enrolled in this bootcamp at large)
+    let userEnrollment: CohortDetailsResponse["userEnrollment"] | undefined =
+      undefined;
+    if (userProfileId) {
+      const { data: enrollments } = await supabase
+        .from("bootcamp_enrollments")
+        .select("id, cohort:cohort_id ( id, bootcamp_program_id )")
+        .eq("user_profile_id", userProfileId);
+
+      const match = (enrollments || []).find((en: any) => {
+        const c = Array.isArray(en.cohort) ? en.cohort[0] : en.cohort;
+        return c?.bootcamp_program_id === cohortData.bootcamp_program_id;
+      });
+      userEnrollment = {
+        isEnrolledInBootcamp: !!match,
+        enrolledCohortId: match
+          ? (Array.isArray(match.cohort) ? match.cohort[0] : match.cohort)?.id
+          : undefined,
+      };
     }
 
     const response: CohortDetailsResponse = {
@@ -126,6 +175,7 @@ export default async function handler(
       milestones: milestonesData || [],
       highlights: highlightsData || [],
       requirements: requirementsData || [],
+      userEnrollment,
     };
 
     res.status(200).json({
@@ -133,7 +183,7 @@ export default async function handler(
       data: response,
     });
   } catch (error: any) {
-    console.error("Error fetching cohort details:", error);
+    log.error("Error fetching cohort details:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch cohort details",

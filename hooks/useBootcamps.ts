@@ -2,6 +2,9 @@ import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import type { BootcampWithCohorts } from "@/lib/supabase/types";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("hooks:useBootcamps");
 
 interface UseBootcampsResult {
   bootcamps: BootcampWithCohorts[];
@@ -33,7 +36,7 @@ export const useBootcamps = (): UseBootcampsResult => {
             headers.Authorization = `Bearer ${token}`;
           }
         } catch (tokenError) {
-          console.warn("Could not get access token:", tokenError);
+          log.warn("Could not get access token:", tokenError);
           // Continue without token for public data
         }
       }
@@ -51,7 +54,7 @@ export const useBootcamps = (): UseBootcampsResult => {
       const result = await response.json();
       setBootcamps(result.data || []);
     } catch (err: any) {
-      console.error("Bootcamps fetch error:", err);
+      log.error("Bootcamps fetch error:", err);
       setError(err.message);
       toast.error("Failed to load bootcamps");
     } finally {

@@ -1,11 +1,15 @@
-import { useState, useEffect } from 'react';
-import { usePrivy } from '@privy-io/react-auth';
-import { ethers } from 'ethers';
-import { 
-  frontendReadOnlyProvider, 
-  CURRENT_NETWORK, 
-  ERC20_ABI 
-} from '@/lib/blockchain/frontend-config';
+import { useState, useEffect } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { ethers } from "ethers";
+import { getLogger } from "@/lib/utils/logger";
+import {
+  CURRENT_NETWORK,
+  ERC20_ABI,
+} from "@/lib/blockchain/legacy/frontend-config";
+import { createPublicClientUnified } from "@/lib/blockchain/config";
+import type { Address } from "viem";
+
+const log = getLogger("hooks:useWalletBalances");
 
 export interface WalletBalance {
   eth: {
@@ -21,17 +25,37 @@ export interface WalletBalance {
   };
 }
 
-export const useWalletBalances = () => {
+interface UseWalletBalancesOptions {
+  enabled?: boolean; // gate RPC usage and polling
+  pollIntervalMs?: number; // default 30s
+}
+
+export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
+  const { enabled = true, pollIntervalMs = 30000 } = options;
   const { user } = usePrivy();
   const [balances, setBalances] = useState<WalletBalance>({
-    eth: { balance: '0', formatted: '0.0000', loading: true },
-    usdc: { balance: '0', formatted: '0.00', loading: true, symbol: 'USDC' },
+    eth: { balance: "0", formatted: "0.0000", loading: true },
+    usdc: { balance: "0", formatted: "0.00", loading: true, symbol: "USDC" },
   });
   const [error, setError] = useState<string | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
 
   // Get the connected wallet address from provider (same logic as PrivyConnectButton)
   useEffect(() => {
+    if (!enabled) {
+      // When disabled, avoid touching provider and present non-loading zeros
+      setConnectedAddress(null);
+      setBalances({
+        eth: { balance: "0", formatted: "0.0000", loading: false },
+        usdc: {
+          balance: "0",
+          formatted: "0.00",
+          loading: false,
+          symbol: "USDC",
+        },
+      });
+      return;
+    }
     let isMounted = true;
 
     const readProviderAddress = async () => {
@@ -50,7 +74,7 @@ export const useWalletBalances = () => {
             setConnectedAddress(addr ?? null);
           }
         } catch (err) {
-          console.warn("Unable to fetch accounts from provider", err);
+          log.warn("Unable to fetch accounts from provider", { error: err });
         }
       }
     };
@@ -76,16 +100,21 @@ export const useWalletBalances = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [enabled]);
 
   // Use the same address resolution logic as PrivyConnectButton
   const walletAddress = connectedAddress || user?.wallet?.address || null;
 
   useEffect(() => {
-    if (!walletAddress) {
+    if (!enabled || !walletAddress) {
       setBalances({
-        eth: { balance: '0', formatted: '0.0000', loading: false },
-        usdc: { balance: '0', formatted: '0.00', loading: false, symbol: 'USDC' },
+        eth: { balance: "0", formatted: "0.0000", loading: false },
+        usdc: {
+          balance: "0",
+          formatted: "0.00",
+          loading: false,
+          symbol: "USDC",
+        },
       });
       return;
     }
@@ -94,24 +123,36 @@ export const useWalletBalances = () => {
       try {
         setError(null);
 
-        // Use the reusable frontend provider
-        const provider = frontendReadOnlyProvider;
+        // Use the unified read-only provider singleton
+        const client = createPublicClientUnified();
 
-        // Fetch ETH balance using ethers
-        const ethBalance = await provider.getBalance(walletAddress);
+        const ethBalance = await client.getBalance({
+          address: walletAddress as Address,
+        });
 
         let usdcBalance = 0n;
-        let usdcSymbol = 'USDC';
+        let usdcSymbol = "USDC";
 
         // Fetch USDC balance
         try {
-          if (provider) {
-            const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
-            usdcBalance = await usdcContract.balanceOf?.(walletAddress) || 0n;
-            usdcSymbol = await usdcContract.symbol?.() || 'USDC';
+          usdcBalance = (await client.readContract({
+            address: CURRENT_NETWORK.usdcAddress as Address,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [walletAddress as Address],
+          })) as bigint;
+
+          const symbol = await client.readContract({
+            address: CURRENT_NETWORK.usdcAddress as Address,
+            abi: ERC20_ABI,
+            functionName: "symbol",
+          });
+
+          if (typeof symbol === "string") {
+            usdcSymbol = symbol;
           }
         } catch (usdcError) {
-          console.warn('Error fetching USDC balance:', usdcError);
+          log.warn("Error fetching USDC balance:", { error: usdcError });
         }
 
         // Format balances using ethers
@@ -132,11 +173,16 @@ export const useWalletBalances = () => {
           },
         });
       } catch (err) {
-        console.error('Error fetching wallet balances:', err);
-        setError('Failed to fetch balances');
+        log.error("Error fetching wallet balances:", { error: err });
+        setError("Failed to fetch balances");
         setBalances({
-          eth: { balance: '0', formatted: '0.0000', loading: false },
-          usdc: { balance: '0', formatted: '0.00', loading: false, symbol: 'USDC' },
+          eth: { balance: "0", formatted: "0.0000", loading: false },
+          usdc: {
+            balance: "0",
+            formatted: "0.00",
+            loading: false,
+            symbol: "USDC",
+          },
         });
       }
     };
@@ -144,36 +190,48 @@ export const useWalletBalances = () => {
     fetchBalances();
 
     // Refresh balances every 30 seconds
-    const interval = setInterval(fetchBalances, 30000);
+    const interval = setInterval(fetchBalances, pollIntervalMs);
     return () => clearInterval(interval);
-  }, [walletAddress]);
+  }, [walletAddress, enabled, pollIntervalMs]);
 
   const refreshBalances = async () => {
-    if (!walletAddress) return;
-    
-    setBalances(prev => ({
+    if (!enabled || !walletAddress) return;
+
+    setBalances((prev) => ({
       eth: { ...prev.eth, loading: true },
       usdc: { ...prev.usdc, loading: true },
     }));
 
     // Trigger a fresh balance fetch
     try {
-      const provider = frontendReadOnlyProvider;
+      const client = createPublicClientUnified();
 
-      const ethBalance = await provider.getBalance(walletAddress);
+      const ethBalance = await client.getBalance({
+        address: walletAddress as Address,
+      });
       let usdcBalance = 0n;
-      let usdcSymbol = 'USDC';
+      let usdcSymbol = "USDC";
 
       try {
-        if (provider) {
-          const usdcContract = new ethers.Contract(CURRENT_NETWORK.usdcAddress, ERC20_ABI, provider);
-          [usdcBalance, usdcSymbol] = await Promise.all([
-            (usdcContract as any).balanceOf(walletAddress) as Promise<bigint>,
-            (usdcContract as any).symbol() as Promise<string>,
-          ]);
-        }
+        const [balance, symbol] = await Promise.all([
+          client.readContract({
+            address: CURRENT_NETWORK.usdcAddress as Address,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [walletAddress as Address],
+          }) as Promise<bigint>,
+          client.readContract({
+            address: CURRENT_NETWORK.usdcAddress as Address,
+            abi: ERC20_ABI,
+            functionName: "symbol",
+          }) as Promise<string>,
+        ]);
+        usdcBalance = balance;
+        usdcSymbol = symbol;
       } catch (usdcError) {
-        console.warn('Error fetching USDC balance during refresh:', usdcError);
+        log.warn("Error fetching USDC balance during refresh:", {
+          error: usdcError,
+        });
       }
 
       const ethFormatted = ethers.formatEther(ethBalance);
@@ -193,9 +251,9 @@ export const useWalletBalances = () => {
         },
       });
     } catch (err) {
-      console.error('Error refreshing wallet balances:', err);
-      setError('Failed to refresh balances');
-      setBalances(prev => ({
+      log.error("Error refreshing wallet balances:", { error: err });
+      setError("Failed to refresh balances");
+      setBalances((prev) => ({
         eth: { ...prev.eth, loading: false },
         usdc: { ...prev.usdc, loading: false },
       }));

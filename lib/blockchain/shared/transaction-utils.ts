@@ -48,25 +48,28 @@ export const extractTokenIdsFromReceipt = (receipt: any): bigint[] => {
           // Transfer event: Transfer(address indexed from, address indexed to, uint256 indexed tokenId)
           const tokenId = BigInt(log.topics[3]);
           tokenIds.push(tokenId);
-          
+
           blockchainLogger.debug("Extracted token ID from transfer event", {
             operation: "extractTokenIds",
             tokenId: tokenId.toString(),
             from: log.topics[1],
-            to: log.topics[2]
+            to: log.topics[2],
           });
         } catch (error) {
-          blockchainLogger.warn("Failed to parse token ID from transfer event", {
-            operation: "extractTokenIds",
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
+          blockchainLogger.warn(
+            "Failed to parse token ID from transfer event",
+            {
+              operation: "extractTokenIds",
+              error: error instanceof Error ? error.message : "Unknown error",
+            },
+          );
         }
       }
     }
   } catch (error) {
     blockchainLogger.error("Error extracting token IDs from receipt", {
       operation: "extractTokenIds",
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 
@@ -90,12 +93,12 @@ export const extractTokenTransfers = (receipt: any): TokenTransfer[] => {
           const from = `0x${log.topics[1].slice(-40)}`;
           const to = `0x${log.topics[2].slice(-40)}`;
           const tokenId = BigInt(log.topics[3]);
-          
+
           transfers.push({ from, to, tokenId });
         } catch (error) {
           blockchainLogger.warn("Failed to parse transfer event", {
             operation: "extractTokenTransfers",
-            error: error instanceof Error ? error.message : 'Unknown error'
+            error: error instanceof Error ? error.message : "Unknown error",
           });
         }
       }
@@ -103,7 +106,7 @@ export const extractTokenTransfers = (receipt: any): TokenTransfer[] => {
   } catch (error) {
     blockchainLogger.error("Error extracting token transfers", {
       operation: "extractTokenTransfers",
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     });
   }
 
@@ -117,7 +120,10 @@ export const extractTokenTransfers = (receipt: any): TokenTransfer[] => {
 /**
  * Extract lock address from deployment transaction receipt
  */
-export const extractLockAddressFromReceipt = (receipt: any, deployerAddress: string): string | null => {
+export const extractLockAddressFromReceipt = (
+  receipt: any,
+  deployerAddress: string,
+): string | null => {
   try {
     if (!receipt.logs || receipt.logs.length === 0) {
       blockchainLogger.warn("No logs found in deployment receipt");
@@ -126,7 +132,7 @@ export const extractLockAddressFromReceipt = (receipt: any, deployerAddress: str
 
     // Try to parse NewLock event first
     const unlockInterface = new ethers.Interface(UNLOCK_FACTORY_EVENTS);
-    
+
     for (const log of receipt.logs) {
       try {
         const parsedLog = unlockInterface.parseLog({
@@ -139,7 +145,7 @@ export const extractLockAddressFromReceipt = (receipt: any, deployerAddress: str
           blockchainLogger.info("Extracted lock address from NewLock event", {
             operation: "extractLockAddress",
             lockAddress,
-            deployerAddress
+            deployerAddress,
           });
           return lockAddress;
         }
@@ -160,11 +166,14 @@ export const extractLockAddressFromReceipt = (receipt: any, deployerAddress: str
             potentialAddress.toLowerCase() !== deployerAddress.toLowerCase() &&
             potentialAddress !== "0x0000000000000000000000000000000000000000"
           ) {
-            blockchainLogger.info("Extracted lock address from log topics fallback", {
-              operation: "extractLockAddress",
-              lockAddress: potentialAddress,
-              deployerAddress
-            });
+            blockchainLogger.info(
+              "Extracted lock address from log topics fallback",
+              {
+                operation: "extractLockAddress",
+                lockAddress: potentialAddress,
+                deployerAddress,
+              },
+            );
             return potentialAddress;
           }
         }
@@ -174,14 +183,14 @@ export const extractLockAddressFromReceipt = (receipt: any, deployerAddress: str
     blockchainLogger.warn("Could not extract lock address from receipt", {
       operation: "extractLockAddress",
       deployerAddress,
-      logCount: receipt.logs.length
+      logCount: receipt.logs.length,
     });
     return null;
   } catch (error) {
     blockchainLogger.error("Error extracting lock address from receipt", {
       operation: "extractLockAddress",
-      error: error instanceof Error ? error.message : 'Unknown error',
-      deployerAddress
+      error: error instanceof Error ? error.message : "Unknown error",
+      deployerAddress,
     });
     return null;
   }
@@ -195,19 +204,22 @@ export const extractLockAddressFromReceipt = (receipt: any, deployerAddress: str
  * Analyze transaction receipt for comprehensive information
  */
 export const analyzeTransactionReceipt = (
-  receipt: any, 
-  context: { operation: string; userAddress?: string }
+  receipt: any,
+  context: { operation: string; userAddress?: string },
 ): TransactionAnalysis => {
   const analysis: TransactionAnalysis = {
     success: receipt.status === 1 || receipt.status === "success",
     tokenTransfers: extractTokenTransfers(receipt),
     gasUsed: receipt.gasUsed ? BigInt(receipt.gasUsed.toString()) : undefined,
-    effectiveGasPrice: receipt.effectiveGasPrice ? BigInt(receipt.effectiveGasPrice.toString()) : undefined,
+    effectiveGasPrice: receipt.effectiveGasPrice
+      ? BigInt(receipt.effectiveGasPrice.toString())
+      : undefined,
   };
 
   // For deployment transactions, try to extract lock address
   if (context.operation === "deployLock" && context.userAddress) {
-    analysis.newLockAddress = extractLockAddressFromReceipt(receipt, context.userAddress) || undefined;
+    analysis.newLockAddress =
+      extractLockAddressFromReceipt(receipt, context.userAddress) || undefined;
   }
 
   blockchainLogger.debug("Transaction analysis completed", {
@@ -215,7 +227,7 @@ export const analyzeTransactionReceipt = (
     success: analysis.success,
     tokenTransferCount: analysis.tokenTransfers.length,
     gasUsed: analysis.gasUsed?.toString(),
-    newLockAddress: analysis.newLockAddress
+    newLockAddress: analysis.newLockAddress,
   });
 
   return analysis;
@@ -232,40 +244,43 @@ export const waitForTransactionConfirmation = async (
   transactionHash: string,
   provider: any,
   operation: string,
-  confirmations: number = 2
+  confirmations: number = 2,
 ): Promise<any> => {
   blockchainLogger.info("Waiting for transaction confirmation", {
     operation,
     transactionHash,
-    confirmations
+    confirmations,
   });
 
   try {
     // Handle both ethers and viem providers
     let receipt;
-    
-    if (typeof provider.waitForTransactionReceipt === 'function') {
+
+    if (typeof provider.waitForTransactionReceipt === "function") {
       // Viem provider
       receipt = await provider.waitForTransactionReceipt({
         hash: transactionHash as `0x${string}`,
         confirmations,
       });
-    } else if (typeof provider.waitForTransaction === 'function') {
+    } else if (typeof provider.waitForTransaction === "function") {
       // Ethers provider
-      receipt = await provider.waitForTransaction(transactionHash, confirmations);
+      receipt = await provider.waitForTransaction(
+        transactionHash,
+        confirmations,
+      );
     } else {
       throw new Error("Unsupported provider type for transaction waiting");
     }
 
     blockchainLogger.logTransactionSuccess(operation, transactionHash, {
       gasUsed: receipt.gasUsed?.toString(),
-      status: receipt.status
+      status: receipt.status,
     });
 
     return receipt;
   } catch (error) {
     blockchainLogger.logTransactionError(operation, error, {
-      transactionHash
+      transactionHash,
     });
     throw error;
   }
@@ -282,23 +297,26 @@ export const estimateContractGas = async (
   contract: any,
   methodName: string,
   args: any[],
-  overrides: any = {}
+  overrides: any = {},
 ): Promise<bigint | null> => {
   try {
-    const gasEstimate = await contract[methodName].estimateGas(...args, overrides);
-    
+    const gasEstimate = await contract[methodName].estimateGas(
+      ...args,
+      overrides,
+    );
+
     blockchainLogger.debug("Gas estimation completed", {
       operation: "gasEstimate",
       methodName,
-      gasEstimate: gasEstimate.toString()
+      gasEstimate: gasEstimate.toString(),
     });
-    
+
     return BigInt(gasEstimate.toString());
   } catch (error) {
     blockchainLogger.warn("Gas estimation failed", {
       operation: "gasEstimate",
       methodName,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     });
     return null;
   }

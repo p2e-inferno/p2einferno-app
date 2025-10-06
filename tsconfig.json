@@ -5,7 +5,11 @@
     "@tsconfig/next/tsconfig"
   ],
   "compilerOptions": {
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "declaration": true,
     "sourceMap": true,
     "stripInternal": true,
@@ -22,9 +26,26 @@
     "moduleResolution": "node",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": [
+        "./*"
+      ]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "**/*.js", "**/*.jsx"],
-  "exclude": ["node_modules", "supabase/functions"]
+  "include": [
+    "**/*.js",
+    "**/*.jsx",
+    "**/*.ts",
+    "**/*.tsx",
+    "next-env.d.ts",
+    ".next/types/**/*.ts"
+    // Note: Do not include Next's generated validator.ts to avoid
+    // unused import type errors in strict mode.
+    // The routes types are already referenced via next-env.d.ts
+  ],
+  "exclude": [
+    "node_modules",
+    "supabase/functions",
+    ".next/types/validator.ts",
+    "coverage"
+  ]
 }

@@ -20,7 +20,10 @@ interface ReviewStepProps {
 }
 
 // Mapping experience level values to labels for display
-const experienceLevelLabels: Record<ReviewFormData["experience_level"], string> = {
+const experienceLevelLabels: Record<
+  ReviewFormData["experience_level"],
+  string
+> = {
   beginner: "Beginner",
   intermediate: "Intermediate",
   advanced: "Advanced",
@@ -53,7 +56,9 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ formData }) => {
             </p>
             <p>
               <span className="text-faded-grey">Phone:</span>{" "}
-              {formData.phone_number || "Not provided"}
+              {formData.phone_number && formData.phone_number !== "0"
+                ? formData.phone_number
+                : "Not provided"}
             </p>
           </div>
         </Card>
@@ -66,11 +71,14 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ formData }) => {
           <div className="space-y-2 text-sm">
             <p>
               <span className="text-faded-grey">Level:</span>{" "}
-              {experienceLevelLabels[formData.experience_level] || "Not provided"}
+              {experienceLevelLabels[formData.experience_level] ||
+                "Not provided"}
             </p>
             <p>
               <span className="text-faded-grey">Goals:</span>{" "}
-              {formData.goals.length > 0 ? formData.goals.join(", ") : "Not selected"}
+              {formData.goals.length > 0
+                ? formData.goals.join(", ")
+                : "Not selected"}
             </p>
             <p>
               <span className="text-faded-grey">Motivation:</span>{" "}
@@ -89,9 +97,9 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ formData }) => {
                 Application Ready for Submission
               </h3>
               <p className="text-sm text-green-700 mb-3">
-                Your application is complete and ready to submit. After
-                clicking &quot;Pay Registration Fee&quot;, your application will be
-                saved securely and you&apos;ll be redirected to the payment page.
+                Your application is complete and ready to submit. After clicking
+                &quot;Pay Registration Fee&quot;, your application will be saved
+                securely and you&apos;ll be redirected to the payment page.
               </p>
               <div className="bg-green-100 p-3 rounded-md">
                 <p className="text-xs text-green-800 font-medium">

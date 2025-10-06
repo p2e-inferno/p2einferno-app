@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:claim-rewards");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -74,7 +77,7 @@ export default async function handler(
       .eq("quest_id", questId);
 
     if (updateError) {
-      console.error("Error claiming rewards:", updateError);
+      log.error("Error claiming rewards:", updateError);
       return res.status(500).json({ error: "Failed to claim rewards" });
     }
 
@@ -86,7 +89,7 @@ export default async function handler(
       .eq("quest_id", questId);
 
     if (taskUpdateError) {
-      console.error("Error updating task rewards:", taskUpdateError);
+      log.error("Error updating task rewards:", taskUpdateError);
     }
 
     res.status(200).json({
@@ -95,7 +98,7 @@ export default async function handler(
       totalReward: quest.total_reward,
     });
   } catch (error) {
-    console.error("Error in claim rewards API:", error);
+    log.error("Error in claim rewards API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

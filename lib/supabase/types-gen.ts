@@ -1,15 +1,3 @@
-
-/**
- * Auto-generated Supabase Database Types
- * 
- * Generated with: npx supabase gen types typescript --linked
- * 
- * DO NOT EDIT MANUALLY - This file is auto-generated from your Supabase schema.
- * For manual business logic types, use ./types.ts instead.
- * 
- * To regenerate: source .env.local && npx supabase gen types typescript --linked > lib/supabase/types-gen.ts
- */
-
 export type Json =
   | string
   | number
@@ -19,11 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instanciate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "12.2.12 (cd3cf9e)"
-  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -34,10 +17,10 @@ export type Database = {
     Functions: {
       graphql: {
         Args: {
+          extensions?: Json
           operationName?: string
           query?: string
           variables?: Json
-          extensions?: Json
         }
         Returns: Json
       }
@@ -70,6 +53,7 @@ export type Database = {
           updated_at: string | null
           user_email: string
           user_name: string
+          user_profile_id: string | null
         }
         Insert: {
           application_status?: string
@@ -89,6 +73,7 @@ export type Database = {
           updated_at?: string | null
           user_email: string
           user_name: string
+          user_profile_id?: string | null
         }
         Update: {
           application_status?: string
@@ -108,6 +93,7 @@ export type Database = {
           updated_at?: string | null
           user_email?: string
           user_name?: string
+          user_profile_id?: string | null
         }
         Relationships: [
           {
@@ -123,6 +109,106 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "payment_transactions"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "applications_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attestation_schemas: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          id: string
+          name: string
+          revocable: boolean
+          schema_definition: string
+          schema_uid: string
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          name: string
+          revocable?: boolean
+          schema_definition: string
+          schema_uid: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          name?: string
+          revocable?: boolean
+          schema_definition?: string
+          schema_uid?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      attestations: {
+        Row: {
+          attestation_uid: string
+          attester: string
+          created_at: string
+          data: Json
+          expiration_time: string | null
+          id: string
+          is_revoked: boolean
+          recipient: string
+          revocation_time: string | null
+          schema_uid: string
+          updated_at: string
+        }
+        Insert: {
+          attestation_uid: string
+          attester: string
+          created_at?: string
+          data: Json
+          expiration_time?: string | null
+          id?: string
+          is_revoked?: boolean
+          recipient: string
+          revocation_time?: string | null
+          schema_uid: string
+          updated_at?: string
+        }
+        Update: {
+          attestation_uid?: string
+          attester?: string
+          created_at?: string
+          data?: Json
+          expiration_time?: string | null
+          id?: string
+          is_revoked?: boolean
+          recipient?: string
+          revocation_time?: string | null
+          schema_uid?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attestations_schema_uid_fkey"
+            columns: ["schema_uid"]
+            isOneToOne: false
+            referencedRelation: "attestation_schemas"
+            referencedColumns: ["schema_uid"]
           },
         ]
       }
@@ -172,6 +258,13 @@ export type Database = {
             foreignKeyName: "bootcamp_enrollments_user_profile_id_fkey"
             columns: ["user_profile_id"]
             isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "bootcamp_enrollments_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -213,6 +306,52 @@ export type Database = {
         }
         Relationships: []
       }
+      cohort_managers: {
+        Row: {
+          cohort_id: string | null
+          created_at: string
+          id: string
+          updated_at: string
+          user_profile_id: string | null
+        }
+        Insert: {
+          cohort_id?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_profile_id?: string | null
+        }
+        Update: {
+          cohort_id?: string | null
+          created_at?: string
+          id?: string
+          updated_at?: string
+          user_profile_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cohort_managers_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "cohort_managers_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "cohort_managers_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       cohort_milestones: {
         Row: {
           cohort_id: string
@@ -223,6 +362,7 @@ export type Database = {
           id: string
           lock_address: string
           name: string
+          old_id_text: string | null
           order_index: number
           prerequisite_milestone_id: string | null
           start_date: string | null
@@ -235,9 +375,10 @@ export type Database = {
           description: string
           duration_hours?: number | null
           end_date?: string | null
-          id: string
+          id?: string
           lock_address: string
           name: string
+          old_id_text?: string | null
           order_index?: number
           prerequisite_milestone_id?: string | null
           start_date?: string | null
@@ -253,6 +394,7 @@ export type Database = {
           id?: string
           lock_address?: string
           name?: string
+          old_id_text?: string | null
           order_index?: number
           prerequisite_milestone_id?: string | null
           start_date?: string | null
@@ -373,34 +515,55 @@ export type Database = {
       }
       milestone_tasks: {
         Row: {
+          contract_address: string | null
+          contract_method: string | null
+          contract_network: string | null
           created_at: string | null
           description: string | null
           id: string
-          milestone_id: string
+          milestone_id: string | null
           order_index: number
+          requires_admin_review: boolean | null
           reward_amount: number
+          submission_requirements: Json | null
+          task_type: string
           title: string
           updated_at: string | null
+          validation_criteria: Json | null
         }
         Insert: {
+          contract_address?: string | null
+          contract_method?: string | null
+          contract_network?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
-          milestone_id: string
+          milestone_id?: string | null
           order_index?: number
+          requires_admin_review?: boolean | null
           reward_amount?: number
+          submission_requirements?: Json | null
+          task_type?: string
           title: string
           updated_at?: string | null
+          validation_criteria?: Json | null
         }
         Update: {
+          contract_address?: string | null
+          contract_method?: string | null
+          contract_network?: string | null
           created_at?: string | null
           description?: string | null
           id?: string
-          milestone_id?: string
+          milestone_id?: string | null
           order_index?: number
+          requires_admin_review?: boolean | null
           reward_amount?: number
+          submission_requirements?: Json | null
+          task_type?: string
           title?: string
           updated_at?: string | null
+          validation_criteria?: Json | null
         }
         Relationships: [
           {
@@ -414,33 +577,49 @@ export type Database = {
       }
       notifications: {
         Row: {
+          body: string | null
           created_at: string
           id: string
           link: string | null
-          message: string
-          read: boolean | null
-          title: string
+          message: string | null
+          metadata: Json | null
+          read: boolean
+          title: string | null
+          type: string | null
           user_profile_id: string
         }
         Insert: {
+          body?: string | null
           created_at?: string
           id?: string
           link?: string | null
-          message: string
-          read?: boolean | null
-          title: string
+          message?: string | null
+          metadata?: Json | null
+          read?: boolean
+          title?: string | null
+          type?: string | null
           user_profile_id: string
         }
         Update: {
+          body?: string | null
           created_at?: string
           id?: string
           link?: string | null
-          message?: string
-          read?: boolean | null
-          title?: string
+          message?: string | null
+          metadata?: Json | null
+          read?: boolean
+          title?: string | null
+          type?: string | null
           user_profile_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "notifications_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
           {
             foreignKeyName: "notifications_user_profile_id_fkey"
             columns: ["user_profile_id"]
@@ -472,6 +651,7 @@ export type Database = {
           payment_reference: string
           paystack_access_code: string | null
           paystack_gateway_response: string | null
+          paystack_reference: string | null
           paystack_status: string | null
           status: string
           transaction_hash: string | null
@@ -498,6 +678,7 @@ export type Database = {
           payment_reference: string
           paystack_access_code?: string | null
           paystack_gateway_response?: string | null
+          paystack_reference?: string | null
           paystack_status?: string | null
           status?: string
           transaction_hash?: string | null
@@ -524,6 +705,7 @@ export type Database = {
           payment_reference?: string
           paystack_access_code?: string | null
           paystack_gateway_response?: string | null
+          paystack_reference?: string | null
           paystack_status?: string | null
           status?: string
           transaction_hash?: string | null
@@ -534,8 +716,22 @@ export type Database = {
             foreignKeyName: "payment_transactions_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
             referencedRelation: "applications"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_transactions_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "user_applications_view"
+            referencedColumns: ["application_id"]
           },
         ]
       }
@@ -718,11 +914,15 @@ export type Database = {
         Row: {
           created_at: string | null
           feedback: string | null
+          file_urls: string[] | null
           id: string
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
-          submission_url: string
+          submission_data: Json | null
+          submission_metadata: Json | null
+          submission_type: string | null
+          submission_url: string | null
           submitted_at: string | null
           task_id: string
           updated_at: string | null
@@ -731,11 +931,15 @@ export type Database = {
         Insert: {
           created_at?: string | null
           feedback?: string | null
+          file_urls?: string[] | null
           id?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
-          submission_url: string
+          submission_data?: Json | null
+          submission_metadata?: Json | null
+          submission_type?: string | null
+          submission_url?: string | null
           submitted_at?: string | null
           task_id: string
           updated_at?: string | null
@@ -744,11 +948,15 @@ export type Database = {
         Update: {
           created_at?: string | null
           feedback?: string | null
+          file_urls?: string[] | null
           id?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
-          submission_url?: string
+          submission_data?: Json | null
+          submission_metadata?: Json | null
+          submission_type?: string | null
+          submission_url?: string | null
           submitted_at?: string | null
           task_id?: string
           updated_at?: string | null
@@ -824,6 +1032,13 @@ export type Database = {
             foreignKeyName: "user_activities_user_profile_id_fkey"
             columns: ["user_profile_id"]
             isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_activities_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -874,11 +1089,172 @@ export type Database = {
             foreignKeyName: "user_application_status_application_id_fkey"
             columns: ["application_id"]
             isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["application_id"]
+          },
+          {
+            foreignKeyName: "user_application_status_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
             referencedRelation: "applications"
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "user_application_status_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "user_applications_view"
+            referencedColumns: ["application_id"]
+          },
+          {
             foreignKeyName: "user_application_status_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_application_status_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_journey_preferences: {
+        Row: {
+          created_at: string
+          enrollment_id: string
+          id: string
+          is_hidden: boolean
+          updated_at: string
+          user_profile_id: string
+        }
+        Insert: {
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          is_hidden?: boolean
+          updated_at?: string
+          user_profile_id: string
+        }
+        Update: {
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          is_hidden?: boolean
+          updated_at?: string
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_journey_preferences_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["enrollment_id"]
+          },
+          {
+            foreignKeyName: "user_journey_preferences_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "bootcamp_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_journey_preferences_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "user_applications_view"
+            referencedColumns: ["enrollment_id"]
+          },
+          {
+            foreignKeyName: "user_journey_preferences_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "user_enrollments_view"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_journey_preferences_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_journey_preferences_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_milestone_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          milestone_id: string | null
+          progress_percentage: number | null
+          reward_amount: number | null
+          reward_claimed: boolean | null
+          started_at: string | null
+          status: string
+          tasks_completed: number | null
+          total_tasks: number | null
+          updated_at: string | null
+          user_profile_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          milestone_id?: string | null
+          progress_percentage?: number | null
+          reward_amount?: number | null
+          reward_claimed?: boolean | null
+          started_at?: string | null
+          status?: string
+          tasks_completed?: number | null
+          total_tasks?: number | null
+          updated_at?: string | null
+          user_profile_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          milestone_id?: string | null
+          progress_percentage?: number | null
+          reward_amount?: number | null
+          reward_claimed?: boolean | null
+          started_at?: string | null
+          status?: string
+          tasks_completed?: number | null
+          total_tasks?: number | null
+          updated_at?: string | null
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_milestone_progress_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "cohort_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_milestone_progress_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_milestone_progress_user_profile_id_fkey"
             columns: ["user_profile_id"]
             isOneToOne: false
             referencedRelation: "user_profiles"
@@ -892,7 +1268,7 @@ export type Database = {
           completed_at: string | null
           id: string
           key_id: string | null
-          milestone_id: string
+          milestone_id: string | null
           user_id: string
           verified_at: string | null
         }
@@ -901,7 +1277,7 @@ export type Database = {
           completed_at?: string | null
           id?: string
           key_id?: string | null
-          milestone_id: string
+          milestone_id?: string | null
           user_id: string
           verified_at?: string | null
         }
@@ -910,7 +1286,7 @@ export type Database = {
           completed_at?: string | null
           id?: string
           key_id?: string | null
-          milestone_id?: string
+          milestone_id?: string | null
           user_id?: string
           verified_at?: string | null
         }
@@ -1134,13 +1510,152 @@ export type Database = {
             foreignKeyName: "user_task_completions_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["privy_user_id"]
+          },
+          {
+            foreignKeyName: "user_task_completions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["privy_user_id"]
           },
         ]
       }
+      user_task_progress: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          id: string
+          milestone_id: string | null
+          reward_claimed: boolean | null
+          status: string
+          submission_id: string | null
+          task_id: string
+          updated_at: string | null
+          user_profile_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          milestone_id?: string | null
+          reward_claimed?: boolean | null
+          status?: string
+          submission_id?: string | null
+          task_id: string
+          updated_at?: string | null
+          user_profile_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          id?: string
+          milestone_id?: string | null
+          reward_claimed?: boolean | null
+          status?: string
+          submission_id?: string | null
+          task_id?: string
+          updated_at?: string | null
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_task_progress_milestone_id_fkey"
+            columns: ["milestone_id"]
+            isOneToOne: false
+            referencedRelation: "cohort_milestones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_task_progress_submission_id_fkey"
+            columns: ["submission_id"]
+            isOneToOne: false
+            referencedRelation: "task_submissions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_task_progress_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "milestone_tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_task_progress_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "user_task_progress_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
+      all_applications_view: {
+        Row: {
+          application_created_at: string | null
+          application_id: string | null
+          application_status: string | null
+          application_updated_at: string | null
+          cohort_end_date: string | null
+          cohort_id: string | null
+          cohort_name: string | null
+          cohort_start_date: string | null
+          enrollment_created_at: string | null
+          enrollment_id: string | null
+          enrollment_status: string | null
+          experience_level: string | null
+          goals: string[] | null
+          missing_enrollment: boolean | null
+          missing_profile_link: boolean | null
+          missing_user_status: boolean | null
+          motivation: string | null
+          payment_method: string | null
+          payment_status: string | null
+          phone_number: string | null
+          privy_user_id: string | null
+          profile_id: string | null
+          status_created_at: string | null
+          user_application_status: string | null
+          user_application_status_id: string | null
+          user_email: string | null
+          user_name: string | null
+          user_profile_id: string | null
+          username: string | null
+          wallet_address: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "applications_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "applications_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "applications_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quest_statistics: {
         Row: {
           completed_submissions: number | null
@@ -1159,8 +1674,14 @@ export type Database = {
         Row: {
           application_id: string | null
           application_status: string | null
+          cohort_end_date: string | null
           cohort_id: string | null
+          cohort_name: string | null
+          cohort_start_date: string | null
           created_at: string | null
+          enrollment_created_at: string | null
+          enrollment_id: string | null
+          enrollment_status: string | null
           experience_level: string | null
           id: string | null
           payment_status: string | null
@@ -1175,20 +1696,6 @@ export type Database = {
             columns: ["cohort_id"]
             isOneToOne: false
             referencedRelation: "cohorts"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_application_status_application_id_fkey"
-            columns: ["application_id"]
-            isOneToOne: false
-            referencedRelation: "applications"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "user_application_status_user_profile_id_fkey"
-            columns: ["user_profile_id"]
-            isOneToOne: false
-            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1218,6 +1725,13 @@ export type Database = {
             foreignKeyName: "bootcamp_enrollments_user_profile_id_fkey"
             columns: ["user_profile_id"]
             isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "bootcamp_enrollments_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -1232,35 +1746,65 @@ export type Database = {
       }
     }
     Functions: {
-      award_xp_to_user: {
+      create_notification: {
         Args: {
-          p_user_id: string
-          p_xp_amount: number
-          p_activity_type: string
-          p_activity_data: Json
+          p_body: string
+          p_metadata?: Json
+          p_title: string
+          p_type: string
+          p_user_profile_id: string
         }
         Returns: undefined
+      }
+      create_notification_v2: {
+        Args: {
+          p_link?: string
+          p_message: string
+          p_title: string
+          p_user_profile_id: string
+        }
+        Returns: undefined
+      }
+      exec_sql: {
+        Args: { sql_query: string }
+        Returns: undefined
+      }
+      fix_orphaned_applications: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          action_taken: string
+          application_id: string
+          user_email: string
+        }[]
+      }
+      get_user_checkin_streak: {
+        Args: { user_address: string }
+        Returns: number
       }
       handle_successful_payment: {
         Args: {
           p_application_id: string
-          p_payment_reference: string
           p_payment_method: string
+          p_payment_reference: string
           p_transaction_details?: Json
         }
         Returns: {
-          success: boolean
-          message: string
           enrollment_id: string
-          application_id: string
+          message: string
+          returned_application_id: string
+          success: boolean
         }[]
+      }
+      has_checked_in_today: {
+        Args: { user_address: string }
+        Returns: boolean
       }
       is_admin: {
         Args: { user_id: string }
         Returns: boolean
       }
       recalculate_quest_progress: {
-        Args: { p_user_id: string; p_quest_id: string }
+        Args: { p_quest_id: string; p_user_id: string }
         Returns: undefined
       }
     }
@@ -1284,6 +1828,7 @@ export type Database = {
           owner: string | null
           owner_id: string | null
           public: boolean | null
+          type: Database["storage"]["Enums"]["buckettype"]
           updated_at: string | null
         }
         Insert: {
@@ -1296,6 +1841,7 @@ export type Database = {
           owner?: string | null
           owner_id?: string | null
           public?: boolean | null
+          type?: Database["storage"]["Enums"]["buckettype"]
           updated_at?: string | null
         }
         Update: {
@@ -1308,9 +1854,111 @@ export type Database = {
           owner?: string | null
           owner_id?: string | null
           public?: boolean | null
+          type?: Database["storage"]["Enums"]["buckettype"]
           updated_at?: string | null
         }
         Relationships: []
+      }
+      buckets_analytics: {
+        Row: {
+          created_at: string
+          format: string
+          id: string
+          type: Database["storage"]["Enums"]["buckettype"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          format?: string
+          id: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          format?: string
+          id?: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      iceberg_namespaces: {
+        Row: {
+          bucket_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          bucket_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          bucket_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "iceberg_namespaces_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets_analytics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      iceberg_tables: {
+        Row: {
+          bucket_id: string
+          created_at: string
+          id: string
+          location: string
+          name: string
+          namespace_id: string
+          updated_at: string
+        }
+        Insert: {
+          bucket_id: string
+          created_at?: string
+          id?: string
+          location: string
+          name: string
+          namespace_id: string
+          updated_at?: string
+        }
+        Update: {
+          bucket_id?: string
+          created_at?: string
+          id?: string
+          location?: string
+          name?: string
+          namespace_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "iceberg_tables_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets_analytics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "iceberg_tables_namespace_id_fkey"
+            columns: ["namespace_id"]
+            isOneToOne: false
+            referencedRelation: "iceberg_namespaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       migrations: {
         Row: {
@@ -1339,6 +1987,7 @@ export type Database = {
           created_at: string | null
           id: string
           last_accessed_at: string | null
+          level: number | null
           metadata: Json | null
           name: string | null
           owner: string | null
@@ -1353,6 +2002,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           last_accessed_at?: string | null
+          level?: number | null
           metadata?: Json | null
           name?: string | null
           owner?: string | null
@@ -1367,6 +2017,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           last_accessed_at?: string | null
+          level?: number | null
           metadata?: Json | null
           name?: string | null
           owner?: string | null
@@ -1379,6 +2030,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "objects_bucketId_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prefixes: {
+        Row: {
+          bucket_id: string
+          created_at: string | null
+          level: number
+          name: string
+          updated_at: string | null
+        }
+        Insert: {
+          bucket_id: string
+          created_at?: string | null
+          level?: number
+          name: string
+          updated_at?: string | null
+        }
+        Update: {
+          bucket_id?: string
+          created_at?: string | null
+          level?: number
+          name?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prefixes_bucketId_fkey"
             columns: ["bucket_id"]
             isOneToOne: false
             referencedRelation: "buckets"
@@ -1489,9 +2172,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      can_insert_object: {
-        Args: { bucketid: string; name: string; owner: string; metadata: Json }
+      add_prefixes: {
+        Args: { _bucket_id: string; _name: string }
         Returns: undefined
+      }
+      can_insert_object: {
+        Args: { bucketid: string; metadata: Json; name: string; owner: string }
+        Returns: undefined
+      }
+      delete_prefix: {
+        Args: { _bucket_id: string; _name: string }
+        Returns: boolean
       }
       extension: {
         Args: { name: string }
@@ -1505,41 +2196,53 @@ export type Database = {
         Args: { name: string }
         Returns: string[]
       }
+      get_level: {
+        Args: { name: string }
+        Returns: number
+      }
+      get_prefix: {
+        Args: { name: string }
+        Returns: string
+      }
+      get_prefixes: {
+        Args: { name: string }
+        Returns: string[]
+      }
       get_size_by_bucket: {
         Args: Record<PropertyKey, never>
         Returns: {
-          size: number
           bucket_id: string
+          size: number
         }[]
       }
       list_multipart_uploads_with_delimiter: {
         Args: {
           bucket_id: string
-          prefix_param: string
           delimiter_param: string
           max_keys?: number
           next_key_token?: string
           next_upload_token?: string
+          prefix_param: string
         }
         Returns: {
-          key: string
-          id: string
           created_at: string
+          id: string
+          key: string
         }[]
       }
       list_objects_with_delimiter: {
         Args: {
           bucket_id: string
-          prefix_param: string
           delimiter_param: string
           max_keys?: number
-          start_after?: string
           next_token?: string
+          prefix_param: string
+          start_after?: string
         }
         Returns: {
-          name: string
           id: string
           metadata: Json
+          name: string
           updated_at: string
         }[]
       }
@@ -1549,27 +2252,84 @@ export type Database = {
       }
       search: {
         Args: {
-          prefix: string
           bucketname: string
-          limits?: number
           levels?: number
+          limits?: number
           offsets?: number
+          prefix: string
           search?: string
           sortcolumn?: string
           sortorder?: string
         }
         Returns: {
-          name: string
-          id: string
-          updated_at: string
           created_at: string
+          id: string
           last_accessed_at: string
           metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
+      search_legacy_v1: {
+        Args: {
+          bucketname: string
+          levels?: number
+          limits?: number
+          offsets?: number
+          prefix: string
+          search?: string
+          sortcolumn?: string
+          sortorder?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_accessed_at: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
+      search_v1_optimised: {
+        Args: {
+          bucketname: string
+          levels?: number
+          limits?: number
+          offsets?: number
+          prefix: string
+          search?: string
+          sortcolumn?: string
+          sortorder?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          last_accessed_at: string
+          metadata: Json
+          name: string
+          updated_at: string
+        }[]
+      }
+      search_v2: {
+        Args: {
+          bucket_name: string
+          levels?: number
+          limits?: number
+          prefix: string
+          start_after?: string
+        }
+        Returns: {
+          created_at: string
+          id: string
+          key: string
+          metadata: Json
+          name: string
+          updated_at: string
         }[]
       }
     }
     Enums: {
-      [_ in never]: never
+      buckettype: "STANDARD" | "ANALYTICS"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1702,6 +2462,9 @@ export const Constants = {
     Enums: {},
   },
   storage: {
-    Enums: {},
+    Enums: {
+      buckettype: ["STANDARD", "ANALYTICS"],
+    },
   },
 } as const
+

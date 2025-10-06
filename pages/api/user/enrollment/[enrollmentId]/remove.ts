@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import type { ApiResponse } from "@/lib/api";
+import type { ApiResponse } from "@/lib/helpers/api";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:user:enrollment:[enrollmentId]:remove");
 
 interface RemoveEnrollmentResponse {
   success: boolean;
@@ -10,19 +13,19 @@ interface RemoveEnrollmentResponse {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<RemoveEnrollmentResponse>>
+  res: NextApiResponse<ApiResponse<RemoveEnrollmentResponse>>,
 ) {
   if (req.method !== "DELETE") {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
   try {
     const supabase = createAdminClient();
     const user = await getPrivyUser(req);
-    
+
     if (!user?.id) {
       return res.status(401).json({
         success: false,
@@ -35,7 +38,7 @@ export default async function handler(
     if (!enrollmentId || typeof enrollmentId !== "string") {
       return res.status(400).json({
         success: false,
-        error: "Invalid enrollment ID"
+        error: "Invalid enrollment ID",
       });
     }
 
@@ -71,14 +74,17 @@ export default async function handler(
     // Create or update user preference to hide this journey from lobby
     const { error: preferenceError } = await supabase
       .from("user_journey_preferences")
-      .upsert({
-        user_profile_id: profile.id,
-        enrollment_id: enrollmentId,
-        is_hidden: true,
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'user_profile_id,enrollment_id'
-      });
+      .upsert(
+        {
+          user_profile_id: profile.id,
+          enrollment_id: enrollmentId,
+          is_hidden: true,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "user_profile_id,enrollment_id",
+        },
+      );
 
     if (preferenceError) {
       throw new Error(`Failed to hide journey: ${preferenceError.message}`);
@@ -88,12 +94,11 @@ export default async function handler(
       success: true,
       data: {
         success: true,
-        message: "Journey removed from lobby successfully"
-      }
+        message: "Journey removed from lobby successfully",
+      },
     });
-
   } catch (error: any) {
-    console.error("Error removing enrollment:", error);
+    log.error("Error removing enrollment:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to remove journey",

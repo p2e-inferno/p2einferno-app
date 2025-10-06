@@ -70,9 +70,7 @@ const ExperienceStep: React.FC<ExperienceStepProps> = ({
               ></div>
               <div>
                 <h3 className="font-bold text-lg">{level.label}</h3>
-                <p className="text-faded-grey text-sm">
-                  {level.description}
-                </p>
+                <p className="text-faded-grey text-sm">{level.description}</p>
               </div>
             </div>
           </button>

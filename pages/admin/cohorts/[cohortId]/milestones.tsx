@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import MilestoneList from "@/components/admin/MilestoneList";
@@ -6,7 +6,12 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { NetworkError } from "@/components/ui/network-error";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("admin:cohorts:[cohortId]:milestones");
 
 interface CohortWithProgram extends Cohort {
   bootcamp_program?: {
@@ -15,47 +20,65 @@ interface CohortWithProgram extends Cohort {
   };
 }
 
-function CohortMilestonesPage() {
+export default function CohortMilestonesPage() {
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi();
+
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
 
   const [cohort, setCohort] = useState<CohortWithProgram | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch cohort data
-  useEffect(() => {
-    async function fetchCohort() {
-      if (!cohortId) return;
+  const fetchCohort = useCallback(async () => {
+    if (!cohortId) return;
 
-      try {
-        setIsLoading(true);
-        setError(null);
-        
-        const result = await adminFetch<{success: boolean, data: CohortWithProgram}>(`/api/admin/cohorts/${cohortId}`);
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
+    try {
+      setIsLoading(true);
+      setError(null);
 
-        if (!result.data?.data) {
-          throw new Error("Cohort not found");
-        }
+      const result = await adminFetch<{
+        success: boolean;
+        data: CohortWithProgram;
+      }>(`/api/admin/cohorts/${cohortId}`);
 
-        setCohort(result.data.data);
-      } catch (err: any) {
-        console.error("Error fetching cohort:", err);
-        setError(err.message || "Failed to load cohort");
-      } finally {
-        setIsLoading(false);
+      if (result.error) {
+        throw new Error(result.error);
       }
-    }
 
-    if (cohortId) {
-      fetchCohort();
+      if (!result.data?.data) {
+        throw new Error("Cohort not found");
+      }
+
+      setCohort(result.data.data);
+    } catch (err: any) {
+      log.error("Error fetching cohort:", err);
+      setError(err.message || "Failed to load cohort");
+    } finally {
+      setIsLoading(false);
     }
   }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [cohortId as string | undefined],
+    fetcher: fetchCohort,
+  });
+
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchCohort();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   return (
     <AdminLayout>
@@ -68,31 +91,23 @@ function CohortMilestonesPage() {
             <ArrowLeft className="h-4 w-4 mr-1" /> Back to cohorts
           </Link>
 
-          {isLoading ? (
-            <h1 className="text-2xl font-bold text-white">
-              Loading cohort data...
-            </h1>
-          ) : error ? (
-            <h1 className="text-2xl font-bold text-white">
-              Error Loading Cohort
-            </h1>
-          ) : (
-            <>
-              <h1 className="text-2xl font-bold text-white">
-                Milestones: {cohort?.name}
-              </h1>
-              <p className="text-gray-400 mt-1">
-                Manage cohort milestones for{" "}
-                {cohort?.bootcamp_program?.name || "Unknown Bootcamp"}
-              </p>
-            </>
+          <h1 className="text-2xl font-bold text-white">
+            {cohort?.name ? `Milestones: ${cohort.name}` : "Cohort Milestones"}
+          </h1>
+          {!error && cohort && (
+            <p className="text-gray-400 mt-1">
+              Manage cohort milestones for{" "}
+              {cohort.bootcamp_program?.name || "Unknown Bootcamp"}
+            </p>
           )}
         </div>
 
         {error && !isLoading && (
-          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-            {error}
-          </div>
+          <NetworkError
+            error={error}
+            onRetry={handleRetry}
+            isRetrying={isRetrying}
+          />
         )}
 
         {!isLoading && !error && cohort && (
@@ -101,7 +116,7 @@ function CohortMilestonesPage() {
           </div>
         )}
 
-        {isLoading && (
+        {(isLoadingAuth || isLoading) && (
           <div className="w-full flex justify-center items-center min-h-[400px]">
             <div className="w-12 h-12 border-4 border-flame-yellow/20 border-t-flame-yellow rounded-full animate-spin"></div>
           </div>
@@ -110,9 +125,3 @@ function CohortMilestonesPage() {
     </AdminLayout>
   );
 }
-
-// Export the page wrapped in admin authentication
-export default withAdminAuth(
-  CohortMilestonesPage,
-  { message: "You need admin access to manage cohorts" }
-);

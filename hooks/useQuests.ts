@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("hooks:useQuests");
 
 // Types
 export interface Quest {
@@ -50,7 +53,7 @@ export const useQuests = () => {
   const [quests, setQuests] = useState<Quest[]>([]);
   const [userProgress, setUserProgress] = useState<UserQuestProgress[]>([]);
   const [completedTasks, setCompletedTasks] = useState<UserTaskCompletion[]>(
-    []
+    [],
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +70,7 @@ export const useQuests = () => {
 
       setQuests(data.quests || []);
     } catch (err) {
-      console.error("Error fetching quests:", err);
+      log.error("Error fetching quests:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch quests");
     }
   }, []);
@@ -78,7 +81,7 @@ export const useQuests = () => {
 
     try {
       const response = await fetch(
-        `/api/quests/user-progress?userId=${user.id}`
+        `/api/quests/user-progress?userId=${user.id}`,
       );
       const data = await response.json();
 
@@ -89,7 +92,7 @@ export const useQuests = () => {
       setUserProgress(data.progress || []);
       setCompletedTasks(data.completedTasks || []);
     } catch (err) {
-      console.error("Error fetching user progress:", err);
+      log.error("Error fetching user progress:", err);
       setError(err instanceof Error ? err.message : "Failed to fetch progress");
     }
   }, [user?.id, authenticated]);
@@ -139,14 +142,14 @@ export const useQuests = () => {
         await fetchUserProgress();
         return true;
       } catch (err) {
-        console.error("Error completing task:", err);
+        log.error("Error completing task:", err);
         toast.error(
-          err instanceof Error ? err.message : "Failed to complete task"
+          err instanceof Error ? err.message : "Failed to complete task",
         );
         return false;
       }
     },
-    [user?.id, authenticated, fetchUserProgress]
+    [user?.id, authenticated, fetchUserProgress],
   );
 
   // Claim quest rewards
@@ -176,21 +179,21 @@ export const useQuests = () => {
         }
 
         toast.success(
-          `Rewards claimed! You earned ${data.totalReward} DG tokens`
+          `Rewards claimed! You earned ${data.totalReward} DG tokens`,
         );
 
         // Refresh user progress
         await fetchUserProgress();
         return true;
       } catch (err) {
-        console.error("Error claiming rewards:", err);
+        log.error("Error claiming rewards:", err);
         toast.error(
-          err instanceof Error ? err.message : "Failed to claim rewards"
+          err instanceof Error ? err.message : "Failed to claim rewards",
         );
         return false;
       }
     },
-    [user?.id, authenticated, fetchUserProgress]
+    [user?.id, authenticated, fetchUserProgress],
   );
 
   // Check if a task is completed
@@ -198,7 +201,7 @@ export const useQuests = () => {
     (taskId: string) => {
       return completedTasks.some((completion) => completion.task_id === taskId);
     },
-    [completedTasks]
+    [completedTasks],
   );
 
   // Get quest progress
@@ -206,7 +209,7 @@ export const useQuests = () => {
     (questId: string) => {
       return userProgress.find((progress) => progress.quest_id === questId);
     },
-    [userProgress]
+    [userProgress],
   );
 
   // Calculate completion percentage for a quest
@@ -220,7 +223,7 @@ export const useQuests = () => {
         ? Math.round((completedTaskCount / totalTasks) * 100)
         : 0;
     },
-    [getQuestProgress]
+    [getQuestProgress],
   );
 
   // Handle specific task types
@@ -233,14 +236,14 @@ export const useQuests = () => {
 
       return await completeTask(questId, taskId, { email: user.email.address });
     },
-    [user?.email?.address, completeTask]
+    [user?.email?.address, completeTask],
   );
 
   const handleLinkFarcaster = useCallback(
     async (questId: string, taskId: string) => {
       if (!user?.farcaster?.fid) {
         toast.error(
-          "No Farcaster account found. Please link your Farcaster first."
+          "No Farcaster account found. Please link your Farcaster first.",
         );
         return false;
       }
@@ -250,7 +253,7 @@ export const useQuests = () => {
         username: user.farcaster.username,
       });
     },
-    [user?.farcaster, completeTask]
+    [user?.farcaster, completeTask],
   );
 
   const handleSignTOS = useCallback(
@@ -265,7 +268,7 @@ export const useQuests = () => {
         signedAt: new Date().toISOString(),
       });
     },
-    [completeTask]
+    [completeTask],
   );
 
   return {

@@ -1,8 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
-import type { ApiResponse } from "@/lib/api";
+import type { ApiResponse } from "@/lib/helpers/api";
 import { UserKeyService } from "@/lib/services/user-key-service";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:user:cohort:[cohortId]:milestones");
 
 interface MilestoneTask {
   id: string;
@@ -60,19 +63,19 @@ interface CohortMilestonesResponse {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse<CohortMilestonesResponse>>
+  res: NextApiResponse<ApiResponse<CohortMilestonesResponse>>,
 ) {
   if (req.method !== "GET") {
-    return res.status(405).json({ 
-      success: false, 
-      error: "Method not allowed" 
+    return res.status(405).json({
+      success: false,
+      error: "Method not allowed",
     });
   }
 
   try {
     const supabase = createAdminClient();
     const user = await getPrivyUser(req);
-    
+
     if (!user?.id) {
       return res.status(401).json({
         success: false,
@@ -84,7 +87,7 @@ export default async function handler(
     if (!cohortId || typeof cohortId !== "string") {
       return res.status(400).json({
         success: false,
-        error: "Invalid cohort ID"
+        error: "Invalid cohort ID",
       });
     }
 
@@ -112,11 +115,11 @@ export default async function handler(
       .maybeSingle();
 
     if (enrollmentError || !enrollment) {
-      console.log("Enrollment check failed:", { 
-        error: enrollmentError, 
-        enrollment, 
-        user_profile_id: profile.id, 
-        cohortId 
+      log.info("Enrollment check failed:", {
+        error: enrollmentError,
+        enrollment,
+        user_profile_id: profile.id,
+        cohortId,
       });
       return res.status(403).json({
         success: false,
@@ -127,14 +130,16 @@ export default async function handler(
     // Get cohort details
     const { data: cohort, error: cohortError } = await supabase
       .from("cohorts")
-      .select(`
+      .select(
+        `
         id,
         name,
         bootcamp_program:bootcamp_program_id (
           name,
           description
         )
-      `)
+      `,
+      )
       .eq("id", cohortId)
       .single();
 
@@ -148,7 +153,8 @@ export default async function handler(
     // Get milestones for this cohort
     const { data: milestones, error: milestonesError } = await supabase
       .from("cohort_milestones")
-      .select(`
+      .select(
+        `
         id,
         name,
         description,
@@ -158,7 +164,8 @@ export default async function handler(
         start_date,
         end_date,
         lock_address
-      `)
+      `,
+      )
       .eq("cohort_id", cohortId)
       .order("order_index", { ascending: true });
 
@@ -167,7 +174,7 @@ export default async function handler(
     }
 
     // Get milestone progress for this user
-    const milestoneIds = (milestones || []).map(m => m.id);
+    const milestoneIds = (milestones || []).map((m) => m.id);
     const { data: milestoneProgress } = await supabase
       .from("user_milestone_progress")
       .select("*")
@@ -177,7 +184,8 @@ export default async function handler(
     // Get all tasks for each milestone
     const { data: allTasks } = await supabase
       .from("milestone_tasks")
-      .select(`
+      .select(
+        `
         id,
         milestone_id,
         title,
@@ -188,34 +196,44 @@ export default async function handler(
         submission_requirements,
         validation_criteria,
         requires_admin_review
-      `)
+      `,
+      )
       .in("milestone_id", milestoneIds)
       .order("order_index", { ascending: true });
 
-    // Get all task submissions for this user 
-    const taskIds = (allTasks || []).map(t => t.id);
+    // Get all task submissions for this user
+    const taskIds = (allTasks || []).map((t) => t.id);
     const { data: submissions } = await supabase
       .from("task_submissions")
-      .select("id, task_id, status, submission_url, submitted_at, submission_type")
+      .select(
+        "id, task_id, status, submission_url, submitted_at, submission_type",
+      )
       .eq("user_id", user.id)
       .in("task_id", taskIds)
       .order("submitted_at", { ascending: false });
 
     // Get user progress for these tasks
     const { data: userProgress } = await supabase
-      .from("user_task_progress") 
-      .select("id, task_id, status, submission_id, reward_claimed, completed_at")
+      .from("user_task_progress")
+      .select(
+        "id, task_id, status, submission_id, reward_claimed, completed_at",
+      )
       .eq("user_profile_id", profile.id)
       .in("task_id", taskIds);
 
     // Build response with milestones, tasks, and user progress
-    const milestonesWithProgress: MilestoneWithProgress[] = (milestones || []).map(milestone => {
+    const milestonesWithProgress: MilestoneWithProgress[] = (
+      milestones || []
+    ).map((milestone) => {
       const tasks = (allTasks || [])
         .filter((task: any) => task.milestone_id === milestone.id)
         .map((t: any) => {
           // Find the latest submission for this task
-          const taskSubmissions = (submissions || []).filter(sub => sub.task_id === t.id);
-          const latest = taskSubmissions.length > 0 ? taskSubmissions[0] : undefined;
+          const taskSubmissions = (submissions || []).filter(
+            (sub) => sub.task_id === t.id,
+          );
+          const latest =
+            taskSubmissions.length > 0 ? taskSubmissions[0] : undefined;
           const submission_status = latest?.status || null;
           const latest_submission = latest
             ? {
@@ -228,25 +246,31 @@ export default async function handler(
             : null;
 
           // Get the user progress for this task
-          const taskProgress = (userProgress || []).find(progress => progress.task_id === t.id);
+          const taskProgress = (userProgress || []).find(
+            (progress) => progress.task_id === t.id,
+          );
           const reward_claimed = taskProgress?.reward_claimed || false;
 
           return { ...t, submission_status, latest_submission, reward_claimed };
         });
-      const progress = (milestoneProgress || []).find(p => p.milestone_id === milestone.id);
+      const progress = (milestoneProgress || []).find(
+        (p) => p.milestone_id === milestone.id,
+      );
 
       return {
         ...milestone,
         tasks,
-        user_progress: progress ? {
-          status: progress.status,
-          progress_percentage: progress.progress_percentage,
-          tasks_completed: progress.tasks_completed,
-          total_tasks: progress.total_tasks,
-          started_at: progress.started_at,
-          completed_at: progress.completed_at,
-          reward_amount: progress.reward_amount
-        } : undefined
+        user_progress: progress
+          ? {
+              status: progress.status,
+              progress_percentage: progress.progress_percentage,
+              tasks_completed: progress.tasks_completed,
+              total_tasks: progress.total_tasks,
+              started_at: progress.started_at,
+              completed_at: progress.completed_at,
+              reward_amount: progress.reward_amount,
+            }
+          : undefined,
       };
     });
 
@@ -256,28 +280,38 @@ export default async function handler(
         if (!milestone.lock_address) {
           return { ...milestone, has_key: false };
         }
-        const keyCheck = await UserKeyService.checkUserKeyOwnership(user.id, milestone.lock_address);
+        const keyCheck = await UserKeyService.checkUserKeyOwnership(
+          user.id,
+          milestone.lock_address,
+        );
         return { ...milestone, has_key: keyCheck.hasValidKey };
-      })
+      }),
     );
     // --- END NEW ---
 
     // Calculate overall progress
     const totalMilestones = milestonesWithProgress.length;
     const completedMilestones = milestonesWithProgress.filter(
-      m => m.user_progress?.status === 'completed'
+      (m) => m.user_progress?.status === "completed",
     ).length;
-    
+
     // Calculate total earned rewards based on actually claimed task rewards
-    const totalEarnedRewards = milestonesWithProgress.reduce((sum, milestone) => {
-      const claimedTaskRewards = milestone.tasks
-        .filter((task: any) => task.reward_claimed === true)
-        .reduce((taskSum: number, task: any) => taskSum + (task.reward_amount || 0), 0);
-      return sum + claimedTaskRewards;
-    }, 0);
-    
+    const totalEarnedRewards = milestonesWithProgress.reduce(
+      (sum, milestone) => {
+        const claimedTaskRewards = milestone.tasks
+          .filter((task: any) => task.reward_claimed === true)
+          .reduce(
+            (taskSum: number, task: any) => taskSum + (task.reward_amount || 0),
+            0,
+          );
+        return sum + claimedTaskRewards;
+      },
+      0,
+    );
+
     const maxPossibleRewards = milestonesWithProgress.reduce(
-      (sum, m) => sum + (m.total_reward || 0), 0
+      (sum, m) => sum + (m.total_reward || 0),
+      0,
     );
 
     // Normalize bootcamp_program shape for TS
@@ -294,21 +328,23 @@ export default async function handler(
           bootcamp_program: {
             name: program?.name,
             description: program?.description,
-          }
+          },
         },
         milestones: milestonesWithOnChainStatus, // Use the enhanced milestones
         overall_progress: {
           completed_milestones: completedMilestones,
           total_milestones: totalMilestones,
-          overall_percentage: totalMilestones > 0 ? Math.round((completedMilestones / totalMilestones) * 100) : 0,
+          overall_percentage:
+            totalMilestones > 0
+              ? Math.round((completedMilestones / totalMilestones) * 100)
+              : 0,
           total_earned_rewards: totalEarnedRewards,
-          max_possible_rewards: maxPossibleRewards
-        }
-      }
+          max_possible_rewards: maxPossibleRewards,
+        },
+      },
     });
-
   } catch (error: any) {
-    console.error("Error fetching cohort milestones:", error);
+    log.error("Error fetching cohort milestones:", error);
     res.status(500).json({
       success: false,
       error: error.message || "Failed to fetch cohort milestones",

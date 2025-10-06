@@ -22,7 +22,9 @@ export default function AdminResponsiveTable({
   emptyMessage = "No data available",
   className = "",
 }: AdminResponsiveTableProps) {
-  const [expandedRows, setExpandedRows] = React.useState<Set<string>>(new Set());
+  const [expandedRows, setExpandedRows] = React.useState<Set<string>>(
+    new Set(),
+  );
 
   const toggleRow = (rowId: string) => {
     const newExpanded = new Set(expandedRows);
@@ -34,8 +36,10 @@ export default function AdminResponsiveTable({
     setExpandedRows(newExpanded);
   };
 
-  const getHighPriorityColumns = () => columns.filter(col => col.mobilePriority === "high");
-  const getMediumPriorityColumns = () => columns.filter(col => col.mobilePriority === "medium");
+  const getHighPriorityColumns = () =>
+    columns.filter((col) => col.mobilePriority === "high");
+  const getMediumPriorityColumns = () =>
+    columns.filter((col) => col.mobilePriority === "medium");
 
   if (data.length === 0) {
     return (
@@ -73,7 +77,9 @@ export default function AdminResponsiveTable({
                     key={column.key}
                     className={`py-3 px-4 text-sm text-gray-300 ${column.className || ""}`}
                   >
-                    {column.render ? column.render(row[column.key], row) : row[column.key]}
+                    {column.render
+                      ? column.render(row[column.key], row)
+                      : row[column.key]}
                   </td>
                 ))}
               </tr>
@@ -105,7 +111,9 @@ export default function AdminResponsiveTable({
                           {column.label}
                         </span>
                         <div className="text-sm text-gray-300 mt-1">
-                          {column.render ? column.render(row[column.key], row) : row[column.key]}
+                          {column.render
+                            ? column.render(row[column.key], row)
+                            : row[column.key]}
                         </div>
                       </div>
                     ))}
@@ -134,21 +142,28 @@ export default function AdminResponsiveTable({
                           {column.label}
                         </span>
                         <div className="text-sm text-gray-300 mt-1">
-                          {column.render ? column.render(row[column.key], row) : row[column.key]}
+                          {column.render
+                            ? column.render(row[column.key], row)
+                            : row[column.key]}
                         </div>
                       </div>
                     ))}
-                    
+
                     {/* Low priority columns shown in expanded view */}
                     {columns
-                      .filter(col => !col.mobilePriority || col.mobilePriority === "low")
+                      .filter(
+                        (col) =>
+                          !col.mobilePriority || col.mobilePriority === "low",
+                      )
                       .map((column) => (
                         <div key={column.key}>
                           <span className="text-xs text-gray-500 uppercase tracking-wide">
                             {column.label}
                           </span>
                           <div className="text-sm text-gray-300 mt-1">
-                            {column.render ? column.render(row[column.key], row) : row[column.key]}
+                            {column.render
+                              ? column.render(row[column.key], row)
+                              : row[column.key]}
                           </div>
                         </div>
                       ))}

@@ -1,9 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("api:quests:claim-task-reward");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -28,13 +31,14 @@ export default async function handler(
         quest_id,
         task_id,
         reward_claimed,
+        submission_status,
         quest_tasks!user_task_completions_task_id_fkey (
           reward_amount
         ),
         user_profiles!user_task_completions_user_id_fkey (
           id
         )
-      `
+      `,
       )
       .eq("id", completionId)
       .single();
@@ -47,6 +51,14 @@ export default async function handler(
       return res.status(400).json({ error: "Reward already claimed" });
     }
 
+    // SECURITY: Only allow claiming rewards for completed tasks
+    if (completion.submission_status !== "completed") {
+      return res.status(403).json({
+        error: "Task must be approved before claiming reward",
+        currentStatus: completion.submission_status,
+      });
+    }
+
     // Update the completion to mark reward as claimed
     const { error: updateError } = await supabase
       .from("user_task_completions")
@@ -54,33 +66,73 @@ export default async function handler(
       .eq("id", completionId);
 
     if (updateError) {
-      console.error("Error updating completion:", updateError);
+      log.error("Error updating completion:", updateError);
       return res.status(500).json({
         error: "Failed to claim reward",
         details: updateError.message,
       });
     }
-    
-    const questTask = Array.isArray(completion.quest_tasks) ? completion.quest_tasks[0] : completion.quest_tasks;
+
+    const questTask = Array.isArray(completion.quest_tasks)
+      ? completion.quest_tasks[0]
+      : completion.quest_tasks;
     const rewardAmount = questTask?.reward_amount || 0;
 
-    // Award XP to the user by calling the RPC function
-    const userProfile = Array.isArray(completion.user_profiles) ? completion.user_profiles[0] : completion.user_profiles;
-    const { error: rpcError } = await supabase.rpc('award_xp_to_user', {
-      p_user_id: userProfile?.id,
-      p_xp_amount: rewardAmount,
-      p_activity_type: 'task_reward_claimed',
-      p_activity_data: {
-        quest_id: completion.quest_id,
-        task_id: completion.task_id,
-        completion_id: completion.id,
-        reward_amount: rewardAmount
+    // Award XP to the user (same pattern as milestone task claims)
+    const userProfile = Array.isArray(completion.user_profiles)
+      ? completion.user_profiles[0]
+      : completion.user_profiles;
+
+    if (rewardAmount > 0 && userProfile?.id) {
+      // Get current experience points first
+      const { data: currentProfile, error: fetchErr } = await supabase
+        .from("user_profiles")
+        .select("experience_points")
+        .eq("id", userProfile.id)
+        .single();
+
+      if (fetchErr) {
+        log.error("Failed to fetch current experience points:", fetchErr);
+        return res
+          .status(500)
+          .json({ error: "Failed to update experience points" });
       }
-    });
-    
-    if (rpcError) {
-      console.error("Error awarding XP:", rpcError);
-      // Don't fail the transaction, but log the error
+
+      // Update experience points with the new total
+      const newExperiencePoints =
+        (currentProfile?.experience_points || 0) + rewardAmount;
+      const { error: xpErr } = await supabase
+        .from("user_profiles")
+        .update({
+          experience_points: newExperiencePoints,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userProfile.id);
+
+      if (xpErr) {
+        log.error("Failed to increment experience points:", xpErr);
+        return res
+          .status(500)
+          .json({ error: "Failed to update experience points" });
+      }
+
+      // Insert activity record (best-effort)
+      const { error: actErr } = await supabase.from("user_activities").insert({
+        user_profile_id: userProfile.id,
+        activity_type: "quest_task_reward_claimed",
+        activity_data: {
+          quest_id: completion.quest_id,
+          task_id: completion.task_id,
+          completion_id: completion.id,
+          reward_amount: rewardAmount,
+        },
+        points_earned: rewardAmount,
+      } as any);
+
+      if (actErr) {
+        log.error("Failed to insert user activity:", actErr);
+        // Don't fail the transaction, but log the error
+      }
     }
 
     res.status(200).json({
@@ -89,7 +141,7 @@ export default async function handler(
       rewardAmount,
     });
   } catch (error) {
-    console.error("Error in claim task reward API:", error);
+    log.error("Error in claim task reward API:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 }

@@ -47,7 +47,10 @@ const MotivationStep: React.FC<MotivationStepProps> = ({
 
       <div className="space-y-6">
         <div>
-          <label htmlFor="motivation" className="block text-sm font-medium mb-2">
+          <label
+            htmlFor="motivation"
+            className="block text-sm font-medium mb-2"
+          >
             Why do you want to join Infernal Sparks?
           </label>
           <div className="relative">
@@ -62,11 +65,16 @@ const MotivationStep: React.FC<MotivationStepProps> = ({
               placeholder="Share your motivation for joining this bootcamp..."
               value={formData.motivation}
               onChange={(e) => updateFormData("motivation", e.target.value)}
-              aria-describedby={fieldErrors.motivation ? "motivation-error" : undefined}
+              aria-describedby={
+                fieldErrors.motivation ? "motivation-error" : undefined
+              }
             />
           </div>
           {fieldErrors.motivation && (
-            <p id="motivation-error" className="mt-1 text-sm text-red-600 flex items-center gap-1">
+            <p
+              id="motivation-error"
+              className="mt-1 text-sm text-red-600 flex items-center gap-1"
+            >
               <XCircle className="w-4 h-4" />
               {fieldErrors.motivation}
             </p>
@@ -78,12 +86,19 @@ const MotivationStep: React.FC<MotivationStepProps> = ({
             What are your goals? (Select all that apply)
           </label>
           {fieldErrors.goals && ( // Display general goals error if present
-            <p id="goals-error" className="mb-2 text-sm text-red-600 flex items-center gap-1">
+            <p
+              id="goals-error"
+              className="mb-2 text-sm text-red-600 flex items-center gap-1"
+            >
               <XCircle className="w-4 h-4" />
               {fieldErrors.goals}
             </p>
           )}
-          <div className="grid grid-cols-2 gap-3" role="group" aria-labelledby="goals-label">
+          <div
+            className="grid grid-cols-2 gap-3"
+            role="group"
+            aria-labelledby="goals-label"
+          >
             {goalOptions.map((goal) => (
               <button
                 key={goal}
@@ -100,7 +115,9 @@ const MotivationStep: React.FC<MotivationStepProps> = ({
               </button>
             ))}
           </div>
-          <span id="goals-label" className="sr-only">What are your goals? Select all that apply.</span>
+          <span id="goals-label" className="sr-only">
+            What are your goals? Select all that apply.
+          </span>
         </div>
       </div>
     </div>

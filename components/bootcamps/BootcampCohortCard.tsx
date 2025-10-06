@@ -1,9 +1,6 @@
 import React, { useState } from "react";
 import Link from "next/link";
-import {
-  FlameIcon,
-  CrystalIcon,
-} from "@/components/icons/dashboard-icons";
+import { FlameIcon, CrystalIcon } from "@/components/icons/dashboard-icons";
 import {
   Users,
   Calendar,
@@ -33,7 +30,8 @@ interface CohortWithEnrollment {
   updated_at: string;
 }
 
-interface BootcampWithCohortsEnrollment extends Omit<BootcampWithCohorts, 'cohorts'> {
+interface BootcampWithCohortsEnrollment
+  extends Omit<BootcampWithCohorts, "cohorts"> {
   cohorts: CohortWithEnrollment[];
 }
 
@@ -45,7 +43,7 @@ interface BootcampCohortCardProps {
 
 interface CohortStatusInfo {
   statusText: string;
-  statusColor: 'green' | 'blue' | 'red';
+  statusColor: "green" | "blue" | "red";
   statusIcon: string;
   spotsRemaining: number;
   isOpen: boolean;
@@ -57,29 +55,43 @@ interface CohortStatusInfo {
   pendingApplication?: any;
 }
 
-export function BootcampCohortCard({ 
-  bootcamp, 
+export function BootcampCohortCard({
+  bootcamp,
   getPendingApplication,
-  defaultExpanded = false 
+  defaultExpanded = false,
 }: BootcampCohortCardProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   // Filter available cohorts
-  const availableCohorts = bootcamp.cohorts.filter(cohort => 
-    cohort.status === 'open' || cohort.status === 'upcoming' || cohort.is_enrolled
+  const availableCohorts = bootcamp.cohorts.filter(
+    (cohort) =>
+      cohort.status === "open" ||
+      cohort.status === "upcoming" ||
+      cohort.is_enrolled,
   );
 
   // Get cohort status display info
-  const getCohortStatusInfo = (cohort: CohortWithEnrollment): CohortStatusInfo => {
-    const registrationStatus = getCohortRegistrationStatus(cohort, cohort.is_enrolled || false);
+  const getCohortStatusInfo = (
+    cohort: CohortWithEnrollment,
+  ): CohortStatusInfo => {
+    const registrationStatus = getCohortRegistrationStatus(
+      cohort,
+      cohort.is_enrolled || false,
+    );
     const pendingApplication = getPendingApplication(cohort.id);
-    
+
     return {
       ...registrationStatus,
       isRegistrationOpen: registrationStatus.isOpen,
       pendingApplication,
     };
   };
+
+  // Determine enrollment at bootcamp level (fallback to cohort list if API omitted flag)
+  const enrolledInBootcamp = Boolean(
+    (bootcamp as any).enrolled_in_bootcamp ||
+      (bootcamp.cohorts || []).some((c) => c.is_enrolled),
+  );
 
   return (
     <div className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 rounded-2xl border border-purple-500/20 overflow-hidden">
@@ -95,7 +107,7 @@ export function BootcampCohortCard({
               <p className="text-faded-grey">{bootcamp.description}</p>
             </div>
           </div>
-          
+
           {/* Cohort Count Badge */}
           <div className="bg-background/30 rounded-xl px-4 py-2 text-center">
             <div className="font-bold">{availableCohorts.length}</div>
@@ -114,7 +126,9 @@ export function BootcampCohortCard({
           </div>
           <div className="bg-background/30 rounded-xl p-4 text-center">
             <CrystalIcon size={24} className="text-cyan-400 mx-auto mb-2" />
-            <div className="font-bold">{bootcamp.max_reward_dgt.toLocaleString()} DGT</div>
+            <div className="font-bold">
+              {bootcamp.max_reward_dgt.toLocaleString()} DGT
+            </div>
             <div className="text-xs text-faded-grey">Max Rewards</div>
           </div>
           <div className="bg-background/30 rounded-xl p-4 text-center">
@@ -129,111 +143,151 @@ export function BootcampCohortCard({
       <div className="p-6">
         {availableCohorts.length === 0 ? (
           <div className="text-center py-8 border-2 border-dashed border-faded-grey/30 rounded-lg">
-            <p className="text-faded-grey">No cohorts available for this bootcamp yet.</p>
+            <p className="text-faded-grey">
+              No cohorts available for this bootcamp yet.
+            </p>
           </div>
         ) : (
-          <>
-            <button
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="w-full flex items-center justify-between p-4 bg-background/30 rounded-xl border border-purple-500/20 hover:border-purple-500/40 transition-colors"
-            >
-              <div className="flex items-center space-x-3">
-                <h4 className="text-xl font-bold">Select Cohort</h4>
-                <span className="text-sm text-faded-grey">({availableCohorts.length} available)</span>
+          <div>
+            {enrolledInBootcamp && (bootcamp as any).enrolled_cohort_id ? (
+              <div className="mt-2">
+                <Link
+                  href={`/lobby/bootcamps/${(bootcamp as any).enrolled_cohort_id}`}
+                  className="inline-flex items-center justify-center w-full space-x-2 bg-green-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-green-700 transition-all"
+                >
+                  <span>Continue Learning</span>
+                  <ArrowRight size={18} />
+                </Link>
               </div>
-              {isExpanded ? (
-                <ChevronUp size={20} className="text-faded-grey" />
-              ) : (
-                <ChevronDown size={20} className="text-faded-grey" />
-              )}
-            </button>
+            ) : (
+              <div>
+                <button
+                  onClick={() => setIsExpanded(!isExpanded)}
+                  className="w-full flex items-center justify-between p-4 bg-background/30 rounded-xl border border-purple-500/20 hover:border-purple-500/40 transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <h4 className="text-xl font-bold">Select Cohort</h4>
+                    <span className="text-sm text-faded-grey">
+                      ({availableCohorts.length} available)
+                    </span>
+                  </div>
+                  {isExpanded ? (
+                    <ChevronUp size={20} className="text-faded-grey" />
+                  ) : (
+                    <ChevronDown size={20} className="text-faded-grey" />
+                  )}
+                </button>
 
-            {isExpanded && (
-              <div className="mt-4 space-y-3">
-                {availableCohorts.map((cohort) => {
-                  const statusInfo = getCohortStatusInfo(cohort);
-                  
-                  return (
-                    <div key={cohort.id} className="border border-faded-grey/20 rounded-xl p-4 bg-background/20">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h5 className="font-bold text-lg flex items-center space-x-2">
-                            <span>{cohort.name}</span>
-                            {cohort.is_enrolled && (
-                              <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
-                                Enrolled
-                              </span>
-                            )}
-                          </h5>
-                          <p className="text-sm text-faded-grey">
-                            {new Date(cohort.start_date).toLocaleDateString()} - {new Date(cohort.end_date).toLocaleDateString()}
-                          </p>
-                        </div>
-                        
-                        <div className={`flex items-center space-x-2 px-3 py-1 rounded-lg border text-sm font-medium ${
-                          statusInfo.statusColor === 'green' ? 'bg-green-500/10 border-green-500/20 text-green-400' :
-                          statusInfo.statusColor === 'blue' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' :
-                          'bg-red-500/10 border-red-500/20 text-red-400'
-                        }`}>
-                          <span>{statusInfo.statusIcon}</span>
-                          <span>{statusInfo.statusText}</span>
-                        </div>
-                      </div>
-
-                      {/* Cohort Quick Stats */}
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div className="bg-background/40 rounded-lg p-3 text-center">
-                          <div className="font-bold text-lg">{statusInfo.spotsRemaining}</div>
-                          <div className="text-xs text-faded-grey">Spots Left</div>
-                        </div>
-                        <div className="bg-background/40 rounded-lg p-3 text-center">
-                          <div className="font-bold text-lg">₦{cohort.naira_amount?.toLocaleString() || 'TBD'}</div>
-                          <div className="text-xs text-faded-grey">Cost (NGN)</div>
-                        </div>
-                      </div>
-
-                      {/* CTA Button */}
-                      <div className="text-center">
-                        {cohort.is_enrolled ? (
-                          <Link
-                            href={`/lobby/bootcamps/${cohort.id}`}
-                            className="inline-flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-all text-sm"
-                          >
-                            <span>Enter Bootcamp</span>
-                            <ArrowRight size={16} />
-                          </Link>
-                        ) : statusInfo.isRegistrationOpen ? (
-                          statusInfo.pendingApplication ? (
-                            <Link
-                              href={`/payment/${statusInfo.pendingApplication.id}`}
-                              className="inline-flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-700 transition-all text-sm"
+                {isExpanded && (
+                  <div className="mt-4 space-y-3">
+                    {availableCohorts.map((cohort) => {
+                      const statusInfo = getCohortStatusInfo(cohort);
+                      return (
+                        <div
+                          key={cohort.id}
+                          className="border border-faded-grey/20 rounded-xl p-4 bg-background/20"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h5 className="font-bold text-lg flex items-center space-x-2">
+                                <span>{cohort.name}</span>
+                                {cohort.is_enrolled && (
+                                  <span className="bg-green-500/20 text-green-400 text-xs px-2 py-1 rounded-full">
+                                    Enrolled
+                                  </span>
+                                )}
+                              </h5>
+                              <p className="text-sm text-faded-grey">
+                                {new Date(
+                                  cohort.start_date,
+                                ).toLocaleDateString()}{" "}
+                                -{" "}
+                                {new Date(cohort.end_date).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div
+                              className={`flex items-center space-x-2 px-3 py-1 rounded-lg border text-sm font-medium ${
+                                statusInfo.statusColor === "green"
+                                  ? "bg-green-500/10 border-green-500/20 text-green-400"
+                                  : statusInfo.statusColor === "blue"
+                                    ? "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                                    : "bg-red-500/10 border-red-500/20 text-red-400"
+                              }`}
                             >
-                              <span>Complete Payment</span>
-                              <ArrowRight size={16} />
-                            </Link>
-                          ) : (
-                            <Link
-                              href={`/apply/${cohort.id}`}
-                              className="inline-flex items-center space-x-2 bg-flame-yellow text-black px-4 py-2 rounded-lg font-medium hover:bg-flame-orange transition-all text-sm"
-                            >
-                              <span>Apply Now</span>
-                              <ArrowRight size={16} />
-                            </Link>
-                          )
-                        ) : (
-                          <div className="inline-flex items-center space-x-2 bg-gray-600 text-gray-300 px-4 py-2 rounded-lg font-medium cursor-not-allowed text-sm">
-                            <span>
-                              {cohort.status === "upcoming" ? "Coming Soon" : "Registration Closed"}
-                            </span>
+                              <span>{statusInfo.statusIcon}</span>
+                              <span>{statusInfo.statusText}</span>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
+
+                          <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div className="bg-background/40 rounded-lg p-3 text-center">
+                              <div className="font-bold text-lg">
+                                {statusInfo.spotsRemaining}
+                              </div>
+                              <div className="text-xs text-faded-grey">
+                                Spots Left
+                              </div>
+                            </div>
+                            <div className="bg-background/40 rounded-lg p-3 text-center">
+                              <div className="font-bold text-lg">
+                                ₦
+                                {cohort.naira_amount?.toLocaleString() || "TBD"}
+                              </div>
+                              <div className="text-xs text-faded-grey">
+                                Cost (NGN)
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="text-center">
+                            {cohort.is_enrolled ? (
+                              <Link
+                                href={`/lobby/bootcamps/${cohort.id}`}
+                                className="inline-flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-all text-sm"
+                              >
+                                <span>Continue Learning</span>
+                                <ArrowRight size={16} />
+                              </Link>
+                            ) : enrolledInBootcamp ? (
+                              <div className="inline-flex items-center space-x-2 bg-gray-600 text-gray-300 px-4 py-2 rounded-lg font-medium cursor-not-allowed text-sm">
+                                <span>Unavailable</span>
+                              </div>
+                            ) : statusInfo.isRegistrationOpen ? (
+                              statusInfo.pendingApplication ? (
+                                <Link
+                                  href={`/payment/${statusInfo.pendingApplication.id}`}
+                                  className="inline-flex items-center space-x-2 bg-orange-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-orange-700 transition-all text-sm"
+                                >
+                                  <span>Complete Payment</span>
+                                  <ArrowRight size={16} />
+                                </Link>
+                              ) : (
+                                <Link
+                                  href={`/apply/${cohort.id}`}
+                                  className="inline-flex items-center space-x-2 bg-flame-yellow text-black px-4 py-2 rounded-lg font-medium hover:bg-flame-orange transition-all text-sm"
+                                >
+                                  <span>Apply Now</span>
+                                  <ArrowRight size={16} />
+                                </Link>
+                              )
+                            ) : (
+                              <div className="inline-flex items-center space-x-2 bg-gray-600 text-gray-300 px-4 py-2 rounded-lg font-medium cursor-not-allowed text-sm">
+                                <span>
+                                  {cohort.status === "upcoming"
+                                    ? "Coming Soon"
+                                    : "Registration Closed"}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
-          </>
+          </div>
         )}
       </div>
     </div>

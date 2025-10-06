@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import ProgramHighlightsForm from "@/components/admin/ProgramHighlightsForm";
@@ -6,14 +6,25 @@ import ProgramRequirementsForm from "@/components/admin/ProgramRequirementsForm"
 import { Star, CheckCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { Cohort, ProgramHighlight, ProgramRequirement } from "@/lib/supabase/types";
+import type {
+  Cohort,
+  ProgramHighlight,
+  ProgramRequirement,
+} from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { withAdminAuth } from "@/components/admin/withAdminAuth";
+import { useAdminAuthContext } from "@/contexts/admin-context";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { getLogger } from "@/lib/utils/logger";
 
-function ProgramDetailsPage() {
+const log = getLogger("admin:cohorts:[cohortId]:program-details");
+
+export default function ProgramDetailsPage() {
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
   const { cohortId } = router.query;
-  const { adminFetch } = useAdminApi();
+  // Memoize options to prevent adminFetch from being recreated every render
+  const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
+  const { adminFetch } = useAdminApi(adminApiOptions);
 
   const [cohort, setCohort] = useState<Cohort | null>(null);
   const [highlights, setHighlights] = useState<ProgramHighlight[]>([]);
@@ -25,14 +36,16 @@ function ProgramDetailsPage() {
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
-      
+
       // Fetch cohort
-      const cohortResult = await adminFetch<{success: boolean, data: Cohort}>(`/api/admin/cohorts/${cohortId}`);
-      
+      const cohortResult = await adminFetch<{ success: boolean; data: Cohort }>(
+        `/api/admin/cohorts/${cohortId}`,
+      );
+
       if (cohortResult.error) {
         throw new Error(cohortResult.error);
       }
-      
+
       const cohortData = cohortResult.data?.data;
       if (!cohortData) {
         throw new Error("Cohort not found");
@@ -41,34 +54,52 @@ function ProgramDetailsPage() {
       setCohort(cohortData);
 
       // Fetch highlights
-      const highlightsResult = await adminFetch<{success: boolean, data: ProgramHighlight[]}>(`/api/admin/program-highlights?cohortId=${cohortId}`);
-      
+      const highlightsResult = await adminFetch<{
+        success: boolean;
+        data: ProgramHighlight[];
+      }>(`/api/admin/program-highlights?cohortId=${cohortId}`);
+
       if (highlightsResult.error) {
-        console.warn("Failed to fetch highlights:", highlightsResult.error);
+        log.warn("Failed to fetch highlights:", highlightsResult.error);
       } else {
         setHighlights(highlightsResult.data?.data || []);
       }
 
-      // Fetch requirements  
-      const requirementsResult = await adminFetch<{success: boolean, data: ProgramRequirement[]}>(`/api/admin/program-requirements?cohortId=${cohortId}`);
-      
+      // Fetch requirements
+      const requirementsResult = await adminFetch<{
+        success: boolean;
+        data: ProgramRequirement[];
+      }>(`/api/admin/program-requirements?cohortId=${cohortId}`);
+
       if (requirementsResult.error) {
-        console.warn("Failed to fetch requirements:", requirementsResult.error);
+        log.warn("Failed to fetch requirements:", requirementsResult.error);
       } else {
         setRequirements(requirementsResult.data?.data || []);
       }
     } catch (err: any) {
-      console.error("Error fetching data:", err);
+      log.error("Error fetching data:", err);
       setError(err.message || "Failed to load data");
     } finally {
       setIsLoading(false);
     }
   }, [cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [isRetrying, setIsRetrying] = useState(false);
+  const handleRetry = async () => {
+    setIsRetrying(true);
+    try {
+      await fetchData();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
-  useEffect(() => {
-    if (!cohortId) return;
-    fetchData();
-  }, [cohortId, fetchData]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    keys: [cohortId as string | undefined],
+    fetcher: fetchData,
+  });
 
   const handleHighlightsSuccess = () => {
     fetchData();
@@ -83,23 +114,33 @@ function ProgramDetailsPage() {
       title={cohort ? `Program Details: ${cohort.name}` : "Program Details"}
       backLinkHref="/admin/cohorts"
       backLinkText="Back to cohorts"
-      isLoading={isLoading}
+      isLoading={isLoadingAuth || isLoading}
       error={error}
+      onRetry={handleRetry}
+      isRetrying={isRetrying}
     >
       {cohort && (
         <div className="space-y-6">
           <div className="mb-6">
-            <p className="text-gray-400">
-              Bootcamp Program
-            </p>
+            <p className="text-gray-400">Bootcamp Program</p>
           </div>
 
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full"
+          >
             <TabsList className="grid w-full grid-cols-2 bg-card border border-gray-800">
-              <TabsTrigger value="highlights" className="text-white data-[state=active]:bg-steel-red">
+              <TabsTrigger
+                value="highlights"
+                className="text-white data-[state=active]:bg-steel-red"
+              >
                 Program Highlights
               </TabsTrigger>
-              <TabsTrigger value="requirements" className="text-white data-[state=active]:bg-steel-red">
+              <TabsTrigger
+                value="requirements"
+                className="text-white data-[state=active]:bg-steel-red"
+              >
                 Requirements
               </TabsTrigger>
             </TabsList>
@@ -136,7 +177,8 @@ function ProgramDetailsPage() {
               <Card className="bg-card border-gray-800">
                 <CardHeader>
                   <CardTitle className="text-white">
-                    {highlights.length > 0 ? "Update" : "Add"} Program Highlights
+                    {highlights.length > 0 ? "Update" : "Add"} Program
+                    Highlights
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -180,7 +222,8 @@ function ProgramDetailsPage() {
               <Card className="bg-card border-gray-800">
                 <CardHeader>
                   <CardTitle className="text-white">
-                    {requirements.length > 0 ? "Update" : "Add"} Program Requirements
+                    {requirements.length > 0 ? "Update" : "Add"} Program
+                    Requirements
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -197,8 +240,3 @@ function ProgramDetailsPage() {
     </AdminEditPageLayout>
   );
 }
-
-export default withAdminAuth(
-  ProgramDetailsPage,
-  { message: "You need admin access to manage program details" }
-);

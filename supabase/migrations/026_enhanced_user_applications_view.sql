@@ -3,7 +3,6 @@
 
 -- Drop the existing view
 DROP VIEW IF EXISTS public.user_applications_view;
-
 -- Create enhanced view with enrollment data
 CREATE OR REPLACE VIEW public.user_applications_view AS
 SELECT 
@@ -31,7 +30,6 @@ JOIN public.applications a ON uas.application_id = a.id
 LEFT JOIN public.bootcamp_enrollments be ON be.user_profile_id = uas.user_profile_id 
   AND be.cohort_id = a.cohort_id
 LEFT JOIN public.cohorts c ON c.id = a.cohort_id;
-
 -- Grant necessary permissions
 GRANT SELECT ON public.user_applications_view TO authenticated;
 GRANT SELECT ON public.user_applications_view TO service_role;

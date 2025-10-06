@@ -2,7 +2,6 @@
 -- Fix ambiguous column references by qualifying all columns and renaming return column
 -- Ensure clean slate by dropping existing function if it exists
 DROP FUNCTION IF EXISTS public.handle_successful_payment(UUID, TEXT, TEXT, JSONB);
-
 CREATE OR REPLACE FUNCTION public.handle_successful_payment(
     p_application_id UUID,
     p_payment_reference TEXT,

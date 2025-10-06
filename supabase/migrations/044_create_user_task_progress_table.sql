@@ -16,15 +16,12 @@ CREATE TABLE IF NOT EXISTS public.user_task_progress (
   
   UNIQUE(user_profile_id, task_id)
 );
-
 -- Add indexes for performance
 CREATE INDEX IF NOT EXISTS idx_user_task_progress_user_profile_id ON public.user_task_progress(user_profile_id);
 CREATE INDEX IF NOT EXISTS idx_user_task_progress_task_id ON public.user_task_progress(task_id);
 CREATE INDEX IF NOT EXISTS idx_user_task_progress_status ON public.user_task_progress(status);
-
 -- Enable RLS
 ALTER TABLE public.user_task_progress ENABLE ROW LEVEL SECURITY;
-
 -- RLS Policies
 CREATE POLICY "Users can view their own task progress" 
     ON public.user_task_progress
@@ -32,31 +29,26 @@ CREATE POLICY "Users can view their own task progress"
     USING (user_profile_id IN (
       SELECT id FROM public.user_profiles WHERE privy_user_id = auth.uid()::text
     ));
-
 CREATE POLICY "Users can create their own task progress" 
     ON public.user_task_progress
     FOR INSERT
     WITH CHECK (user_profile_id IN (
       SELECT id FROM public.user_profiles WHERE privy_user_id = auth.uid()::text
     ));
-
 CREATE POLICY "Users can update their own task progress" 
     ON public.user_task_progress
     FOR UPDATE
     USING (user_profile_id IN (
       SELECT id FROM public.user_profiles WHERE privy_user_id = auth.uid()::text
     ));
-
 CREATE POLICY "Service role can manage all task progress" 
     ON public.user_task_progress
     FOR ALL 
     USING (auth.role() = 'service_role');
-
 -- Add updated_at trigger
 CREATE TRIGGER update_user_task_progress_updated_at  
 BEFORE UPDATE ON user_task_progress
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
-
 -- Grant permissions
 GRANT SELECT ON public.user_task_progress TO authenticated;

@@ -2,283 +2,399 @@
 
 ## Overview
 
-This document describes the comprehensive three-layer authentication architecture implemented in the P2E Inferno application. The system is designed to handle authentication across frontend, backend, and blockchain layers with proper security boundaries and optimal performance.
+This document describes the **actual authentication architecture** implemented in the P2E Inferno application. The system provides multi-layered security through Privy wallet authentication, blockchain admin key verification, and an enhanced admin session system.
 
-## Architecture Layers
+## Architecture Overview
 
-### 1. Frontend Authentication Layer
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Frontend      │    │     Backend      │    │   Blockchain    │
+│   (Browser)     │    │   (Next.js)      │    │   (Base Network)│
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+│                      │                      │
+│ 1. Privy JWT         │ 4. Admin Session    │ 7. Key Verification
+│ 2. Wallet Connect    │ 5. Middleware       │ 8. Unlock Protocol
+│ 3. Admin UI Gates    │ 6. API Protection   │ 9. Smart Contracts
+│                      │                      │
+```
 
-**Purpose**: Browser-based blockchain operations with minimal bundle impact  
-**Runtime Environment**: Browser/Client-side  
-**Key Files**:
-- `lib/blockchain/frontend-config.ts` - Client-optimized blockchain configuration
-- `lib/privyUtils.ts` - Frontend Privy utilities
-- Components using Privy React hooks
+## Authentication Layers
 
-**Characteristics**:
-- ✅ **Bundle Size Optimization**: Uses hardcoded values to avoid environment variable bundling
-- ✅ **Security Boundary**: Cannot access private keys or server-only variables  
-- ✅ **Browser APIs**: Optimized for wallet providers (MetaMask, WalletConnect)
-- ✅ **Environment Variables**: Limited to `NEXT_PUBLIC_` prefixed variables only
+### 1. User Authentication Layer
+**Purpose**: Wallet-based user authentication via Privy
+**Files**:
+- Frontend: Privy React hooks (`usePrivy`)
+- Backend: `lib/auth/privy.ts`
 
-**Example Configuration**:
+**Flow**:
+1. User connects wallet through Privy
+2. Privy generates JWT token
+3. Token verified on backend via `getPrivyUserFromNextRequest()`
+4. Fallback to local JWT verification if Privy API unavailable
+
+### 2. Admin Authentication Layer
+**Purpose**: Blockchain-based admin access verification
+**Files**:
+- `hooks/useLockManagerAdminAuth.ts` - Frontend admin validation
+- `lib/auth/admin-auth.ts` - Backend admin middleware (`withAdminAuth`)
+- `lib/auth/admin-key-checker.ts` - Blockchain key verification
+
+**Security Features**:
+- Parallel wallet checking for performance
+- On-chain admin key verification via Unlock Protocol
+- Development fallback with `DEV_ADMIN_ADDRESSES`
+- Wallet ownership validation to prevent session hijacking
+
+### 3. Admin Session Layer (Enhanced Security)
+**Purpose**: Fresh session requirements for admin operations
+**Files**:
+- `lib/auth/admin-session.ts` - Session management
+- `middleware.ts` - Session cookie validation
+- `hooks/useAdminSession.ts` - Frontend session state
+- `hooks/useAdminAuthWithSession.ts` - Combined auth + session
+- `components/admin/AdminSessionGate.tsx` - UI protection
+
+**Features**:
+- Short-lived sessions (configurable TTL, default 3 minutes)
+- Automatic session refresh via `useAdminApi`
+- HttpOnly cookies for security
+- Fresh authentication required per browser session
+
+## Current Implementation
+
+### Frontend Components
+
+#### User Authentication
 ```typescript
-// Frontend: Hardcoded for minimal bundle size
-export const NETWORK_CONFIGS: Record<NetworkType, NetworkConfig> = {
-  'base': {
-    rpcUrl: 'https://mainnet.base.org', // No env vars = smaller bundle
-    chainId: 8453,
-    usdcAddress: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
-  }
+import { usePrivy } from "@privy-io/react-auth";
+
+const { authenticated, user, login, logout } = usePrivy();
+```
+
+#### Admin Authentication (Blockchain Only)
+```typescript
+import { useLockManagerAdminAuth } from "@/hooks/useLockManagerAdminAuth";
+
+const { isAdmin, loading, authenticated } = useLockManagerAdminAuth();
+```
+
+#### Enhanced Admin Authentication (Blockchain + Session)
+```typescript
+import { useAdminAuthWithSession } from "@/hooks/useAdminAuthWithSession";
+
+const {
+  isFullyAuthenticated,
+  needsSessionAuth,
+  createAdminSession
+} = useAdminAuthWithSession();
+```
+
+#### Admin Page Protection
+```typescript
+import AdminSessionGate from "@/components/admin/AdminSessionGate";
+
+export default function AdminPage() {
+  return (
+    <AdminSessionGate>
+      <AdminLayout>
+        <AdminContent />
+      </AdminLayout>
+    </AdminSessionGate>
+  );
 }
 ```
 
-### 2. Backend Authentication Layer
+### Backend API Protection
 
-**Purpose**: Server-side blockchain operations with full environment variable access  
-**Runtime Environment**: Node.js Server  
-**Key Files**:
-- `lib/blockchain/server-config.ts` - Server-side blockchain configuration
-- `lib/blockchain/config/unified-config.ts` - Unified configuration system
-- `lib/auth/privy.ts` - Server-side Privy utilities
-- `lib/auth/admin-auth.ts` - Admin authentication middleware
-
-**Characteristics**:
-- ✅ **Full Environment Access**: Can access `LOCK_MANAGER_PRIVATE_KEY`, `ALCHEMY_API_KEY`, etc.
-- ✅ **Private Key Operations**: Creates wallet clients for transaction signing
-- ✅ **Enhanced RPC**: Uses authenticated Alchemy endpoints with API keys
-- ✅ **Security Validation**: Validates private key formats without logging sensitive data
-- ✅ **JWT Fallback**: Local JWT verification when Privy API is unavailable
-
-**Example Configuration**:
+#### Admin API Endpoints
 ```typescript
-// Server: Environment-based for flexibility + security
-const privateKey = process.env.LOCK_MANAGER_PRIVATE_KEY; // Server-only
-const apiKey = process.env.NEXT_ALCHEMY_API_KEY; // Server-only optimization
-const rpcUrl = `${process.env.BASE_SEPOLIA_RPC_URL}${apiKey}`;
+import { withAdminAuth } from "@/lib/auth/admin-auth";
+
+async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Protected admin logic
+}
+
+export default withAdminAuth(handler);
 ```
 
-### 3. Smart Contract Authentication Layer
-
-**Purpose**: On-chain validation and blockchain transaction operations  
-**Runtime Environment**: Edge Functions (Deno) + Blockchain Network  
-**Key Files**:
-- `supabase/functions/verify-payment/` - Edge function for payment verification
-- `lib/blockchain/lock-manager.ts` - Unlock Protocol integration
-- Smart contracts on Base network
-
-**Characteristics**:
-- ✅ **Deno Environment**: Uses `Deno.env.get()` for environment variables
-- ✅ **Network-Specific RPC**: Dynamic RPC URL selection based on chain ID
-- ✅ **Transaction Verification**: On-chain receipt polling and event log parsing
-- ✅ **Isolated Execution**: Runs in separate edge function environment
-
-**Example Configuration**:
+#### Admin API Calls (Frontend)
 ```typescript
-// Edge functions: Deno-style environment access
-const RPC_URLS: Record<number, string> = {
-  8453: Deno.env.get('BASE_MAINNET_RPC_URL')!, // Deno-specific
-  84532: Deno.env.get('BASE_SEPOLIA_RPC_URL')!,
-};
+import { useAdminApi } from "@/hooks/useAdminApi";
+
+const { adminFetch } = useAdminApi();
+
+// Automatic session refresh on 401 errors
+const result = await adminFetch("/api/admin/users", {
+  method: "POST",
+  body: JSON.stringify(userData)
+});
+```
+
+### Session Management
+
+#### Session Creation
+- **Endpoint**: `POST /api/admin/session`
+- **Trigger**: Initial admin access or session expiration
+- **Validation**: Blockchain admin key verification required
+- **Result**: HttpOnly admin-session cookie
+
+#### Session Verification
+- **Endpoint**: `GET /api/admin/session/verify`
+- **Purpose**: Check session validity without full authentication
+- **Used by**: `useAdminSession` hook for state management
+
+#### Middleware Protection
+```typescript
+// middleware.ts - Runs on all /api/admin/* requests
+export async function middleware(req: NextRequest) {
+  if (process.env.ADMIN_SESSION_ENABLED !== 'true') return;
+
+  const cookieToken = req.cookies.get('admin-session')?.value;
+  if (!cookieToken) {
+    return NextResponse.json({ error: 'Admin session required' }, { status: 401 });
+  }
+
+  const claims = await verifyAdminSession(cookieToken);
+  // Proceed if valid, reject if expired/invalid
+}
 ```
 
 ## Authentication Flows
 
-### Standard User Authentication Flow
+### Standard User Flow
+1. User visits app → Connects wallet via Privy
+2. Privy generates JWT → Stored in browser
+3. API requests include JWT → Backend verifies via `getPrivyUserFromNextRequest()`
+4. User profile retrieved/created in Supabase
 
-1. **Frontend**: User connects wallet via Privy
-2. **Frontend**: Privy generates JWT token
-3. **Backend**: API middleware verifies JWT via `getPrivyUser()`
-4. **Backend**: Fallback to local JWT verification if Privy API unavailable
-5. **Database**: User profile retrieved/created in Supabase
+### Admin Access Flow (Traditional)
+1. Complete user authentication (steps 1-4 above)
+2. Frontend checks admin access → `useLockManagerAdminAuth`
+3. Blockchain validation → Check admin keys via Unlock Protocol
+4. Admin UI access granted if valid keys found
 
-### Admin Authentication Flow
+### Enhanced Admin Flow (Session Gate)
+1. Complete user authentication + admin validation (steps 1-4 above)
+2. Check admin session → `useAdminSession.checkSession()`
+3. **If no session**: Show `AdminSessionRequired` → User creates session
+4. **If session exists**: Proceed to admin content
+5. **During use**: Auto-refresh session every 3 minutes via `useAdminApi`
+6. **On expiration**: Force fresh authentication
 
-1. **Standard Auth**: Complete user authentication (steps 1-5 above)
-2. **Wallet Retrieval**: Fetch user's connected wallet addresses
-3. **Parallel Key Checking**: Check all wallets simultaneously for admin keys
-4. **Blockchain Validation**: Verify admin key via Unlock Protocol contract
-5. **Access Granted**: Admin access granted if any wallet has valid key
+## Security Features
 
-### Payment Verification Flow
-
-1. **Frontend**: User initiates payment transaction
-2. **Blockchain**: Transaction confirmed on-chain
-3. **Edge Function**: Webhook triggers payment verification
-4. **Smart Contract**: Verify transaction details against contract events
-5. **Database**: Update user profile with payment status
-
-## Key Security Features
-
-### Environment Variable Boundaries
-
+### Defense in Depth
 ```typescript
-// ✅ FRONTEND: Only NEXT_PUBLIC_ variables
-process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK // Available
+// Layer 1: Middleware (Session Cookie)
+middleware.ts → verifyAdminSession(cookieToken)
 
-// ✅ BACKEND: Full environment access  
-process.env.LOCK_MANAGER_PRIVATE_KEY // Server only
-process.env.ALCHEMY_API_KEY // Server only
+// Layer 2: API Authentication (Blockchain Verification)
+withAdminAuth → checkMultipleWalletsForAdminKey(wallets, adminLock)
 
-// ✅ EDGE FUNCTIONS: Deno environment
-Deno.env.get('BASE_MAINNET_RPC_URL') // Edge function only
+// Layer 3: Request Validation (Active Wallet)
+X-Active-Wallet header → Verify wallet ownership + admin key
 ```
 
-### JWT Fallback Mechanism
+### Session Security
+- **HttpOnly cookies** - Prevent XSS extraction
+- **Short TTL** - 3-minute default (configurable via `ADMIN_SESSION_TTL_SECONDS`)
+- **Wallet binding** - Sessions tied to specific wallet addresses
+- **Auto-expiration** - Idle sessions automatically expire
 
-When Privy API is unavailable, the system falls back to local JWT verification:
-
+### Wallet Validation
 ```typescript
-// Primary: Privy API verification
-const claims = await privy.verifyAuthToken(token);
-
-// Fallback: Local JWT verification  
-const publicKey = await jose.importSPKI(verificationKey, "ES256");
-const { payload } = await jose.jwtVerify(token, publicKey, {
-  issuer: "privy.io",
-  audience: appId,
-});
-```
-
-### Parallel Wallet Checking
-
-Admin authentication checks multiple wallets simultaneously for performance:
-
-```typescript
-// Before: Sequential checking (slow)
-for (const wallet of wallets) {
-  await checkKey(wallet); // Sequential = slow
+// Prevents session hijacking
+if (connectedWallet !== session.wallet) {
+  await logout(); // Force re-authentication
 }
 
-// After: Parallel checking (fast)
-const results = await Promise.allSettled(
-  wallets.map(wallet => checkKey(wallet))
-); // Parallel = 3x faster
-```
-
-## Configuration Validation
-
-### Startup Validation
-
-The system validates configuration at startup to prevent silent failures:
-
-```typescript
-// Validates all required environment variables
-validateAndLogConfiguration();
-
-// Prevents silent auth failures in production
-if (!isConfigValid && isProduction) {
-  throw new Error('Critical auth configuration missing');
+// Active wallet verification for write operations
+if (method !== 'GET' && !activeWallet) {
+  return res.status(428).json({ error: 'Active wallet required' });
 }
 ```
 
-### Runtime Feature Detection
+## File Structure
 
-```typescript
-const features = checkAuthFeatureAvailability();
-// {
-//   privyAuth: true,
-//   jwtFallback: true,
-//   adminAuth: true,
-//   blockchainOps: true,
-//   enhancedRpc: true
-// }
+### Authentication Core
+```
+lib/auth/
+├── admin-auth.ts           # withAdminAuth middleware
+├── admin-session.ts        # Session creation/verification
+├── admin-key-checker.ts    # Blockchain key verification
+├── privy.ts               # Server-side Privy utilities
+├── error-handler.ts       # Structured error handling
+└── config-validation.ts   # Configuration validation
 ```
 
-## Error Handling
-
-### Structured Error Classification
-
-All authentication errors are classified with specific error codes:
-
-```typescript
-export enum AuthErrorCode {
-  JWT_VERIFICATION_FAILED = 'AUTH_JWT_VERIFICATION_FAILED',
-  PRIVY_API_UNAVAILABLE = 'AUTH_PRIVY_API_UNAVAILABLE',
-  ADMIN_ACCESS_DENIED = 'AUTH_ADMIN_ACCESS_DENIED',
-  BLOCKCHAIN_RPC_ERROR = 'AUTH_BLOCKCHAIN_RPC_ERROR',
-  // ... more codes
-}
+### Frontend Hooks
+```
+hooks/
+├── useLockManagerAdminAuth.ts    # Blockchain admin auth
+├── useAdminAuthWithSession.ts    # Enhanced admin auth
+├── useAdminSession.ts           # Session state management
+└── useAdminApi.ts              # Admin API calls + auto-refresh
 ```
 
-### Safe Error Logging
-
-Sensitive data is automatically filtered from error logs:
-
-```typescript
-// Removes: token, privateKey, secret, password
-logSafeError(authError, userId);
+### UI Components
+```
+components/admin/
+├── AdminSessionGate.tsx      # Session gate protection
+├── AdminSessionRequired.tsx  # Session creation UI
+└── AdminAccessRequired.tsx   # Blockchain access UI
 ```
 
-## Performance Optimizations
+### API Endpoints
+```
+app/api/admin/
+├── session/route.ts          # Session creation
+├── session/verify/route.ts   # Session verification
+└── logout/route.ts          # Session cleanup
 
-### Bundle Size Optimization
+pages/api/admin/
+├── [endpoint].ts            # Protected with withAdminAuth
+└── ...                     # All admin endpoints
+```
 
-- **Frontend configs**: Hardcoded values (no environment variable bundling)
-- **Tree shaking**: Only used authentication modules are bundled
-- **Lazy loading**: Admin components loaded only when needed
+## Configuration
 
-### Network Optimization
+### Environment Variables
+```bash
+# Session System
+ADMIN_SESSION_ENABLED=true              # Enable session middleware
+ADMIN_SESSION_TTL_SECONDS=180           # Session lifetime (3 minutes)
+ADMIN_SESSION_JWT_SECRET=<secret>       # Session signing key
+ADMIN_SESSION_RATE_LIMIT_PER_MINUTE=30  # Rate limiting
 
-- **Parallel operations**: Multiple wallet checks run simultaneously
-- **RPC caching**: Blockchain client instances are cached
-- **Fallback mechanisms**: Local verification when APIs are slow/unavailable
+# Admin Lock
+NEXT_PUBLIC_ADMIN_LOCK_ADDRESS=0x...    # Unlock Protocol admin lock
+DEV_ADMIN_ADDRESSES=0x...              # Development admin wallets
+
+# Privy
+NEXT_PUBLIC_PRIVY_CLIENT_ID=...        # Frontend Privy client
+NEXT_PRIVY_APP_SECRET=...              # Backend Privy secret
+PRIVY_VERIFICATION_KEY=...             # JWT verification key
+```
 
 ### Development vs Production
 
 | Feature | Development | Production |
 |---------|------------|------------|
-| Config validation | Warnings only | Hard errors |
-| Admin fallback | `DEV_ADMIN_ADDRESSES` | Blockchain only |
-| Error logging | Full details | Safe logging |
-| JWT fallback | Always available | Requires config |
+| Admin Access | `DEV_ADMIN_ADDRESSES` fallback | Blockchain verification only |
+| Session TTL | Configurable | Configurable (shorter recommended) |
+| Error Logging | Full details | Sanitized sensitive data |
+| Config Validation | Warnings | Hard errors |
 
-## File Structure Summary
+## Error Handling
 
+### Structured Error Types
+```typescript
+// lib/utils/error-utils.ts
+export function normalizeAdminApiError(status: number, body?: any) {
+  if (status === 428) return "Active wallet connection required";
+  if (status === 401) return "Admin authentication required";
+  if (status === 403) return "Admin access required";
+  // ... additional error normalization
+}
 ```
-lib/auth/
-├── admin-auth.ts              # Admin authentication middleware
-├── admin-key-checker.ts       # Parallel wallet checking utilities  
-├── config-validation.ts       # Startup configuration validation
-├── error-handler.ts           # Unified error handling system
-└── privy.ts                   # Server-side Privy utilities
 
-lib/blockchain/
-├── config/
-│   └── unified-config.ts      # Unified blockchain configuration
-├── frontend-config.ts         # Browser-optimized config (minimal bundle)
-├── server-config.ts           # Server-side config (full env access)
-└── lock-manager.ts            # Unlock Protocol integration
+### Safe Error Logging
+```typescript
+// Automatically filters sensitive data
+logAdminApiError(status, body, {
+  operation: 'POST /api/admin/users',
+  walletAddress: activeWallet,
+  attempt: 'original'
+});
+```
 
-supabase/functions/
-└── verify-payment/            # Edge function for blockchain verification
+## Usage Examples
+
+### Protecting Admin Pages
+```typescript
+// Old pattern (blockchain only)
+const { isAdmin, loading } = useLockManagerAdminAuth();
+if (!isAdmin) return <AdminAccessRequired />;
+
+// New pattern (session gate)
+return (
+  <AdminSessionGate>
+    <AdminLayout>
+      <AdminContent />
+    </AdminLayout>
+  </AdminSessionGate>
+);
+```
+
+### Making Admin API Calls
+```typescript
+const { adminFetch } = useAdminApi();
+
+// Automatic session refresh and error handling
+try {
+  const result = await adminFetch('/api/admin/users', {
+    method: 'POST',
+    body: JSON.stringify(userData)
+  });
+
+  if (result.error) {
+    // Normalized error message
+    toast.error(result.error);
+  } else {
+    // Success
+    setUsers(result.data);
+  }
+} catch (error) {
+  // Network or unexpected errors
+  console.error('API call failed:', error);
+}
+```
+
+## Migration Guide
+
+### From Old Admin Auth
+```typescript
+// Before: Direct authentication checks
+const { isAdmin } = useLockManagerAdminAuth();
+if (!isAdmin) return <AdminAccessRequired />;
+
+// After: Session gate pattern
+return <AdminSessionGate>{content}</AdminSessionGate>;
+```
+
+### From Direct Fetch to useAdminApi
+```typescript
+// Before: Manual authentication
+const token = await getAccessToken();
+const response = await fetch('/api/admin/endpoint', {
+  headers: { 'Authorization': `Bearer ${token}` }
+});
+
+// After: Automatic session management
+const { adminFetch } = useAdminApi();
+const result = await adminFetch('/api/admin/endpoint');
 ```
 
 ## Why This Architecture?
 
-### Problem Solved
+### Security Benefits
+- **Fresh admin authentication** required per browser session
+- **Defense in depth** with multiple validation layers
+- **Short session lifetimes** limit exposure from compromised sessions
+- **Blockchain verification** provides cryptographic proof of admin rights
 
-1. **Security**: Proper environment variable boundaries prevent key exposure
-2. **Performance**: Bundle optimization and parallel operations
-3. **Reliability**: Fallback mechanisms for network issues
-4. **Maintainability**: Centralized configuration with clear separation
-5. **Scalability**: Supports multiple runtime environments
+### User Experience Benefits
+- **Seamless auto-refresh** during active admin use
+- **Clear re-authentication flow** when sessions expire
+- **Consistent error handling** across all admin operations
+- **Standard web2 admin behavior** familiar to users
 
-### Alternative Approaches Considered
-
-❌ **Single Unified Config**: Would break security boundaries  
-❌ **Client-Side Admin Auth**: Would expose sensitive blockchain operations  
-❌ **Sequential Wallet Checking**: Too slow for users with multiple wallets  
-❌ **No JWT Fallback**: Would fail completely during Privy outages
-
-### Future Extensibility
-
-The architecture supports:
-- ✅ Additional runtime environments (Cloudflare Workers, etc.)
-- ✅ Multiple blockchain networks
-- ✅ Alternative authentication providers
-- ✅ Enhanced admin permission models
+### Developer Benefits
+- **Simple integration** with `AdminSessionGate` wrapper
+- **Automatic error handling** via `useAdminApi`
+- **Clear separation** between user and admin authentication
+- **Easy testing** with development admin addresses
 
 ---
 
-*This architecture reflects real constraints of Next.js SSR, browser security models, and edge function environments. The separation is necessary and should be maintained.*
+*This architecture provides enterprise-grade security for admin operations while maintaining excellent user experience through automatic session management and clear authentication flows.*
