@@ -34,21 +34,21 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
   isLoadingStartQuest,
 }) => {
   return (
-    <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl p-8 border border-gray-700 mb-8">
-      <div className="flex items-start justify-between mb-6">
-        <div className="flex-1">
-          <h1 className="text-4xl font-bold text-white mb-4 flex items-center">
+    <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl p-6 sm:p-8 border border-gray-700 mb-8">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-6 mb-6">
+        <div className="flex-1 min-w-0">
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-3 sm:mb-4 flex items-center break-words">
             {quest.title}
             {isQuestCompleted && (
               <Sparkles className="w-8 h-8 text-green-500 ml-3" />
             )}
           </h1>
-          <p className="text-lg text-gray-400 leading-relaxed">
+          <p className="text-base sm:text-lg text-gray-400 leading-relaxed break-words">
             {quest.description}
           </p>
         </div>
 
-        <div className="ml-8 w-32 h-32 rounded-lg overflow-hidden bg-gradient-to-br from-orange-900/20 to-red-900/20 flex-shrink-0">
+        <div className="md:ml-8 w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-lg overflow-hidden bg-gradient-to-br from-orange-900/20 to-red-900/20 flex-shrink-0 self-start md:self-auto mt-2 md:mt-0">
           {quest.image_url ? (
             <Image
               src={quest.image_url}
@@ -67,9 +67,9 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
 
       {/* Progress Section */}
       <div className="space-y-4">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
           <span className="text-gray-400">Quest Progress</span>
-          <span className="text-2xl font-bold text-orange-400">
+          <span className="text-xl sm:text-2xl font-bold text-orange-400">
             {progressPercentage}%
           </span>
         </div>
@@ -86,13 +86,13 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
           />
         </div>
 
-        <div className="flex justify-between items-center">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
           <div className="text-gray-400">
             {tasksCompletedCount} of {totalTasksCount} tasks completed
           </div>
           <div className="flex items-center text-yellow-400">
-            <Coins className="w-6 h-6 mr-2" />
-            <span className="font-bold text-xl">
+            <Coins className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
+            <span className="font-bold text-lg sm:text-xl">
               {quest.total_reward} DG Total
             </span>
           </div>
@@ -104,7 +104,7 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
         <button
           onClick={onStartQuest}
           disabled={isLoadingStartQuest}
-          className="mt-6 w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-4 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed"
+          className="mt-6 w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3 sm:py-4 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed"
         >
           {isLoadingStartQuest ? "Starting..." : "Start Quest"}
         </button>

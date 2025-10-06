@@ -185,14 +185,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
   return (
     <div
       key={task.id}
-      className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-lg p-6 border transition-all duration-300 ${
+      className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-lg p-4 sm:p-6 border transition-all duration-300 ${
         isCompleted
           ? "border-green-500/50"
           : "border-gray-700 hover:border-orange-500/50"
       }`}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex items-start flex-1">
+      <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
+        <div className="flex items-start flex-1 min-w-0">
           {/* Task Status Icon - adjusted to use the new getTaskIcon logic */}
           {isCompleted ? (
             <CheckCircle2 className="w-8 h-8 text-green-500 mr-4 mt-1" />
@@ -203,15 +203,15 @@ const TaskItem: React.FC<TaskItemProps> = ({
           )}
 
           {/* Task Info */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <h3
               className={`text-xl font-bold mb-2 ${
                 isCompleted ? "text-green-400" : "text-white"
               }`}
             >
-              {task.title}
+              <span className="break-words">{task.title}</span>
             </h3>
-            <p className="text-gray-400 mb-4">{task.description}</p>
+            <p className="text-gray-400 mb-4 break-words">{task.description}</p>
 
             {/* Input Field for input-based tasks */}
             {task.input_required &&
@@ -315,10 +315,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
         </div>
 
         {/* Reward Display */}
-        <div className="ml-6 text-right">
-          <div className="flex items-center text-yellow-400">
-            <Coins className="w-5 h-5 mr-1" />
-            <span className="font-bold text-lg">+{task.reward_amount} DG</span>
+        <div className="sm:ml-6 text-left sm:text-right mt-2 sm:mt-0 self-stretch sm:self-auto">
+          <div className="inline-flex items-center text-yellow-400 whitespace-nowrap">
+            <Coins className="w-5 h-5 mr-1 flex-shrink-0" />
+            <span className="font-bold text-base sm:text-lg">
+              +{task.reward_amount} DG
+            </span>
           </div>
         </div>
       </div>
