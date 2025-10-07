@@ -203,6 +203,8 @@ export const useLockManagerAdminAuth = () => {
   // Listen for wallet account changes - now handled by connectedAddress state and useEffect above
   useEffect(() => {
     if (typeof window !== "undefined" && window.ethereum) {
+      const ethereum = window.ethereum;
+
       const handleAccountsChanged = async () => {
         // IMMEDIATE UI PROTECTION: Revoke admin status immediately on wallet change
         log.info("Wallet accounts changed - immediately revoking admin access");
@@ -228,14 +230,11 @@ export const useLockManagerAdminAuth = () => {
         );
       };
 
-      window.ethereum.on("accountsChanged", handleAccountsChanged);
+      ethereum.on("accountsChanged", handleAccountsChanged);
 
       // Clean up the event listener when the component unmounts
       return () => {
-        window.ethereum.removeListener(
-          "accountsChanged",
-          handleAccountsChanged,
-        );
+        ethereum.removeListener("accountsChanged", handleAccountsChanged);
       };
     }
   }, []);

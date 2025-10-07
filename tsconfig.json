@@ -37,6 +37,7 @@
     "**/*.ts",
     "**/*.tsx",
     "next-env.d.ts",
+    "global.d.ts",
     ".next/types/**/*.ts"
     // Note: Do not include Next's generated validator.ts to avoid
     // unused import type errors in strict mode.

@@ -31,6 +31,8 @@ export function listenForWalletChanges(
     return () => {}; // Return empty cleanup function
   }
 
+  const ethereum = window.ethereum;
+
   const handleAccountsChanged = async () => {
     try {
       await callback();
@@ -44,10 +46,10 @@ export function listenForWalletChanges(
     }
   };
 
-  window.ethereum.on("accountsChanged", handleAccountsChanged);
+  ethereum.on("accountsChanged", handleAccountsChanged);
 
   return () => {
-    window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+    ethereum.removeListener("accountsChanged", handleAccountsChanged);
   };
 }
 
@@ -77,12 +79,15 @@ export function listenForWalletAddressChanges(
   return listenForWalletChanges(
     async () => {
       if (typeof window !== "undefined" && window.ethereum) {
+        const ethereum = window.ethereum;
         try {
-          const accounts = await window.ethereum.request({
+          const accounts = await ethereum.request({
             method: "eth_accounts",
           });
           const address =
-            Array.isArray(accounts) && accounts.length > 0 ? accounts[0] : null;
+            Array.isArray(accounts) && accounts.length > 0
+              ? (accounts[0] as string)
+              : null;
           await callback(address);
         } catch (error) {
           log.warn("Failed to get wallet accounts:", { error });
