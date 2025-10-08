@@ -85,11 +85,20 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const record = {
+    const record: any = {
       ...cohort,
       created_at: cohort.created_at ?? now,
       updated_at: cohort.updated_at ?? now,
     };
+    // Harden grant flags: if a lock exists and flag not provided, default to false; clear reason when granted
+    if (record.lock_address) {
+      if (typeof record.lock_manager_granted === 'undefined' || record.lock_manager_granted === null) {
+        record.lock_manager_granted = false;
+      }
+      if (record.lock_manager_granted === true) {
+        record.grant_failure_reason = null;
+      }
+    }
 
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -123,10 +132,19 @@ export async function PUT(req: NextRequest) {
     }
 
     const supabase = createAdminClient();
-    const update = {
+    const update: any = {
       ...cohort,
       updated_at: new Date().toISOString(),
     };
+    // Harden grant flags: same rules as POST
+    if (update.lock_address) {
+      if (typeof update.lock_manager_granted === 'undefined' || update.lock_manager_granted === null) {
+        update.lock_manager_granted = false;
+      }
+      if (update.lock_manager_granted === true) {
+        update.grant_failure_reason = null;
+      }
+    }
 
     const { data, error } = await supabase
       .from('cohorts')

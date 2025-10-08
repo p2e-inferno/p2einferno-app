@@ -33,6 +33,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
+import { initialGrantState, applyDeploymentOutcome, effectiveGrantForSave } from "@/lib/blockchain/shared/grant-state";
 
 const log = getLogger("admin:QuestForm");
 
@@ -62,12 +63,19 @@ export default function QuestForm({
   const [isDeployingLock, setIsDeployingLock] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState<string>("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
+  // Default to false for new quests; set true explicitly when a grant succeeds
   const [lockManagerGranted, setLockManagerGranted] = useState(
-    isEditing ? (quest?.lock_manager_granted ?? true) : true,
+    initialGrantState(isEditing, quest?.lock_manager_granted ?? undefined),
   );
   const [grantFailureReason, setGrantFailureReason] = useState<
     string | undefined
   >(isEditing ? (quest?.grant_failure_reason ?? undefined) : undefined);
+  // Track the most recent grant outcome during submit to avoid async state races
+  let lastGrantFailed: boolean | undefined;
+  let lastGrantError: string | undefined;
+  // Track the most recent grant outcome during submit to avoid async state races
+  let lastGrantFailed: boolean | undefined;
+  let lastGrantError: string | undefined;
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
@@ -300,17 +308,21 @@ export default function QuestForm({
 
       const lockAddress = result.lockAddress;
 
-      // Check if grant failed
-      if (result.grantFailed) {
+      const outcome = applyDeploymentOutcome(result);
+      if (outcome.lastGrantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
-        log.warn("Lock deployed but grant manager transaction failed", {
-          lockAddress,
-          grantError: result.grantError,
-        });
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
-        setLockManagerGranted(true);
-        setGrantFailureReason(undefined);
+      }
+      setLockManagerGranted(outcome.granted);
+      setGrantFailureReason(outcome.reason);
+      lastGrantFailed = outcome.lastGrantFailed;
+      lastGrantError = outcome.lastGrantError;
+      if (outcome.lastGrantFailed) {
+        log.warn("Lock deployed but grant manager transaction failed", {
+          lockAddress,
+          grantError: outcome.lastGrantError,
+        });
       }
 
       // Update draft with deployment result to preserve it in case of database failure
@@ -527,13 +539,20 @@ export default function QuestForm({
           auto_lock_creation?: boolean;
         };
 
-      // Prepare quest data
+      // Prepare quest data using shared grant-state util
+      const effective = effectiveGrantForSave({
+        outcome: { lastGrantFailed, lastGrantError },
+        lockAddress,
+        currentGranted: lockManagerGranted,
+        currentReason: grantFailureReason,
+      });
+
       const questData = {
         ...cleanFormData,
         lock_address: lockAddress,
         total_reward: totalReward,
-        lock_manager_granted: lockManagerGranted,
-        grant_failure_reason: grantFailureReason,
+        lock_manager_granted: effective.granted,
+        grant_failure_reason: effective.reason,
       };
 
       // Prepare tasks data

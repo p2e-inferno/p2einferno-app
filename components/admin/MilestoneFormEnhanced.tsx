@@ -33,6 +33,11 @@ import { resolveDraftById } from "@/lib/utils/draft";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
+import {
+  initialGrantState,
+  applyDeploymentOutcome,
+  effectiveGrantForSave,
+} from "@/lib/blockchain/shared/grant-state";
 
 const log = getLogger("admin:MilestoneFormEnhanced");
 
@@ -96,12 +101,16 @@ export default function MilestoneFormEnhanced({
   const [deploymentStep, setDeploymentStep] = useState("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(!isEditing);
   const [error, setError] = useState<string | null>(null);
+  // Default to false for new milestones; set true explicitly when a grant succeeds
   const [lockManagerGranted, setLockManagerGranted] = useState(
-    isEditing ? (milestone?.lock_manager_granted ?? true) : true,
+    initialGrantState(isEditing, milestone?.lock_manager_granted ?? undefined),
   );
   const [grantFailureReason, setGrantFailureReason] = useState<
     string | undefined
   >(isEditing ? (milestone?.grant_failure_reason ?? undefined) : undefined);
+  // Track the most recent grant outcome during submit to avoid async state races
+  let lastGrantFailed: boolean | undefined;
+  let lastGrantError: string | undefined;
   const { adminFetch } = useAdminApi();
   const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
@@ -427,14 +436,21 @@ export default function MilestoneFormEnhanced({
       // Check if grant failed
       if (result.grantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
+        setLockManagerGranted(false);
+        setGrantFailureReason(result.grantError || "Grant manager transaction failed");
         log.warn("Lock deployed but grant manager transaction failed", {
           lockAddress,
           grantError: result.grantError,
+          lockManagerGranted: false,
         });
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
         setLockManagerGranted(true);
         setGrantFailureReason(undefined);
+        log.info("Lock deployed and grant manager successful", {
+          lockAddress,
+          lockManagerGranted: true,
+        });
       }
 
       // Update draft with deployment result to preserve it in case of database failure
@@ -655,15 +671,16 @@ export default function MilestoneFormEnhanced({
 
           lockAddress = deploymentResult.lockAddress;
 
-          // Track grant failure if it occurred
-          if (deploymentResult.grantFailed) {
-            setLockManagerGranted(false);
-            setGrantFailureReason(
-              deploymentResult.grantError || "Grant manager transaction failed",
-            );
+          // Reflect grant result explicitly (and record outcome locally for this submit)
+          const outcome = applyDeploymentOutcome(deploymentResult);
+          setLockManagerGranted(outcome.granted);
+          setGrantFailureReason(outcome.reason);
+          lastGrantFailed = outcome.lastGrantFailed;
+          lastGrantError = outcome.lastGrantError;
+          if (outcome.lastGrantFailed) {
             log.warn("Milestone will be created with grant failure flag", {
               lockAddress,
-              grantError: deploymentResult.grantError,
+              grantError: outcome.lastGrantError,
             });
           }
         } catch (deployError: any) {
@@ -694,6 +711,14 @@ export default function MilestoneFormEnhanced({
         log.debug("Dropping auto_lock_creation flag from milestone payload");
       }
 
+      // Use effective values for this submit to avoid relying on async state updates
+      const effective = effectiveGrantForSave({
+        outcome: { lastGrantFailed, lastGrantError },
+        lockAddress,
+        currentGranted: lockManagerGranted,
+        currentReason: grantFailureReason,
+      });
+
       const milestoneData = {
         ...formDataWithoutTasks,
         name: formDataWithoutTasks.name || "",
@@ -705,10 +730,17 @@ export default function MilestoneFormEnhanced({
           formDataWithoutTasks.prerequisite_milestone_id || null,
         duration_hours: formDataWithoutTasks.duration_hours || 0,
         total_reward: totalTaskReward,
-        lock_manager_granted: lockManagerGranted,
-        grant_failure_reason: grantFailureReason,
+        lock_manager_granted: effective.granted,
+        grant_failure_reason: effective.reason,
         updated_at: now,
       };
+
+      log.info("Preparing milestone data for save", {
+        lockAddress,
+        lockManagerGranted,
+        grantFailureReason,
+        hasLockAddress: !!lockAddress,
+      });
 
       // Include created_at when creating new milestone
       if (!isEditing) {
@@ -727,6 +759,8 @@ export default function MilestoneFormEnhanced({
         "prerequisite_milestone_id",
         "duration_hours",
         "total_reward",
+        "lock_manager_granted",
+        "grant_failure_reason",
         "created_at",
         "updated_at",
         "old_id_text",
@@ -1096,7 +1130,11 @@ export default function MilestoneFormEnhanced({
                       min="1"
                       value={task.reward_amount || ""}
                       onChange={(e) =>
-                        updateTask(task.id, "reward_amount", e.target.value)
+                        updateTask(
+                          task.id,
+                          "reward_amount",
+                          e.target.value === "" ? 0 : Number(e.target.value),
+                        )
                       }
                       placeholder="100"
                       className={`${inputClass} mt-1`}

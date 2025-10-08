@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
+import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +22,7 @@ import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 import { getLogger } from "@/lib/utils/logger";
+import { toast } from "react-hot-toast";
 
 const log = getLogger("admin:quests:[id]");
 
@@ -244,6 +246,25 @@ export default function QuestDetailsPage() {
                 </div>
               </div>
             </div>
+
+            {/* Lock Manager Grant Retry Button */}
+            {quest.lock_address && quest.lock_manager_granted === false && (
+              <LockManagerRetryButton
+                entityType="quest"
+                entityId={quest.id}
+                lockAddress={quest.lock_address}
+                grantFailureReason={quest.grant_failure_reason}
+                onSuccess={() => {
+                  toast.success("Database updated successfully");
+                  if (id && typeof id === "string") {
+                    fetchQuestDetails(id); // Refresh quest data
+                  }
+                }}
+                onError={(error) => {
+                  toast.error(`Update failed: ${error}`);
+                }}
+              />
+            )}
 
             {/* Statistics */}
             {quest.stats && (

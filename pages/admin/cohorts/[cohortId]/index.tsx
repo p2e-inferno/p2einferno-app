@@ -2,11 +2,13 @@ import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
+import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
+import { toast } from "react-hot-toast";
 
 const log = getLogger("admin:cohorts:[cohortId]:index");
 
@@ -78,6 +80,25 @@ export default function EditCohortPage() {
       onRetry={handleRetry}
       isRetrying={isRetrying}
     >
+      {/* Lock Manager Grant Retry Button */}
+      {cohort?.lock_address && cohort?.lock_manager_granted === false && (
+        <div className="mb-6">
+          <LockManagerRetryButton
+            entityType="cohort"
+            entityId={cohort.id}
+            lockAddress={cohort.lock_address}
+            grantFailureReason={cohort.grant_failure_reason}
+            onSuccess={() => {
+              toast.success("Database updated successfully");
+              fetchCohort(); // Refresh cohort data
+            }}
+            onError={(error) => {
+              toast.error(`Update failed: ${error}`);
+            }}
+          />
+        </div>
+      )}
+
       {
         cohort ? (
           <CohortForm cohort={cohort} isEditing />

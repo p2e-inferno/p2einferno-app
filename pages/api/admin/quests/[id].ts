@@ -131,6 +131,18 @@ async function updateQuest(
   try {
     const now = new Date().toISOString();
 
+    // Harden grant flags when lock_address present
+    const lockAddr = (questFields as any)?.lock_address;
+    if (lockAddr) {
+      const hasGranted = Object.prototype.hasOwnProperty.call(questFields, 'lock_manager_granted');
+      if (!hasGranted || (questFields as any).lock_manager_granted === undefined || (questFields as any).lock_manager_granted === null) {
+        (questFields as any).lock_manager_granted = false;
+      }
+      if ((questFields as any).lock_manager_granted === true) {
+        (questFields as any).grant_failure_reason = null;
+      }
+    }
+
     // Prepare update data - map xp_reward to total_reward if provided
     const updateData: any = {
       ...questFields,
@@ -277,7 +289,7 @@ async function patchQuest(
   supabase: any,
   questId: string,
 ) {
-  const updates = req.body;
+  const updates = req.body as any;
 
   if (!updates || typeof updates !== "object") {
     return res.status(400).json({ error: "Update data is required" });
@@ -285,6 +297,16 @@ async function patchQuest(
 
   try {
     const now = new Date().toISOString();
+
+    // Harden grant flags when lock_address present (PATCH semantics: only if provided)
+    if (Object.prototype.hasOwnProperty.call(updates, 'lock_address') && updates.lock_address) {
+      if (!Object.prototype.hasOwnProperty.call(updates, 'lock_manager_granted') || updates.lock_manager_granted === undefined || updates.lock_manager_granted === null) {
+        updates.lock_manager_granted = false;
+      }
+      if (updates.lock_manager_granted === true) {
+        updates.grant_failure_reason = null;
+      }
+    }
 
     // Update quest with only the provided fields
     const { data: questData, error: questError } = await supabase
