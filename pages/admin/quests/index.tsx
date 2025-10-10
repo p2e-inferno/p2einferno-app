@@ -12,6 +12,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
 
 const log = getLogger("admin:quests:index");
 
@@ -240,7 +241,7 @@ export default function AdminQuestsPage() {
                   <h3 className="text-lg font-bold text-white mb-1 leading-tight">
                     {quest.title}
                   </h3>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2 items-center">
                     <Badge
                       className={
                         quest.is_active ? "bg-green-600" : "bg-gray-600"
@@ -248,6 +249,11 @@ export default function AdminQuestsPage() {
                     >
                       {quest.is_active ? "Active" : "Inactive"}
                     </Badge>
+                    <PendingLockManagerBadge
+                      lockAddress={quest.lock_address}
+                      lockManagerGranted={quest.lock_manager_granted}
+                      reason={quest.grant_failure_reason}
+                    />
                     {quest.stats && quest.stats.pending_submissions > 0 && (
                       <Badge className="bg-orange-600 text-xs">
                         {quest.stats.pending_submissions} Pending
@@ -400,6 +406,11 @@ export default function AdminQuestsPage() {
                       >
                         {quest.is_active ? "Active" : "Inactive"}
                       </Badge>
+                      <PendingLockManagerBadge
+                        lockAddress={quest.lock_address}
+                        lockManagerGranted={quest.lock_manager_granted}
+                        reason={quest.grant_failure_reason}
+                      />
                       {quest.stats && quest.stats.pending_submissions > 0 && (
                         <Badge className="bg-orange-600">
                           {quest.stats.pending_submissions} Pending Reviews

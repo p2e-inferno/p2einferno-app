@@ -69,6 +69,16 @@ export default function QuestDetailsPage() {
         }
 
         setQuest(result.data.quest);
+        try {
+          log.info("Quest details loaded", {
+            questId: result.data.quest.id,
+            hasLockAddress: Boolean(result.data.quest.lock_address),
+            lockManagerGranted: result.data.quest.lock_manager_granted,
+            grantFailureReasonPresent: Boolean(
+              result.data.quest.grant_failure_reason,
+            ),
+          });
+        } catch {}
 
         if (
           result.data.quest.stats?.pending_submissions &&

@@ -6,7 +6,6 @@ import { RefreshCw, AlertTriangle } from "lucide-react";
 import { useAddLockManager } from "@/hooks/unlock/useAddLockManager";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { toast } from "react-hot-toast";
-import { getLockManagerAddress } from "@/lib/blockchain/legacy/server-config";
 import type { Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -39,11 +38,15 @@ export default function LockManagerRetryButton({
     setIsRetrying(true);
 
     try {
-      // Get server wallet address
-      const serverWalletAddress = getLockManagerAddress();
-
-      if (!serverWalletAddress) {
-        throw new Error("Server wallet address not configured");
+      // Get server wallet address (server-side) via admin API to avoid leaking secrets on the client
+      const serverResp = await adminFetch<{ serverWalletAddress: string }>(
+        "/api/admin/server-wallet",
+      );
+      const serverWalletAddress = serverResp.data?.serverWalletAddress;
+      if (serverResp.error || !serverWalletAddress) {
+        throw new Error(
+          serverResp.error || "Failed to fetch server wallet address",
+        );
       }
 
       log.info("Starting lock manager grant retry", {
@@ -224,4 +227,3 @@ export default function LockManagerRetryButton({
     </div>
   );
 }
-

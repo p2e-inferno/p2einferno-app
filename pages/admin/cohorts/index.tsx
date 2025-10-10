@@ -12,6 +12,7 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
+import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
 
 const log = getLogger("admin:cohorts:index");
 
@@ -125,12 +126,19 @@ export default function CohortListPage() {
                 className="border-b border-gray-800 hover:bg-gray-900"
               >
                 <td className="py-4 px-4 text-sm text-white">
-                  <Link
-                    href={`/admin/cohorts/${cohort.id}/applications`}
-                    className="hover:text-flame-yellow"
-                  >
-                    {cohort.name}
-                  </Link>
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/admin/cohorts/${cohort.id}/applications`}
+                      className="hover:text-flame-yellow"
+                    >
+                      {cohort.name}
+                    </Link>
+                    <PendingLockManagerBadge
+                      lockAddress={cohort.lock_address}
+                      lockManagerGranted={cohort.lock_manager_granted}
+                      reason={cohort.grant_failure_reason}
+                    />
+                  </div>
                 </td>
                 <td className="py-4 px-4 text-sm text-white">
                   {cohort.bootcamp_program?.name || "Unknown Bootcamp"}

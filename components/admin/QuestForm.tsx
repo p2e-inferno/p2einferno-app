@@ -73,9 +73,6 @@ export default function QuestForm({
   // Track the most recent grant outcome during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
-  // Track the most recent grant outcome during submit to avoid async state races
-  let lastGrantFailed: boolean | undefined;
-  let lastGrantError: string | undefined;
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
