@@ -33,7 +33,11 @@ import { getLogger } from "@/lib/utils/logger";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
-import { initialGrantState, applyDeploymentOutcome, effectiveGrantForSave } from "@/lib/blockchain/shared/grant-state";
+import {
+  initialGrantState,
+  applyDeploymentOutcome,
+  effectiveGrantForSave,
+} from "@/lib/blockchain/shared/grant-state";
 
 const log = getLogger("admin:QuestForm");
 

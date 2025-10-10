@@ -134,8 +134,15 @@ async function updateQuest(
     // Harden grant flags when lock_address present
     const lockAddr = (questFields as any)?.lock_address;
     if (lockAddr) {
-      const hasGranted = Object.prototype.hasOwnProperty.call(questFields, 'lock_manager_granted');
-      if (!hasGranted || (questFields as any).lock_manager_granted === undefined || (questFields as any).lock_manager_granted === null) {
+      const hasGranted = Object.prototype.hasOwnProperty.call(
+        questFields,
+        "lock_manager_granted",
+      );
+      if (
+        !hasGranted ||
+        (questFields as any).lock_manager_granted === undefined ||
+        (questFields as any).lock_manager_granted === null
+      ) {
         (questFields as any).lock_manager_granted = false;
       }
       if ((questFields as any).lock_manager_granted === true) {
@@ -299,8 +306,18 @@ async function patchQuest(
     const now = new Date().toISOString();
 
     // Harden grant flags when lock_address present (PATCH semantics: only if provided)
-    if (Object.prototype.hasOwnProperty.call(updates, 'lock_address') && updates.lock_address) {
-      if (!Object.prototype.hasOwnProperty.call(updates, 'lock_manager_granted') || updates.lock_manager_granted === undefined || updates.lock_manager_granted === null) {
+    if (
+      Object.prototype.hasOwnProperty.call(updates, "lock_address") &&
+      updates.lock_address
+    ) {
+      if (
+        !Object.prototype.hasOwnProperty.call(
+          updates,
+          "lock_manager_granted",
+        ) ||
+        updates.lock_manager_granted === undefined ||
+        updates.lock_manager_granted === null
+      ) {
         updates.lock_manager_granted = false;
       }
       if (updates.lock_manager_granted === true) {

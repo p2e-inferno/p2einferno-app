@@ -81,7 +81,9 @@ export default function MilestoneDetailsPage() {
         lockManagerGranted: combinedMilestone.lock_manager_granted,
         lockManagerGrantedType: typeof combinedMilestone.lock_manager_granted,
         grantFailureReason: combinedMilestone.grant_failure_reason,
-        grantFailureReasonPresent: Boolean(combinedMilestone.grant_failure_reason),
+        grantFailureReasonPresent: Boolean(
+          combinedMilestone.grant_failure_reason,
+        ),
         shouldShowRetryButton:
           !!combinedMilestone.lock_address &&
           combinedMilestone.lock_manager_granted === false,

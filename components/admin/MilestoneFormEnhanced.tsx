@@ -437,7 +437,9 @@ export default function MilestoneFormEnhanced({
       if (result.grantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
         setLockManagerGranted(false);
-        setGrantFailureReason(result.grantError || "Grant manager transaction failed");
+        setGrantFailureReason(
+          result.grantError || "Grant manager transaction failed",
+        );
         log.warn("Lock deployed but grant manager transaction failed", {
           lockAddress,
           grantError: result.grantError,

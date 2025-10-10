@@ -16,7 +16,7 @@ function invalidateQuestCache(id: string) {
   }
 }
 
-export async function GET(req: NextRequest, { params }: { params: { questId: string } }) {
+export async function GET(req: NextRequest, { params }: any) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
   const { questId } = params;
@@ -63,7 +63,7 @@ export async function GET(req: NextRequest, { params }: { params: { questId: str
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: { questId: string } }) {
+export async function PUT(req: NextRequest, { params }: any) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
   const { questId } = params;
@@ -86,7 +86,7 @@ export async function PUT(req: NextRequest, { params }: { params: { questId: str
     const updateData: any = { ...questFields, updated_at: now };
     if (typeof xp_reward !== 'undefined') updateData.total_reward = xp_reward;
 
-    const { data: questData, error: questError } = await supabase
+    const { error: questError } = await supabase
       .from('quests')
       .update(updateData)
       .eq('id', questId)
@@ -165,7 +165,7 @@ export async function PUT(req: NextRequest, { params }: { params: { questId: str
   }
 }
 
-export async function PATCH(req: NextRequest, ctx: { params: { questId: string } }) {
+export async function PATCH(req: NextRequest, ctx: any) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
   const { questId } = ctx.params;
@@ -199,7 +199,7 @@ export async function PATCH(req: NextRequest, ctx: { params: { questId: string }
   }
 }
 
-export async function DELETE(req: NextRequest, ctx: { params: { questId: string } }) {
+export async function DELETE(req: NextRequest, ctx: any) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
   const { questId } = ctx.params;

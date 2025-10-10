@@ -468,19 +468,6 @@ export default function BootcampForm({
 
       // Prepare submission data for API
       // Use effective values for this submit to avoid relying on async state updates
-      const effectiveLockManagerGranted =
-        typeof lastGrantFailed === "boolean"
-          ? !lastGrantFailed
-          : lockAddress
-          ? lockManagerGranted
-          : false;
-      const effectiveGrantFailureReason =
-        typeof lastGrantFailed === "boolean"
-          ? lastGrantFailed
-            ? lastGrantError || "Grant manager transaction failed"
-            : undefined
-          : grantFailureReason;
-
       const effective = effectiveGrantForSave({
         outcome: { lastGrantFailed, lastGrantError },
         lockAddress,

@@ -572,7 +572,9 @@ export default function CohortForm({
       // Prefer the direct deployment outcome computed above; otherwise fall back to current state
       const effective = effectiveGrantForSave({
         outcome: { lastGrantFailed, lastGrantError },
-        lockAddress: (formData.lock_address || lockAddress) as string | undefined,
+        lockAddress: (formData.lock_address || lockAddress) as
+          | string
+          | undefined,
         currentGranted: lockManagerGranted,
         currentReason: grantFailureReason,
       });
