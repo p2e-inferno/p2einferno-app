@@ -40,6 +40,16 @@ interface MilestoneTask {
   requires_admin_review: boolean;
   submission_status?: "pending" | "completed" | null;
   reward_claimed?: boolean;
+  latest_submission?: {
+    id: string;
+    submission_url?: string;
+    submission_type?: string;
+    submitted_at?: string;
+    status?: string;
+    feedback?: string | null;
+    reviewed_at?: string | null;
+    reviewed_by?: string | null;
+  } | null;
 }
 
 interface MilestoneWithProgress {
@@ -582,6 +592,16 @@ export default function BootcampLearningPage() {
                                   </span>
                                 </div>
                               </div>
+
+                              {/* Admin feedback when submission reviewed and not completed */}
+                              {task.latest_submission?.feedback &&
+                                task.submission_status !== "completed" && (
+                                  <div className="mt-3 p-3 rounded border border-yellow-700/50 bg-yellow-900/20">
+                                    <p className="text-sm text-yellow-300 whitespace-pre-wrap">
+                                      {task.latest_submission.feedback}
+                                    </p>
+                                  </div>
+                                )}
                             </div>
                             <div className="flex items-center space-x-3">
                               {task.submission_status === "pending" && (
