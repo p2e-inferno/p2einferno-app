@@ -9,7 +9,12 @@ npm run dev -- --turbo      # Turbopack (faster HMR)
 npm run build && npm start  # Production build/run
 npm run lint                # ESLint + Prettier check + tsc --noEmit
 npm run test:coverage       # Jest + coverage (jsdom)
+
+# Database commands
 npm run db:migrate          # Apply Supabase migrations
+npm run db:types            # Generate TypeScript types from local schema
+npm run db:types:remote     # Generate types from remote schema
+npm run db:seed             # Reset DB with migrations + seed data
 ```
 
 ## Project Structure
@@ -40,10 +45,35 @@ npm run db:migrate          # Apply Supabase migrations
 - **Admin Security**: `hooks/useLockManagerAdminAuth.ts` implements wallet-session validation to prevent session hijacking. Connected wallet must belong to current Privy user; forces logout on mismatch. Tracks provider address via `eth_accounts` for immediate UI protection on wallet changes.
 
 ## Database (Supabase CLI)
-- Preferred: Supabase CLI. If unsure, run `supabase --help`.
-- Target selection: Use `NEXT_PUBLIC_SUPABASE_URL` to detect local vs remote.
-- Secrets: DB password in `.env.local` (do not commit). Migrations live in `supabase/migrations/`.
-- Common: `supabase start|stop`, `supabase db reset`, `supabase link --project-ref <ref>`, `supabase db push`, `supabase migration new <name>`.
+- **CLI Version**: v2.48.3 (keep updated regularly for security patches)
+- **Preferred**: Supabase CLI. If unsure, run `supabase --help`.
+- **Target selection**: Use `NEXT_PUBLIC_SUPABASE_URL` to detect local vs remote.
+- **Secrets**: DB password in `.env.local` (do not commit). Migrations live in `supabase/migrations/`.
+- **Common commands**:
+  - `supabase start|stop` - Local Supabase instance
+  - `supabase db reset` - Reset local DB with migrations + seed data
+  - `supabase link --project-ref <ref>` - Link to remote project
+  - `supabase db push` - Push migrations to remote
+  - **Migration naming**: Follow pattern `###_description.sql` (e.g., `069_fix_sql_ambiguity.sql`)
+
+### Type Generation
+- **Auto-generate types**: `npm run db:types` (from local schema)
+- **From remote**: `npm run db:types:remote` (requires SUPABASE_PROJECT_ID)
+- **Location**: Types generated to `lib/supabase/types-gen.ts`
+- **Workflow**: Regenerate types after schema changes to keep TypeScript in sync
+
+### Seed Data
+- **File**: `supabase/seed.sql` - Sample data for local development
+- **Usage**: Automatically applied on `supabase db reset`
+- **Purpose**: Consistent local environment with test bootcamps, cohorts, and quests
+
+### Database Security Best Practices
+- **Function Security**: All PL/pgSQL functions MUST include `SET search_path = 'public'` to prevent SQL injection via search_path manipulation
+- **SECURITY DEFINER**: Use sparingly and only when necessary. Always combine with `SET search_path` when used.
+- **Views**: Avoid `SECURITY DEFINER` on views; use RLS policies instead for access control
+- **Foreign Key Indexes**: All foreign key columns should have covering indexes for JOIN performance
+- **RLS Policies**: Use `(select auth.uid())` instead of `auth.uid()` to move function to initialization plan (major perf boost)
+- **Reference**: See `docs/supabase-security-performance-advisory.md` for full security audit results
 
 ## Coding & Tests
 - TypeScript, 2‑space indent, React components in PascalCase, hooks as `useX.ts`, pages lowercase with dynamic segments.

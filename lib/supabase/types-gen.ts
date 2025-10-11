@@ -275,9 +275,11 @@ export type Database = {
           created_at: string | null
           description: string
           duration_weeks: number
+          grant_failure_reason: string | null
           id: string
           image_url: string | null
           lock_address: string | null
+          lock_manager_granted: boolean
           max_reward_dgt: number
           name: string
           updated_at: string | null
@@ -286,9 +288,11 @@ export type Database = {
           created_at?: string | null
           description: string
           duration_weeks: number
+          grant_failure_reason?: string | null
           id: string
           image_url?: string | null
           lock_address?: string | null
+          lock_manager_granted?: boolean
           max_reward_dgt?: number
           name: string
           updated_at?: string | null
@@ -297,9 +301,11 @@ export type Database = {
           created_at?: string | null
           description?: string
           duration_weeks?: number
+          grant_failure_reason?: string | null
           id?: string
           image_url?: string | null
           lock_address?: string | null
+          lock_manager_granted?: boolean
           max_reward_dgt?: number
           name?: string
           updated_at?: string | null
@@ -359,8 +365,10 @@ export type Database = {
           description: string
           duration_hours: number | null
           end_date: string | null
+          grant_failure_reason: string | null
           id: string
           lock_address: string
+          lock_manager_granted: boolean
           name: string
           old_id_text: string | null
           order_index: number
@@ -375,8 +383,10 @@ export type Database = {
           description: string
           duration_hours?: number | null
           end_date?: string | null
+          grant_failure_reason?: string | null
           id?: string
           lock_address: string
+          lock_manager_granted?: boolean
           name: string
           old_id_text?: string | null
           order_index?: number
@@ -391,8 +401,10 @@ export type Database = {
           description?: string
           duration_hours?: number | null
           end_date?: string | null
+          grant_failure_reason?: string | null
           id?: string
           lock_address?: string
+          lock_manager_granted?: boolean
           name?: string
           old_id_text?: string | null
           order_index?: number
@@ -424,9 +436,11 @@ export type Database = {
           created_at: string | null
           current_participants: number
           end_date: string
+          grant_failure_reason: string | null
           id: string
           key_managers: string[] | null
           lock_address: string | null
+          lock_manager_granted: boolean
           max_participants: number
           naira_amount: number | null
           name: string
@@ -441,9 +455,11 @@ export type Database = {
           created_at?: string | null
           current_participants?: number
           end_date: string
+          grant_failure_reason?: string | null
           id: string
           key_managers?: string[] | null
           lock_address?: string | null
+          lock_manager_granted?: boolean
           max_participants?: number
           naira_amount?: number | null
           name: string
@@ -458,9 +474,11 @@ export type Database = {
           created_at?: string | null
           current_participants?: number
           end_date?: string
+          grant_failure_reason?: string | null
           id?: string
           key_managers?: string[] | null
           lock_address?: string | null
+          lock_manager_granted?: boolean
           max_participants?: number
           naira_amount?: number | null
           name?: string
@@ -878,10 +896,12 @@ export type Database = {
         Row: {
           created_at: string | null
           description: string
+          grant_failure_reason: string | null
           id: string
           image_url: string | null
           is_active: boolean
           lock_address: string | null
+          lock_manager_granted: boolean
           title: string
           total_reward: number
           updated_at: string | null
@@ -889,10 +909,12 @@ export type Database = {
         Insert: {
           created_at?: string | null
           description: string
+          grant_failure_reason?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
           lock_address?: string | null
+          lock_manager_granted?: boolean
           title: string
           total_reward?: number
           updated_at?: string | null
@@ -900,10 +922,12 @@ export type Database = {
         Update: {
           created_at?: string | null
           description?: string
+          grant_failure_reason?: string | null
           id?: string
           image_url?: string | null
           is_active?: boolean
           lock_address?: string | null
+          lock_manager_granted?: boolean
           title?: string
           total_reward?: number
           updated_at?: string | null
