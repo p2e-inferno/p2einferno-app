@@ -1,8 +1,8 @@
 # Supabase Security & Performance Advisory Report
 
-**Generated**: December 2024
+**Generated**: December 2024  
 **Last Updated**: January 2025
-**Database**: p2einferno-app Supabase Project
+**Database**: p2einferno-app Supabase Project  
 **Postgres Version**: supabase-postgres-17.4.1.064
 **Last CLI Check**: January 2025 (CLI v2.48.3)
 
@@ -67,7 +67,7 @@ END;
 ```
 
 #### 2. Security Definer Views ✅ RESOLVED
-**Severity**: CRITICAL
+**Severity**: CRITICAL  
 **Count**: 2 instances
 **Status**: ✅ **FIXED** in Migration 072 (January 2025)
 
@@ -105,7 +105,7 @@ Reference: [Security Definer View Guide](https://supabase.com/docs/guides/databa
 ### Warning Issues (WARN Level)
 
 #### 2. Function Search Path Mutable ✅ MOSTLY RESOLVED
-**Severity**: HIGH
+**Severity**: HIGH  
 **Count**: 22 instances identified, **20 secured** (91% complete)
 **Status**: ✅ **20/22 FIXED** in Migrations 069, 070, 073, 074 (January 2025)
 
@@ -193,7 +193,7 @@ Reference: [Function Search Path Guide](https://supabase.com/docs/guides/databas
 ### Information Level Issues
 
 #### 1. Unindexed Foreign Keys ✅ RESOLVED
-**Severity**: MEDIUM
+**Severity**: MEDIUM  
 **Count**: 7 instances
 **Status**: ✅ **ALL FIXED** in Migration 071 (January 2025)
 

@@ -11,8 +11,8 @@
 
 INSERT INTO bootcamp_programs (id, name, description, duration_weeks, max_reward_dgt, lock_manager_granted, image_url)
 VALUES
-  ('bootcamp-web3-101', 'Web3 Fundamentals', 'Learn the basics of Web3 development, blockchain technology, and smart contracts', 8, 500, false, NULL),
-  ('bootcamp-defi-201', 'DeFi Development', 'Advanced course on building DeFi applications and protocols', 12, 1000, false, NULL)
+  ('550e8400-e29b-41d4-a716-446655440010', 'Web3 Fundamentals', 'Learn the basics of Web3 development, blockchain technology, and smart contracts', 8, 500, false, NULL),
+  ('550e8400-e29b-41d4-a716-446655440011', 'DeFi Development', 'Advanced course on building DeFi applications and protocols', 12, 1000, false, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================
@@ -34,8 +34,8 @@ INSERT INTO cohorts (
 )
 VALUES
   (
-    'cohort-2025-q1',
-    'bootcamp-web3-101',
+    '550e8400-e29b-41d4-a716-446655440020',
+    '550e8400-e29b-41d4-a716-446655440010',
     'Web3 Fundamentals Q1 2025',
     '2025-01-15',
     '2025-03-15',
@@ -47,8 +47,8 @@ VALUES
     100
   ),
   (
-    'cohort-2025-q2',
-    'bootcamp-defi-201',
+    '550e8400-e29b-41d4-a716-446655440021',
+    '550e8400-e29b-41d4-a716-446655440011',
     'DeFi Development Q2 2025',
     '2025-04-01',
     '2025-06-30',
@@ -67,12 +67,12 @@ ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO program_highlights (cohort_id, content, order_index)
 VALUES
-  ('cohort-2025-q1', 'Interactive live sessions with industry experts', 1),
-  ('cohort-2025-q1', 'Hands-on smart contract development', 2),
-  ('cohort-2025-q1', 'Build and deploy your first DApp', 3),
-  ('cohort-2025-q2', 'Deep dive into DeFi protocols and mechanisms', 1),
-  ('cohort-2025-q2', 'Build your own DEX or lending protocol', 2),
-  ('cohort-2025-q2', 'Security best practices and auditing', 3)
+  ('550e8400-e29b-41d4-a716-446655440020', 'Interactive live sessions with industry experts', 1),
+  ('550e8400-e29b-41d4-a716-446655440020', 'Hands-on smart contract development', 2),
+  ('550e8400-e29b-41d4-a716-446655440020', 'Build and deploy your first DApp', 3),
+  ('550e8400-e29b-41d4-a716-446655440021', 'Deep dive into DeFi protocols and mechanisms', 1),
+  ('550e8400-e29b-41d4-a716-446655440021', 'Build your own DEX or lending protocol', 2),
+  ('550e8400-e29b-41d4-a716-446655440021', 'Security best practices and auditing', 3)
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
@@ -81,12 +81,12 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO program_requirements (cohort_id, content, order_index)
 VALUES
-  ('cohort-2025-q1', 'Basic understanding of programming concepts', 1),
-  ('cohort-2025-q1', 'Familiarity with JavaScript/TypeScript', 2),
-  ('cohort-2025-q1', 'Dedicated 10-15 hours per week', 3),
-  ('cohort-2025-q2', 'Completed Web3 Fundamentals or equivalent', 1),
-  ('cohort-2025-q2', 'Strong understanding of Solidity', 2),
-  ('cohort-2025-q2', 'Dedicated 15-20 hours per week', 3)
+  ('550e8400-e29b-41d4-a716-446655440020', 'Basic understanding of programming concepts', 1),
+  ('550e8400-e29b-41d4-a716-446655440020', 'Familiarity with JavaScript/TypeScript', 2),
+  ('550e8400-e29b-41d4-a716-446655440020', 'Dedicated 10-15 hours per week', 3),
+  ('550e8400-e29b-41d4-a716-446655440021', 'Completed Web3 Fundamentals or equivalent', 1),
+  ('550e8400-e29b-41d4-a716-446655440021', 'Strong understanding of Solidity', 2),
+  ('550e8400-e29b-41d4-a716-446655440021', 'Dedicated 15-20 hours per week', 3)
 ON CONFLICT DO NOTHING;
 
 -- ============================================================================
@@ -96,7 +96,7 @@ ON CONFLICT DO NOTHING;
 INSERT INTO quests (id, title, description, total_reward, is_active, lock_manager_granted, image_url)
 VALUES
   (
-    'quest-wallet-setup',
+    '550e8400-e29b-41d4-a716-446655440001',
     'Set Up Your Web3 Wallet',
     'Learn how to create and secure your first Web3 wallet',
     50,
@@ -105,7 +105,7 @@ VALUES
     NULL
   ),
   (
-    'quest-first-transaction',
+    '550e8400-e29b-41d4-a716-446655440002',
     'Make Your First Transaction',
     'Send your first blockchain transaction on testnet',
     100,
@@ -134,7 +134,7 @@ INSERT INTO quest_tasks (
 )
 VALUES
   (
-    'quest-wallet-setup',
+    '550e8400-e29b-41d4-a716-446655440001',
     'Install MetaMask',
     'Download and install the MetaMask browser extension',
     'verification',
@@ -147,7 +147,7 @@ VALUES
     '0x...'
   ),
   (
-    'quest-wallet-setup',
+    '550e8400-e29b-41d4-a716-446655440001',
     'Backup Your Seed Phrase',
     'Safely store your 12-word recovery phrase',
     'verification',
@@ -160,7 +160,7 @@ VALUES
     NULL
   ),
   (
-    'quest-first-transaction',
+    '550e8400-e29b-41d4-a716-446655440002',
     'Connect to Base Sepolia',
     'Add Base Sepolia testnet to your wallet',
     'verification',
@@ -173,7 +173,7 @@ VALUES
     '0x...'
   ),
   (
-    'quest-first-transaction',
+    '550e8400-e29b-41d4-a716-446655440002',
     'Get Testnet Tokens',
     'Claim testnet ETH from a faucet',
     'verification',
@@ -186,7 +186,7 @@ VALUES
     '0x...'
   ),
   (
-    'quest-first-transaction',
+    '550e8400-e29b-41d4-a716-446655440002',
     'Send a Transaction',
     'Send testnet ETH to another address',
     'verification',

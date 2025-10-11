@@ -7,7 +7,7 @@ import { NetworkError } from "@/components/ui/network-error";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { Clock, Users, Trophy, Calendar, ChevronRight } from "lucide-react";
-import { calculateTimeRemaining } from "@/lib/utils/registration-validation";
+import { getCohortRegistrationStatus } from "@/lib/utils/registration-validation";
 import { getLogger } from "@/lib/utils/logger";
 import { usePrivy } from "@privy-io/react-auth";
 
@@ -241,15 +241,11 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
             ) : (
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                 {bootcamp.cohorts.map((cohort) => {
-                  const spotsRemaining =
-                    cohort.max_participants - cohort.current_participants;
-                  const timeRemaining = calculateTimeRemaining(
-                    cohort.registration_deadline,
+                  const statusInfo = getCohortRegistrationStatus(
+                    cohort,
+                    cohort.is_enrolled || false,
                   );
-                  const isOpen =
-                    cohort.status === "open" &&
-                    spotsRemaining > 0 &&
-                    timeRemaining !== "Registration Closed";
+                  const { isOpen, spotsRemaining, timeRemaining, statusText, statusColor } = statusInfo;
 
                   return (
                     <Card
@@ -260,41 +256,32 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                       <div className="absolute top-4 right-4 z-10">
                         <div
                           className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-3 py-1 ${
-                            isOpen
+                            statusColor === "green"
                               ? "bg-green-500/20 border-green-500/30"
-                              : cohort.status === "upcoming"
+                              : statusColor === "blue"
                                 ? "bg-blue-500/20 border-blue-500/30"
                                 : "bg-red-500/20 border-red-500/30"
                           }`}
                         >
                           <div
                             className={`w-2 h-2 rounded-full ${
-                              isOpen
+                              statusColor === "green"
                                 ? "bg-green-500 animate-pulse"
-                                : cohort.status === "upcoming"
+                                : statusColor === "blue"
                                   ? "bg-blue-500"
                                   : "bg-red-500"
                             }`}
                           ></div>
                           <span
                             className={`font-medium text-sm ${
-                              isOpen
+                              statusColor === "green"
                                 ? "text-green-400"
-                                : cohort.status === "upcoming"
+                                : statusColor === "blue"
                                   ? "text-blue-400"
                                   : "text-red-400"
                             }`}
                           >
-                            {isOpen
-                              ? "Open"
-                              : cohort.status === "upcoming"
-                                ? "Coming Soon"
-                                : spotsRemaining <= 0
-                                  ? "Full"
-                                  : timeRemaining === "Registration Closed"
-                                    ? "Closed"
-                                    : cohort.status.charAt(0).toUpperCase() +
-                                      cohort.status.slice(1)}
+                            {statusText}
                           </span>
                         </div>
                       </div>
@@ -339,14 +326,16 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                           <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 text-center border border-faded-grey/20">
                             <Calendar className="w-4 h-4 text-flame-yellow mx-auto mb-1" />
                             <div className="text-sm font-bold">
-                              {timeRemaining.split(" ")[0]}
+                              {statusInfo.isDeadlinePassed ? "Closed" : timeRemaining.split(" ")[0]}
                             </div>
                             <div className="text-xs text-faded-grey">
-                              {timeRemaining.includes("day")
-                                ? "Days Left"
-                                : timeRemaining.includes("Closed")
-                                  ? "Closed"
-                                  : "Status"}
+                              {statusInfo.isDeadlinePassed
+                                ? "Registration"
+                                : timeRemaining.includes("day")
+                                  ? "Days Left"
+                                  : timeRemaining.includes("hour")
+                                    ? "Hours Left"
+                                    : "Status"}
                             </div>
                           </div>
                         </div>
