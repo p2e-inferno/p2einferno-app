@@ -4,10 +4,10 @@ VALUES (
   'task-submissions',
   'task-submissions',
   true,
-  20971520, -- 20MB limit
+  5242880, -- 5MB limit
   ARRAY[
-    'image/jpeg', 'image/png', 'image/webp', 'image/gif',
-    'application/pdf', 'text/plain', 'application/zip', 'application/x-zip-compressed'
+    'image/jpeg', 'image/jpg', 'image/png', 'image/svg+xml', 'image/webp', 'image/gif',
+    'application/pdf'
   ]
 )
 ON CONFLICT (id) DO NOTHING;
