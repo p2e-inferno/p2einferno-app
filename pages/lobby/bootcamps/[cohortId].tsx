@@ -644,6 +644,10 @@ export default function BootcampLearningPage() {
                                   milestone={milestone}
                                   reward={task.reward_amount}
                                   rewardClaimed={task.reward_claimed}
+                                  submittedAt={
+                                    task.latest_submission?.submitted_at
+                                  }
+                                  endDate={milestone.end_date}
                                   onClaimed={fetchCohortData}
                                 />
                               )}

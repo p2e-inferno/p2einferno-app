@@ -245,7 +245,13 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                     cohort,
                     cohort.is_enrolled || false,
                   );
-                  const { isOpen, spotsRemaining, timeRemaining, statusText, statusColor } = statusInfo;
+                  const {
+                    isOpen,
+                    spotsRemaining,
+                    timeRemaining,
+                    statusText,
+                    statusColor,
+                  } = statusInfo;
 
                   return (
                     <Card
@@ -326,7 +332,9 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                           <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 text-center border border-faded-grey/20">
                             <Calendar className="w-4 h-4 text-flame-yellow mx-auto mb-1" />
                             <div className="text-sm font-bold">
-                              {statusInfo.isDeadlinePassed ? "Closed" : timeRemaining.split(" ")[0]}
+                              {statusInfo.isDeadlinePassed
+                                ? "Closed"
+                                : timeRemaining.split(" ")[0]}
                             </div>
                             <div className="text-xs text-faded-grey">
                               {statusInfo.isDeadlinePassed
