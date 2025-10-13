@@ -69,11 +69,25 @@ npm run db:seed             # Reset DB with migrations + seed data
 
 ### Database Security Best Practices
 - **Function Security**: All PL/pgSQL functions MUST include `SET search_path = 'public'` to prevent SQL injection via search_path manipulation
+  - **CRITICAL**: All trigger functions, SECURITY DEFINER functions, and any function called by service_role MUST have this directive
+  - Without it, functions may fail silently when called by admin operations (service_role context)
+  - Example pattern:
+    ```sql
+    CREATE OR REPLACE FUNCTION public.my_trigger_function()
+    RETURNS TRIGGER
+    SET search_path = 'public'  -- REQUIRED
+    AS $$
+    BEGIN
+      -- function body
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+    ```
 - **SECURITY DEFINER**: Use sparingly and only when necessary. Always combine with `SET search_path` when used.
 - **Views**: Avoid `SECURITY DEFINER` on views; use RLS policies instead for access control
 - **Foreign Key Indexes**: All foreign key columns should have covering indexes for JOIN performance
 - **RLS Policies**: Use `(select auth.uid())` instead of `auth.uid()` to move function to initialization plan (major perf boost)
-- **Reference**: See `docs/supabase-security-performance-advisory.md` for full security audit results
+- **Reference**: See `docs/supabase-security-performance-advisory.md` and `docs/database-function-security-audit.md` for full security audit results
 
 ## Coding & Tests
 - TypeScript, 2‑space indent, React components in PascalCase, hooks as `useX.ts`, pages lowercase with dynamic segments.

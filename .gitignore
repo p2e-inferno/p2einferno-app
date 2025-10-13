@@ -40,6 +40,8 @@ guides/
 # .cursor directory
 .cursor/
 
+.claude/
+
 # node-waf configuration
 .lock-wscript
 
