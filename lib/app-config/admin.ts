@@ -33,6 +33,8 @@ export const ADMIN_CACHE_TAGS = {
   submissions: (taskId: string) => `admin:submissions:${taskId}`,
   bootcamp: (id: string) => `admin:bootcamp:${id}`,
   bootcampList: "admin:bootcamp:list",
+  quest: (id: string) => `admin:quest:${id}`,
+  questList: "admin:quest:list",
 } as const;
 
 // Small utility exposed for consistent pagination clamping

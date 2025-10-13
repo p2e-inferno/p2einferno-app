@@ -431,7 +431,6 @@
 - **`current-schema-check.ts`** - Current schema validation
 - **`index.ts`** - Supabase utilities exports
 - **`server.ts`** - Server-side Supabase client
-- **`types-gen-current.ts`** - Current generated types
 - **`types-gen-repaired.ts`** - Repaired generated types
 - **`types-gen.ts`** - Generated type definitions
 - **`types.ts`** - Application type definitions

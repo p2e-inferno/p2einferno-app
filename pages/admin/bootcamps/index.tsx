@@ -11,6 +11,7 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
+import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
 
 const log = getLogger("admin:bootcamps:index");
 
@@ -147,7 +148,14 @@ export default function BootcampsPage() {
                   className="border-b border-gray-800 hover:bg-gray-900"
                 >
                   <td className="py-4 px-4 text-sm text-white">
-                    {bootcamp.name}
+                    <div className="flex items-center gap-2">
+                      {bootcamp.name}
+                      <PendingLockManagerBadge
+                        lockAddress={bootcamp.lock_address}
+                        lockManagerGranted={bootcamp.lock_manager_granted}
+                        reason={bootcamp.grant_failure_reason}
+                      />
+                    </div>
                   </td>
                   <td className="py-4 px-4 text-sm text-white">
                     {bootcamp.duration_weeks} weeks

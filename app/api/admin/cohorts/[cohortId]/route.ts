@@ -1,9 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { createAdminClient } from '@/lib/supabase/server';
 import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
+import { ADMIN_CACHE_TAGS } from '@/lib/app-config/admin';
 
 const log = getLogger('api:cohorts:detail');
+
+function invalidateCohort(id: string) {
+  try {
+    revalidateTag(ADMIN_CACHE_TAGS.cohort(id));
+  } catch (error) {
+    log.warn('cohort revalidation failed', { error, id });
+  }
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ cohortId: string }> }) {
   const guard = await ensureAdminOrRespond(req);
@@ -120,5 +130,52 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
       },
       { status: 500 }
     );
+  }
+}
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ cohortId: string }> }) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
+
+  const { cohortId } = await params;
+  if (!cohortId) {
+    return NextResponse.json({ error: 'Cohort ID is required' }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+
+  try {
+    const updates = await req.json();
+
+    // Remove cohortId from updates if it exists (shouldn't update ID)
+    const { id, cohortId: _, ...safeUpdates } = updates;
+
+    const { data, error } = await supabase
+      .from('cohorts')
+      .update({
+        ...safeUpdates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', cohortId)
+      .select()
+      .single();
+
+    if (error) {
+      log.error('cohort update error', { error, cohortId });
+      return NextResponse.json(
+        { error: error.message || 'Failed to update cohort' },
+        { status: 400 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: 'Cohort not found' }, { status: 404 });
+    }
+
+    invalidateCohort(cohortId);
+    return NextResponse.json({ success: true, data }, { status: 200 });
+  } catch (error: any) {
+    log.error('cohort update unexpected error', { error, cohortId });
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }

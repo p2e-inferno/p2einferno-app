@@ -100,6 +100,17 @@ async function createQuest(
   // Start a transaction
   try {
     // 1. Insert the quest
+    // Harden grant flags for quests: if lock provided and flag not provided, default to false; clear reason when granted
+    const grantGrantedFinal =
+      typeof lock_manager_granted === "boolean"
+        ? lock_manager_granted
+        : lock_address
+          ? false
+          : false;
+    const grantReasonFinal = grantGrantedFinal
+      ? null
+      : grant_failure_reason || null;
+
     const { data: quest, error: questError } = await supabase
       .from("quests")
       .insert({
@@ -109,8 +120,8 @@ async function createQuest(
         total_reward: xp_reward || 0,
         is_active,
         lock_address,
-        lock_manager_granted,
-        grant_failure_reason,
+        lock_manager_granted: grantGrantedFinal,
+        grant_failure_reason: grantReasonFinal,
       })
       .select()
       .single();

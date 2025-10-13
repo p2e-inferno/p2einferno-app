@@ -77,3 +77,50 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
+
+  const { id } = await params;
+  if (!id) {
+    return NextResponse.json({ error: 'Bootcamp ID is required' }, { status: 400 });
+  }
+
+  const supabase = createAdminClient();
+
+  try {
+    const updates = await req.json();
+
+    // Remove id from updates if it exists (shouldn't update ID)
+    const { id: _, ...safeUpdates } = updates;
+
+    const { data, error } = await supabase
+      .from('bootcamp_programs')
+      .update({
+        ...safeUpdates,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      log.error('bootcamp update error', { error, id });
+      return NextResponse.json(
+        { error: error.message || 'Failed to update bootcamp' },
+        { status: 400 }
+      );
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: 'Bootcamp not found' }, { status: 404 });
+    }
+
+    invalidateBootcamp(id);
+    return NextResponse.json({ success: true, data }, { status: 200 });
+  } catch (error: any) {
+    log.error('bootcamp update unexpected error', { error, id });
+    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+  }
+}

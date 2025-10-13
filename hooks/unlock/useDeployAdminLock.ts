@@ -184,6 +184,15 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
             lockAddress,
             serverWalletAddress: normalizedServerWallet,
           });
+          // Extra diagnostic logging for common user-decline and gas issues
+          try {
+            const message: string = String(grantErr?.message || '');
+            log.warn('Grant failure diagnostics', {
+              includesUserRejected: /user rejected|User rejected|denied/i.test(message),
+              includesGas: /gas|fee|EIP-1559|intrinsic|underpriced/i.test(message),
+              short: grantError,
+            });
+          } catch {}
         }
 
         setState({ isLoading: false, error: null, isSuccess: true });

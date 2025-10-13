@@ -2,11 +2,13 @@ import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
+import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
+import { toast } from "react-hot-toast";
 
 const log = getLogger("admin:bootcamps:[id]");
 
@@ -79,6 +81,25 @@ export default function EditBootcampPage() {
       onRetry={handleRetry}
       isRetrying={isRetrying}
     >
+      {/* Lock Manager Grant Retry Button */}
+      {bootcamp?.lock_address && bootcamp?.lock_manager_granted === false && (
+        <div className="mb-6">
+          <LockManagerRetryButton
+            entityType="bootcamp"
+            entityId={bootcamp.id}
+            lockAddress={bootcamp.lock_address}
+            grantFailureReason={bootcamp.grant_failure_reason}
+            onSuccess={() => {
+              toast.success("Database updated successfully");
+              fetchBootcamp(); // Refresh bootcamp data
+            }}
+            onError={(error) => {
+              toast.error(`Update failed: ${error}`);
+            }}
+          />
+        </div>
+      )}
+
       {
         bootcamp ? (
           <BootcampForm bootcamp={bootcamp} isEditing />

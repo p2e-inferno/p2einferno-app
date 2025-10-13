@@ -38,6 +38,11 @@ import { getLogger } from "@/lib/utils/logger";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
+import {
+  initialGrantState,
+  applyDeploymentOutcome,
+  effectiveGrantForSave,
+} from "@/lib/blockchain/shared/grant-state";
 
 const log = getLogger("admin:BootcampForm");
 
@@ -74,12 +79,16 @@ export default function BootcampForm({
   );
   const [hasPendingBootcampDeployments, setHasPendingBootcampDeployments] =
     useState(false);
+  // Default to false for new bootcamps; set true explicitly when a grant succeeds
   const [lockManagerGranted, setLockManagerGranted] = useState(
-    isEditing ? (bootcamp?.lock_manager_granted ?? true) : true,
+    initialGrantState(isEditing, bootcamp?.lock_manager_granted ?? undefined),
   );
   const [grantFailureReason, setGrantFailureReason] = useState<
     string | undefined
   >(isEditing ? (bootcamp?.grant_failure_reason ?? undefined) : undefined);
+  // Track the most recent grant outcome during submit to avoid async state races
+  let lastGrantFailed: boolean | undefined;
+  let lastGrantError: string | undefined;
 
   // Keep track of the original bootcamp ID for updates
   const [originalBootcampId, setOriginalBootcampId] = useState<string | null>(
@@ -268,17 +277,22 @@ export default function BootcampForm({
 
       const lockAddress = result.lockAddress;
 
-      // Check if grant failed
-      if (result.grantFailed) {
+      // Check grant result
+      const outcome = applyDeploymentOutcome(result);
+      if (outcome.lastGrantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
-        log.warn("Lock deployed but grant manager transaction failed", {
-          lockAddress,
-          grantError: result.grantError,
-        });
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
-        setLockManagerGranted(true);
-        setGrantFailureReason(undefined);
+      }
+      setLockManagerGranted(outcome.granted);
+      setGrantFailureReason(outcome.reason);
+      lastGrantFailed = outcome.lastGrantFailed;
+      lastGrantError = outcome.lastGrantError;
+      if (outcome.lastGrantFailed) {
+        log.warn("Lock deployed but grant manager transaction failed", {
+          lockAddress,
+          grantError: outcome.lastGrantError,
+        });
       }
 
       // Update draft with deployment result to preserve it in case of database failure
@@ -453,6 +467,14 @@ export default function BootcampForm({
       );
 
       // Prepare submission data for API
+      // Use effective values for this submit to avoid relying on async state updates
+      const effective = effectiveGrantForSave({
+        outcome: { lastGrantFailed, lastGrantError },
+        lockAddress,
+        currentGranted: lockManagerGranted,
+        currentReason: grantFailureReason,
+      });
+
       const apiData: any = {
         id: bootcampId, // Always include ID
         name: formData.name,
@@ -461,8 +483,8 @@ export default function BootcampForm({
         max_reward_dgt: formData.max_reward_dgt,
         lock_address: lockAddress || null,
         image_url: formData.image_url || null,
-        lock_manager_granted: lockManagerGranted,
-        grant_failure_reason: grantFailureReason,
+        lock_manager_granted: effective.granted,
+        grant_failure_reason: effective.reason,
         updated_at: new Date().toISOString(),
       };
 

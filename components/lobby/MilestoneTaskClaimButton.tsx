@@ -6,17 +6,30 @@ export default function MilestoneTaskClaimButton({
   milestone: _milestone,
   reward,
   rewardClaimed,
+  submittedAt,
+  endDate,
   onClaimed,
 }: {
   taskId: string;
   milestone: any;
   reward: number;
   rewardClaimed?: boolean;
+  submittedAt?: string;
+  endDate?: string;
   onClaimed: () => void;
 }) {
   const [isClaiming, setIsClaiming] = React.useState(false);
   const [claimed, setClaimed] = React.useState(rewardClaimed || false);
   const [isExpired, setIsExpired] = React.useState(false);
+
+  // Compute expiry on mount based on submission time vs milestone deadline
+  React.useEffect(() => {
+    if (submittedAt && endDate) {
+      const submitted = new Date(submittedAt).getTime();
+      const deadline = new Date(endDate).getTime();
+      setIsExpired(submitted > deadline);
+    }
+  }, [submittedAt, endDate]);
 
   const handleClaim = async () => {
     try {
@@ -63,7 +76,7 @@ export default function MilestoneTaskClaimButton({
         className="px-4 py-2 rounded-lg font-medium bg-gray-700 text-gray-300 cursor-not-allowed"
         disabled
       >
-        Expired
+        Rewards Expired
       </button>
     );
   }

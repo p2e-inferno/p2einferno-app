@@ -29,6 +29,11 @@ import { resolveDraftById } from "@/lib/utils/draft";
 import { getRecordId } from "@/lib/utils/id-generation";
 import { getLogger } from "@/lib/utils/logger";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
+import {
+  initialGrantState,
+  applyDeploymentOutcome,
+  effectiveGrantForSave,
+} from "@/lib/blockchain/shared/grant-state";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 
@@ -82,12 +87,16 @@ export default function CohortForm({
   const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(
     null,
   );
+  // Default to false for new cohorts; set true explicitly when a grant succeeds
   const [lockManagerGranted, setLockManagerGranted] = useState(
-    isEditing ? (cohort?.lock_manager_granted ?? true) : true,
+    initialGrantState(isEditing, cohort?.lock_manager_granted ?? undefined),
   );
   const [grantFailureReason, setGrantFailureReason] = useState<
     string | undefined
   >(isEditing ? (cohort?.grant_failure_reason ?? undefined) : undefined);
+  // Track the most recent grant outcome in local variables during submit to avoid async state races
+  let lastGrantFailed: boolean | undefined;
+  let lastGrantError: string | undefined;
 
   const [formData, setFormData] = useState<Partial<Cohort>>(
     cohort || {
@@ -359,9 +368,11 @@ export default function CohortForm({
 
       const lockAddress = result.lockAddress;
 
-      // Check if grant failed
+      // Check grant result
       if (result.grantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
+        setLockManagerGranted(false);
+        setGrantFailureReason(result.grantError);
         log.warn("Lock deployed but grant manager transaction failed", {
           lockAddress,
           grantError: result.grantError,
@@ -526,17 +537,22 @@ export default function CohortForm({
 
           lockAddress = deploymentResult.lockAddress;
 
-          // Track grant failure if it occurred
-          if (deploymentResult.grantFailed) {
-            setLockManagerGranted(false);
-            setGrantFailureReason(
-              deploymentResult.grantError || "Grant manager transaction failed",
-            );
-            log.warn("Cohort will be created with grant failure flag", {
+          // Compute effective values for save (avoid async state race)
+          const outcome = applyDeploymentOutcome(deploymentResult);
+          setLockManagerGranted(outcome.granted);
+          setGrantFailureReason(outcome.reason);
+          lastGrantFailed = outcome.lastGrantFailed;
+          lastGrantError = outcome.lastGrantError;
+
+          log.warn(
+            deploymentResult.grantFailed
+              ? "Cohort will be created with grant failure flag"
+              : "Cohort will be created with successful grant flag",
+            {
               lockAddress,
               grantError: deploymentResult.grantError,
-            });
-          }
+            },
+          );
         } catch (deployError: any) {
           // If lock deployment fails, don't create the cohort
           throw new Error(`Lock deployment failed: ${deployError.message}`);
@@ -552,13 +568,24 @@ export default function CohortForm({
           auto_lock_creation?: boolean;
         };
 
+      // Use effective values for this submit to avoid relying on async state updates
+      // Prefer the direct deployment outcome computed above; otherwise fall back to current state
+      const effective = effectiveGrantForSave({
+        outcome: { lastGrantFailed, lastGrantError },
+        lockAddress: (formData.lock_address || lockAddress) as
+          | string
+          | undefined,
+        currentGranted: lockManagerGranted,
+        currentReason: grantFailureReason,
+      });
+
       const dataToSave = {
         ...cleanFormData,
         id: cohortId,
         key_managers: keyManagers,
         lock_address: lockAddress,
-        lock_manager_granted: lockManagerGranted,
-        grant_failure_reason: grantFailureReason,
+        lock_manager_granted: effective.granted,
+        grant_failure_reason: effective.reason,
       };
 
       const apiUrl = "/api/admin/cohorts";

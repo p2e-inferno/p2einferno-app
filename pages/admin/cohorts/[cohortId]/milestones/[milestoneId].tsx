@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskList from "@/components/admin/TaskList";
+import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import { Calendar, Clock, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CohortMilestone, Cohort } from "@/lib/supabase/types";
@@ -9,6 +10,7 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
+import { toast } from "react-hot-toast";
 
 const log = getLogger("admin:cohorts:[cohortId]:milestones:[milestoneId]");
 
@@ -19,7 +21,11 @@ interface MilestoneWithCohort extends CohortMilestone {
 export default function MilestoneDetailsPage() {
   const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
-  const { id: cohortId, milestoneId } = router.query;
+  // Correctly read the dynamic route params
+  const { cohortId, milestoneId } = router.query as {
+    cohortId?: string;
+    milestoneId?: string;
+  };
   // Memoize options to prevent adminFetch from being recreated every render
   const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch } = useAdminApi(adminApiOptions);
@@ -66,6 +72,30 @@ export default function MilestoneDetailsPage() {
         ...milestoneData,
         cohort: cohortData,
       };
+
+      // Debug logging for lock manager grant status
+      log.info("Milestone data loaded", {
+        milestoneId: combinedMilestone.id,
+        hasLockAddress: !!combinedMilestone.lock_address,
+        lockAddress: combinedMilestone.lock_address,
+        lockManagerGranted: combinedMilestone.lock_manager_granted,
+        lockManagerGrantedType: typeof combinedMilestone.lock_manager_granted,
+        grantFailureReason: combinedMilestone.grant_failure_reason,
+        grantFailureReasonPresent: Boolean(
+          combinedMilestone.grant_failure_reason,
+        ),
+        shouldShowRetryButton:
+          !!combinedMilestone.lock_address &&
+          combinedMilestone.lock_manager_granted === false,
+        // Diagnostic helpers
+        diag: {
+          condHasLock: Boolean(combinedMilestone.lock_address),
+          condExplicitFalse: combinedMilestone.lock_manager_granted === false,
+          condLooseNotTrue:
+            !!combinedMilestone.lock_address &&
+            combinedMilestone.lock_manager_granted !== true,
+        },
+      });
 
       setMilestone(combinedMilestone);
     } catch (err: any) {
@@ -192,6 +222,24 @@ export default function MilestoneDetailsPage() {
                   </p>
                 </div>
               )}
+
+              {/* Lock Manager Grant Retry Button */}
+              {milestone.lock_address &&
+                milestone.lock_manager_granted === false && (
+                  <LockManagerRetryButton
+                    entityType="milestone"
+                    entityId={milestone.id}
+                    lockAddress={milestone.lock_address}
+                    grantFailureReason={milestone.grant_failure_reason}
+                    onSuccess={() => {
+                      toast.success("Database updated successfully");
+                      fetchMilestone(); // Refresh milestone data
+                    }}
+                    onError={(error) => {
+                      toast.error(`Update failed: ${error}`);
+                    }}
+                  />
+                )}
             </CardContent>
           </Card>
 

@@ -121,11 +121,20 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const record: BootcampPayload = {
+    const record: any = {
       ...payload,
       created_at: payload.created_at ?? now,
       updated_at: payload.updated_at ?? now,
     };
+    // Harden grant flags: if a lock exists and flag not provided, default to false; clear reason when granted
+    if (record.lock_address) {
+      if (typeof record.lock_manager_granted === 'undefined' || record.lock_manager_granted === null) {
+        record.lock_manager_granted = false;
+      }
+      if (record.lock_manager_granted === true) {
+        record.grant_failure_reason = null;
+      }
+    }
 
     const supabase = createAdminClient();
     const { data, error } = await supabase
@@ -166,10 +175,18 @@ export async function PUT(req: NextRequest) {
     }
 
     const { id, ...updates } = payload;
-    const updateData = {
+    const updateData: any = {
       ...updates,
       updated_at: new Date().toISOString(),
     };
+    if (updateData.lock_address) {
+      if (typeof updateData.lock_manager_granted === 'undefined' || updateData.lock_manager_granted === null) {
+        updateData.lock_manager_granted = false;
+      }
+      if (updateData.lock_manager_granted === true) {
+        updateData.grant_failure_reason = null;
+      }
+    }
 
     const supabase = createAdminClient();
     const { data, error } = await supabase

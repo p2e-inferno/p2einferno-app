@@ -3,7 +3,7 @@ import type { Cohort } from "@/lib/supabase/types";
 export interface RegistrationStatus {
   isOpen: boolean;
   reason?: string;
-  timeRemaining?: string;
+  timeRemaining: string;
   spotsRemaining: number;
   isDeadlinePassed: boolean;
   isFull: boolean;
@@ -36,7 +36,7 @@ export function calculateTimeRemaining(deadline: string): string {
  * Get comprehensive registration status for a cohort
  */
 export function getCohortRegistrationStatus(
-  cohort: Cohort,
+  cohort: Pick<Cohort, "registration_deadline" | "status" | "max_participants" | "current_participants">,
   isUserEnrolled = false,
 ): RegistrationStatus {
   const now = new Date();

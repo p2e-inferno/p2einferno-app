@@ -206,7 +206,7 @@ export default async function handler(
     const { data: submissions } = await supabase
       .from("task_submissions")
       .select(
-        "id, task_id, status, submission_url, submitted_at, submission_type",
+        "id, task_id, status, submission_url, submitted_at, submission_type, feedback, reviewed_at, reviewed_by",
       )
       .eq("user_id", user.id)
       .in("task_id", taskIds)
@@ -242,6 +242,9 @@ export default async function handler(
                 submission_type: latest.submission_type,
                 submitted_at: latest.submitted_at,
                 status: latest.status,
+                feedback: (latest as any).feedback ?? null,
+                reviewed_at: (latest as any).reviewed_at ?? null,
+                reviewed_by: (latest as any).reviewed_by ?? null,
               }
             : null;
 
