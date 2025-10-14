@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskList from "@/components/admin/TaskList";
@@ -30,6 +30,10 @@ export default function MilestoneDetailsPage() {
   const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch } = useAdminApi(adminApiOptions);
 
+  // Use ref to store latest adminFetch function to avoid stale closure issues
+  const adminFetchRef = useRef(adminFetch);
+  adminFetchRef.current = adminFetch;
+
   const [milestone, setMilestone] = useState<MilestoneWithCohort | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,7 +46,7 @@ export default function MilestoneDetailsPage() {
       setError(null);
 
       // Get milestone data
-      const milestoneResult = await adminFetch<{
+      const milestoneResult = await adminFetchRef.current<{
         success: boolean;
         data: CohortMilestone;
       }>(`/api/admin/milestones?milestone_id=${milestoneId}`);
@@ -57,9 +61,10 @@ export default function MilestoneDetailsPage() {
       }
 
       // Get cohort data
-      const cohortResult = await adminFetch<{ success: boolean; data: Cohort }>(
-        `/api/admin/cohorts/${milestoneData.cohort_id}`,
-      );
+      const cohortResult = await adminFetchRef.current<{
+        success: boolean;
+        data: Cohort;
+      }>(`/api/admin/cohorts/${milestoneData.cohort_id}`);
 
       if (cohortResult.error) {
         throw new Error(cohortResult.error);
@@ -109,7 +114,7 @@ export default function MilestoneDetailsPage() {
     }
   }, [milestoneId]); // eslint-disable-line react-hooks/exhaustive-deps
   // Note: adminFetch is intentionally excluded from dependencies to prevent infinite re-renders
-  // caused by useAdminFetchOnce re-triggering when adminFetch changes
+  // We use adminFetchRef.current to access the latest adminFetch function
 
   useAdminFetchOnce({
     authenticated,
@@ -229,20 +234,8 @@ export default function MilestoneDetailsPage() {
               )}
 
               {/* Lock Manager Grant Retry Button */}
-              {(() => {
-                const shouldShow =
-                  milestone.lock_address &&
-                  milestone.lock_manager_granted === false;
-                log.debug("LockManagerRetryButton render check", {
-                  milestoneId: milestone.id,
-                  hasLockAddress: !!milestone.lock_address,
-                  lockManagerGranted: milestone.lock_manager_granted,
-                  lockManagerGrantedType: typeof milestone.lock_manager_granted,
-                  shouldShow,
-                  condition1: !!milestone.lock_address,
-                  condition2: milestone.lock_manager_granted === false,
-                });
-                return shouldShow ? (
+              {milestone.lock_address &&
+                milestone.lock_manager_granted === false && (
                   <LockManagerRetryButton
                     entityType="milestone"
                     entityId={milestone.id}
@@ -256,8 +249,7 @@ export default function MilestoneDetailsPage() {
                       toast.error(`Update failed: ${error}`);
                     }}
                   />
-                ) : null;
-              })()}
+                )}
             </CardContent>
           </Card>
 
