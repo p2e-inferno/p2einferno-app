@@ -29,7 +29,7 @@ export default function MilestoneDetailsPage() {
   // Memoize options to prevent adminFetch from being recreated every render
   const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch } = useAdminApi(adminApiOptions);
-  
+
   // Use ref to store latest adminFetch function to avoid stale closure issues
   const adminFetchRef = useRef(adminFetch);
   adminFetchRef.current = adminFetch;
@@ -61,9 +61,10 @@ export default function MilestoneDetailsPage() {
       }
 
       // Get cohort data
-      const cohortResult = await adminFetchRef.current<{ success: boolean; data: Cohort }>(
-        `/api/admin/cohorts/${milestoneData.cohort_id}`,
-      );
+      const cohortResult = await adminFetchRef.current<{
+        success: boolean;
+        data: Cohort;
+      }>(`/api/admin/cohorts/${milestoneData.cohort_id}`);
 
       if (cohortResult.error) {
         throw new Error(cohortResult.error);
