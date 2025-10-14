@@ -35,8 +35,11 @@ export default function MilestoneDetailsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchMilestone = useCallback(async () => {
+    if (!milestoneId) return;
+
     try {
       setIsLoading(true);
+      setError(null);
 
       // Get milestone data
       const milestoneResult = await adminFetch<{
@@ -105,6 +108,8 @@ export default function MilestoneDetailsPage() {
       setIsLoading(false);
     }
   }, [milestoneId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Note: adminFetch is intentionally excluded from dependencies to prevent infinite re-renders
+  // caused by useAdminFetchOnce re-triggering when adminFetch changes
 
   useAdminFetchOnce({
     authenticated,
@@ -224,8 +229,20 @@ export default function MilestoneDetailsPage() {
               )}
 
               {/* Lock Manager Grant Retry Button */}
-              {milestone.lock_address &&
-                milestone.lock_manager_granted === false && (
+              {(() => {
+                const shouldShow =
+                  milestone.lock_address &&
+                  milestone.lock_manager_granted === false;
+                log.debug("LockManagerRetryButton render check", {
+                  milestoneId: milestone.id,
+                  hasLockAddress: !!milestone.lock_address,
+                  lockManagerGranted: milestone.lock_manager_granted,
+                  lockManagerGrantedType: typeof milestone.lock_manager_granted,
+                  shouldShow,
+                  condition1: !!milestone.lock_address,
+                  condition2: milestone.lock_manager_granted === false,
+                });
+                return shouldShow ? (
                   <LockManagerRetryButton
                     entityType="milestone"
                     entityId={milestone.id}
@@ -239,7 +256,8 @@ export default function MilestoneDetailsPage() {
                       toast.error(`Update failed: ${error}`);
                     }}
                   />
-                )}
+                ) : null;
+              })()}
             </CardContent>
           </Card>
 
