@@ -358,7 +358,7 @@ export default function TaskSubmissionModal({
                               Drop your file here
                             </h4>
                             <p className="text-sm text-faded-grey">
-                              or click to browse files (max 20MB)
+                              or click to browse files (max 5MB)
                             </p>
                             <p className="text-xs text-faded-grey/70">
                               Supported: Images, PDFs, Documents, Archives

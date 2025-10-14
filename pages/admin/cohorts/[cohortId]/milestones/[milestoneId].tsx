@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskList from "@/components/admin/TaskList";
@@ -29,17 +29,24 @@ export default function MilestoneDetailsPage() {
   // Memoize options to prevent adminFetch from being recreated every render
   const adminApiOptions = useMemo(() => ({ suppressToasts: true }), []);
   const { adminFetch } = useAdminApi(adminApiOptions);
+  
+  // Use ref to store latest adminFetch function to avoid stale closure issues
+  const adminFetchRef = useRef(adminFetch);
+  adminFetchRef.current = adminFetch;
 
   const [milestone, setMilestone] = useState<MilestoneWithCohort | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchMilestone = useCallback(async () => {
+    if (!milestoneId) return;
+
     try {
       setIsLoading(true);
+      setError(null);
 
       // Get milestone data
-      const milestoneResult = await adminFetch<{
+      const milestoneResult = await adminFetchRef.current<{
         success: boolean;
         data: CohortMilestone;
       }>(`/api/admin/milestones?milestone_id=${milestoneId}`);
@@ -54,7 +61,7 @@ export default function MilestoneDetailsPage() {
       }
 
       // Get cohort data
-      const cohortResult = await adminFetch<{ success: boolean; data: Cohort }>(
+      const cohortResult = await adminFetchRef.current<{ success: boolean; data: Cohort }>(
         `/api/admin/cohorts/${milestoneData.cohort_id}`,
       );
 
@@ -105,6 +112,8 @@ export default function MilestoneDetailsPage() {
       setIsLoading(false);
     }
   }, [milestoneId]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Note: adminFetch is intentionally excluded from dependencies to prevent infinite re-renders
+  // We use adminFetchRef.current to access the latest adminFetch function
 
   useAdminFetchOnce({
     authenticated,

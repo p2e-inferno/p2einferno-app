@@ -17,6 +17,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
+import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
 
 const log = getLogger("admin:MilestoneList");
 
@@ -313,7 +314,16 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                       </td>
                       <td className="py-4 px-4 text-sm text-white">
                         <div>
-                          <p className="font-medium">{milestone.name}</p>
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-medium">{milestone.name}</p>
+                            <PendingLockManagerBadge
+                              lockAddress={milestone.lock_address}
+                              lockManagerGranted={
+                                milestone.lock_manager_granted
+                              }
+                              reason={milestone.grant_failure_reason}
+                            />
+                          </div>
                           <p className="text-gray-400 text-xs mt-1 max-w-xs truncate">
                             {milestone.description}
                           </p>
