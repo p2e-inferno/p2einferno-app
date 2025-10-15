@@ -78,6 +78,21 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       log.warn('milestones POST payload logging failed', { e });
     }
+    // Prevent adding milestones after certificates are issued for the cohort
+    try {
+      if (process.env.BOOTCAMP_CERTIFICATES_ENABLED === 'true' && payload?.cohort_id) {
+        const { data: issued } = await supabase
+          .from('bootcamp_enrollments')
+          .select('id')
+          .eq('cohort_id', payload.cohort_id)
+          .eq('certificate_issued', true)
+          .limit(1);
+        if (issued && issued.length > 0) {
+          return NextResponse.json({ error: 'Cannot add milestones after certificates have been issued for this cohort' }, { status: 409 });
+        }
+      }
+    } catch {}
+
     // Harden grant flags when lock_address present
     const insertPayload: any = { ...payload };
     if (insertPayload.lock_address) {
@@ -187,17 +202,3 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Server error' }, { status: 500 });
   }
 }
-    // Prevent adding milestones after certificates are issued for the cohort
-    try {
-      if (process.env.BOOTCAMP_CERTIFICATES_ENABLED === 'true' && payload?.cohort_id) {
-        const { data: issued } = await supabase
-          .from('bootcamp_enrollments')
-          .select('id')
-          .eq('cohort_id', payload.cohort_id)
-          .eq('certificate_issued', true)
-          .limit(1);
-        if (issued && issued.length > 0) {
-          return NextResponse.json({ error: 'Cannot add milestones after certificates have been issued for this cohort' }, { status: 409 });
-        }
-      }
-    } catch {}

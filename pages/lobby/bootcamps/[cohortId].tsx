@@ -9,7 +9,10 @@ import MilestoneTimer from "@/components/lobby/MilestoneTimer";
 import { toast } from "react-hot-toast";
 import MilestoneTaskClaimButton from "@/components/lobby/MilestoneTaskClaimButton";
 import { useBootcampCompletionStatus } from "@/hooks/bootcamp-completion";
-import { CertificateClaimButton, CompletionBadge } from "@/components/bootcamp-completion";
+import {
+  CertificateClaimButton,
+  CompletionBadge,
+} from "@/components/bootcamp-completion";
 import { useMilestoneClaim } from "@/hooks/useMilestoneClaim";
 import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
 import { FlameIcon, CrystalIcon } from "@/components/icons/dashboard-icons";

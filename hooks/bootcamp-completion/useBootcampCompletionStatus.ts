@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import api from "@/lib/helpers/api";
+import { usePrivy } from "@privy-io/react-auth";
 
 interface CompletionStatus {
   isCompleted: boolean;
@@ -19,6 +20,8 @@ export function useBootcampCompletionStatus(cohortId: string) {
   const [status, setStatus] = useState<CompletionStatus | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { getAccessToken } = usePrivy();
 
   useEffect(() => {
     let cancelled = false;
@@ -27,7 +30,8 @@ export function useBootcampCompletionStatus(cohortId: string) {
       setIsLoading(true);
       setError(null);
       try {
-        const resp = await axios.get(`/api/user/bootcamp/${cohortId}/completion-status`);
+        const token = await getAccessToken?.();
+        const resp = await api.get(`/user/bootcamp/${cohortId}/completion-status`, token ? { headers: { Authorization: `Bearer ${token}` } } : undefined);
         if (!cancelled) setStatus(resp.data);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || "Failed to load status");
@@ -39,8 +43,7 @@ export function useBootcampCompletionStatus(cohortId: string) {
     return () => {
       cancelled = true;
     };
-  }, [cohortId]);
+  }, [cohortId, refreshKey]);
 
-  return { status, isLoading, error, refetch: () => setStatus(null) };
+  return { status, isLoading, error, refetch: () => setRefreshKey((k) => k + 1) };
 }
-

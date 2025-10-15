@@ -5,10 +5,7 @@ import {
 } from "@/lib/blockchain/services/lock-manager";
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { getUserWalletAddresses } from "@/lib/auth/privy";
-import {
-  GrantKeyService,
-  GrantKeyResponse,
-} from "@/lib/blockchain/services/grant-key-service";
+import { GrantKeyService } from "@/lib/blockchain/services/grant-key-service";
 import { getLogger } from "@/lib/utils/logger";
 import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
 
@@ -22,7 +19,13 @@ export interface UserKeyCheckResult {
   keyInfo?: KeyInfo | null;
 }
 
-export type UserKeyGrantResult = GrantKeyResponse;
+export interface UserKeyGrantResult {
+  success: boolean;
+  transactionHash: string | null;
+  error?: string;
+  retryCount?: number;
+  alreadyExists?: boolean;
+}
 
 /**
  * A scalable, reusable service for all user-facing key operations.
@@ -110,11 +113,11 @@ export class UserKeyService {
       log.info(
         `User ${userId} already has a key for lock ${lockAddress}. Skipping grant.`,
       );
-      return { success: true };
+      return { success: true, transactionHash: null, alreadyExists: true };
     }
 
     const grantKeyService = new GrantKeyService();
-    return grantKeyService.grantKeyToUser({
+    const res = await grantKeyService.grantKeyToUser({
       walletAddress: targetWallet,
       lockAddress: lockAddress as Address,
       keyManagers: getKeyManagersForContext(
@@ -123,5 +126,11 @@ export class UserKeyService {
       ),
       expirationDuration: BigInt(365 * 24 * 60 * 60), // 1 year expiration for milestone keys
     });
+    return {
+      success: res.success,
+      transactionHash: res.transactionHash ?? null,
+      error: res.error,
+      retryCount: res.retryCount,
+    };
   }
 }

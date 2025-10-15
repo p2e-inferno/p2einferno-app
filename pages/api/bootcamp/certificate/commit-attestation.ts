@@ -28,7 +28,9 @@ export default async function handler(
       attestationUid?: string;
     };
     if (!cohortId || !attestationUid) {
-      return res.status(400).json({ error: "cohortId and attestationUid required" });
+      return res
+        .status(400)
+        .json({ error: "cohortId and attestationUid required" });
     }
 
     const supabase = createAdminClient();
@@ -47,12 +49,19 @@ export default async function handler(
     if (error || !data) {
       return res.status(404).json({ error: "Enrollment not found" });
     }
-    const profile = (data as any).user_profiles;
+    type EnrollmentCommitRow = {
+      id: string;
+      certificate_issued: boolean;
+      certificate_attestation_uid: string | null;
+      user_profiles: { privy_user_id: string } | null;
+    };
+    const row = data as unknown as EnrollmentCommitRow;
+    const profile = row?.user_profiles;
     if (!profile || profile.privy_user_id !== user.id) {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    if (!data.certificate_issued) {
+    if (!row.certificate_issued) {
       return res.status(400).json({ error: "No certificate found to attest" });
     }
 
@@ -63,7 +72,7 @@ export default async function handler(
         certificate_last_error: null,
         certificate_last_error_at: null,
       })
-      .eq("id", data.id);
+      .eq("id", row.id);
     if (upErr) {
       log.error("Failed to save attestation UID", { upErr });
       return res.status(500).json({ error: "Failed to save attestation UID" });
@@ -74,4 +83,3 @@ export default async function handler(
     return res.status(500).json({ error: "Internal server error" });
   }
 }
-

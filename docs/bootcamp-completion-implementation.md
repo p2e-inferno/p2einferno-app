@@ -85,9 +85,9 @@ We unified the bootcamp completion schema into a single canonical schema definit
 - File: `lib/bootcamp-completion/certificate/service.ts`
 - Responsibilities:
   - Acquire the claim lock (with TTL semantics).
-  - Idempotent pre‑check: if any linked user wallet already holds the program key, immediately mark issuance and return success.
+  - Idempotent pre‑check: if any linked user wallet already holds the program key, return early without DB issuance update.
   - Grant the key via `UserKeyService.grantKeyToUser` (admin gasless write). Records tx hash.
-  - Mark issuance as complete.
+  - Mark issuance as complete when we actually issue the key.
   - Attestation is optional and remains pending until the client creates it and commits the UID.
   - Always releases the in‑progress flag.
 
@@ -199,7 +199,7 @@ All endpoints below enforce the feature flag: return `403` if `BOOTCAMP_CERTIFIC
 1. User clicks “Claim”
 2. API `POST /api/bootcamp/certificate/claim`:
    - Acquire claim lock → pre‑check existing key → grant key (admin write) → mark issued (attestation pending)
-3. UI shows success; if attestation pending, show “Retry Attestation”.
+3. UI shows success; if attestation pending, show “Retry Attestation”. If the user already holds the certificate key on-chain, the service returns early with `{ success: true, alreadyHasKey: true }` (no DB update to `certificate_issued`), and the UI shows “You already have this certificate”.
 
 ### Attestation (Optional)
 
@@ -216,7 +216,17 @@ All endpoints below enforce the feature flag: return `403` if `BOOTCAMP_CERTIFIC
 
 - Lock pattern avoids double‑grants. 5‑minute TTL prevents permanent stuck states.
 - Pre‑check with `UserKeyService.checkUserKeyOwnership` ensures idempotency (unlock rejects duplicates anyway).
-- Errors are recorded on the enrollment row (`certificate_last_error`, `certificate_last_error_at`), visible in status responses.
+- Errors are recorded on the enrollment row (`certificate_last_error`, `certificate_last_error_at`), visible in status responses. `certificate_retry_count` is incremented via an RPC on each recorded error (see migration 083).
+
+## Rate Limiting
+
+- Per-user per-cohort: default 3 attempts per minute (`CLAIM_RATE_LIMIT_PER_USER`, default 3). Returns 429 with `retryAfter` seconds.
+- Optional global hourly budget: disabled by default; configure via `CLAIM_RATE_LIMIT_GLOBAL_HOURLY`.
+
+## Monitoring
+
+- Structured logs emitted for `certificate_claim_started`, `certificate_claim_preexisting_key`, `certificate_claim_succeeded`, and `certificate_claim_failed` with contextual fields.
+- Basic script at `scripts/monitoring/certificate-metrics.ts` prints success rates, stuck claims, and error taxonomy.
 
 ## Limitations / Intentional Constraints
 
@@ -242,4 +252,3 @@ All endpoints below enforce the feature flag: return `403` if `BOOTCAMP_CERTIFIC
 ---
 
 If you need help applying the migrations, deploying the schema, or running through an end‑to‑end verification, see the “Verification Checklist” above or ping the author.
-

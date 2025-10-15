@@ -12,6 +12,7 @@ export interface CertificateClaimResult {
   attestationUid?: string | null;
   attestationPending?: boolean;
   alreadyIssued?: boolean;
+  alreadyHasKey?: boolean;
   inProgress?: boolean;
   error?: string;
 }
@@ -22,4 +23,3 @@ export interface AttestationRetryResult {
   found?: boolean;
   error?: string;
 }
-

@@ -2,7 +2,7 @@
  * Deploys the canonical Bootcamp Completion schema to EAS.
  * Requires: RPC_URL, DEPLOYER_PRIVATE_KEY, EAS_CONTRACT_ADDRESS
  */
-import { EAS } from "@ethereum-attestation-service/eas-sdk";
+import { SchemaRegistry } from "@ethereum-attestation-service/eas-sdk";
 import { ethers } from "ethers";
 
 async function deploySchema() {
@@ -16,9 +16,8 @@ async function deploySchema() {
 
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const signer = new ethers.Wallet(pk, provider);
-  const eas = new EAS(easAddress);
-  eas.connect(signer);
-  const registry = await eas.getSchemaRegistry();
+  const registry = new SchemaRegistry(easAddress);
+  registry.connect(signer);
 
   const schema =
     "string cohortId,string cohortName,string bootcampId,string bootcampTitle,address userAddress,uint256 completionDate,uint256 totalXpEarned,string certificateTxHash";

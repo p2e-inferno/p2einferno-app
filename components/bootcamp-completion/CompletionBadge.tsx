@@ -6,13 +6,23 @@ interface CompletionBadgeProps {
   certificateIssued: boolean;
 }
 
-export function CompletionBadge({ isCompleted, completionDate, certificateIssued }: CompletionBadgeProps) {
+export function CompletionBadge({
+  isCompleted,
+  completionDate,
+  certificateIssued,
+}: CompletionBadgeProps) {
   if (!isCompleted) return null;
   return (
     <div className="flex items-center gap-2">
-      <Badge variant="success">Completed {completionDate ? `on ${new Date(completionDate).toLocaleDateString()}` : ""}</Badge>
-      {certificateIssued && <Badge variant="info">Certificate Claimed</Badge>}
+      <Badge variant="primary">
+        Completed{" "}
+        {completionDate
+          ? `on ${new Date(completionDate).toLocaleDateString()}`
+          : ""}
+      </Badge>
+      {certificateIssued && (
+        <Badge variant="secondary">Certificate Claimed</Badge>
+      )}
     </div>
   );
 }
-

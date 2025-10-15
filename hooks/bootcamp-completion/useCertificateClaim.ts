@@ -1,11 +1,11 @@
 import { useState } from "react";
-import axios from "axios";
+import api from "@/lib/helpers/api";
 import toast from "react-hot-toast";
 import { AttestationService } from "@/lib/attestation";
 import { P2E_SCHEMA_UIDS } from "@/lib/attestation/core/config";
 import { usePrivy } from "@privy-io/react-auth";
 
-export function useCertificateClaim(cohortId: string) {
+export function useCertificateClaim(cohortId: string, onSuccess?: () => void) {
   const [isClaiming, setIsClaiming] = useState(false);
   const [hasClaimed, setHasClaimed] = useState(false);
   const [claimError, setClaimError] = useState<string | null>(null);
@@ -21,14 +21,19 @@ export function useCertificateClaim(cohortId: string) {
     setIsClaiming(true);
     setClaimError(null);
     try {
-      const resp = await axios.post("/api/bootcamp/certificate/claim", { cohortId });
+      const resp = await api.post("/bootcamp/certificate/claim", { cohortId });
       if (resp.data?.success) {
         setHasClaimed(true);
         setClaimData(resp.data);
+        onSuccess?.();
         if (resp.data.attestationPending) {
           toast.success("Certificate claimed! Attestation pending - retry available.");
         } else {
-          toast.success("Certificate claimed successfully!");
+          if (resp.data.alreadyHasKey) {
+            toast.success("You already have this certificate");
+          } else {
+            toast.success("Certificate claimed successfully!");
+          }
         }
       } else {
         throw new Error(resp.data?.error || "Claim failed");
@@ -67,7 +72,7 @@ export function useCertificateClaim(cohortId: string) {
 
       if (result?.success && result.attestationUid) {
         // Commit UID to server for persistence
-        await axios.post("/api/bootcamp/certificate/commit-attestation", { cohortId, attestationUid: result.attestationUid });
+        await api.post("/bootcamp/certificate/commit-attestation", { cohortId, attestationUid: result.attestationUid });
         setClaimData((prev) => ({ ...prev, attestationUid: result.attestationUid, attestationPending: false }));
         toast.success("Attestation created successfully!");
       } else {

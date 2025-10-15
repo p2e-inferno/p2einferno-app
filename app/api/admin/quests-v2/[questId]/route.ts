@@ -16,10 +16,10 @@ function invalidateQuestCache(id: string) {
   }
 }
 
-export async function GET(req: NextRequest, { params }: any) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ questId: string }> }) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
-  const { questId } = params;
+  const { questId } = await params;
   const supabase = createAdminClient();
   try {
     const { data: quest, error } = await supabase
@@ -63,10 +63,10 @@ export async function GET(req: NextRequest, { params }: any) {
   }
 }
 
-export async function PUT(req: NextRequest, { params }: any) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ questId: string }> }) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
-  const { questId } = params;
+  const { questId } = await params;
   const supabase = createAdminClient();
   try {
     const body = await req.json();
@@ -165,10 +165,10 @@ export async function PUT(req: NextRequest, { params }: any) {
   }
 }
 
-export async function PATCH(req: NextRequest, ctx: any) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ questId: string }> }) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
-  const { questId } = ctx.params;
+  const { questId } = await params;
   const supabase = createAdminClient();
   try {
     const updates: any = await req.json();
@@ -199,10 +199,10 @@ export async function PATCH(req: NextRequest, ctx: any) {
   }
 }
 
-export async function DELETE(req: NextRequest, ctx: any) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ questId: string }> }) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
-  const { questId } = ctx.params;
+  const { questId } = await params;
   const supabase = createAdminClient();
   try {
     const { count } = await supabase

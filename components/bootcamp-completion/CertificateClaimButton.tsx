@@ -1,5 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { useCertificateClaim } from "@/hooks/bootcamp-completion";
+import {
+  useCertificateClaim,
+  useBootcampCompletionStatus,
+} from "@/hooks/bootcamp-completion";
 
 interface CertificateClaimButtonProps {
   cohortId: string;
@@ -18,20 +21,36 @@ export function CertificateClaimButton({
   alreadyClaimed,
   onClaimed,
 }: CertificateClaimButtonProps) {
-  const { isClaiming, hasClaimed, claimCertificate, claimData, retryAttestation } = useCertificateClaim(cohortId);
+  const { refetch } = useBootcampCompletionStatus(cohortId);
+  const {
+    isClaiming,
+    hasClaimed,
+    claimCertificate,
+    claimData,
+    retryAttestation,
+  } = useCertificateClaim(cohortId, () => {
+    refetch();
+    onClaimed?.();
+  });
 
   if (!isCompleted) {
-    return <Button disabled>Complete all milestones to claim certificate</Button>;
+    return (
+      <Button disabled>Complete all milestones to claim certificate</Button>
+    );
   }
 
   if (!lockAddress) {
     return <Button disabled>Certificate not configured yet</Button>;
   }
 
-  if (alreadyClaimed || hasClaimed) {
+  const alreadyHasKey =
+    Boolean((claimData as any)?.alreadyHasKey) || alreadyClaimed;
+  if (alreadyHasKey || hasClaimed) {
     return (
       <div className="flex flex-col gap-2">
-        <Button disabled variant="success">Certificate Claimed ✓</Button>
+        <Button disabled variant="secondary">
+          {alreadyHasKey ? "Certificate Already Held" : "Certificate Claimed ✓"}
+        </Button>
         {claimData?.attestationPending && (
           <Button variant="outline" onClick={() => retryAttestation()}>
             Retry Attestation
@@ -53,4 +72,3 @@ export function CertificateClaimButton({
     </Button>
   );
 }
-

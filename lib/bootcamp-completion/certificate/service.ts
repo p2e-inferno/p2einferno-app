@@ -16,9 +16,10 @@ export class CertificateService {
    */
   async claimCertificate(params: CertificateClaimParams): Promise<CertificateClaimResult> {
     const { enrollmentId, userId, cohortId, lockAddress } = params;
-    const supabase = createAdminClient();
 
     try {
+      const start = Date.now();
+      log.info('certificate_claim_started', { enrollmentId, userId, cohortId, lockAddress });
       // 1) Acquire claim lock (TTL semantics via updated_at)
       const lock = await this.acquireClaimLock(enrollmentId);
       if (lock.alreadyIssued) {
@@ -29,19 +30,12 @@ export class CertificateService {
       }
 
       // 2) Idempotent pre-check: see if user already has a key
-      let preExistingTx: string | undefined;
       try {
         const keyCheck = await UserKeyService.checkUserKeyOwnership(userId, lockAddress);
         if (keyCheck?.hasValidKey) {
-          // Simulate success path; we don't have a tx hash here (could be discovered via indexers later)
-          preExistingTx = undefined;
-          await this.markCertificateIssued({
-            enrollmentId,
-            txHash: preExistingTx ?? "",
-            attestationUid: null,
-            error: null,
-          });
-          return { success: true, txHash: preExistingTx, attestationUid: null, attestationPending: true };
+          log.info('certificate_claim_preexisting_key', { enrollmentId, userId, cohortId, lockAddress });
+          // Do not mark as issued; we did not issue. UI can show "already have certificate".
+          return { success: true, alreadyHasKey: true, attestationUid: null, attestationPending: false };
         }
       } catch (e) {
         log.warn("Key existence pre-check failed; proceeding with grant attempt", {
@@ -70,9 +64,10 @@ export class CertificateService {
         error: "Attestation pending - retry available",
       });
 
+      log.info('certificate_claim_succeeded', { enrollmentId, userId, cohortId, lockAddress, txHash, durationMs: Date.now() - start });
       return { success: true, txHash, attestationUid: null, attestationPending: true };
     } catch (error: any) {
-      log.error("Certificate claim failed", { enrollmentId, error: error?.message || error });
+      log.error("certificate_claim_failed", { enrollmentId, cohortId, error: error?.message || error });
       return { success: false, error: error?.message || "Internal error" };
     } finally {
       // Always release lock
@@ -157,6 +152,10 @@ export class CertificateService {
     if (error) {
       log.warn("Failed to record certificate error", { enrollmentId, step, message, error });
     }
+    try {
+      await supabase.rpc('increment_certificate_retry_count', { p_enrollment_id: enrollmentId });
+    } catch (e: any) {
+      log.warn('retry_count_increment_failed', { enrollmentId, error: e?.message || String(e) });
+    }
   }
 }
-

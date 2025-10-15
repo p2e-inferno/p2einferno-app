@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:admin:cohort-fix-statuses");
 
-export async function POST(req: NextRequest, { params }: { params: { cohortId: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ cohortId: string }> }) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
 
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest, { params }: { params: { cohortId: s
   }
 
   const supabase = createAdminClient();
-  const cohortId = params.cohortId;
+  const { cohortId } = await params;
 
   try {
     const { data: enrollments, error } = await supabase
