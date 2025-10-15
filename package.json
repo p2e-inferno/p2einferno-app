@@ -21,7 +21,9 @@
     "db:seed": "npx supabase db reset --db-url $NEXT_PUBLIC_SUPABASE_URL",
     "supabase:start": "supabase start",
     "supabase:stop": "supabase stop",
-    "functions:serve:verify": "supabase functions serve verify-blockchain-payment --no-verify-jwt --env-file .env.local"
+    "functions:serve:verify": "supabase functions serve verify-blockchain-payment --no-verify-jwt --env-file .env.local",
+    "deploy:attestation-schema": "ts-node scripts/deploy-bootcamp-attestation-schema.ts",
+    "preflight:certificates": "ts-node scripts/preflight-certificates.ts"
   },
   "dependencies": {
     "@ensdomains/ensjs": "^4.0.2",

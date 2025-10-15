@@ -8,6 +8,8 @@ import TaskSubmissionModal from "@/components/lobby/TaskSubmissionModal";
 import MilestoneTimer from "@/components/lobby/MilestoneTimer";
 import { toast } from "react-hot-toast";
 import MilestoneTaskClaimButton from "@/components/lobby/MilestoneTaskClaimButton";
+import { useBootcampCompletionStatus } from "@/hooks/bootcamp-completion";
+import { CertificateClaimButton, CompletionBadge } from "@/components/bootcamp-completion";
 import { useMilestoneClaim } from "@/hooks/useMilestoneClaim";
 import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
 import { FlameIcon, CrystalIcon } from "@/components/icons/dashboard-icons";
@@ -107,6 +109,7 @@ export default function BootcampLearningPage() {
   );
   const [selectedTask, setSelectedTask] = useState<MilestoneTask | null>(null);
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
+  const completion = useBootcampCompletionStatus(String(cohortId || ""));
 
   const fetchCohortData = useCallback(async () => {
     try {
@@ -335,6 +338,27 @@ export default function BootcampLearningPage() {
               </div>
             </div>
           </div>
+
+          {/* Completion & Certificate */}
+          {completion.status && (
+            <div className="mt-4 flex items-center justify-between">
+              <CompletionBadge
+                isCompleted={completion.status.isCompleted}
+                completionDate={completion.status.completionDate}
+                certificateIssued={completion.status.certificate.issued}
+              />
+              {completion.status.isCompleted && (
+                <CertificateClaimButton
+                  cohortId={String(cohortId)}
+                  bootcampName={data.cohort.bootcamp_program.name}
+                  lockAddress={completion.status.lockAddress}
+                  isCompleted={completion.status.isCompleted}
+                  alreadyClaimed={completion.status.certificate.issued}
+                  onClaimed={fetchCohortData}
+                />
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <div className="bg-background/30 rounded-xl p-4 text-center">

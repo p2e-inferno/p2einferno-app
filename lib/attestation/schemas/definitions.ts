@@ -46,12 +46,13 @@ export const BOOTCAMP_COMPLETION_SCHEMA: Omit<
 > = {
   schema_uid: P2E_SCHEMA_UIDS.BOOTCAMP_COMPLETION,
   name: "Bootcamp Completion",
-  description: "Attestation for completed bootcamp programs",
+  description: "Bootcamp completion attestation with cohort tracking",
   schema_definition:
-    "string bootcampId,string bootcampTitle,address userAddress,uint256 completionDate,uint256 totalXpEarned,string certificateHash",
+    "string cohortId,string cohortName,string bootcampId,string bootcampTitle,address userAddress,uint256 completionDate,uint256 totalXpEarned,string certificateTxHash",
   category: "achievement",
-  revocable: false, // Bootcamp completions should be permanent
+  revocable: false,
 };
+
 
 /**
  * Milestone Achievement Schema - For individual milestone completions
