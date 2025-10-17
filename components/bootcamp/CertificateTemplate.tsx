@@ -40,10 +40,24 @@ export const CertificateTemplate: React.FC<CertificateTemplateProps> = ({
       <div className="relative z-10 flex flex-col items-center justify-center h-full px-20 py-16 text-center">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-flame-yellow via-flame-orange to-flame-yellow mb-2">
+          <h1
+            className="text-6xl font-bold mb-2"
+            style={{
+              color: "#F59E0B",
+              textShadow: "0 0 30px rgba(245, 158, 11, 0.6)",
+            }}
+          >
             Certificate of Completion
           </h1>
-          <div className="h-1 w-64 mx-auto bg-gradient-to-r from-transparent via-flame-yellow to-transparent" />
+          <div
+            style={{
+              height: "4px",
+              width: "256px",
+              margin: "0 auto",
+              background:
+                "linear-gradient(to right, transparent, #F59E0B, transparent)",
+            }}
+          />
         </div>
 
         {/* Body */}
@@ -51,7 +65,13 @@ export const CertificateTemplate: React.FC<CertificateTemplateProps> = ({
           <p className="text-2xl text-gray-300">This certifies that</p>
           <h2 className="text-5xl font-bold text-white">{data.userName}</h2>
           <p className="text-2xl text-gray-300">has successfully completed</p>
-          <h3 className="text-4xl font-semibold text-transparent bg-clip-text bg-gradient-to-r from-flame-yellow to-flame-orange">
+          <h3
+            className="text-4xl font-semibold"
+            style={{
+              color: "#F59E0B",
+              textShadow: "0 0 20px rgba(245, 158, 11, 0.5)",
+            }}
+          >
             {data.bootcampName}
           </h3>
         </div>
@@ -70,7 +90,7 @@ export const CertificateTemplate: React.FC<CertificateTemplateProps> = ({
 
         {/* Lock Address */}
         <div className="mb-12">
-          <p className="text-sm text-gray-400 mb-2">Certificate Lock Address</p>
+          <p className="text-sm text-gray-400 mb-2">Certificate NFT Address </p>
           <div className="px-6 py-3 bg-gray-800/50 border border-gray-700 rounded-lg">
             <code className="text-lg font-mono text-flame-yellow break-all">
               {data.lockAddress}
@@ -83,9 +103,7 @@ export const CertificateTemplate: React.FC<CertificateTemplateProps> = ({
           <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-flame-yellow to-flame-orange mb-1">
             P2E INFERNO
           </div>
-          <div className="text-sm text-gray-400">
-            Play-to-Earn Gaming Community
-          </div>
+          <div className="text-sm text-gray-400">P2E INFERNO ™️</div>
         </div>
       </div>
     </div>
