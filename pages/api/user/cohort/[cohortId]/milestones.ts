@@ -105,13 +105,13 @@ export default async function handler(
       });
     }
 
-    // Verify user is enrolled in this cohort
+    // Verify user is enrolled in this cohort (including completed enrollments)
     const { data: enrollment, error: enrollmentError } = await supabase
       .from("bootcamp_enrollments")
       .select("id, enrollment_status")
       .eq("user_profile_id", profile.id)
       .eq("cohort_id", cohortId)
-      .in("enrollment_status", ["enrolled", "active"])
+      .in("enrollment_status", ["enrolled", "active", "completed"])
       .maybeSingle();
 
     if (enrollmentError || !enrollment) {

@@ -27,6 +27,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
   const { cohortId } = await params;
   const supabase = createAdminClient();
 
+  // First, get the user_profile_id for the current privy user
+  const { data: profileData, error: profileError } = await supabase
+    .from("user_profiles")
+    .select("id")
+    .eq("privy_user_id", user.id)
+    .maybeSingle();
+
+  if (profileError || !profileData) {
+    return NextResponse.json({ error: "User profile not found" }, { status: 404 });
+  }
+
+  // Now query enrollment for this specific user and cohort
   const { data, error } = await supabase
     .from("bootcamp_enrollments")
     .select(
@@ -39,16 +51,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
       certificate_tx_hash,
       certificate_attestation_uid,
       certificate_last_error,
-      user_profiles:user_profile_id ( privy_user_id ),
-      cohorts:cohort_id ( bootcamp_program_id ),
-      bootcamp_programs:cohorts.bootcamp_program_id ( lock_address )
+      cohorts:cohort_id (
+        bootcamp_program_id,
+        bootcamp_programs:bootcamp_program_id ( lock_address )
+      )
     `,
     )
     .eq("cohort_id", cohortId)
+    .eq("user_profile_id", profileData.id)
     .maybeSingle();
 
   if (error || !data) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ error: "Enrollment not found" }, { status: 404 });
   }
   type StatusRow = {
     id: string;
@@ -59,16 +73,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
     certificate_tx_hash: string | null;
     certificate_attestation_uid: string | null;
     certificate_last_error: string | null;
-    user_profiles: { privy_user_id: string } | null;
-    bootcamp_programs: { lock_address: string | null } | null;
+    cohorts: {
+      bootcamp_program_id: string;
+      bootcamp_programs: { lock_address: string | null } | null;
+    } | null;
   };
   const row = data as unknown as StatusRow;
-  const profile = row?.user_profiles;
-  if (!profile || profile.privy_user_id !== user.id) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
 
-  const program = row?.bootcamp_programs;
+  const program = row?.cohorts?.bootcamp_programs;
   return NextResponse.json({
     isCompleted: row.enrollment_status === "completed",
     completionDate: row.completion_date,
