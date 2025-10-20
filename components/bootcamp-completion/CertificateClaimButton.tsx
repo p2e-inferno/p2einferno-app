@@ -44,6 +44,9 @@ export function CertificateClaimButton({
   const [certificateData, setCertificateData] =
     useState<CertificateData | null>(null);
   const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [storedImageUrl, setStoredImageUrl] = useState<string | null>(null);
+  const [blockchainVerified, setBlockchainVerified] = useState(false);
+  const [enrollmentId, setEnrollmentId] = useState<string | null>(null);
 
   const handlePreviewClick = async () => {
     setIsLoadingPreview(true);
@@ -55,7 +58,19 @@ export function CertificateClaimButton({
         throw new Error("Failed to load certificate data");
       }
       const result = await response.json();
-      setCertificateData(result.data);
+
+      // Store blockchain verification status and stored image URL
+      setBlockchainVerified(result.hasKey || false);
+      setStoredImageUrl(result.storedImageUrl || null);
+      setEnrollmentId(result.enrollmentId || null);
+
+      // If we have a stored image, we don't need certificate data
+      if (result.storedImageUrl && result.isClaimed) {
+        setCertificateData(null);
+      } else {
+        setCertificateData(result.data);
+      }
+
       setShowPreview(true);
     } catch (error) {
       log.error("Failed to load certificate preview:", error);
@@ -102,13 +117,14 @@ export function CertificateClaimButton({
             </Button>
           )}
         </div>
-        {certificateData && (
-          <CertificatePreviewModal
-            open={showPreview}
-            onOpenChange={setShowPreview}
-            certificateData={certificateData}
-          />
-        )}
+        <CertificatePreviewModal
+          open={showPreview}
+          onOpenChange={setShowPreview}
+          certificateData={certificateData || undefined}
+          storedImageUrl={storedImageUrl || undefined}
+          isClaimed={blockchainVerified || alreadyHasKey}
+          enrollmentId={enrollmentId || undefined}
+        />
       </>
     );
   }
@@ -135,13 +151,14 @@ export function CertificateClaimButton({
           {isLoadingPreview ? "Loading..." : "Preview"}
         </Button>
       </div>
-      {certificateData && (
-        <CertificatePreviewModal
-          open={showPreview}
-          onOpenChange={setShowPreview}
-          certificateData={certificateData}
-        />
-      )}
+      <CertificatePreviewModal
+        open={showPreview}
+        onOpenChange={setShowPreview}
+        certificateData={certificateData || undefined}
+        storedImageUrl={storedImageUrl || undefined}
+        isClaimed={blockchainVerified}
+        enrollmentId={enrollmentId || undefined}
+      />
     </>
   );
 }

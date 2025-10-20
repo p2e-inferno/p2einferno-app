@@ -11,23 +11,40 @@ import {
   downloadCertificate,
   generateCertificateFilename,
 } from "@/lib/certificate/generator";
+import { createClient } from "@/lib/supabase/client";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("components:CertificatePreviewModal");
 
 interface CertificatePreviewModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  certificateData: CertificateData;
+  certificateData?: CertificateData;
+  storedImageUrl?: string;
+  isClaimed?: boolean;
+  enrollmentId?: string;
 }
 
 export const CertificatePreviewModal: React.FC<
   CertificatePreviewModalProps
-> = ({ open, onOpenChange, certificateData }) => {
+> = ({
+  open,
+  onOpenChange,
+  certificateData,
+  storedImageUrl,
+  isClaimed = false,
+  enrollmentId,
+}) => {
   const certificateRef = useRef<HTMLDivElement>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [autoSaveAttempted, setAutoSaveAttempted] = useState(false);
+  const [autoSaveSucceeded, setAutoSaveSucceeded] = useState(false);
 
   const handleGeneratePreview = useCallback(async () => {
-    if (!certificateRef.current) return;
+    if (!certificateRef.current || !certificateData) return;
 
     setIsGenerating(true);
     setError(null);
@@ -49,12 +66,29 @@ export const CertificatePreviewModal: React.FC<
   }, [certificateData]);
 
   const handleDownload = async () => {
-    if (!certificateRef.current) return;
-
     setIsGenerating(true);
     setError(null);
 
     try {
+      // If we have a stored image URL, download it directly
+      if (storedImageUrl && isClaimed) {
+        const response = await fetch(generatedImage || storedImageUrl);
+        const blob = await response.blob();
+
+        const filename = certificateData
+          ? generateCertificateFilename(
+              certificateData.bootcampName,
+              certificateData.userName,
+            )
+          : "certificate.png";
+
+        downloadCertificate(blob, filename);
+        return;
+      }
+
+      // Otherwise generate a new certificate
+      if (!certificateRef.current || !certificateData) return;
+
       const result = await generateCertificate({
         data: certificateData,
         element: certificateRef.current,
@@ -73,17 +107,124 @@ export const CertificatePreviewModal: React.FC<
     }
   };
 
+  // Auto-save certificate to Supabase Storage
+  const handleSaveCertificate = useCallback(async () => {
+    if (!enrollmentId || !generatedImage || !certificateData) {
+      log.warn("Missing data for certificate save", {
+        enrollmentId,
+        hasImage: !!generatedImage,
+        hasCertData: !!certificateData,
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Convert data URL to blob
+      const response = await fetch(generatedImage);
+      const blob = await response.blob();
+
+      // Upload to Supabase Storage
+      const fileName = `${enrollmentId}-${Date.now()}.png`;
+      const supabase = createClient();
+
+      const { error: uploadError } = await supabase.storage
+        .from("certificates")
+        .upload(fileName, blob, {
+          contentType: "image/png",
+          cacheControl: "31536000", // 1 year
+          upsert: false,
+        });
+
+      if (uploadError) {
+        log.error("Upload failed", { error: uploadError });
+        throw uploadError;
+      }
+
+      // Get public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("certificates").getPublicUrl(fileName);
+
+      // Save URL to database via API
+      const saveResponse = await fetch("/api/certificate/save-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          enrollmentId,
+          imageUrl: publicUrl,
+        }),
+      });
+
+      if (!saveResponse.ok) {
+        throw new Error("Failed to save certificate URL");
+      }
+
+      log.info("Certificate saved successfully", { enrollmentId, publicUrl });
+      setError(null);
+      setAutoSaveSucceeded(true);
+    } catch (error) {
+      log.error("Failed to save certificate", { error });
+      setError("Failed to save certificate. Please try again.");
+      setAutoSaveSucceeded(false);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [enrollmentId, generatedImage, certificateData]);
+
+  // Auto-save certificate after generation (for claimed certificates)
+  React.useEffect(() => {
+    // Trigger auto-save when:
+    // 1. Certificate is claimed
+    // 2. We have a generated image (from client-side generation)
+    // 3. We don't have a stored image URL yet
+    // 4. We have an enrollmentId
+    // 5. Auto-save hasn't been attempted yet
+    if (
+      isClaimed &&
+      generatedImage &&
+      !storedImageUrl &&
+      enrollmentId &&
+      !autoSaveAttempted &&
+      !isSaving
+    ) {
+      log.info("Triggering auto-save for certificate", { enrollmentId });
+      setAutoSaveAttempted(true);
+      handleSaveCertificate();
+    }
+  }, [
+    isClaimed,
+    generatedImage,
+    storedImageUrl,
+    enrollmentId,
+    autoSaveAttempted,
+    isSaving,
+    handleSaveCertificate,
+  ]);
+
   // Reset state when modal opens
   React.useEffect(() => {
     if (open) {
-      setGeneratedImage(null);
       setError(null);
-      // Generate preview automatically when modal opens
-      setTimeout(() => {
-        handleGeneratePreview();
-      }, 100);
+      setAutoSaveAttempted(false);
+      setAutoSaveSucceeded(false);
+
+      // If we have a stored image and it's claimed, use that
+      if (storedImageUrl && isClaimed) {
+        setGeneratedImage(storedImageUrl);
+        setIsGenerating(false);
+        setAutoSaveSucceeded(true); // Already saved
+      } else if (certificateData) {
+        // Generate preview automatically when modal opens
+        setGeneratedImage(null);
+        setTimeout(() => {
+          handleGeneratePreview();
+        }, 100);
+      } else {
+        setError("No certificate data available");
+      }
     }
-  }, [open, handleGeneratePreview]);
+  }, [open, storedImageUrl, isClaimed, certificateData, handleGeneratePreview]);
 
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
@@ -93,7 +234,7 @@ export const CertificatePreviewModal: React.FC<
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <Dialog.Title className="text-2xl font-bold text-white">
-              Certificate Preview
+              {isClaimed ? "Certificate" : "Certificate Preview"}
             </Dialog.Title>
             <Dialog.Close className="rounded-full p-2 text-gray-400 hover:text-white hover:bg-gray-800 transition-colors">
               <X className="h-5 w-5" />
@@ -133,29 +274,58 @@ export const CertificatePreviewModal: React.FC<
           </div>
 
           {/* Hidden certificate template for rendering */}
-          <div className="absolute -left-[9999px] -top-[9999px]">
-            <CertificateTemplate
-              data={certificateData}
-              innerRef={certificateRef}
-            />
-          </div>
+          {certificateData && (
+            <div className="absolute -left-[9999px] -top-[9999px]">
+              <CertificateTemplate
+                data={certificateData}
+                innerRef={certificateRef}
+              />
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex items-center justify-end gap-3">
-            <button
-              onClick={handleGeneratePreview}
-              disabled={isGenerating}
-              className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isGenerating ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Generating...
-                </span>
-              ) : (
-                "Regenerate"
+            {/* Only show regenerate for previews, not for claimed certificates */}
+            {!isClaimed && certificateData && (
+              <button
+                onClick={handleGeneratePreview}
+                disabled={isGenerating}
+                className="px-4 py-2 rounded-lg bg-gray-800 text-white hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isGenerating ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </span>
+                ) : (
+                  "Regenerate"
+                )}
+              </button>
+            )}
+
+            {/* Show save button ONLY if auto-save failed (as fallback) */}
+            {isClaimed &&
+              !storedImageUrl &&
+              generatedImage &&
+              enrollmentId &&
+              autoSaveAttempted &&
+              !autoSaveSucceeded && (
+                <button
+                  onClick={handleSaveCertificate}
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                >
+                  {isSaving ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Retrying...
+                    </span>
+                  ) : (
+                    "Retry Save"
+                  )}
+                </button>
               )}
-            </button>
+
             <button
               onClick={handleDownload}
               disabled={isGenerating || !generatedImage}

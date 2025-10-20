@@ -212,36 +212,136 @@ export type Database = {
           },
         ]
       }
+      bootcamp_completion_remarks: {
+        Row: {
+          content: string
+          created_at: string | null
+          created_by: string | null
+          enrollment_id: string | null
+          id: string
+          remark_type: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          content: string
+          created_at?: string | null
+          created_by?: string | null
+          enrollment_id?: string | null
+          id?: string
+          remark_type?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          content?: string
+          created_at?: string | null
+          created_by?: string | null
+          enrollment_id?: string | null
+          id?: string
+          remark_type?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bootcamp_completion_remarks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "bootcamp_completion_remarks_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bootcamp_completion_remarks_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["enrollment_id"]
+          },
+          {
+            foreignKeyName: "bootcamp_completion_remarks_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "bootcamp_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bootcamp_completion_remarks_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "user_applications_view"
+            referencedColumns: ["enrollment_id"]
+          },
+          {
+            foreignKeyName: "bootcamp_completion_remarks_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "user_enrollments_view"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bootcamp_enrollments: {
         Row: {
+          certificate_attestation_uid: string | null
+          certificate_claim_in_progress: boolean | null
+          certificate_image_url: string | null
           certificate_issued: boolean | null
+          certificate_issued_at: string | null
+          certificate_last_error: string | null
+          certificate_last_error_at: string | null
+          certificate_retry_count: number | null
+          certificate_tx_hash: string | null
           cohort_id: string | null
           completion_date: string | null
           created_at: string
           enrollment_status: string | null
           id: string
+          milestones_completed_at: string | null
           progress: Json | null
           updated_at: string
           user_profile_id: string | null
         }
         Insert: {
+          certificate_attestation_uid?: string | null
+          certificate_claim_in_progress?: boolean | null
+          certificate_image_url?: string | null
           certificate_issued?: boolean | null
+          certificate_issued_at?: string | null
+          certificate_last_error?: string | null
+          certificate_last_error_at?: string | null
+          certificate_retry_count?: number | null
+          certificate_tx_hash?: string | null
           cohort_id?: string | null
           completion_date?: string | null
           created_at?: string
           enrollment_status?: string | null
           id?: string
+          milestones_completed_at?: string | null
           progress?: Json | null
           updated_at?: string
           user_profile_id?: string | null
         }
         Update: {
+          certificate_attestation_uid?: string | null
+          certificate_claim_in_progress?: boolean | null
+          certificate_image_url?: string | null
           certificate_issued?: boolean | null
+          certificate_issued_at?: string | null
+          certificate_last_error?: string | null
+          certificate_last_error_at?: string | null
+          certificate_retry_count?: number | null
+          certificate_tx_hash?: string | null
           cohort_id?: string | null
           completion_date?: string | null
           created_at?: string
           enrollment_status?: string | null
           id?: string
+          milestones_completed_at?: string | null
           progress?: Json | null
           updated_at?: string
           user_profile_id?: string | null
@@ -1770,6 +1870,23 @@ export type Database = {
       }
     }
     Functions: {
+      award_xp_to_user: {
+        Args: {
+          p_activity_data: Json
+          p_activity_type: string
+          p_user_id: string
+          p_xp_amount: number
+        }
+        Returns: undefined
+      }
+      compute_user_application_status: {
+        Args: {
+          application_status: string
+          enrollment_status?: string
+          payment_status: string
+        }
+        Returns: string
+      }
       create_notification: {
         Args: {
           p_body: string
@@ -1793,6 +1910,10 @@ export type Database = {
         Args: { sql_query: string }
         Returns: undefined
       }
+      fix_completion_status: {
+        Args: { p_enrollment_id: string }
+        Returns: Json
+      }
       fix_orphaned_applications: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -1800,6 +1921,10 @@ export type Database = {
           application_id: string
           user_email: string
         }[]
+      }
+      force_clear_claim_lock: {
+        Args: { p_enrollment_id: string }
+        Returns: Json
       }
       get_user_checkin_streak: {
         Args: { user_address: string }
@@ -1823,6 +1948,10 @@ export type Database = {
         Args: { user_address: string }
         Returns: boolean
       }
+      increment_certificate_retry_count: {
+        Args: { p_enrollment_id: string }
+        Returns: undefined
+      }
       is_admin: {
         Args: { user_id: string }
         Returns: boolean
@@ -1830,6 +1959,18 @@ export type Database = {
       recalculate_quest_progress: {
         Args: { p_quest_id: string; p_user_id: string }
         Returns: undefined
+      }
+      reconcile_all_application_statuses: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          application_id: string
+          application_status: string
+          enrollment_status: string
+          new_status: string
+          old_status: string
+          payment_status: string
+          user_profile_id: string
+        }[]
       }
     }
     Enums: {

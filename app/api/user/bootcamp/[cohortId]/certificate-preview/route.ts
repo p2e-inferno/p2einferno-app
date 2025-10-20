@@ -3,6 +3,11 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUserFromNextRequest } from "@/lib/auth/privy";
 import type { CertificateData } from "@/components/bootcamp/CertificateTemplate";
 import { getLogger } from "@/lib/utils/logger";
+import { createPublicClientUnified } from "@/lib/blockchain/config";
+import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
+import { CertificateImageService } from "@/lib/bootcamp-completion/certificate/image-service";
+import { resolveBlockchainIdentity } from "@/lib/blockchain/services/identity-resolver";
+import type { Address } from "viem";
 
 const log = getLogger("api:user:bootcamp:[cohortId]:certificate-preview");
 
@@ -125,10 +130,82 @@ export async function GET(
     );
   }
 
-  // Build certificate data
+  // Check blockchain: does user have the NFT certificate?
+  let hasKey = false;
+  const userAddress =
+    "wallet" in user ? user.wallet?.address : undefined;
+
+  if (userAddress && program.lock_address) {
+    try {
+      const client = createPublicClientUnified();
+      const result = await client.readContract({
+        address: program.lock_address as Address,
+        abi: COMPLETE_LOCK_ABI,
+        functionName: "getHasValidKey",
+        args: [userAddress as Address],
+      });
+      hasKey = Boolean(result);
+      log.info("Blockchain verification complete", {
+        userAddress,
+        lockAddress: program.lock_address,
+        hasKey,
+      });
+    } catch (error) {
+      log.error("Failed to verify blockchain key", {
+        error,
+        userAddress,
+        lockAddress: program.lock_address,
+      });
+      // Continue without blockchain verification - will return preview only
+    }
+  }
+
+  // If user has NFT and we have stored image, return it
+  if (hasKey) {
+    const storedImageUrl = await CertificateImageService.getCertificateImage(
+      enrollmentRow.id,
+    );
+    if (storedImageUrl) {
+      log.info("Returning stored certificate image", {
+        enrollmentId: enrollmentRow.id,
+        storedImageUrl,
+      });
+      return NextResponse.json({
+        success: true,
+        storedImageUrl,
+        isClaimed: true,
+        hasKey: true,
+      });
+    }
+  }
+
+  // Resolve blockchain identity for certificate display
+  // Priority: Basename > ENS > Full wallet address > display_name fallback
+  let userName = profileData.display_name || "Anonymous User";
+
+  if (userAddress) {
+    try {
+      const identity = await resolveBlockchainIdentity(userAddress);
+      userName = identity.displayName;
+      log.info("Blockchain identity resolved for certificate", {
+        userAddress,
+        displayName: identity.displayName,
+        basename: identity.basename,
+        ensName: identity.ensName,
+        isFromCache: identity.isFromCache,
+      });
+    } catch (error) {
+      log.warn("Failed to resolve blockchain identity, using display_name", {
+        error,
+        fallback: userName,
+      });
+    }
+  }
+
+  // Build certificate preview data for client-side generation
   const certificateData: CertificateData = {
     bootcampName: program.name,
-    userName: profileData.display_name || "Anonymous User",
+    userName,
     completionDate:
       enrollmentRow.completion_date || new Date().toISOString(),
     lockAddress: program.lock_address,
@@ -136,12 +213,15 @@ export async function GET(
 
   log.info("Certificate data generated successfully", {
     bootcampName: program.name,
-    userName: profileData.display_name,
+    userName,
+    hasKey,
   });
 
   return NextResponse.json({
     success: true,
     data: certificateData,
     isCompleted: enrollmentRow.enrollment_status === "completed",
+    hasKey,
+    enrollmentId: enrollmentRow.id,
   });
 }
