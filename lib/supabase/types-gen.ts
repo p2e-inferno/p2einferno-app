@@ -598,6 +598,69 @@ export type Database = {
           },
         ]
       }
+      dg_token_withdrawals: {
+        Row: {
+          amount_dg: number
+          completed_at: string | null
+          created_at: string | null
+          deadline: number
+          error_message: string | null
+          id: string
+          signature: string
+          status: string
+          transaction_hash: string | null
+          user_id: string
+          user_profile_id: string | null
+          wallet_address: string
+          xp_balance_before: number
+        }
+        Insert: {
+          amount_dg: number
+          completed_at?: string | null
+          created_at?: string | null
+          deadline: number
+          error_message?: string | null
+          id?: string
+          signature: string
+          status?: string
+          transaction_hash?: string | null
+          user_id: string
+          user_profile_id?: string | null
+          wallet_address: string
+          xp_balance_before: number
+        }
+        Update: {
+          amount_dg?: number
+          completed_at?: string | null
+          created_at?: string | null
+          deadline?: number
+          error_message?: string | null
+          id?: string
+          signature?: string
+          status?: string
+          transaction_hash?: string | null
+          user_id?: string
+          user_profile_id?: string | null
+          wallet_address?: string
+          xp_balance_before?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dg_token_withdrawals_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "dg_token_withdrawals_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lock_registry: {
         Row: {
           created_at: string | null
@@ -1879,6 +1942,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      complete_withdrawal: {
+        Args: { p_tx_hash: string; p_withdrawal_id: string }
+        Returns: undefined
+      }
       compute_user_application_status: {
         Args: {
           application_status: string
@@ -1952,6 +2019,16 @@ export type Database = {
         Args: { p_enrollment_id: string }
         Returns: undefined
       }
+      initiate_withdrawal: {
+        Args: {
+          p_amount_dg: number
+          p_deadline: number
+          p_signature: string
+          p_user_id: string
+          p_wallet_address: string
+        }
+        Returns: Json
+      }
       is_admin: {
         Args: { user_id: string }
         Returns: boolean
@@ -1971,6 +2048,10 @@ export type Database = {
           payment_status: string
           user_profile_id: string
         }[]
+      }
+      rollback_withdrawal: {
+        Args: { p_error_message?: string; p_withdrawal_id: string }
+        Returns: undefined
       }
     }
     Enums: {
