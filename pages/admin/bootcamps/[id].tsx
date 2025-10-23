@@ -102,7 +102,11 @@ export default function EditBootcampPage() {
 
       {
         bootcamp ? (
-          <BootcampForm bootcamp={bootcamp} isEditing />
+          <BootcampForm
+            bootcamp={bootcamp}
+            isEditing
+            onSuccess={fetchBootcamp}
+          />
         ) : // This specific "Bootcamp not found" message can be shown if !isLoading && !error && !bootcamp
         // AdminEditPageLayout will show general error if `error` prop is set.
         // If no error, but no bootcamp, and not loading, it implies not found.

@@ -39,21 +39,24 @@ import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 import {
-  initialGrantState,
   applyDeploymentOutcome,
   effectiveGrantForSave,
 } from "@/lib/blockchain/shared/grant-state";
+import LockManagerToggle from "@/components/admin/LockManagerToggle";
+import { useLockManagerState } from "@/hooks/useLockManagerState";
 
 const log = getLogger("admin:BootcampForm");
 
 interface BootcampFormProps {
   bootcamp?: BootcampProgram;
   isEditing?: boolean;
+  onSuccess?: () => void;
 }
 
 export default function BootcampForm({
   bootcamp,
   isEditing = false,
+  onSuccess,
 }: BootcampFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,13 +82,13 @@ export default function BootcampForm({
   );
   const [hasPendingBootcampDeployments, setHasPendingBootcampDeployments] =
     useState(false);
-  // Default to false for new bootcamps; set true explicitly when a grant succeeds
-  const [lockManagerGranted, setLockManagerGranted] = useState(
-    initialGrantState(isEditing, bootcamp?.lock_manager_granted ?? undefined),
-  );
-  const [grantFailureReason, setGrantFailureReason] = useState<
-    string | undefined
-  >(isEditing ? (bootcamp?.grant_failure_reason ?? undefined) : undefined);
+  // Use the reusable hook for lock manager state management
+  const {
+    lockManagerGranted,
+    setLockManagerGranted,
+    grantFailureReason,
+    setGrantFailureReason,
+  } = useLockManagerState(isEditing, bootcamp);
   // Track the most recent grant outcome during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
@@ -187,14 +190,6 @@ export default function BootcampForm({
       cancelled = true;
     };
   }, [isEditing, adminFetch, silentFetch, router]);
-
-  // Sync grant failure state from entity props when editing
-  useEffect(() => {
-    if (isEditing && bootcamp) {
-      setLockManagerGranted(bootcamp.lock_manager_granted ?? true);
-      setGrantFailureReason(bootcamp.grant_failure_reason ?? undefined);
-    }
-  }, [isEditing, bootcamp]);
 
   // Clear local error when adminApi error is cleared
   useEffect(() => {
@@ -531,8 +526,13 @@ export default function BootcampForm({
             : "Bootcamp created successfully!",
         );
 
-        // Redirect back to bootcamp list
-        router.push("/admin/bootcamps");
+        if (isEditing && onSuccess) {
+          // For editing, call success callback to refresh data
+          onSuccess();
+        } else {
+          // For creating, redirect to bootcamp list
+          router.push("/admin/bootcamps");
+        }
       }
     } catch (error: any) {
       log.error("Error saving bootcamp:", error);
@@ -692,6 +692,14 @@ export default function BootcampForm({
             }
             className={inputClass}
             disabled={showAutoLockCreation && !isEditing}
+          />
+
+          {/* Lock Manager Status Toggle */}
+          <LockManagerToggle
+            isGranted={lockManagerGranted}
+            onToggle={setLockManagerGranted}
+            lockAddress={formData.lock_address}
+            isEditing={isEditing}
           />
 
           {showAutoLockCreation && !isEditing && !formData.lock_address && (

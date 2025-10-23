@@ -43,6 +43,13 @@ export default function EditCohortPage() {
         throw new Error("Cohort not found");
       }
 
+      log.info("Cohort data fetched from API", {
+        cohortId: result.data.data.id,
+        lockAddress: result.data.data.lock_address,
+        lockManagerGranted: result.data.data.lock_manager_granted,
+        grantFailureReason: result.data.data.grant_failure_reason,
+        lockManagerGrantedType: typeof result.data.data.lock_manager_granted,
+      });
       setCohort(result.data.data);
     } catch (err: any) {
       log.error("Error fetching cohort:", err);
@@ -101,7 +108,7 @@ export default function EditCohortPage() {
 
       {
         cohort ? (
-          <CohortForm cohort={cohort} isEditing />
+          <CohortForm cohort={cohort} isEditing onSuccess={fetchCohort} />
         ) : !isLoading && !error && !cohort ? (
           <div className="bg-amber-900/20 border border-amber-700 text-amber-300 px-4 py-3 rounded">
             Cohort not found. It may have been deleted or the ID is incorrect.

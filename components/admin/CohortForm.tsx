@@ -30,10 +30,11 @@ import { getRecordId } from "@/lib/utils/id-generation";
 import { getLogger } from "@/lib/utils/logger";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import {
-  initialGrantState,
   applyDeploymentOutcome,
   effectiveGrantForSave,
 } from "@/lib/blockchain/shared/grant-state";
+import LockManagerToggle from "@/components/admin/LockManagerToggle";
+import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 
@@ -42,11 +43,13 @@ const log = getLogger("admin:CohortForm");
 interface CohortFormProps {
   cohort?: Cohort;
   isEditing?: boolean;
+  onSuccess?: () => void;
 }
 
 export default function CohortForm({
   cohort,
   isEditing = false,
+  onSuccess,
 }: CohortFormProps) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -87,13 +90,13 @@ export default function CohortForm({
   const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(
     null,
   );
-  // Default to false for new cohorts; set true explicitly when a grant succeeds
-  const [lockManagerGranted, setLockManagerGranted] = useState(
-    initialGrantState(isEditing, cohort?.lock_manager_granted ?? undefined),
-  );
-  const [grantFailureReason, setGrantFailureReason] = useState<
-    string | undefined
-  >(isEditing ? (cohort?.grant_failure_reason ?? undefined) : undefined);
+  // Use the reusable hook for lock manager state management
+  const {
+    lockManagerGranted,
+    setLockManagerGranted,
+    grantFailureReason,
+    setGrantFailureReason,
+  } = useLockManagerState(isEditing, cohort);
   // Track the most recent grant outcome in local variables during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
@@ -187,8 +190,8 @@ export default function CohortForm({
     const hydrateDraft = (showRestoreToast: boolean = true) => {
       setFormData((prev) => ({ ...prev, ...draft.formData }));
 
-      if (draft.formData?.lock_manager_granted === false) {
-        setLockManagerGranted(false);
+      if (typeof draft.formData?.lock_manager_granted === "boolean") {
+        setLockManagerGranted(draft.formData.lock_manager_granted);
         setGrantFailureReason(draft.formData.grant_failure_reason);
       }
 
@@ -243,14 +246,6 @@ export default function CohortForm({
       cancelled = true;
     };
   }, [isEditing, adminFetch, silentFetch, router]);
-
-  // Sync grant failure state from entity props when editing
-  useEffect(() => {
-    if (isEditing && cohort) {
-      setLockManagerGranted(cohort.lock_manager_granted ?? true);
-      setGrantFailureReason(cohort.grant_failure_reason ?? undefined);
-    }
-  }, [isEditing, cohort]);
 
   // Fetch bootcamp programs on mount only
   useEffect(() => {
@@ -637,8 +632,13 @@ export default function CohortForm({
             : "Cohort created successfully!",
         );
 
-        // Redirect back to cohort list
-        router.push("/admin/cohorts");
+        if (isEditing && onSuccess) {
+          // For editing, call success callback to refresh data
+          onSuccess();
+        } else {
+          // For creating, redirect to cohort list
+          router.push("/admin/cohorts");
+        }
       }
     } catch (err: any) {
       log.error("Error saving cohort:", err);
@@ -914,6 +914,14 @@ export default function CohortForm({
             }
             className={inputClass}
             disabled={showAutoLockCreation && !isEditing}
+          />
+
+          {/* Lock Manager Status Toggle */}
+          <LockManagerToggle
+            isGranted={lockManagerGranted}
+            onToggle={setLockManagerGranted}
+            lockAddress={formData.lock_address}
+            isEditing={isEditing}
           />
 
           {showAutoLockCreation && !isEditing && !formData.lock_address && (

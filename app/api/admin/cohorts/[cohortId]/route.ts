@@ -1,27 +1,30 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
-import { createAdminClient } from '@/lib/supabase/server';
-import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
-import { getLogger } from '@/lib/utils/logger';
-import { ADMIN_CACHE_TAGS } from '@/lib/app-config/admin';
+import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/server";
+import { ensureAdminOrRespond } from "@/lib/auth/route-handlers/admin-guard";
+import { getLogger } from "@/lib/utils/logger";
+import { ADMIN_CACHE_TAGS } from "@/lib/app-config/admin";
 
-const log = getLogger('api:cohorts:detail');
+const log = getLogger("api:cohorts:detail");
 
 function invalidateCohort(id: string) {
   try {
     revalidateTag(ADMIN_CACHE_TAGS.cohort(id));
   } catch (error) {
-    log.warn('cohort revalidation failed', { error, id });
+    log.warn("cohort revalidation failed", { error, id });
   }
 }
 
-export async function GET(req: NextRequest, { params }: { params: Promise<{ cohortId: string }> }) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ cohortId: string }> }
+) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
 
   const { cohortId } = await params;
   if (!cohortId) {
-    return NextResponse.json({ error: 'Invalid cohort ID' }, { status: 400 });
+    return NextResponse.json({ error: "Invalid cohort ID" }, { status: 400 });
   }
 
   const supabase = createAdminClient();
@@ -35,8 +38,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
     while (retryCount < maxRetries) {
       try {
         const result = await supabase
-          .from('cohorts')
-          .select(`
+          .from("cohorts")
+          .select(
+            `
             id,
             name,
             start_date,
@@ -48,6 +52,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
             bootcamp_program_id,
             key_managers,
             lock_address,
+            lock_manager_granted,
+            grant_failure_reason,
             usdt_amount,
             naira_amount,
             created_at,
@@ -59,8 +65,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
               duration_weeks,
               max_reward_dgt
             )
-          `)
-          .eq('id', cohortId)
+          `
+          )
+          .eq("id", cohortId)
           .maybeSingle();
 
         cohort = result.data;
@@ -68,7 +75,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
         break;
       } catch (error: any) {
         retryCount += 1;
-        log.warn('[COHORT_API] Database connection failed', {
+        log.warn("[COHORT_API] Database connection failed", {
           attempt: retryCount,
           maxRetries,
           error,
@@ -76,28 +83,41 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
 
         if (retryCount >= maxRetries) {
           cohortError = {
-            message: 'Database connection failed after retries',
-            details: error instanceof Error ? error.message : 'Network error',
+            message: "Database connection failed after retries",
+            details: error instanceof Error ? error.message : "Network error",
           };
           cohort = null;
         } else {
-          await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * retryCount)
+          );
         }
       }
     }
 
     if (cohortError) {
-      log.error('cohort detail fetch error', { error: cohortError, cohortId });
+      log.error("cohort detail fetch error", { error: cohortError, cohortId });
       return NextResponse.json(
-        { error: 'Database error', details: cohortError.message },
+        { error: "Database error", details: cohortError.message },
         { status: 500 }
       );
     }
 
     if (!cohort) {
-      log.error('cohort not found', { cohortId });
-      return NextResponse.json({ error: 'Cohort not found', cohortId }, { status: 404 });
+      log.error("cohort not found", { cohortId });
+      return NextResponse.json(
+        { error: "Cohort not found", cohortId },
+        { status: 404 }
+      );
     }
+
+    // Log the raw cohort data from database for debugging
+    log.info("Raw cohort data from database:", {
+      cohortId,
+      lock_manager_granted: cohort.lock_manager_granted,
+      grant_failure_reason: cohort.grant_failure_reason,
+      lock_manager_granted_type: typeof cohort.lock_manager_granted,
+    });
 
     const response = {
       id: cohort.id,
@@ -111,6 +131,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
       bootcamp_program_id: cohort.bootcamp_program_id,
       key_managers: cohort.key_managers,
       lock_address: cohort.lock_address,
+      lock_manager_granted: cohort.lock_manager_granted,
+      grant_failure_reason: cohort.grant_failure_reason,
       usdt_amount: cohort.usdt_amount,
       naira_amount: cohort.naira_amount,
       created_at: cohort.created_at,
@@ -120,26 +142,35 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ coho
         : cohort.bootcamp_programs,
     };
 
-    return NextResponse.json({ success: true, data: response }, { status: 200 });
+    return NextResponse.json(
+      { success: true, data: response },
+      { status: 200 }
+    );
   } catch (error: any) {
-    log.error('cohort detail unexpected error', { error, cohortId });
+    log.error("cohort detail unexpected error", { error, cohortId });
     return NextResponse.json(
       {
-        error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        error: "Internal server error",
+        details: error instanceof Error ? error.message : "Unknown error",
       },
       { status: 500 }
     );
   }
 }
 
-export async function PUT(req: NextRequest, { params }: { params: Promise<{ cohortId: string }> }) {
+export async function PUT(
+  req: NextRequest,
+  { params }: { params: Promise<{ cohortId: string }> }
+) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
 
   const { cohortId } = await params;
   if (!cohortId) {
-    return NextResponse.json({ error: 'Cohort ID is required' }, { status: 400 });
+    return NextResponse.json(
+      { error: "Cohort ID is required" },
+      { status: 400 }
+    );
   }
 
   const supabase = createAdminClient();
@@ -151,31 +182,31 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ coho
     const { id, cohortId: _, ...safeUpdates } = updates;
 
     const { data, error } = await supabase
-      .from('cohorts')
+      .from("cohorts")
       .update({
         ...safeUpdates,
         updated_at: new Date().toISOString(),
       })
-      .eq('id', cohortId)
+      .eq("id", cohortId)
       .select()
       .single();
 
     if (error) {
-      log.error('cohort update error', { error, cohortId });
+      log.error("cohort update error", { error, cohortId });
       return NextResponse.json(
-        { error: error.message || 'Failed to update cohort' },
+        { error: error.message || "Failed to update cohort" },
         { status: 400 }
       );
     }
 
     if (!data) {
-      return NextResponse.json({ error: 'Cohort not found' }, { status: 404 });
+      return NextResponse.json({ error: "Cohort not found" }, { status: 404 });
     }
 
     invalidateCohort(cohortId);
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error: any) {
-    log.error('cohort update unexpected error', { error, cohortId });
-    return NextResponse.json({ error: 'Server error' }, { status: 500 });
+    log.error("cohort update unexpected error", { error, cohortId });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

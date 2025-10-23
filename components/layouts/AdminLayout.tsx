@@ -15,6 +15,7 @@ import {
   CreditCard,
   ChevronLeft,
   ChevronRight,
+  DollarSign,
 } from "lucide-react";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -31,6 +32,7 @@ const adminNavItems = [
   { name: "Bootcamps", href: "/admin/bootcamps", icon: BookOpen },
   { name: "Quests", href: "/admin/quests", icon: Award },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
+  { name: "DG Pullouts", href: "/admin/dg-pullouts", icon: DollarSign },
   { name: "Applications", href: "/admin/applications", icon: FileText },
   { name: "Draft Recovery", href: "/admin/draft-recovery", icon: FileText },
 ];
@@ -43,6 +45,7 @@ export default function AdminLayout({
     authStatus,
     authenticated,
     user,
+    walletAddress,
     isAdmin,
     hasValidSession,
     isLoadingAuth,
@@ -89,12 +92,19 @@ export default function AdminLayout({
 
   log.debug("AdminLayout render", {
     authStatus,
+    authenticated,
+    user: !!user,
+    walletAddress,
+    isAdmin,
+    hasValidSession,
     isFullyAuthenticated,
     isLoading,
     requiresSession,
     needsPrivyAuth,
     needsBlockchainAuth,
     needsSessionAuth,
+    isLoadingAuth,
+    isLoadingSession,
   });
 
   // Show loading spinner while checking authentication
@@ -137,18 +147,34 @@ export default function AdminLayout({
     );
   }
 
-  // All requirements met - render admin layout with navigation
-  if (requiresSession && !isFullyAuthenticated) {
-    log.warn("Unexpected state: session required but not fully authenticated", {
-      authStatus,
-      isFullyAuthenticated,
+  // Final security check - ensure we have proper authentication before rendering
+  if (!authenticated || !user) {
+    log.warn("Final check failed - not authenticated", {
+      authenticated,
+      hasUser: !!user,
     });
+    return (
+      <AdminAccessRequired message="Please connect your wallet to access admin features" />
+    );
+  }
 
+  if (!isAdmin) {
+    log.warn("Final check failed - not admin", { isAdmin, walletAddress });
+    return (
+      <AdminAccessRequired message="You need admin access to view this page" />
+    );
+  }
+
+  if (requiresSession && !hasValidSession) {
+    log.warn("Final check failed - no valid session", {
+      hasValidSession,
+      requiresSession,
+    });
     return (
       <AdminSessionRequired
         onCreateSession={createAdminSession}
         sessionExpiry={sessionExpiry}
-        message="Authentication verification required"
+        message="A fresh admin session is required for enhanced security"
       />
     );
   }

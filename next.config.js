@@ -55,7 +55,7 @@ const nextConfig = {
         "object-src 'none'",
         "form-action 'self'",
         "frame-ancestors 'none'",
-        "script-src 'self' 'unsafe-inline' blob: chrome-extension: moz-extension: safari-extension: https://challenges.cloudflare.com https://js.paystack.co https://www.googletagmanager.com https://auth.privy.io https://privy.p2einferno.com",
+        `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''} blob: chrome-extension: moz-extension: safari-extension: https://challenges.cloudflare.com https://js.paystack.co https://www.googletagmanager.com https://auth.privy.io https://privy.p2einferno.com`,
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "font-src 'self' data: https://fonts.gstatic.com",
         "img-src 'self' data: blob: https:",

@@ -26,7 +26,7 @@ const log = getLogger("client:admin-auth-context");
  */
 export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
   // ============ EXTERNAL HOOKS ============
-  const { authenticated, ready } = usePrivy();
+  const { authenticated, ready, logout } = usePrivy();
   const { user } = useUser();
   const selectedWallet = useSmartWalletSelection();
   const walletAddress = selectedWallet?.address || null;
@@ -93,7 +93,7 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
   // Effect: Listen for wallet account changes
   useEffect(() => {
     const cleanup = listenForAdminWalletChanges(async () => {
-      log.info("Wallet accounts changed - immediately revoking admin access");
+      log.info("Wallet accounts changed - forcing complete Privy logout for security");
 
       // Immediate UI protection
       setIsAdmin(false);
@@ -113,12 +113,19 @@ export const useAdminAuthContextInternal = (): AdminAuthContextValue => {
         // Ignore network errors - already handled by utility
       }
 
-      // Re-check will be triggered by walletAddress change in above useEffect
-      log.info("Admin status will be re-checked for new wallet");
+      // Force complete Privy logout - user must re-authenticate
+      // This ensures Privy handles wallet linking logic properly
+      try {
+        await logout();
+        log.info("Successfully logged out of Privy due to wallet change");
+      } catch (e) {
+        log.error("Failed to logout from Privy", { error: e });
+        // Still continue - the UI protection above will prevent access
+      }
     });
 
     return cleanup;
-  }, [clearSession, setIsAdmin, setAuthLoading, inFlightRef]);
+  }, [clearSession, setIsAdmin, setAuthLoading, inFlightRef, logout]);
 
   // Track mounted state (needed for React Strict Mode double-invocation)
   useEffect(() => {

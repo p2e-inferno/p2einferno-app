@@ -42,6 +42,7 @@ export function WithdrawalLimitsConfig() {
   const [success, setSuccess] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [showAudit, setShowAudit] = useState(false);
+  const [auditLoaded, setAuditLoaded] = useState(false);
 
   useEffect(() => {
     fetchLimits();
@@ -81,6 +82,7 @@ export function WithdrawalLimitsConfig() {
 
       if (response.ok && data.success) {
         setAuditLogs(data.auditLogs || []);
+        setAuditLoaded(true);
       }
     } catch (err) {
       log.error("Failed to fetch audit logs", { error: err });
@@ -88,10 +90,10 @@ export function WithdrawalLimitsConfig() {
   };
 
   useEffect(() => {
-    if (showAudit && auditLogs.length === 0) {
+    if (showAudit && !auditLoaded) {
       fetchAuditLogs();
     }
-  }, [showAudit]);
+  }, [showAudit, auditLoaded]);
 
   const handleSave = async () => {
     try {
@@ -119,7 +121,7 @@ export function WithdrawalLimitsConfig() {
       setSuccess("Limits updated successfully!");
 
       // Refresh audit logs
-      fetchAuditLogs();
+      setAuditLoaded(false); // Reset to allow refetch
 
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(null), 3000);
@@ -145,20 +147,20 @@ export function WithdrawalLimitsConfig() {
   }
 
   return (
-    <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-lg font-medium text-gray-900 mb-4">
+    <div className="bg-gray-800 shadow rounded-lg p-6">
+      <h2 className="text-lg font-medium text-white mb-4">
         Withdrawal Limits Configuration
       </h2>
 
       {error && (
-        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-md">
+          <p className="text-sm text-red-300">{error}</p>
         </div>
       )}
 
       {success && (
-        <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-          <p className="text-sm text-green-700">{success}</p>
+        <div className="mb-4 p-3 bg-green-900/50 border border-green-700 rounded-md">
+          <p className="text-sm text-green-300">{success}</p>
         </div>
       )}
 
@@ -166,7 +168,7 @@ export function WithdrawalLimitsConfig() {
         <div>
           <label
             htmlFor="minAmount"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-gray-300 mb-1"
           >
             Minimum Amount (DG)
           </label>
@@ -180,10 +182,10 @@ export function WithdrawalLimitsConfig() {
                 minAmount: parseInt(e.target.value) || 0,
               })
             }
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border border-gray-600 bg-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-flame-yellow focus:border-flame-yellow"
             min="1"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-gray-400">
             Users must withdraw at least this amount
           </p>
         </div>
@@ -191,7 +193,7 @@ export function WithdrawalLimitsConfig() {
         <div>
           <label
             htmlFor="maxAmount"
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-gray-300 mb-1"
           >
             Maximum Daily Amount (DG)
           </label>
@@ -205,16 +207,16 @@ export function WithdrawalLimitsConfig() {
                 maxAmount: parseInt(e.target.value) || 0,
               })
             }
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full border border-gray-600 bg-gray-700 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-flame-yellow focus:border-flame-yellow"
             min="1"
           />
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-xs text-gray-400">
             Maximum amount that can be withdrawn in 24 hours (rolling window)
           </p>
         </div>
 
         {limits && limits.updatedAt && (
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-400">
             Last updated: {format(new Date(limits.updatedAt), "PPpp")}
           </p>
         )}
@@ -222,17 +224,17 @@ export function WithdrawalLimitsConfig() {
         <button
           onClick={handleSave}
           disabled={isSaving || !hasChanges}
-          className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-flame-yellow hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flame-yellow disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isSaving ? "Saving..." : "Save Changes"}
         </button>
       </div>
 
       {/* Audit History Section */}
-      <div className="mt-6 pt-6 border-t border-gray-200">
+      <div className="mt-6 pt-6 border-t border-gray-600">
         <button
           onClick={() => setShowAudit(!showAudit)}
-          className="flex items-center text-sm font-medium text-gray-700 hover:text-gray-900"
+          className="flex items-center text-sm font-medium text-gray-300 hover:text-white"
         >
           <svg
             className={`w-5 h-5 mr-1 transition-transform ${showAudit ? "transform rotate-90" : ""}`}
@@ -253,32 +255,32 @@ export function WithdrawalLimitsConfig() {
         {showAudit && (
           <div className="mt-4">
             {auditLogs.length === 0 ? (
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-gray-400">
                 No audit history available
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
+                <table className="min-w-full divide-y divide-gray-600">
+                  <thead className="bg-gray-700">
                     <tr>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">
                         Date
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">
                         Change
                       </th>
-                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">
                         Changed By
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                  <tbody className="bg-gray-800 divide-y divide-gray-600">
                     {auditLogs.map((log) => (
                       <tr key={log.id}>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-4 py-2 whitespace-nowrap text-sm text-white">
                           {format(new Date(log.changedAt), "MMM d, HH:mm")}
                         </td>
-                        <td className="px-4 py-2 text-sm text-gray-900">
+                        <td className="px-4 py-2 text-sm text-white">
                           {log.configKey === "dg_withdrawal_limits_batch" ? (
                             <div>
                               <div>Min: {log.newValue?.minAmount || "N/A"}</div>
@@ -287,7 +289,7 @@ export function WithdrawalLimitsConfig() {
                           ) : (
                             <div>
                               {log.oldValue && (
-                                <span className="line-through text-gray-500">
+                                <span className="line-through text-gray-400">
                                   {log.oldValue}
                                 </span>
                               )}
@@ -298,7 +300,7 @@ export function WithdrawalLimitsConfig() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-400">
                           {log.changedBy.substring(0, 8)}...
                         </td>
                       </tr>

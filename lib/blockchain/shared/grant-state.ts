@@ -15,8 +15,8 @@ export interface EffectiveGrantInput {
 }
 
 export function initialGrantState(isEditing: boolean, existing?: boolean): boolean {
-  // New entities default to false; edits keep existing value (or true if missing)
-  return isEditing ? (typeof existing === 'boolean' ? existing : true) : false;
+  // Always default to false for security - only true if explicitly set in database
+  return isEditing ? (existing ?? false) : false;
 }
 
 export function applyDeploymentOutcome(result: DeploymentResultLike): {
