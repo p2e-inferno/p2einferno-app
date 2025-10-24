@@ -5,6 +5,8 @@ import { grantKeyToUser } from "@/lib/services/user-key-service";
 import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { getLogger } from "@/lib/utils/logger";
+import { Address } from "viem";
+import { checkAndUpdateMilestoneKeyClaimStatus } from "@/lib/helpers/checkAndUpdateMilestoneKeyClaimStatus";
 
 const log = getLogger("api:milestones:claim");
 
@@ -123,12 +125,30 @@ export default async function handler(
       `Successfully granted key for lock ${lockAddress} to user ${user.id}. Tx: ${grantResult.transactionHash}`,
     );
 
-    // 4. Optionally, record the grant event in the database for tracking
-    // await supabase.from('milestone_key_grants').insert({ milestone_id: milestoneId, user_profile_id: profile.id, transaction_hash: grantResult.transactionHash });
+    // 4. Verify key ownership on-chain and update database tracking (if feature enabled)
+    let keyVerified = false;
+    const enableKeyTracking =
+      process.env.MILESTONE_KEY_TRACKING_ENABLED === "true";
 
-    res
-      .status(200)
-      .json({ success: true, transactionHash: grantResult.transactionHash });
+    if (enableKeyTracking) {
+      keyVerified = await checkAndUpdateMilestoneKeyClaimStatus(
+        milestoneId,
+        user.id,
+        publicClient,
+        lockAddress as Address,
+        supabase,
+      );
+    } else {
+      log.debug(
+        `Milestone key tracking is disabled for milestone ${milestoneId}`,
+      );
+    }
+
+    res.status(200).json({
+      success: true,
+      transactionHash: grantResult.transactionHash,
+      keyVerified,
+    });
   } catch (error: any) {
     log.error("Error in /api/milestones/claim:", error);
     res

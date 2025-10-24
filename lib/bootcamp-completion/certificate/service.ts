@@ -57,7 +57,15 @@ export class CertificateService {
             cohortId,
             lockAddress,
           });
-          // Do not mark as issued; we did not issue. UI can show "already have certificate".
+          
+          // Update database to reflect on-chain reality (handles edge cases like DB resets)
+          await this.markCertificateIssued({
+            enrollmentId,
+            txHash: "preexisting", // Indicate this was already owned
+            attestationUid: null,
+            error: null, // Clear any previous errors since key exists
+          });
+          
           return {
             success: true,
             alreadyHasKey: true,

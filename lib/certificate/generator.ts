@@ -193,8 +193,18 @@ export async function generateAndSaveCertificate(
     });
 
     if (!saveResponse.ok) {
-      log.error("Failed to save certificate URL", { enrollmentId, status: saveResponse.status });
-      return { success: false, error: "Failed to save certificate URL to database" };
+      let errorDetails = `Status: ${saveResponse.status}`;
+      try {
+        const errorBody = await saveResponse.text();
+        errorDetails += `, Response: ${errorBody}`;
+      } catch (parseError) {
+        errorDetails += ", Could not parse error response";
+      }
+      log.error("Failed to save certificate URL", { enrollmentId, errorDetails });
+      return { 
+        success: false, 
+        error: `Failed to save certificate URL to database (${saveResponse.status}). Please try again.`
+      };
     }
 
     log.info("Certificate generated and saved successfully", { enrollmentId, publicUrl });
@@ -220,7 +230,18 @@ export async function tryAutoSaveCertificate(
     // 1. Get certificate data from server
     const response = await fetch(`/api/user/bootcamp/${cohortId}/certificate-preview`);
     if (!response.ok) {
-      return { success: false, error: "Failed to fetch certificate data" };
+      let errorDetails = `Status: ${response.status}`;
+      try {
+        const errorBody = await response.text();
+        errorDetails += `, Response: ${errorBody}`;
+      } catch (parseError) {
+        errorDetails += ", Could not parse error response";
+      }
+      log.error("Failed to fetch certificate data", { cohortId, errorDetails });
+      return { 
+        success: false, 
+        error: `Failed to fetch certificate data (${response.status}). Please try again.` 
+      };
     }
 
     const result = await response.json();
