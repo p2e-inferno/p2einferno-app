@@ -501,27 +501,27 @@ export default function MilestoneFormEnhanced({
             Server wallet granted manager role.
             <br />
             {result.transactionHash && (
-              <a
-                href={getBlockExplorerUrl(result.transactionHash)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline"
-              >
-                View deployment
-              </a>
-            )}
-            {result.grantTransactionHash && (
               <>
-                {" | "}
                 <a
-                  href={getBlockExplorerUrl(result.grantTransactionHash)}
+                  href={getBlockExplorerUrl(result.transactionHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline"
                 >
-                  View grant
+                  View deployment
                 </a>
+                <br />
               </>
+            )}
+            {result.grantTransactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View grant
+              </a>
             )}
           </>,
           {

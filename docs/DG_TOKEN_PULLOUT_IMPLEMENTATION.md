@@ -1762,7 +1762,7 @@ export function SubscriptionExpiryInfo({
             }. Renew to maintain withdrawal access.
           </p>
           <a 
-            href="https://app.unlock-protocol.com/" 
+            href="" 
             target="_blank" 
             rel="noopener noreferrer" 
             className="mt-2 inline-flex items-center text-sm text-yellow-800 font-medium hover:underline"

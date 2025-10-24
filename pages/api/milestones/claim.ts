@@ -1,7 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
-import { UserKeyService } from "@/lib/services/user-key-service";
+import { grantKeyToUser } from "@/lib/services/user-key-service";
+import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:milestones:claim");
@@ -80,11 +82,21 @@ export default async function handler(
         .json({ error: "Milestone is not configured with a lock address." });
     }
 
-    // 3. Grant the key using the centralized service
+    // 3. Create wallet client and grant the key
+    const walletClient = createWalletClientUnified();
+    if (!walletClient) {
+      return res.status(500).json({
+        error: "Server wallet not configured for key granting",
+      });
+    }
+
+    const publicClient = createPublicClientUnified();
     log.info(
       `Attempting to grant key for lock ${lockAddress} to user ${user.id}`,
     );
-    const grantResult = await UserKeyService.grantKeyToUser(
+    const grantResult = await grantKeyToUser(
+      walletClient,
+      publicClient,
       user.id,
       lockAddress,
     );

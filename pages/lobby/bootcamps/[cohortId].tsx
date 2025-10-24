@@ -357,7 +357,7 @@ export default function BootcampLearningPage() {
                   lockAddress={completion.status.lockAddress}
                   isCompleted={completion.status.isCompleted}
                   alreadyClaimed={completion.status.certificate.issued}
-                  onClaimed={fetchCohortData}
+                  onClaimed={() => completion.refetch()}
                 />
               )}
             </div>

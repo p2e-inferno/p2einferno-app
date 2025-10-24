@@ -6,18 +6,19 @@
  */
 
 export const WITHDRAWAL_DOMAIN = {
-  name: 'P2E Inferno DG Withdrawal',
-  version: '1',
+  name: "P2E Inferno DG Withdrawal",
+  version: "1",
   chainId: 8453, // Base mainnet
-  verifyingContract: process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET as `0x${string}`
+  verifyingContract: process.env
+    .NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET as `0x${string}`,
 };
 
 export const WITHDRAWAL_TYPES = {
   Withdrawal: [
-    { name: 'user', type: 'address' },
-    { name: 'amount', type: 'uint256' },
-    { name: 'deadline', type: 'uint256' }
-  ]
+    { name: "user", type: "address" },
+    { name: "amount", type: "uint256" },
+    { name: "deadline", type: "uint256" },
+  ],
 } as const;
 
 export interface WithdrawalMessage {

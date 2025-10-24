@@ -10,8 +10,8 @@ import {
   generateCertificate,
   downloadCertificate,
   generateCertificateFilename,
+  generateAndSaveCertificate,
 } from "@/lib/certificate/generator";
-import { createClient } from "@/lib/supabase/client";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("components:CertificatePreviewModal");
@@ -107,12 +107,12 @@ export const CertificatePreviewModal: React.FC<
     }
   };
 
-  // Auto-save certificate to Supabase Storage
+  // Save certificate using reusable function
   const handleSaveCertificate = useCallback(async () => {
-    if (!enrollmentId || !generatedImage || !certificateData) {
+    if (!enrollmentId || !certificateRef.current || !certificateData) {
       log.warn("Missing data for certificate save", {
         enrollmentId,
-        hasImage: !!generatedImage,
+        hasElement: !!certificateRef.current,
         hasCertData: !!certificateData,
       });
       return;
@@ -120,57 +120,34 @@ export const CertificatePreviewModal: React.FC<
 
     setIsSaving(true);
     try {
-      // Convert data URL to blob
-      const response = await fetch(generatedImage);
-      const blob = await response.blob();
-
-      // Upload to Supabase Storage
-      const fileName = `${enrollmentId}-${Date.now()}.png`;
-      const supabase = createClient();
-
-      const { error: uploadError } = await supabase.storage
-        .from("certificates")
-        .upload(fileName, blob, {
-          contentType: "image/png",
-          cacheControl: "31536000", // 1 year
-          upsert: false,
-        });
-
-      if (uploadError) {
-        log.error("Upload failed", { error: uploadError });
-        throw uploadError;
-      }
-
-      // Get public URL
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("certificates").getPublicUrl(fileName);
-
-      // Save URL to database via API
-      const saveResponse = await fetch("/api/certificate/save-url", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          enrollmentId,
-          imageUrl: publicUrl,
-        }),
+      const result = await generateAndSaveCertificate({
+        enrollmentId,
+        certificateData,
+        element: certificateRef.current,
       });
 
-      if (!saveResponse.ok) {
-        throw new Error("Failed to save certificate URL");
+      if (result.success) {
+        log.info("Certificate saved successfully", {
+          enrollmentId,
+          imageUrl: result.imageUrl,
+        });
+        setError(null);
+        setAutoSaveSucceeded(true);
+      } else {
+        log.error("Failed to save certificate", { error: result.error });
+        setError(
+          result.error || "Failed to save certificate. Please try again.",
+        );
+        setAutoSaveSucceeded(false);
       }
-
-      log.info("Certificate saved successfully", { enrollmentId, publicUrl });
-      setError(null);
-      setAutoSaveSucceeded(true);
     } catch (error) {
-      log.error("Failed to save certificate", { error });
+      log.error("Certificate save error", { error });
       setError("Failed to save certificate. Please try again.");
       setAutoSaveSucceeded(false);
     } finally {
       setIsSaving(false);
     }
-  }, [enrollmentId, generatedImage, certificateData]);
+  }, [enrollmentId, certificateData]);
 
   // Auto-save certificate after generation (for claimed certificates)
   React.useEffect(() => {

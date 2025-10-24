@@ -53,7 +53,6 @@ export const BOOTCAMP_COMPLETION_SCHEMA: Omit<
   revocable: false,
 };
 
-
 /**
  * Milestone Achievement Schema - For individual milestone completions
  */

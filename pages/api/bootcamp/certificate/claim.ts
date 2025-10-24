@@ -69,6 +69,18 @@ export default async function handler(
 
     const supabase = createAdminClient();
 
+    // First, get the user_profile_id for the current privy user
+    const { data: profileData, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("id")
+      .eq("privy_user_id", user.id)
+      .maybeSingle();
+
+    if (profileError || !profileData) {
+      log.error("User profile fetch error", { profileError });
+      return res.status(404).json({ error: "User profile not found" });
+    }
+
     // Fetch enrollment with joins to get lock address
     const { data, error } = await supabase
       .from("bootcamp_enrollments")
@@ -79,12 +91,15 @@ export default async function handler(
         certificate_issued,
         user_profile_id,
         user_profiles:user_profile_id ( id, wallet_address, privy_user_id ),
-        cohorts:cohort_id ( id, bootcamp_program_id ),
-        bootcamp_programs:cohorts.bootcamp_program_id ( id, lock_address )
+        cohorts:cohort_id ( 
+          id, 
+          bootcamp_program_id,
+          bootcamp_programs:bootcamp_program_id ( id, lock_address )
+        )
       `,
       )
       .eq("cohort_id", cohortId)
-      .limit(1)
+      .eq("user_profile_id", profileData.id)
       .maybeSingle();
 
     if (error) {
@@ -105,8 +120,11 @@ export default async function handler(
         wallet_address: string | null;
         privy_user_id: string;
       } | null;
-      cohorts: { id: string; bootcamp_program_id: string } | null;
-      bootcamp_programs: { id: string; lock_address: string | null } | null;
+      cohorts: {
+        id: string;
+        bootcamp_program_id: string;
+        bootcamp_programs: { id: string; lock_address: string | null } | null;
+      } | null;
     };
     const row = data as unknown as EnrollmentWithRelations;
     const profile = row?.user_profiles;
@@ -118,7 +136,7 @@ export default async function handler(
       return res.status(403).json({ error: "Not eligible for certificate" });
     }
 
-    const program = row?.bootcamp_programs;
+    const program = row?.cohorts?.bootcamp_programs;
     const lockAddress: string | undefined = program?.lock_address || undefined;
     if (!lockAddress) {
       return res.status(400).json({

@@ -3,7 +3,12 @@
  */
 
 import { ethers } from "ethers";
-import { resolveChain, getAlchemyBaseUrl, createAlchemyRpcUrl, getPreferredProvider } from "../core/chain-resolution";
+import {
+  resolveChain,
+  getAlchemyBaseUrl,
+  createAlchemyRpcUrl,
+  getPreferredProvider,
+} from "../core/chain-resolution";
 import { blockchainLogger } from "../../shared/logging-utils";
 
 const cachedAdapters = new Map<string, any>();
@@ -20,29 +25,39 @@ interface ReadContractParameters {
 class EthersViemAdapter {
   private ethersProvider: ethers.JsonRpcProvider;
 
-  constructor(provider: ethers.JsonRpcProvider, _chainId: number, _chainName: string) {
+  constructor(
+    provider: ethers.JsonRpcProvider,
+    _chainId: number,
+    _chainName: string,
+  ) {
     this.ethersProvider = provider;
   }
 
   async readContract<T = any>(params: ReadContractParameters): Promise<T> {
     const { address, abi, functionName, args = [] } = params;
     const contract = new ethers.Contract(address, abi, this.ethersProvider);
-    
+
     // Verify function exists on contract
     const contractFunction = contract[functionName];
-    if (!contractFunction || typeof contractFunction !== 'function') {
-      throw new Error(`Function ${functionName} not found on contract ${address}`);
+    if (!contractFunction || typeof contractFunction !== "function") {
+      throw new Error(
+        `Function ${functionName} not found on contract ${address}`,
+      );
     }
-    
+
     const result = await contractFunction(...args);
     return result as T;
   }
 }
 
 // Create a proxy that forwards all method calls to the provider
-function createEthersViemAdapter(provider: ethers.JsonRpcProvider, chainId: number, chainName: string): any {
+function createEthersViemAdapter(
+  provider: ethers.JsonRpcProvider,
+  chainId: number,
+  chainName: string,
+): any {
   const adapter = new EthersViemAdapter(provider, chainId, chainName);
-  
+
   return new Proxy(adapter, {
     get(target, prop) {
       // If the property exists on the adapter, use it
@@ -51,11 +66,11 @@ function createEthersViemAdapter(provider: ethers.JsonRpcProvider, chainId: numb
       }
       // Otherwise, forward to the provider
       const providerMethod = provider[prop as keyof ethers.JsonRpcProvider];
-      if (typeof providerMethod === 'function') {
+      if (typeof providerMethod === "function") {
         return providerMethod.bind(provider);
       }
       return providerMethod;
-    }
+    },
   });
 }
 
@@ -63,7 +78,10 @@ function createEthersViemAdapter(provider: ethers.JsonRpcProvider, chainId: numb
  * Resolve a single preferred RPC URL for the current chain.
  * If the preferred keyed URL is unavailable, fall back to public Base RPC.
  */
-function resolvePreferredRpcUrl(chainId: number, prefer: PreferredProvider): string {
+function resolvePreferredRpcUrl(
+  chainId: number,
+  prefer: PreferredProvider,
+): string {
   if (prefer === "alchemy") {
     const baseUrl = getAlchemyBaseUrl(chainId);
     return createAlchemyRpcUrl(baseUrl);
@@ -87,7 +105,9 @@ function resolvePreferredRpcUrl(chainId: number, prefer: PreferredProvider): str
  * Create ethers adapter with viem-like interface for the preferred provider.
  * Does not implement multi-URL fallback; single preferred with public fallback only.
  */
-export const createEthersAdapterReadClient = (opts?: { prefer?: PreferredProvider }): any => {
+export const createEthersAdapterReadClient = (opts?: {
+  prefer?: PreferredProvider;
+}): any => {
   const { chain } = resolveChain();
   const prefer: PreferredProvider = opts?.prefer ?? getPreferredProvider();
   const url = resolvePreferredRpcUrl(chain.id, prefer);
@@ -101,13 +121,19 @@ export const createEthersAdapterReadClient = (opts?: { prefer?: PreferredProvide
     chainId: chain.id,
     networkName: chain.name,
     prefer,
-    host: (() => { try { return new URL(url).host; } catch { return "[unparseable]"; } })(),
+    host: (() => {
+      try {
+        return new URL(url).host;
+      } catch {
+        return "[unparseable]";
+      }
+    })(),
   });
 
-  const provider = new ethers.JsonRpcProvider(
-    url,
-    { chainId: chain.id, name: chain.name }
-  );
+  const provider = new ethers.JsonRpcProvider(url, {
+    chainId: chain.id,
+    name: chain.name,
+  });
   const adapter = createEthersViemAdapter(provider, chain.id, chain.name);
   cachedAdapters.set(cacheKey, adapter);
   return adapter;

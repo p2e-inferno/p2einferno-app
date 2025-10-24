@@ -1,20 +1,8 @@
-import { type Address } from "viem";
-import { LockManagerService } from "./lock-manager";
-import { createPublicClientUnified } from "../config/clients/public-client";
-import { createWalletClientUnified } from "../config/clients/wallet-client";
-import { getLockManagerAddress } from "../legacy/server-config";
+import { type Address, type PublicClient, type WalletClient } from "viem";
+import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("blockchain:grant-key-service");
-
-export interface GrantKeyOptions {
-  walletAddress: string;
-  lockAddress: Address;
-  keyManagers: Address[];
-  expirationDuration?: bigint;
-  maxRetries?: number;
-  retryDelay?: number;
-}
 
 export interface GrantKeyResponse {
   success: boolean;
@@ -24,199 +12,194 @@ export interface GrantKeyResponse {
 }
 
 /**
- * High-level service for granting keys with error handling and retry logic
- * NOTE: Write operations require LOCK_MANAGER_PRIVATE_KEY to be configured.
- * Currently, only read operations are fully supported.
+ * Grant a key to a user wallet with automatic retry on failure.
+ * Uses wallet client passed as parameter to avoid RPC hammering.
+ *
+ * @param walletClient - Wallet client for signing transactions
+ * @param publicClient - Public client for reading transaction receipts
+ * @param walletAddress - User's wallet address to grant key to
+ * @param lockAddress - Lock contract address
+ * @param keyManagers - Array of key manager addresses
+ * @param expirationDuration - Key expiration duration in seconds (default: 1 year)
+ * @param maxRetries - Maximum retry attempts (default: 1)
+ * @param retryDelay - Delay between retries in ms (default: 2000)
  */
-export class GrantKeyService {
-  private readonly DEFAULT_MAX_RETRIES = 1;
-  private readonly DEFAULT_RETRY_DELAY = 2000; // 2 seconds
-
-  /**
-   * Grant a key to a user wallet with automatic retry on failure
-   * NOTE: This operation requires LOCK_MANAGER_PRIVATE_KEY to be configured.
-   */
-  async grantKeyToUser({
-    walletAddress,
-    lockAddress,
-    keyManagers,
-    expirationDuration,
-    maxRetries = this.DEFAULT_MAX_RETRIES,
-    retryDelay = this.DEFAULT_RETRY_DELAY,
-  }: GrantKeyOptions): Promise<GrantKeyResponse> {
-    // Validate wallet address
-    if (!this.isValidAddress(walletAddress)) {
-      return {
-        success: false,
-        error: "Invalid wallet address format",
-      };
-    }
-
-    // Create clients using unified config
-    const publicClient = createPublicClientUnified();
-    const walletClient = createWalletClientUnified();
-    const lockManager = new LockManagerService(publicClient, walletClient);
-
-    // Check if user is a lock manager
-    const adminAddress = getLockManagerAddress();
-    const isLockManager = await lockManager.checkUserIsLockManager(
-      adminAddress as Address,
-      lockAddress,
-    );
-    if (!isLockManager) {
-      return {
-        success: false,
-        error: "Admin address is not a manager of this lock",
-      };
-    }
-
-    // Check if user already has a valid key (1 RPC call vs 3)
-    const hasKey = await lockManager.hasValidKey(
-      walletAddress as Address,
-      lockAddress,
-    );
-    if (hasKey) {
-      return {
-        success: true,
-        error: "User already has a valid key",
-      };
-    }
-
-    let lastError: string = "";
-    let retryCount = 0;
-
-    // Attempt to grant key with retries
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        // Attempt to grant key
-        const result = await lockManager.grantKeys({
-          recipientAddress: walletAddress as Address,
-          lockAddress,
-          keyManagers,
-          expirationDuration,
-        });
-
-        // If operation failed because write operations are disabled
-        if (result.error?.includes("LOCK_MANAGER_PRIVATE_KEY not configured")) {
-          return {
-            success: false,
-            error:
-              "Admin key granting is currently disabled. Contact the system administrator to enable this feature.",
-            retryCount: attempt,
-          };
-        }
-
-        if (result.success) {
-          log.info(`Successfully granted key to ${walletAddress}`);
-          return {
-            success: true,
-            transactionHash: result.transactionHash,
-            retryCount: attempt,
-          };
-        }
-
-        // Handle specific error cases
-        if (result.error?.includes("already has a valid key")) {
-          return {
-            success: true,
-            error: result.error,
-            retryCount: attempt,
-          };
-        }
-
-        lastError = result.error || "Unknown error";
-
-        // Don't retry if it's a permanent error
-        if (this.isPermanentError(lastError)) {
-          break;
-        }
-      } catch (error: any) {
-        lastError = error.message || "Transaction failed";
-        log.error(`Attempt ${attempt + 1} failed:`, error);
-
-        // Don't retry on certain errors
-        if (this.isPermanentError(lastError)) {
-          break;
-        }
-      }
-
-      // Wait before retrying (except on last attempt)
-      if (attempt < maxRetries) {
-        retryCount = attempt + 1;
-        log.info(
-          `Retrying in ${
-            retryDelay / 1000
-          } seconds... (Attempt ${retryCount}/${maxRetries})`,
-        );
-        await this.delay(retryDelay);
-      }
-    }
-
+export async function grantKeyToUser(
+  walletClient: WalletClient,
+  publicClient: PublicClient,
+  walletAddress: string,
+  lockAddress: Address,
+  keyManagers: Address[],
+  expirationDuration: bigint = BigInt(365 * 24 * 60 * 60), // 1 year default
+  maxRetries: number = 1,
+  retryDelay: number = 2000,
+): Promise<GrantKeyResponse> {
+  // Validate wallet address
+  if (!isValidAddress(walletAddress)) {
     return {
       success: false,
-      error: lastError || "Failed to grant key after all retries",
-      retryCount,
+      error: "Invalid wallet address format",
     };
   }
 
-  /**
-   * Check if user already has a valid key
-   * This is a read-only operation that works without a private key
-   */
-  async userHasValidKey(
-    walletAddress: string,
-    lockAddress: Address,
-  ): Promise<boolean> {
-    if (!this.isValidAddress(walletAddress)) {
-      return false;
-    }
+  // Check if wallet client is available
+  if (!walletClient || !walletClient.account) {
+    return {
+      success: false,
+      error: "Wallet client not configured or account not available",
+    };
+  }
 
+  let lastError: string = "";
+  let retryCount = 0;
+
+  // Attempt to grant key with retries
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
-      // Create public client using unified config
-      const publicClient = createPublicClientUnified();
-      const lockManager = new LockManagerService(publicClient);
-      return await lockManager.hasValidKey(
-        walletAddress as Address,
+      log.info(`Granting key attempt ${attempt + 1}/${maxRetries + 1}`, {
+        walletAddress,
         lockAddress,
+        keyManagers: keyManagers.length,
+      });
+
+      // Calculate expiration timestamp (current time + duration)
+      const expirationTimestamp = BigInt(Math.floor(Date.now() / 1000)) + expirationDuration;
+
+      // Execute the grant keys transaction
+      const txHash = await walletClient.writeContract({
+        address: lockAddress,
+        abi: COMPLETE_LOCK_ABI,
+        functionName: "grantKeys",
+        args: [
+          [walletAddress as Address], // recipients
+          [expirationTimestamp], // expirationTimestamps
+          keyManagers, // keyManagers
+        ],
+        account: walletClient.account,
+        chain: walletClient.chain,
+      });
+
+      log.info(`Grant keys transaction sent`, { txHash, walletAddress });
+
+      // Wait for confirmation (2 blocks)
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: txHash,
+        confirmations: 2,
+      });
+
+      if (receipt.status === "success") {
+        log.info(`Successfully granted key to ${walletAddress}`, {
+          txHash,
+          blockNumber: receipt.blockNumber.toString(),
+        });
+        return {
+          success: true,
+          transactionHash: txHash,
+          retryCount: attempt,
+        };
+      } else {
+        lastError = "Transaction reverted on-chain";
+        log.error(`Grant keys transaction reverted`, { txHash, receipt });
+      }
+    } catch (error: any) {
+      lastError = error.message || "Transaction failed";
+      log.error(`Grant key attempt ${attempt + 1} failed:`, {
+        error: lastError,
+        walletAddress,
+        lockAddress,
+      });
+
+      // Don't retry on certain errors
+      if (isPermanentError(lastError)) {
+        break;
+      }
+    }
+
+    // Wait before retrying (except on last attempt)
+    if (attempt < maxRetries) {
+      retryCount = attempt + 1;
+      log.info(
+        `Retrying in ${
+          retryDelay / 1000
+        } seconds... (Attempt ${retryCount}/${maxRetries})`,
       );
-    } catch (error) {
-      log.error("Error checking user key:", error);
-      return false;
+      await delay(retryDelay);
     }
   }
 
-  /**
-   * Validate Ethereum address format
-   */
-  private isValidAddress(address: string): boolean {
-    return /^0x[a-fA-F0-9]{40}$/.test(address);
+  return {
+    success: false,
+    error: lastError || "Failed to grant key after all retries",
+    retryCount,
+  };
+}
+
+/**
+ * Check if user already has a valid key.
+ * Uses public client passed as parameter to avoid RPC hammering.
+ *
+ * @param publicClient - Public client for read operations
+ * @param walletAddress - User's wallet address to check
+ * @param lockAddress - Lock contract address
+ * @returns True if user has a valid key
+ */
+export async function hasValidKey(
+  publicClient: PublicClient,
+  walletAddress: Address,
+  lockAddress: Address,
+): Promise<boolean> {
+  if (!isValidAddress(walletAddress)) {
+    return false;
   }
 
-  /**
-   * Check if an error is permanent and shouldn't be retried
-   */
-  private isPermanentError(error: string): boolean {
-    const permanentErrors = [
-      "Invalid wallet address",
-      "User already has a valid key",
-      "Invalid private key",
-      "Contract not found",
-      "Function not found",
-      "LOCK_MANAGER_PRIVATE_KEY not configured",
-    ];
+  try {
+    const hasKey = await publicClient.readContract({
+      address: lockAddress,
+      abi: COMPLETE_LOCK_ABI,
+      functionName: "getHasValidKey",
+      args: [walletAddress],
+    });
 
-    return permanentErrors.some((permError) =>
-      error.toLowerCase().includes(permError.toLowerCase()),
-    );
-  }
-
-  /**
-   * Delay helper for retries
-   */
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+    return Boolean(hasKey);
+  } catch (error) {
+    log.error("Error checking user key:", {
+      error,
+      walletAddress,
+      lockAddress,
+    });
+    return false;
   }
 }
 
-// Export singleton instance
-export const grantKeyService = new GrantKeyService();
+/**
+ * Validate Ethereum address format
+ */
+function isValidAddress(address: string): boolean {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+/**
+ * Check if an error is permanent and shouldn't be retried
+ */
+function isPermanentError(error: string): boolean {
+  const permanentErrors = [
+    "Invalid wallet address",
+    "User already has a valid key",
+    "Invalid private key",
+    "Contract not found",
+    "Function not found",
+    "Wallet client not configured",
+    "Account not available",
+  ];
+
+  return permanentErrors.some((permError) =>
+    error.toLowerCase().includes(permError.toLowerCase()),
+  );
+}
+
+/**
+ * Delay helper for retries
+ */
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

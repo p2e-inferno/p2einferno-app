@@ -1,7 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
-import { grantKeyService } from "@/lib/blockchain/services/grant-key-service";
+import {
+  grantKeyToUser,
+  hasValidKey,
+} from "@/lib/blockchain/services/grant-key-service";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
+import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
 import { isServerBlockchainConfigured } from "@/lib/blockchain/legacy/server-config";
 import { isValidEthereumAddress } from "@/lib/blockchain/services/transaction-service";
 import { getLogger } from "@/lib/utils/logger";
@@ -193,14 +198,26 @@ async function retryFailedKeyGrants(
         log.info(
           `Reconciliation: Retrying key grant for user ${walletAddress}, cohort ${cohortId}`,
         );
-        const grantResult = await grantKeyService.grantKeyToUser({
-          walletAddress: walletAddress,
-          lockAddress: lockAddress as `0x${string}`,
-          keyManagers: getKeyManagersForContext(
+
+        // Create wallet client for key granting
+        const walletClient = createWalletClientUnified();
+        if (!walletClient) {
+          log.error("Server wallet not configured for reconciliation");
+          results.failed++;
+          continue;
+        }
+
+        const publicClient = createPublicClientUnified();
+        const grantResult = await grantKeyToUser(
+          walletClient,
+          publicClient,
+          walletAddress,
+          lockAddress as `0x${string}`,
+          getKeyManagersForContext(
             walletAddress as `0x${string}`,
             "reconciliation",
           ),
-        });
+        );
 
         if (grantResult.success) {
           results.successful++;
@@ -304,13 +321,25 @@ async function retrySingleKeyGrant(
       `Manual reconciliation: Granting key to user ${walletAddress} for cohort ${cohortId}`,
     );
 
+    // Create clients for key operations
+    const publicClient = createPublicClientUnified();
+    const walletClient = createWalletClientUnified();
+
+    if (!walletClient) {
+      return res.status(500).json({
+        success: false,
+        error: "Server wallet not configured",
+      });
+    }
+
     // Check if user already has a valid key
-    const hasValidKey = await grantKeyService.userHasValidKey(
-      walletAddress,
+    const userHasKey = await hasValidKey(
+      publicClient,
+      walletAddress as `0x${string}`,
       lockAddress as `0x${string}`,
     );
 
-    if (hasValidKey) {
+    if (userHasKey) {
       return res.status(200).json({
         success: true,
         message: "User already has a valid key",
@@ -318,14 +347,16 @@ async function retrySingleKeyGrant(
       });
     }
 
-    const grantResult = await grantKeyService.grantKeyToUser({
-      walletAddress: walletAddress,
-      lockAddress: lockAddress as `0x${string}`,
-      keyManagers: getKeyManagersForContext(
+    const grantResult = await grantKeyToUser(
+      walletClient,
+      publicClient,
+      walletAddress,
+      lockAddress as `0x${string}`,
+      getKeyManagersForContext(
         walletAddress as `0x${string}`,
         "reconciliation",
       ),
-    });
+    );
 
     if (grantResult.success) {
       // Log successful manual reconciliation

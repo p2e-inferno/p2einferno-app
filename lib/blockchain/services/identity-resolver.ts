@@ -40,9 +40,7 @@ function clearExpiredCache(): void {
  * @param address - The wallet address to resolve
  * @returns Display name following priority order
  */
-export async function resolveBlockchainIdentity(
-  address: string
-): Promise<{
+export async function resolveBlockchainIdentity(address: string): Promise<{
   displayName: string;
   basename: string | null;
   ensName: string | null;
@@ -171,7 +169,7 @@ export function getIdentityCacheStats(): {
     ([address, entry]) => ({
       address,
       age: Math.round((now - entry.timestamp) / 1000), // age in seconds
-    })
+    }),
   );
 
   return {

@@ -108,7 +108,11 @@ export function CertificateClaimButton({
               className="flex items-center gap-2"
             >
               <Eye className="h-4 w-4" />
-              {isLoadingPreview ? "Loading..." : "Preview"}
+              {isLoadingPreview
+                ? "Loading..."
+                : storedImageUrl
+                  ? "View"
+                  : "Preview"}
             </Button>
           </div>
           {claimData?.attestationPending && (
@@ -148,7 +152,11 @@ export function CertificateClaimButton({
           className="flex items-center gap-2"
         >
           <Eye className="h-4 w-4" />
-          {isLoadingPreview ? "Loading..." : "Preview"}
+          {isLoadingPreview
+            ? "Loading..."
+            : storedImageUrl
+              ? "View"
+              : "Preview"}
         </Button>
       </div>
       <CertificatePreviewModal

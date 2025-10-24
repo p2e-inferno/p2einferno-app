@@ -4,11 +4,14 @@
  */
 
 import { createPublicClient, http, type PublicClient, type Chain } from "viem";
-import { resolveChain, getAlchemyBaseUrl, createAlchemyRpcUrl } from "../core/chain-resolution";
+import {
+  resolveChain,
+  getAlchemyBaseUrl,
+  createAlchemyRpcUrl,
+} from "../core/chain-resolution";
 import { blockchainLogger } from "../../shared/logging-utils";
 
 let cachedAlchemyClient: PublicClient | null = null;
-
 
 /**
  * Create a standard viem public client using only Alchemy
@@ -16,7 +19,7 @@ let cachedAlchemyClient: PublicClient | null = null;
  */
 export const createAlchemyPublicClient = (): PublicClient => {
   const { chain } = resolveChain();
-  
+
   // Return cached client if available
   if (cachedAlchemyClient) {
     return cachedAlchemyClient;
@@ -24,7 +27,7 @@ export const createAlchemyPublicClient = (): PublicClient => {
 
   const baseUrl = getAlchemyBaseUrl(chain.id);
   const alchemyUrl = createAlchemyRpcUrl(baseUrl);
-  
+
   blockchainLogger.info("Creating Alchemy-only public client", {
     operation: "alchemy:client",
     chainId: chain.id,
@@ -36,7 +39,7 @@ export const createAlchemyPublicClient = (): PublicClient => {
     chain,
     transport: http(alchemyUrl, {
       timeout: 10000, // 10 second timeout
-      retryCount: 0,  // No retries - single endpoint
+      retryCount: 0, // No retries - single endpoint
     }),
   }) as unknown as PublicClient;
 
@@ -49,16 +52,21 @@ export const createAlchemyPublicClient = (): PublicClient => {
  * @param targetChain The chain to create client for
  * @returns Public client configured for the specified chain
  */
-export const createAlchemyPublicClientForChain = (targetChain: Chain): PublicClient => {
+export const createAlchemyPublicClientForChain = (
+  targetChain: Chain,
+): PublicClient => {
   const baseUrl = getAlchemyBaseUrl(targetChain.id);
   const alchemyUrl = createAlchemyRpcUrl(baseUrl);
-  
-  blockchainLogger.info("Creating Alchemy-only public client for custom chain", {
-    operation: "alchemy:client:custom",
-    chainId: targetChain.id,
-    networkName: targetChain.name,
-    hasApiKey: !!process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
-  });
+
+  blockchainLogger.info(
+    "Creating Alchemy-only public client for custom chain",
+    {
+      operation: "alchemy:client:custom",
+      chainId: targetChain.id,
+      networkName: targetChain.name,
+      hasApiKey: !!process.env.NEXT_PUBLIC_ALCHEMY_API_KEY,
+    },
+  );
 
   return createPublicClient({
     chain: targetChain,

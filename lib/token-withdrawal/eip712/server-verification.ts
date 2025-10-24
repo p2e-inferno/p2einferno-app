@@ -5,11 +5,15 @@
  * Uses viem's verifyTypedData for cryptographic verification.
  */
 
-import { verifyTypedData } from 'viem';
-import { WITHDRAWAL_DOMAIN, WITHDRAWAL_TYPES, type WithdrawalMessage } from './types';
-import { getLogger } from '@/lib/utils/logger';
+import { verifyTypedData } from "viem";
+import {
+  WITHDRAWAL_DOMAIN,
+  WITHDRAWAL_TYPES,
+  type WithdrawalMessage,
+} from "./types";
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('eip712-verification');
+const log = getLogger("eip712-verification");
 
 export interface VerificationResult {
   valid: boolean;
@@ -26,30 +30,30 @@ export interface VerificationResult {
  */
 export async function verifyWithdrawalSignature(
   message: WithdrawalMessage,
-  signature: `0x${string}`
+  signature: `0x${string}`,
 ): Promise<VerificationResult> {
   try {
     const isValid = await verifyTypedData({
       address: message.user,
       domain: WITHDRAWAL_DOMAIN,
       types: WITHDRAWAL_TYPES,
-      primaryType: 'Withdrawal',
+      primaryType: "Withdrawal",
       message,
-      signature
+      signature,
     });
 
     if (isValid) {
-      log.info('Signature verified successfully', { user: message.user });
+      log.info("Signature verified successfully", { user: message.user });
       return { valid: true, recoveredAddress: message.user };
     } else {
-      log.warn('Signature verification failed', { user: message.user });
-      return { valid: false, error: 'Invalid signature' };
+      log.warn("Signature verification failed", { user: message.user });
+      return { valid: false, error: "Invalid signature" };
     }
   } catch (error) {
-    log.error('Signature verification error', { error, message });
+    log.error("Signature verification error", { error, message });
     return {
       valid: false,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 }

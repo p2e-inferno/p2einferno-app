@@ -100,9 +100,9 @@ export const CertificateTemplate: React.FC<CertificateTemplateProps> = ({
 
         {/* Footer - P2E Inferno Branding */}
         <div className="mt-auto">
-          <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-flame-yellow to-flame-orange mb-1">
-            P2E INFERNO
-          </div>
+          {/* <div className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-flame-yellow to-flame-orange mb-1">
+            P2E INFERNO ™️
+          </div> */}
           <div className="text-sm text-gray-400">P2E INFERNO ™️</div>
         </div>
       </div>

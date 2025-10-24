@@ -62,7 +62,7 @@ export interface WithdrawalRecord {
   signature: string;
   deadline: number;
   transaction_hash: string | null;
-  status: 'pending' | 'completed' | 'failed';
+  status: "pending" | "completed" | "failed";
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
@@ -86,7 +86,7 @@ export interface WalletBalanceResponse {
   alerts?: Array<{
     type: string;
     message: string;
-    severity: 'warning' | 'critical';
+    severity: "warning" | "critical";
   }>;
   serverWallet?: string;
   error?: string;

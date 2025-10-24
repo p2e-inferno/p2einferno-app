@@ -1,7 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
-import { grantKeyService } from "@/lib/blockchain/services/grant-key-service";
+import { grantKeyToUser } from "@/lib/blockchain/services/grant-key-service";
+import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { isValidEthereumAddress } from "@/lib/blockchain/services/transaction-service";
 import { isServerBlockchainConfigured } from "@/lib/blockchain/legacy/server-config";
 import { getLogger } from "@/lib/utils/logger";
@@ -119,19 +121,30 @@ async function handler(
       });
     }
 
+    // Create wallet client for key granting
+    const walletClient = createWalletClientUnified();
+    if (!walletClient) {
+      return res.status(500).json({
+        success: false,
+        message: "Server wallet not configured",
+        error: "Server wallet not configured",
+      });
+    }
+
+    const publicClient = createPublicClientUnified();
+
     // Grant key to user (service handles pre-grant key check internally)
     log.info(
       `Granting key to user ${walletAddress} for lock ${targetLockAddress}`,
     );
 
-    const grantResult = await grantKeyService.grantKeyToUser({
+    const grantResult = await grantKeyToUser(
+      walletClient,
+      publicClient,
       walletAddress,
-      lockAddress: targetLockAddress as `0x${string}`,
-      keyManagers: getKeyManagersForContext(
-        walletAddress as `0x${string}`,
-        "admin_grant",
-      ),
-    });
+      targetLockAddress as `0x${string}`,
+      getKeyManagersForContext(walletAddress as `0x${string}`, "admin_grant"),
+    );
 
     if (!grantResult.success) {
       log.error("Key granting failed:", grantResult.error);

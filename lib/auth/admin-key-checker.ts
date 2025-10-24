@@ -72,7 +72,7 @@ export const checkMultipleWalletsForAdminKey = async (
         });
         keyInfo.isValid = hasValidKey;
         keyInfo.owner = address as Address;
-       
+
         log.debug(
           `Wallet ${address}: ${keyInfo?.isValid ? "VALID" : "INVALID"}`,
         );
@@ -166,16 +166,15 @@ export const checkDevelopmentAdminAddress = async (
       expirationTimestamp: 0n,
       isValid: false,
     };
-   
-      const hasValidKey = await client.readContract({
-        address: adminLockAddress,
-        abi: COMPLETE_LOCK_ABI,
-        functionName: "getHasValidKey",
-        args: [devAddress],
-      });
-      keyInfo.isValid = hasValidKey;
-      keyInfo.owner = devAddress as Address;
-    
+
+    const hasValidKey = await client.readContract({
+      address: adminLockAddress,
+      abi: COMPLETE_LOCK_ABI,
+      functionName: "getHasValidKey",
+      args: [devAddress],
+    });
+    keyInfo.isValid = hasValidKey;
+    keyInfo.owner = devAddress as Address;
 
     const isValid = keyInfo?.isValid || false;
     log.info(`Development admin check: ${isValid ? "VALID" : "INVALID"}`);
@@ -204,7 +203,11 @@ export const compareKeyCheckPerformance = async (
   performanceGain: string;
 }> => {
   const startTime = Date.now();
-  await checkMultipleWalletsForAdminKey(walletAddresses, adminLockAddress, client);
+  await checkMultipleWalletsForAdminKey(
+    walletAddresses,
+    adminLockAddress,
+    client,
+  );
   const parallelTime = Date.now() - startTime;
 
   // Estimate sequential time (this is approximate)

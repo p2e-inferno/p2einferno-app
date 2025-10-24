@@ -48,19 +48,19 @@ export function AccessRequirementCard() {
   };
 
   return (
-    <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-      <h3 className="font-medium text-blue-900">
+    <div className="mb-6 p-4 bg-gray-800 border border-gray-700 rounded-lg">
+      <h3 className="font-medium text-blue-400">
         DG Nation Membership Required
       </h3>
-      <p className="mt-1 text-sm text-blue-700">
+      <p className="mt-1 text-sm text-gray-300">
         You need an active DG Nation membership NFT to pull out DG tokens. This
         is a recurring subscription NFT that provides access to exclusive
         features.
       </p>
 
       {error && (
-        <div className="mt-2 p-2 bg-red-50 border border-red-100 rounded-md">
-          <p className="text-xs text-red-700">{error}</p>
+        <div className="mt-2 p-2 bg-red-900/20 border border-red-500/30 rounded-md">
+          <p className="text-xs text-red-400">{error}</p>
         </div>
       )}
 
@@ -68,7 +68,7 @@ export function AccessRequirementCard() {
         <button
           onClick={handlePurchase}
           disabled={isPurchasing}
-          className={`inline-flex items-center px-3 py-1.5 border border-blue-600 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed`}
+          className={`inline-flex items-center px-3 py-1.5 border border-blue-500 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           {isPurchasing ? (
             <>
@@ -99,8 +99,8 @@ export function AccessRequirementCard() {
           )}
         </button>
 
-        <a
-          href="https://app.unlock-protocol.com/"
+        {/* <a
+          href="https://vendor.dreadgang.gg"
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center px-3 py-1.5 border border-blue-500 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50"
@@ -117,7 +117,7 @@ export function AccessRequirementCard() {
               clipRule="evenodd"
             />
           </svg>
-        </a>
+        </a> */}
       </div>
     </div>
   );

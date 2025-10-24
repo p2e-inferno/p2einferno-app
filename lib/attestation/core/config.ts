@@ -73,6 +73,8 @@ export const P2E_SCHEMA_UIDS = {
   DAILY_CHECKIN: "0xp2e_daily_checkin_001",
   QUEST_COMPLETION: "0xp2e_quest_completion_001",
   // Canonical bootcamp completion schema UID. If on-chain schema is deployed, set env; else fallback to default placeholder.
-  BOOTCAMP_COMPLETION: (process.env.BOOTCAMP_COMPLETION_SCHEMA_UID || process.env.NEXT_PUBLIC_BOOTCAMP_COMPLETION_SCHEMA_UID || "0xp2e_bootcamp_completion_001") as string,
+  BOOTCAMP_COMPLETION: (process.env.BOOTCAMP_COMPLETION_SCHEMA_UID ||
+    process.env.NEXT_PUBLIC_BOOTCAMP_COMPLETION_SCHEMA_UID ||
+    "0xp2e_bootcamp_completion_001") as string,
   MILESTONE_ACHIEVEMENT: "0xp2e_milestone_achievement_001",
 } as const;

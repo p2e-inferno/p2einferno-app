@@ -1,7 +1,7 @@
-import { getLogger } from '@/lib/utils/logger';
-import { createAdminClient } from '@/lib/supabase/server';
+import { getLogger } from "@/lib/utils/logger";
+import { createAdminClient } from "@/lib/supabase/server";
 
-const log = getLogger('bootcamp-completion:certificate:image-service');
+const log = getLogger("bootcamp-completion:certificate:image-service");
 
 /**
  * Validates that a URL is from Supabase Storage certificates bucket
@@ -12,7 +12,7 @@ export function isValidCertificateUrl(url: string): boolean {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (!supabaseUrl) {
-      log.error('NEXT_PUBLIC_SUPABASE_URL not configured');
+      log.error("NEXT_PUBLIC_SUPABASE_URL not configured");
       return false;
     }
 
@@ -20,7 +20,7 @@ export function isValidCertificateUrl(url: string): boolean {
     const expectedPrefix = `${supabaseUrl}/storage/v1/object/public/certificates/`;
     return url.startsWith(expectedPrefix);
   } catch (error) {
-    log.error('Error validating certificate URL', { error });
+    log.error("Error validating certificate URL", { error });
     return false;
   }
 }
@@ -37,32 +37,32 @@ export class CertificateImageService {
    */
   static async storeCertificateImage(
     enrollmentId: string,
-    imageUrl: string
+    imageUrl: string,
   ): Promise<boolean> {
     if (!isValidCertificateUrl(imageUrl)) {
-      log.error('Invalid certificate URL', { enrollmentId, imageUrl });
+      log.error("Invalid certificate URL", { enrollmentId, imageUrl });
       return false;
     }
 
     try {
       const supabase = createAdminClient();
       const { error } = await supabase
-        .from('bootcamp_enrollments')
+        .from("bootcamp_enrollments")
         .update({ certificate_image_url: imageUrl })
-        .eq('id', enrollmentId);
+        .eq("id", enrollmentId);
 
       if (error) {
-        log.error('Database error storing certificate image', {
+        log.error("Database error storing certificate image", {
           enrollmentId,
           error,
         });
         throw error;
       }
 
-      log.info('Certificate image stored', { enrollmentId });
+      log.info("Certificate image stored", { enrollmentId });
       return true;
     } catch (error) {
-      log.error('Failed to store certificate image', { enrollmentId, error });
+      log.error("Failed to store certificate image", { enrollmentId, error });
       return false;
     }
   }
@@ -73,18 +73,18 @@ export class CertificateImageService {
    * @returns The certificate image URL if found and valid, null otherwise
    */
   static async getCertificateImage(
-    enrollmentId: string
+    enrollmentId: string,
   ): Promise<string | null> {
     try {
       const supabase = createAdminClient();
       const { data, error } = await supabase
-        .from('bootcamp_enrollments')
-        .select('certificate_image_url')
-        .eq('id', enrollmentId)
+        .from("bootcamp_enrollments")
+        .select("certificate_image_url")
+        .eq("id", enrollmentId)
         .single();
 
       if (error) {
-        log.error('Database error retrieving certificate image', {
+        log.error("Database error retrieving certificate image", {
           enrollmentId,
           error,
         });
@@ -92,13 +92,13 @@ export class CertificateImageService {
       }
 
       if (!data?.certificate_image_url) {
-        log.debug('No certificate image URL found', { enrollmentId });
+        log.debug("No certificate image URL found", { enrollmentId });
         return null;
       }
 
       // Validate URL is from Supabase Storage
       if (!isValidCertificateUrl(data.certificate_image_url)) {
-        log.warn('Invalid certificate URL in database', {
+        log.warn("Invalid certificate URL in database", {
           enrollmentId,
           url: data.certificate_image_url,
         });
@@ -107,7 +107,7 @@ export class CertificateImageService {
 
       return data.certificate_image_url;
     } catch (error) {
-      log.error('Failed to get certificate image', { enrollmentId, error });
+      log.error("Failed to get certificate image", { enrollmentId, error });
       return null;
     }
   }

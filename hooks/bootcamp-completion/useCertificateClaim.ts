@@ -4,6 +4,7 @@ import toast from "react-hot-toast";
 import { AttestationService } from "@/lib/attestation";
 import { P2E_SCHEMA_UIDS } from "@/lib/attestation/core/config";
 import { usePrivy } from "@privy-io/react-auth";
+import { tryAutoSaveCertificate } from "@/lib/certificate/generator";
 
 export function useCertificateClaim(cohortId: string, onSuccess?: () => void) {
   const [isClaiming, setIsClaiming] = useState(false);
@@ -26,6 +27,31 @@ export function useCertificateClaim(cohortId: string, onSuccess?: () => void) {
         setHasClaimed(true);
         setClaimData(resp.data);
         onSuccess?.();
+        
+        // Attempt auto-save certificate image (non-blocking)
+        if (!resp.data.alreadyHasKey) {
+          tryAutoSaveCertificate(cohortId)
+            .then((result) => {
+              if (result.success) {
+                toast("Certificate image saved automatically", { 
+                  icon: "ℹ️",
+                  duration: 3000,
+                });
+              } else {
+                toast("Certificate claimed! Click Preview to save image", {
+                  icon: "⚠️",
+                  duration: 4000,
+                });
+              }
+            })
+            .catch(() => {
+              toast("Certificate claimed! Click Preview to save image", {
+                icon: "⚠️",
+                duration: 4000,
+              });
+            });
+        }
+
         if (resp.data.attestationPending) {
           toast.success("Certificate claimed! Attestation pending - retry available.");
         } else {

@@ -1,10 +1,12 @@
 import { getLogger } from "@/lib/utils/logger";
 import { createAdminClient } from "@/lib/supabase/server";
-import { UserKeyService } from "@/lib/services/user-key-service";
-import type {
-  CertificateClaimParams,
-  CertificateClaimResult,
-} from "./types";
+import {
+  checkUserKeyOwnership,
+  grantKeyToUser,
+} from "@/lib/services/user-key-service";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
+import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
+import type { CertificateClaimParams, CertificateClaimResult } from "./types";
 
 const log = getLogger("bootcamp-completion:certificate");
 
@@ -14,42 +16,91 @@ export class CertificateService {
    * This method uses a lightweight locking pattern on the enrollment row to avoid duplicates.
    * Attestation is optional and handled separately by the client (pending in this MVP).
    */
-  async claimCertificate(params: CertificateClaimParams): Promise<CertificateClaimResult> {
+  async claimCertificate(
+    params: CertificateClaimParams,
+  ): Promise<CertificateClaimResult> {
     const { enrollmentId, userId, cohortId, lockAddress } = params;
 
     try {
       const start = Date.now();
-      log.info('certificate_claim_started', { enrollmentId, userId, cohortId, lockAddress });
+      log.info("certificate_claim_started", {
+        enrollmentId,
+        userId,
+        cohortId,
+        lockAddress,
+      });
       // 1) Acquire claim lock (TTL semantics via updated_at)
       const lock = await this.acquireClaimLock(enrollmentId);
       if (lock.alreadyIssued) {
         return { success: true, alreadyIssued: true };
       }
       if (lock.inProgress) {
-        return { success: false, inProgress: true, error: "Claim already in progress" };
+        return {
+          success: false,
+          inProgress: true,
+          error: "Claim already in progress",
+        };
       }
 
       // 2) Idempotent pre-check: see if user already has a key
       try {
-        const keyCheck = await UserKeyService.checkUserKeyOwnership(userId, lockAddress);
+        const publicClient = createPublicClientUnified();
+        const keyCheck = await checkUserKeyOwnership(
+          publicClient,
+          userId,
+          lockAddress,
+        );
         if (keyCheck?.hasValidKey) {
-          log.info('certificate_claim_preexisting_key', { enrollmentId, userId, cohortId, lockAddress });
+          log.info("certificate_claim_preexisting_key", {
+            enrollmentId,
+            userId,
+            cohortId,
+            lockAddress,
+          });
           // Do not mark as issued; we did not issue. UI can show "already have certificate".
-          return { success: true, alreadyHasKey: true, attestationUid: null, attestationPending: false };
+          return {
+            success: true,
+            alreadyHasKey: true,
+            attestationUid: null,
+            attestationPending: false,
+          };
         }
       } catch (e) {
-        log.warn("Key existence pre-check failed; proceeding with grant attempt", {
-          enrollmentId,
-          cohortId,
-          lockAddress,
-          error: e instanceof Error ? e.message : String(e),
-        });
+        log.warn(
+          "Key existence pre-check failed; proceeding with grant attempt",
+          {
+            enrollmentId,
+            cohortId,
+            lockAddress,
+            error: e instanceof Error ? e.message : String(e),
+          },
+        );
       }
 
       // 3) Grant the key (server-side admin wallet)
-      const grantRes = await UserKeyService.grantKeyToUser(userId, lockAddress);
+      const walletClient = createWalletClientUnified();
+      if (!walletClient) {
+        await this.recordError(
+          enrollmentId,
+          "grant",
+          "Server wallet not configured",
+        );
+        return { success: false, error: "Server wallet not configured" };
+      }
+
+      const publicClient = createPublicClientUnified();
+      const grantRes = await grantKeyToUser(
+        walletClient,
+        publicClient,
+        userId,
+        lockAddress,
+      );
       if (!grantRes.success) {
-        await this.recordError(enrollmentId, "grant", grantRes.error || "Grant failed");
+        await this.recordError(
+          enrollmentId,
+          "grant",
+          grantRes.error || "Grant failed",
+        );
         return { success: false, error: grantRes.error || "Key grant failed" };
       }
 
@@ -64,10 +115,26 @@ export class CertificateService {
         error: "Attestation pending - retry available",
       });
 
-      log.info('certificate_claim_succeeded', { enrollmentId, userId, cohortId, lockAddress, txHash, durationMs: Date.now() - start });
-      return { success: true, txHash, attestationUid: null, attestationPending: true };
+      log.info("certificate_claim_succeeded", {
+        enrollmentId,
+        userId,
+        cohortId,
+        lockAddress,
+        txHash,
+        durationMs: Date.now() - start,
+      });
+      return {
+        success: true,
+        txHash,
+        attestationUid: null,
+        attestationPending: true,
+      };
     } catch (error: any) {
-      log.error("certificate_claim_failed", { enrollmentId, cohortId, error: error?.message || error });
+      log.error("certificate_claim_failed", {
+        enrollmentId,
+        cohortId,
+        error: error?.message || error,
+      });
       return { success: false, error: error?.message || "Internal error" };
     } finally {
       // Always release lock
@@ -79,11 +146,17 @@ export class CertificateService {
     }
   }
 
-  private async acquireClaimLock(enrollmentId: string): Promise<{ locked?: boolean; inProgress?: boolean; alreadyIssued?: boolean }> {
+  private async acquireClaimLock(enrollmentId: string): Promise<{
+    locked?: boolean;
+    inProgress?: boolean;
+    alreadyIssued?: boolean;
+  }> {
     const supabase = createAdminClient();
     const { data: enroll, error } = await supabase
       .from("bootcamp_enrollments")
-      .select("id, certificate_issued, certificate_claim_in_progress, updated_at")
+      .select(
+        "id, certificate_issued, certificate_claim_in_progress, updated_at",
+      )
       .eq("id", enrollmentId)
       .single();
     if (error || !enroll) {
@@ -95,7 +168,11 @@ export class CertificateService {
 
     // Respect in-progress flag only if updated within 5 minutes
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-    if (enroll.certificate_claim_in_progress && enroll.updated_at && new Date(enroll.updated_at) > fiveMinutesAgo) {
+    if (
+      enroll.certificate_claim_in_progress &&
+      enroll.updated_at &&
+      new Date(enroll.updated_at) > fiveMinutesAgo
+    ) {
       return { inProgress: true };
     }
 
@@ -139,7 +216,11 @@ export class CertificateService {
     if (upErr) throw upErr;
   }
 
-  private async recordError(enrollmentId: string, step: string, message: string) {
+  private async recordError(
+    enrollmentId: string,
+    step: string,
+    message: string,
+  ) {
     const supabase = createAdminClient();
     const { error } = await supabase
       .from("bootcamp_enrollments")
@@ -150,12 +231,22 @@ export class CertificateService {
       })
       .eq("id", enrollmentId);
     if (error) {
-      log.warn("Failed to record certificate error", { enrollmentId, step, message, error });
+      log.warn("Failed to record certificate error", {
+        enrollmentId,
+        step,
+        message,
+        error,
+      });
     }
     try {
-      await supabase.rpc('increment_certificate_retry_count', { p_enrollment_id: enrollmentId });
+      await supabase.rpc("increment_certificate_retry_count", {
+        p_enrollment_id: enrollmentId,
+      });
     } catch (e: any) {
-      log.warn('retry_count_increment_failed', { enrollmentId, error: e?.message || String(e) });
+      log.warn("retry_count_increment_failed", {
+        enrollmentId,
+        error: e?.message || String(e),
+      });
     }
   }
 }
