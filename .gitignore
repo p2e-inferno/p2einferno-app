@@ -128,3 +128,4 @@ supabase/.temp/
 supabase/functions/.dist/
 supabase/functions/.env
 /backups/
+__inspector_reports__/
