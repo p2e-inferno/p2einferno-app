@@ -1,6 +1,5 @@
 import { toPng } from "html-to-image";
 import type { CertificateData } from "@/components/bootcamp/CertificateTemplate";
-import { createClient } from "@/lib/supabase/client";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("lib:certificate:generator");

@@ -67,7 +67,9 @@ export function WithdrawalHistoryTable() {
         );
       case "failed":
         return (
-          <span className={`${classes} bg-red-900/20 text-red-300`}>Failed</span>
+          <span className={`${classes} bg-red-900/20 text-red-300`}>
+            Failed
+          </span>
         );
       default:
         return (

@@ -72,7 +72,10 @@ export function useDGWithdrawal() {
       try {
         const rawChainId = (wallet as any)?.chainId;
         if (typeof rawChainId === 'string' && rawChainId.includes(':')) {
-          chainId = parseInt(rawChainId.split(':')[1], 10);
+          const parsed = rawChainId.split(':')[1];
+          if (parsed) {
+            chainId = parseInt(parsed, 10);
+          }
         } else if (typeof rawChainId === 'number') {
           chainId = rawChainId;
         }
@@ -117,8 +120,9 @@ export function useDGWithdrawal() {
         deadline: deadline.toString(),
       };
 
+      // Validate typed data structure
       try {
-        const hash = hashTypedData({
+        hashTypedData({
           domain: domain as any,
           types: WITHDRAWAL_TYPES as any,
           primaryType: 'Withdrawal' as any,
@@ -134,7 +138,6 @@ export function useDGWithdrawal() {
         (typeof window !== 'undefined' && (window as any).ethereum?.isMetaMask);
 
       let signature: string;
-      let usedMessageStr = false; // Track which message format was used for signing
       
       if (isEmbedded) {
         // Sign with embedded wallet only; abort on user rejection
@@ -142,14 +145,13 @@ export function useDGWithdrawal() {
           const res = await signTypedData(
             {
               domain,
-              types: WITHDRAWAL_TYPES,
+              types: WITHDRAWAL_TYPES as any,
               primaryType: 'Withdrawal',
               message: messageStr,
             },
             { address: walletAddress },
           );
           signature = res.signature;
-          usedMessageStr = true;
         } catch (e: any) {
           if (isUserRejectedError(e)) {
             throw new Error('Signature request cancelled');
@@ -171,7 +173,7 @@ export function useDGWithdrawal() {
             // Use consistent BigInt structure to match server verification
             const typedData = JSON.stringify({
               domain,
-              types: WITHDRAWAL_TYPES,
+              types: WITHDRAWAL_TYPES as any,
               primaryType: 'Withdrawal',
               message: messageForMetaMask,
             });
@@ -179,7 +181,6 @@ export function useDGWithdrawal() {
               method: 'eth_signTypedData_v4',
               params: [walletAddress, typedData],
             });
-            usedMessageStr = true;
           } catch (e: any) {
             if (isUserRejectedError(e)) {
               throw new Error('Signature request cancelled');
@@ -198,7 +199,7 @@ export function useDGWithdrawal() {
                 primaryType: 'Withdrawal' as any,
                 message: messageBig as any,
               });
-              signature = sigHex as unknown as string;
+              signature = sigHex;
             } catch (eV: any) {
               if (isUserRejectedError(eV)) {
                 throw new Error('Signature request cancelled');

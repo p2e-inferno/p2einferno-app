@@ -88,16 +88,17 @@ export async function POST(req: NextRequest) {
       deadline: BigInt(deadline)
     };
 
+    // Validation: ensure signature can be verified
     try {
-      const hash = hashTypedData({
+      hashTypedData({
         address: walletAddress as Address,
-        domain,
+        domain: { ...domain, chainId: BigInt(domain.chainId) },
         types: WITHDRAWAL_TYPES,
         primaryType: 'Withdrawal',
         message,
       } as any);
-      const recovered = await recoverTypedDataAddress({
-        domain,
+      await recoverTypedDataAddress({
+        domain: { ...domain, chainId: BigInt(domain.chainId) },
         types: WITHDRAWAL_TYPES,
         primaryType: 'Withdrawal',
         message,
@@ -109,7 +110,7 @@ export async function POST(req: NextRequest) {
 
     const isValid = await verifyTypedData({
       address: walletAddress as Address,
-      domain,
+      domain: { ...domain, chainId: BigInt(domain.chainId) },
       types: WITHDRAWAL_TYPES,
       primaryType: 'Withdrawal',
       message,

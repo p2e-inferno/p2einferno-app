@@ -33,7 +33,7 @@ export async function verifyWithdrawalSignature(
     const domain = getWithdrawalDomain(chainId);
     const isValid = await verifyTypedData({
       address: message.user,
-      domain,
+      domain: { ...domain, chainId: BigInt(domain.chainId) },
       types: WITHDRAWAL_TYPES,
       primaryType: "Withdrawal",
       message,
