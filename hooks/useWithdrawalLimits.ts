@@ -42,7 +42,7 @@ export function useWithdrawalLimits() {
     try {
       setLimits(prev => ({ ...prev, isLoading: true, error: null }));
 
-      const response = await fetch('/api/admin/config/withdrawal-limits');
+      const response = await fetch('/api/config/withdrawal-limits');
       const data = await response.json();
 
       if (!response.ok || !data.success) {

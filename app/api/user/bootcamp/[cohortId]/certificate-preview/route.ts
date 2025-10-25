@@ -160,23 +160,23 @@ export async function GET(
     }
   }
 
+  // Check for stored certificate image URL (regardless of blockchain verification)
+  const storedImageUrl = await CertificateImageService.getCertificateImage(
+    enrollmentRow.id,
+  );
+
   // If user has NFT and we have stored image, return it
-  if (hasKey) {
-    const storedImageUrl = await CertificateImageService.getCertificateImage(
-      enrollmentRow.id,
-    );
-    if (storedImageUrl) {
-      log.info("Returning stored certificate image", {
-        enrollmentId: enrollmentRow.id,
-        storedImageUrl,
-      });
-      return NextResponse.json({
-        success: true,
-        storedImageUrl,
-        isClaimed: true,
-        hasKey: true,
-      });
-    }
+  if (hasKey && storedImageUrl) {
+    log.info("Returning stored certificate image for verified user", {
+      enrollmentId: enrollmentRow.id,
+      storedImageUrl,
+    });
+    return NextResponse.json({
+      success: true,
+      storedImageUrl,
+      isClaimed: true,
+      hasKey: true,
+    });
   }
 
   // Resolve blockchain identity for certificate display
@@ -223,5 +223,6 @@ export async function GET(
     isCompleted: enrollmentRow.enrollment_status === "completed",
     hasKey,
     enrollmentId: enrollmentRow.id,
+    storedImageUrl, // Always include stored image URL if it exists
   });
 }

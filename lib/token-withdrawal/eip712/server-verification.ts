@@ -6,11 +6,7 @@
  */
 
 import { verifyTypedData } from "viem";
-import {
-  WITHDRAWAL_DOMAIN,
-  WITHDRAWAL_TYPES,
-  type WithdrawalMessage,
-} from "./types";
+import { getWithdrawalDomain, WITHDRAWAL_TYPES, type WithdrawalMessage } from "./types";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("eip712-verification");
@@ -31,11 +27,13 @@ export interface VerificationResult {
 export async function verifyWithdrawalSignature(
   message: WithdrawalMessage,
   signature: `0x${string}`,
+  chainId: number,
 ): Promise<VerificationResult> {
   try {
+    const domain = getWithdrawalDomain(chainId);
     const isValid = await verifyTypedData({
       address: message.user,
-      domain: WITHDRAWAL_DOMAIN,
+      domain,
       types: WITHDRAWAL_TYPES,
       primaryType: "Withdrawal",
       message,

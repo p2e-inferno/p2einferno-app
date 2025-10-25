@@ -148,47 +148,14 @@ export async function generateAndSaveCertificate(
       element,
     });
 
-    // 2. Convert data URL to blob (avoid CSP violation)
-    const base64Data = dataUrl.split(',')[1];
-    if (!base64Data) {
-      return { success: false, error: "Invalid data URL format" };
-    }
-    const binaryString = atob(base64Data);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-    }
-    const blob = new Blob([bytes], { type: 'image/png' });
-
-    // 3. Upload to Supabase Storage
-    const fileName = `${enrollmentId}-${Date.now()}.png`;
-    const supabase = createClient();
-
-    const { error: uploadError } = await supabase.storage
-      .from("certificates")
-      .upload(fileName, blob, {
-        contentType: "image/png",
-        cacheControl: "31536000", // 1 year
-        upsert: false,
-      });
-
-    if (uploadError) {
-      log.error("Upload failed", { error: uploadError, enrollmentId });
-      return { success: false, error: uploadError.message };
-    }
-
-    // 4. Get public URL
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("certificates").getPublicUrl(fileName);
-
-    // 5. Save URL to database via API
+    // 2. Save image via API (server-side upload)
+    // Send base64 data to server endpoint which handles upload and database save
     const saveResponse = await fetch("/api/certificate/save-url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         enrollmentId,
-        imageUrl: publicUrl,
+        base64ImageData: dataUrl,
       }),
     });
 
@@ -200,15 +167,17 @@ export async function generateAndSaveCertificate(
       } catch (parseError) {
         errorDetails += ", Could not parse error response";
       }
-      log.error("Failed to save certificate URL", { enrollmentId, errorDetails });
+      log.error("Failed to save certificate", { enrollmentId, errorDetails });
       return { 
         success: false, 
-        error: `Failed to save certificate URL to database (${saveResponse.status}). Please try again.`
+        error: `Failed to save certificate (${saveResponse.status}). Please try again.`
       };
     }
 
-    log.info("Certificate generated and saved successfully", { enrollmentId, publicUrl });
-    return { success: true, imageUrl: publicUrl };
+    // Get the saved image URL from response
+    const saveResult = await saveResponse.json();
+    log.info("Certificate generated and saved successfully", { enrollmentId });
+    return { success: true, imageUrl: saveResult.imageUrl };
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";

@@ -97,13 +97,15 @@ export const AccountCard = ({
       {/* Quest Hint */}
       {!account.linked && account.type !== "wallet" && (
         <div className="mt-4 p-3 bg-orange-900/20 rounded-lg border border-orange-500/30">
-          <p className="text-sm text-orange-400 flex items-center">
-            <Sparkles className="w-4 h-4 mr-2" />
-            Link this account in the{" "}
-            <Link href="/lobby/quests" className="underline mx-1">
-              Rosy Beginnings
-            </Link>{" "}
-            quest to earn 1000 DG!
+          <p className="text-sm text-orange-400 flex items-start">
+            <Sparkles className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" />
+            <span>
+              Link this account in the{" "}
+              <Link href="/lobby/quests" className="underline">
+                Rosy Beginnings
+              </Link>{" "}
+              quest to earn 1000 DG!
+            </span>
           </p>
         </div>
       )}

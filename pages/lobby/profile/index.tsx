@@ -194,14 +194,16 @@ const ProfilePage = () => {
 
           {/* DG Token Withdrawal Section */}
           <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 mt-6">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
               <div>
-                <h2 className="text-xl font-bold text-white mb-2">DG Tokens</h2>
+                <h2 className="text-xl font-bold text-white mb-2">DG Nation</h2>
                 <p className="text-gray-400 text-sm">
                   Pull out your earned DG tokens to your wallet
                 </p>
               </div>
-              <SubscriptionBadge compact />
+              <div className="sm:ml-4 flex-shrink-0">
+                <SubscriptionBadge compact />
+              </div>
             </div>
 
             {/* Show purchase card if user doesn't have DG Nation membership */}

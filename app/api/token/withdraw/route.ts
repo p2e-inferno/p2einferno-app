@@ -15,7 +15,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyTypedData, type Address } from 'viem';
+import { verifyTypedData, recoverTypedDataAddress, hashTypedData, type Address } from 'viem';
 import { createPublicClientUnified } from '@/lib/blockchain/config/clients/public-client';
 import { createWalletClientUnified } from '@/lib/blockchain/config/clients/wallet-client';
 import { getPrivyUserFromNextRequest } from '@/lib/auth/privy';
@@ -24,12 +24,12 @@ import {
   transferDGTokens,
   hasValidDGNationKey
 } from '@/lib/token-withdrawal/functions/dg-transfer-service';
-import { WITHDRAWAL_DOMAIN, WITHDRAWAL_TYPES } from '@/lib/token-withdrawal/eip712/types';
+import { getWithdrawalDomain, WITHDRAWAL_TYPES, DG_CONTRACTS_BY_CHAIN } from '@/lib/token-withdrawal/eip712/types';
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('api:token:withdraw');
 
-const DG_TOKEN_ADDRESS = process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET as `0x${string}`;
+// Token address is selected per-chain via DG_CONTRACTS_BY_CHAIN
 const DG_NATION_LOCK = process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
 
 export async function POST(req: NextRequest) {
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse request
-    const { walletAddress, amountDG, signature, deadline } = await req.json();
+    const { walletAddress, amountDG, signature, deadline, chainId: chainIdRaw } = await req.json();
 
     if (!walletAddress || !amountDG || !signature || !deadline) {
       return NextResponse.json(
@@ -73,6 +73,14 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Verify EIP712 signature
+    const chainId = Number(chainIdRaw || 0);
+    if (!chainId || !DG_CONTRACTS_BY_CHAIN[chainId]) {
+      return NextResponse.json(
+        { success: false, error: 'Unsupported or misconfigured chainId' },
+        { status: 400 },
+      );
+    }
+    const domain = getWithdrawalDomain(chainId);
     const amountWei = BigInt(amountDG) * BigInt(10 ** 18);
     const message = {
       user: walletAddress as Address,
@@ -80,9 +88,28 @@ export async function POST(req: NextRequest) {
       deadline: BigInt(deadline)
     };
 
+    try {
+      const hash = hashTypedData({
+        address: walletAddress as Address,
+        domain,
+        types: WITHDRAWAL_TYPES,
+        primaryType: 'Withdrawal',
+        message,
+      } as any);
+      const recovered = await recoverTypedDataAddress({
+        domain,
+        types: WITHDRAWAL_TYPES,
+        primaryType: 'Withdrawal',
+        message,
+        signature: signature as `0x${string}`,
+      });
+    } catch (e) {
+      log.warn('Failed to compute server typed data hash/recover', { e });
+    }
+
     const isValid = await verifyTypedData({
       address: walletAddress as Address,
-      domain: WITHDRAWAL_DOMAIN,
+      domain,
       types: WITHDRAWAL_TYPES,
       primaryType: 'Withdrawal',
       message,
@@ -163,7 +190,7 @@ export async function POST(req: NextRequest) {
       const transferResult = await transferDGTokens(walletClient, publicClient, {
         recipientAddress: walletAddress as Address,
         amount: amountWei,
-        tokenAddress: DG_TOKEN_ADDRESS
+        tokenAddress: DG_CONTRACTS_BY_CHAIN[chainId] as `0x${string}`
       });
 
       if (transferResult.success && transferResult.transactionHash) {

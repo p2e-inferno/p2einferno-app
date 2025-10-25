@@ -7,9 +7,12 @@
 
 import React, { useState, Fragment } from "react";
 import { Dialog, Transition } from "@headlessui/react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useWithdrawalAccess } from "@/hooks/useWithdrawalAccess";
 import { useDGWithdrawal } from "@/hooks/useDGWithdrawal";
 import { useWithdrawalLimits } from "@/hooks/useWithdrawalLimits";
+import { getBlockExplorerUrl } from "@/lib/blockchain/services/transaction-service";
 
 interface WithdrawDGModalProps {
   isOpen: boolean;
@@ -104,7 +107,7 @@ export function WithdrawDGModal({ isOpen, onClose }: WithdrawDGModalProps) {
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
@@ -118,10 +121,10 @@ export function WithdrawDGModal({ isOpen, onClose }: WithdrawDGModalProps) {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl transition-all">
+              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-background border border-purple-500/20 p-6 text-left align-middle shadow-2xl transition-all">
                 <Dialog.Title
                   as="h3"
-                  className="text-lg font-medium leading-6 text-gray-900"
+                  className="text-xl font-bold leading-6 text-white"
                 >
                   {isSuccess ? "Pullout Successful!" : "Pullout DG Tokens"}
                 </Dialog.Title>
@@ -131,7 +134,7 @@ export function WithdrawDGModal({ isOpen, onClose }: WithdrawDGModalProps) {
                     <div className="space-y-3">
                       <div className="flex items-center justify-center">
                         <svg
-                          className="h-12 w-12 text-green-500"
+                          className="h-12 w-12 text-flame-yellow"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -144,18 +147,18 @@ export function WithdrawDGModal({ isOpen, onClose }: WithdrawDGModalProps) {
                           />
                         </svg>
                       </div>
-                      <p className="text-sm text-gray-600 text-center">
+                      <p className="text-sm text-faded-grey text-center">
                         Your pullout of {amount} DG has been processed
                         successfully.
                       </p>
                       {txHash && (
                         <a
-                          href={`https://basescan.org/tx/${txHash}`}
+                          href={getBlockExplorerUrl(txHash)}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="block text-center text-sm text-indigo-600 hover:text-indigo-500"
+                          className="block text-center text-sm text-flame-yellow hover:text-flame-orange"
                         >
-                          View on BaseScan →
+                          View on Explorer →
                         </a>
                       )}
                     </div>
@@ -164,56 +167,57 @@ export function WithdrawDGModal({ isOpen, onClose }: WithdrawDGModalProps) {
                       <div className="mb-4">
                         <label
                           htmlFor="amount"
-                          className="block text-sm font-medium text-gray-700 mb-2"
+                          className="block text-sm font-medium text-white mb-2"
                         >
                           Amount (DG)
                         </label>
                         <div className="flex items-center space-x-2">
-                          <input
+                          <Input
                             type="text"
                             id="amount"
                             value={amount}
                             onChange={handleAmountChange}
                             placeholder={`Min: ${minAmount} DG`}
-                            className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="flex-1 bg-background/50 border-purple-500/30 placeholder-faded-grey focus:ring-flame-yellow focus:ring-offset-0 focus:border-transparent"
                             disabled={isLoading}
                           />
-                          <button
+                          <Button
                             type="button"
                             onClick={handleMaxClick}
-                            className="px-3 py-2 text-sm font-medium text-indigo-600 hover:text-indigo-500"
+                            variant="ghost"
+                            className="px-3 py-2 text-sm font-medium text-flame-yellow hover:text-flame-orange"
                             disabled={isLoading}
                           >
                             MAX
-                          </button>
+                          </Button>
                         </div>
-                        <p className="mt-1 text-xs text-gray-500">
+                        <p className="mt-1 text-xs text-faded-grey">
                           Available: {xpBalance.toLocaleString()} DG
                         </p>
                       </div>
 
                       {displayError && (
-                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                          <p className="text-sm text-red-700">{displayError}</p>
+                        <div className="mb-4 p-3 bg-red-900/20 border border-red-500/20 rounded-md">
+                          <p className="text-sm text-red-300">{displayError}</p>
                         </div>
                       )}
 
                       <div className="flex justify-end space-x-3">
-                        <button
+                        <Button
                           type="button"
                           onClick={handleClose}
-                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                          disabled={isLoading}
+                          variant="outline"
+                          className="border-purple-500/30 hover:bg-white/10"
                         >
                           Cancel
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="submit"
-                          className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-6 bg-gradient-to-r from-flame-yellow to-flame-orange text-gray-900 font-semibold hover:from-flame-yellow/90 hover:to-flame-orange/90 disabled:opacity-50 disabled:cursor-not-allowed"
                           disabled={isLoading || !amount}
                         >
                           {isLoading ? "Processing..." : "Pullout"}
-                        </button>
+                        </Button>
                       </div>
                     </form>
                   )}

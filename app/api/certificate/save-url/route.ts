@@ -20,18 +20,93 @@ export async function POST(req: NextRequest) {
     }
 
     // Parse request body
-    const { enrollmentId, imageUrl } = await req.json();
+    const { enrollmentId, imageUrl, base64ImageData } = await req.json();
 
-    if (!enrollmentId || !imageUrl) {
-      log.warn('Missing required fields', { enrollmentId, imageUrl });
+    if (!enrollmentId || (!imageUrl && !base64ImageData)) {
+      log.warn('Missing required fields', { enrollmentId, hasImageUrl: !!imageUrl, hasBase64Data: !!base64ImageData });
       return NextResponse.json(
-        { error: 'Missing enrollmentId or imageUrl' },
+        { error: 'Missing enrollmentId and either imageUrl or base64ImageData' },
         { status: 400 }
       );
     }
 
-    // Validate URL is from Supabase Storage
-    if (!isValidCertificateUrl(imageUrl)) {
+    // Get supabase client early since we might need it for upload
+    const supabase = createAdminClient();
+    let finalImageUrl = imageUrl;
+
+    // Handle base64 image data upload (server-side)
+    if (base64ImageData && !imageUrl) {
+      try {
+        log.info('Processing base64 image data', { enrollmentId });
+        
+        // Convert base64 to blob
+        const base64Data = base64ImageData.replace(/^data:image\/[a-z]+;base64,/, '');
+        
+        if (!base64Data) {
+          throw new Error('Invalid base64 data format');
+        }
+        
+        const binaryString = atob(base64Data);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'image/png' });
+
+        log.info('Converted base64 to blob', { 
+          enrollmentId, 
+          blobSize: blob.size,
+          blobType: blob.type 
+        });
+
+        // Upload to Supabase Storage using admin client
+        const fileName = `${enrollmentId}-${Date.now()}.png`;
+        const { error: uploadError } = await supabase.storage
+          .from('certificates')
+          .upload(fileName, blob, {
+            contentType: 'image/png',
+            cacheControl: '31536000', // 1 year
+            upsert: false,
+          });
+
+        if (uploadError) {
+          log.error('Failed to upload certificate image', {
+            enrollmentId,
+            fileName,
+            error: uploadError,
+          });
+          return NextResponse.json(
+            { error: 'Failed to upload certificate image' },
+            { status: 500 }
+          );
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('certificates')
+          .getPublicUrl(fileName);
+
+        finalImageUrl = publicUrl;
+        log.info('Certificate image uploaded successfully', {
+          enrollmentId,
+          fileName,
+          publicUrl,
+        });
+      } catch (error) {
+        log.error('Error processing base64 image data', {
+          enrollmentId,
+          error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+        });
+        return NextResponse.json(
+          { error: 'Failed to process image data' },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Validate URL is from Supabase Storage (only if imageUrl was provided)
+    if (imageUrl && !isValidCertificateUrl(imageUrl)) {
       log.warn('Invalid certificate URL', { imageUrl, userId: user.id });
       return NextResponse.json(
         { error: 'Invalid URL. Must be from Supabase Storage certificates bucket.' },
@@ -40,7 +115,6 @@ export async function POST(req: NextRequest) {
     }
 
     // Get user profile
-    const supabase = createAdminClient();
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('id')
@@ -79,7 +153,7 @@ export async function POST(req: NextRequest) {
     // Save certificate URL to database
     const { error: updateError } = await supabase
       .from('bootcamp_enrollments')
-      .update({ certificate_image_url: imageUrl })
+      .update({ certificate_image_url: finalImageUrl })
       .eq('id', enrollmentId);
 
     if (updateError) {
@@ -101,6 +175,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       message: 'Certificate URL saved successfully',
+      imageUrl: finalImageUrl,
     });
   } catch (error) {
     log.error('Unexpected error in save-url endpoint', { error });

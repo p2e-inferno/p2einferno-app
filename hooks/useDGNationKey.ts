@@ -72,20 +72,6 @@ export function useDGNationKey() {
           return;
         }
 
-        // If user has key, get tokenId
-        // First get user's balance
-        const balance = await publicClient.readContract({
-          address: lockAddress,
-          abi: lockAbi,
-          functionName: 'balanceOf',
-          args: [activeWallet]
-        });
-
-        if (Number(balance) === 0) {
-          // This shouldn't happen if getHasValidKey returned true
-          throw new Error('Key reported as valid but balance is 0');
-        }
-
         // Get the first token ID
         const tokenId = await publicClient.readContract({
           address: lockAddress,
