@@ -12,6 +12,7 @@ import {
   LobbyLoadingState,
   LobbyErrorState,
 } from "../../components/lobby";
+import { LobbyCheckinStrip } from "@/components/lobby/checkin-strip";
 import LobbyConfirmationModal from "../../components/lobby/LobbyConfirmationModal";
 import { LobbyLayout } from "../../components/layouts/lobby-layout";
 import { Application } from "@/lib/supabase";
@@ -163,6 +164,10 @@ export default function LobbyPage() {
       {/* Welcome Section */}
       <div className="mb-8">
         <WelcomeSection profile={profile} />
+        <LobbyCheckinStrip
+          userAddress={profile.wallet_address}
+          userProfileId={profile.id}
+        />
         <StatsGrid stats={stats} />
       </div>
 
@@ -174,7 +179,10 @@ export default function LobbyPage() {
         />
       )}
 
-      <QuickActionsGrid />
+      <QuickActionsGrid
+        userAddress={profile.wallet_address}
+        userProfileId={profile.id}
+      />
 
       <CurrentEnrollments
         enrollments={enrollments}

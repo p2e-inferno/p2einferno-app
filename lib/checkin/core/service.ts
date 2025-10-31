@@ -270,6 +270,7 @@ export class DailyCheckinService {
           recipient: userAddress,
           data: checkinData,
           wallet,
+          allowMultiple: true,
         },
       );
 
@@ -300,6 +301,17 @@ export class DailyCheckinService {
         tierInfo: this.multiplierStrategy.getCurrentTier(newStreak),
         timestamp: new Date().toISOString(),
         activityType: "daily_checkin",
+        // Optional attestation for server API to persist when EAS is enabled
+        attestation: attestationResult.attestationUid
+          ? {
+              uid: attestationResult.attestationUid,
+              schemaUid: P2E_SCHEMA_UIDS.DAILY_CHECKIN,
+              attester: wallet.address,
+              recipient: userAddress,
+              data: checkinData,
+              expirationTime: undefined as number | undefined,
+            }
+          : undefined,
       };
 
       log.debug("Updating user XP", {

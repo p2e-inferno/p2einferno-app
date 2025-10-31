@@ -194,8 +194,13 @@ export const validateWalletConnection = (
     return { valid: false, error: "Invalid wallet address" };
   }
 
-  if (typeof wallet.getEthereumProvider !== "function") {
-    return { valid: false, error: "Wallet does not support Ethereum provider" };
+  const hasPrivyMethod = typeof (wallet as any).getEthereumProvider === "function";
+  const hasInjectedProvider = !!(wallet as any).provider;
+  if (!hasPrivyMethod && !hasInjectedProvider) {
+    return {
+      valid: false,
+      error: "Wallet does not expose an Ethereum provider",
+    };
   }
 
   return { valid: true };

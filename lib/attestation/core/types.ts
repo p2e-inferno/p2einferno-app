@@ -55,6 +55,11 @@ export interface CreateAttestationParams {
   expirationTime?: number;
   revocable?: boolean;
   wallet: any;
+  /**
+   * Allow multiple attestations per recipient + schema
+   * Useful for daily check-ins which create a new attestation each day
+   */
+  allowMultiple?: boolean;
 }
 
 export interface RevokeAttestationParams {

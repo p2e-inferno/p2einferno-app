@@ -8,6 +8,7 @@ import { EAS } from "@ethereum-attestation-service/eas-sdk";
 import { supabase } from "@/lib/supabase";
 import { getLogger } from "@/lib/utils/logger";
 import { EAS_CONFIG, EAS_ABI } from "./config";
+import { createEthersFromPrivyWallet } from "@/lib/blockchain/shared/client-utils";
 import {
   AttestationResult,
   CreateAttestationParams,
@@ -55,15 +56,37 @@ export class AttestationService {
         throw new Error("Schema not found");
       }
 
-      // Get Ethereum provider and signer
-      const provider = await wallet.getEthereumProvider();
-      const ethersProvider = new ethers.BrowserProvider(provider);
-      const signer = await ethersProvider.getSigner();
+      // Feature gate: ENABLE_EAS env controls whether on-chain attestations run
+      const envFlag =
+        (process.env.NEXT_PUBLIC_ENABLE_EAS ?? process.env.ENABLE_EAS ?? "") +
+        "";
+      const isEasEnabled = /^(1|true|yes)$/i.test(envFlag);
 
-      // Initialize EAS
-      await this.initialize(signer);
-      if (!this.eas) {
-        throw new Error("Failed to initialize EAS");
+      // Schema must be bytes32 to be valid for EAS
+      const isHexBytes32 =
+        typeof schemaUid === "string" && /^0x[0-9a-fA-F]{64}$/.test(schemaUid);
+      const shouldAttestOnChain = isEasEnabled && isHexBytes32;
+
+      let transactionHash = "";
+
+      if (shouldAttestOnChain) {
+        // Get Ethereum provider and signer (supports both user.wallet and useWallets() wallets)
+        const { signer } = await createEthersFromPrivyWallet(wallet as any);
+
+        if (!signer) {
+          throw new Error("Failed to get signer from wallet");
+        }
+
+        // Initialize EAS
+        await this.initialize(signer);
+        if (!this.eas) {
+          throw new Error("Failed to initialize EAS");
+        }
+      } else {
+        log.warn(
+          "Non-hex schema UID detected; skipping on-chain attest and saving DB-only record",
+          { schemaUid },
+        );
       }
 
       // Encode data using EAS SDK
@@ -79,65 +102,57 @@ export class AttestationService {
         encodedData,
       });
 
-      // Create attestation using EAS SDK
-      const tx = await this.eas.attest({
-        schema: schemaUid,
-        data: {
-          recipient: recipient,
-          expirationTime: BigInt(expirationTime || 0),
-          revocable: revocable && schema.revocable,
-          refUID:
-            "0x0000000000000000000000000000000000000000000000000000000000000000",
-          data: encodedData,
-        },
-      });
+      if (shouldAttestOnChain && this.eas) {
+        // Create attestation using EAS SDK
+        const tx = await this.eas.attest({
+          schema: schemaUid,
+          data: {
+            recipient: recipient,
+            expirationTime: BigInt(expirationTime || 0),
+            revocable: revocable && schema.revocable,
+            refUID:
+              "0x0000000000000000000000000000000000000000000000000000000000000000",
+            data: encodedData,
+          },
+        });
 
-      log.info("EAS SDK transaction sent", { tx });
+        log.info("EAS SDK transaction sent", { tx });
 
-      // Handle transaction response
-      let transactionHash = "";
-      if (typeof tx === "string") {
-        transactionHash = tx;
-      } else if (tx && typeof tx === "object") {
-        if ((tx as any).hash) {
-          transactionHash = (tx as any).hash;
-        } else if ((tx as any).data?.hash) {
-          transactionHash = (tx as any).data.hash;
-        } else {
-          // Generate a temporary unique ID if we can't get the hash
-          transactionHash = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        if (typeof tx === "string") {
+          transactionHash = tx;
+        } else if (tx && typeof tx === "object") {
+          if ((tx as any).hash) {
+            transactionHash = (tx as any).hash;
+          } else if ((tx as any).data?.hash) {
+            transactionHash = (tx as any).data.hash;
+          }
         }
       }
 
+      // Fallback transaction hash when not on-chain or when hash not present
       if (!transactionHash) {
-        transactionHash = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        transactionHash = `temp_${Date.now()}_${Math.random()
+          .toString(36)
+          .substr(2, 9)}`;
       }
 
       log.info("Transaction hash", { transactionHash });
 
-      // Check if user already has an attestation for this schema
-      const existingAttestation = await this.checkExistingAttestation(
-        recipient,
-        schemaUid,
-      );
-      if (existingAttestation) {
-        return {
-          success: false,
-          error: "You have already created an attestation for this schema",
-        };
+      // Optional duplicate prevention: skip for flows that allow multiples (e.g., daily check-ins)
+      if (!params.allowMultiple) {
+        const existingAttestation = await this.checkExistingAttestation(
+          recipient,
+          schemaUid,
+        );
+        if (existingAttestation) {
+          return {
+            success: false,
+            error: "You have already created an attestation for this schema",
+          };
+        }
       }
 
-      // Save attestation to database
-      await this.saveAttestationToDatabase({
-        attestation_uid: transactionHash,
-        schema_uid: schemaUid,
-        attester: wallet.address,
-        recipient: recipient,
-        data: data,
-        expiration_time: expirationTime
-          ? new Date(expirationTime * 1000).toISOString()
-          : null,
-      });
+      // Do not insert DB rows here; API will persist if needed
 
       return {
         success: true,
@@ -166,9 +181,7 @@ export class AttestationService {
         throw new Error("Wallet not connected");
       }
 
-      const provider = await wallet.getEthereumProvider();
-      const ethersProvider = new ethers.BrowserProvider(provider);
-      const signer = await ethersProvider.getSigner();
+      const { signer } = await createEthersFromPrivyWallet(wallet as any);
 
       const easContract = new ethers.Contract(
         EAS_CONFIG.CONTRACT_ADDRESS,
@@ -354,19 +367,6 @@ export class AttestationService {
     }
   }
 
-  /**
-   * Save attestation to Supabase database
-   */
-  private async saveAttestationToDatabase(attestationData: any): Promise<void> {
-    const { error } = await supabase
-      .from("attestations")
-      .insert(attestationData);
-
-    if (error) {
-      log.error("Error saving attestation to database", { error });
-      // Don't fail the transaction if database save fails, the blockchain transaction succeeded
-    }
-  }
 
   /**
    * Handle and format errors

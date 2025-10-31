@@ -70,11 +70,17 @@ export const SCHEMA_REGISTRY_ABI = [
 
 // Default schema UIDs for P2E Inferno specific attestations
 export const P2E_SCHEMA_UIDS = {
-  DAILY_CHECKIN: "0xp2e_daily_checkin_001",
-  QUEST_COMPLETION: "0xp2e_quest_completion_001",
+  DAILY_CHECKIN: (process.env.DAILY_CHECKIN_SCHEMA_UID ||
+    process.env.NEXT_PUBLIC_DAILY_CHECKIN_SCHEMA_UID ||
+    "0xp2e_daily_checkin_001") as string,
+  QUEST_COMPLETION: (process.env.QUEST_COMPLETION_SCHEMA_UID ||
+    process.env.NEXT_PUBLIC_QUEST_COMPLETION_SCHEMA_UID ||
+    "0xp2e_quest_completion_001") as string,
   // Canonical bootcamp completion schema UID. If on-chain schema is deployed, set env; else fallback to default placeholder.
   BOOTCAMP_COMPLETION: (process.env.BOOTCAMP_COMPLETION_SCHEMA_UID ||
     process.env.NEXT_PUBLIC_BOOTCAMP_COMPLETION_SCHEMA_UID ||
     "0xp2e_bootcamp_completion_001") as string,
-  MILESTONE_ACHIEVEMENT: "0xp2e_milestone_achievement_001",
+  MILESTONE_ACHIEVEMENT: (process.env.MILESTONE_ACHIEVEMENT_SCHEMA_UID ||
+    process.env.NEXT_PUBLIC_MILESTONE_ACHIEVEMENT_SCHEMA_UID ||
+    "0xp2e_milestone_achievement_001") as string,
 } as const;

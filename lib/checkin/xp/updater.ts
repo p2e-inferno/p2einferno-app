@@ -10,6 +10,7 @@ import {
 } from "../core/types";
 import { supabase } from "@/lib/supabase";
 import { getLogger } from "@/lib/utils/logger";
+import { getAccessToken } from "@privy-io/react-auth";
 
 const log = getLogger("checkin:xp-updater");
 
@@ -160,49 +161,44 @@ export class SupabaseXPUpdater implements XPUpdaterStrategy {
     activityData: any,
   ): Promise<void> {
     try {
-      log.debug("Performing atomic XP update with activity", {
-        userProfileId,
-        xpAmount,
-        activityData,
-      });
-
-      // Use Promise.all for parallel execution but handle errors properly
-      const [profileResult, activityResult] = await Promise.allSettled([
-        this.updateUserXP(userProfileId, xpAmount, activityData),
-        this.recordActivity(userProfileId, {
-          ...activityData,
-          xpGained: xpAmount,
-        }),
-      ]);
-
-      // Check if profile update failed
-      if (profileResult.status === "rejected") {
-        log.error("Profile update failed in atomic operation", {
-          userProfileId,
-          error: profileResult.reason,
-        });
-        throw profileResult.reason;
+      // Client-side only path: must use API so writes happen server-side
+      if (typeof window === "undefined") {
+        throw new XPUpdateError(
+          "updateUserXPWithActivity must be invoked from the client (uses API)",
+          { userProfileId, xpAmount },
+        );
       }
 
-      // Check if activity recording failed
-      if (activityResult.status === "rejected") {
-        log.warn("Activity recording failed but profile was updated", {
+      const token = await getAccessToken();
+      const res = await fetch("/api/checkin", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
           userProfileId,
           xpAmount,
-          error: activityResult.reason,
-        });
+          activityData,
+          attestation: activityData?.attestation || null,
+        }),
+      });
 
-        // Don't throw here - XP was updated successfully
-        // Just log the warning as activity recording is less critical
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.success) {
+        const message = json?.error || `Failed to apply XP via API (status ${res.status})`;
+        throw new XPUpdateError(message, { userProfileId, xpAmount });
       }
 
-      log.info("Atomic XP update completed successfully", {
-        userProfileId,
-        xpAmount,
-      });
+      log.info("Applied XP via API", { userProfileId, xpAmount });
     } catch (error) {
-      log.error("Atomic XP update failed", { userProfileId, xpAmount, error });
-      throw error;
+      log.error("XP update via API failed", { userProfileId, xpAmount, error });
+      throw error instanceof XPUpdateError
+        ? error
+        : new XPUpdateError(
+            error instanceof Error ? error.message : "Failed to apply XP via API",
+            { userProfileId, xpAmount, error },
+          );
     }
   }
 
