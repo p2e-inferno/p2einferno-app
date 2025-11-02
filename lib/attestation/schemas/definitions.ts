@@ -3,23 +3,24 @@
  */
 
 import { AttestationSchema } from "../core/types";
-import { P2E_SCHEMA_UIDS } from "../core/config";
+import { requireSchemaUID, isEASEnabled } from "../core/config";
 
 /**
  * Daily Check-in Schema - Simple daily engagement attestation
+ * Only available when EAS is enabled
  */
-export const DAILY_CHECKIN_SCHEMA: Omit<
+export const getDailyCheckinSchema = (): Omit<
   AttestationSchema,
   "id" | "created_at" | "updated_at"
-> = {
-  schema_uid: P2E_SCHEMA_UIDS.DAILY_CHECKIN,
+> => ({
+  schema_uid: requireSchemaUID('DAILY_CHECKIN'),
   name: "Daily Check-in",
   description: "Simple daily check-in attestation for user engagement",
   schema_definition:
     "address walletAddress,string greeting,uint256 timestamp,string userDid,uint256 xpGained",
   category: "attendance",
   revocable: false, // Daily check-ins should be permanent
-};
+});
 
 /**
  * Quest Completion Schema - For completed learning quests
