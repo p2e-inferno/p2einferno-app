@@ -30,7 +30,8 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
     isPerformingCheckin,
   } = useDailyCheckin(userAddress || "", userProfileId || "", {
     showToasts: true,
-    autoRefreshStatus: false,
+    autoRefreshStatus: true,
+    statusRefreshInterval: 5000, // Refresh every 5 seconds for real-time reactivity
   });
 
   const checkinCtaText = hasCheckedInToday

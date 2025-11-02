@@ -11,6 +11,7 @@ import {
   StreakStatus,
 } from "@/lib/checkin/core/types";
 import { getDefaultCheckinService } from "@/lib/checkin";
+import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("hooks:useStreakData");
@@ -165,16 +166,14 @@ export const useStreakData = (
     }
   }, [userAddress, fetchStreakData]);
 
-  // Auto refresh interval
-  useEffect(() => {
-    if (!autoRefresh || !userAddress) return;
-
-    const interval = setInterval(() => {
-      fetchStreakData();
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, userAddress, fetchStreakData]);
+  // Auto refresh interval with visibility awareness
+  useVisibilityAwarePoll(
+    fetchStreakData,
+    refreshInterval,
+    {
+      enabled: autoRefresh && !!userAddress,
+    }
+  );
 
   return {
     streakInfo,

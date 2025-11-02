@@ -262,8 +262,8 @@ export class DailyCheckinService {
       };
 
       // 5. Create attestation only when EAS is enabled
-      let attestationResult = { success: true, attestationUid: null };
-      
+      let attestationResult: { success: boolean; attestationUid?: string; error?: string } = { success: true, attestationUid: undefined };
+
       if (isEASEnabled()) {
         log.debug("Creating attestation (EAS enabled)", { userAddress, checkinData });
 

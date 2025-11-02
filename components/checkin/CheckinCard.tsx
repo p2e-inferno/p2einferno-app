@@ -72,6 +72,8 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
     error: checkinError,
     refreshStatus,
   } = useDailyCheckin(userAddress, userProfileId, {
+    autoRefreshStatus: true,
+    statusRefreshInterval: 5000, // Refresh every 5 seconds for real-time reactivity
     onCheckinSuccess: (result: CheckinResult) => {
       onCheckinSuccess?.(result);
     },
@@ -87,7 +89,10 @@ export const CheckinCard: React.FC<ExtendedCheckinCardProps> = ({
     isLoading: isStreakLoading,
     error: streakError,
     refetch: refetchStreak,
-  } = useStreakData(userAddress);
+  } = useStreakData(userAddress, {
+    autoRefresh: true,
+    refreshInterval: 5000, // Refresh every 5 seconds for real-time reactivity
+  });
 
   // Combined loading and error states
   const isLoading = isCheckinLoading || isStreakLoading;

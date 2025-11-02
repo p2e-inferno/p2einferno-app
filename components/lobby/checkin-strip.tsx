@@ -265,11 +265,15 @@ export const LobbyCheckinStrip: React.FC<LobbyCheckinStripProps> = ({
     previewXP,
     refreshStatus,
   } = useDailyCheckin(userAddress, userProfileId, {
-    autoRefreshStatus: false,
+    autoRefreshStatus: true,
+    statusRefreshInterval: 5000, // Refresh every 5 seconds for real-time reactivity
     showToasts: true,
   });
 
-  const { streakInfo, multiplier } = useStreakData(userAddress);
+  const { streakInfo, multiplier } = useStreakData(userAddress, {
+    autoRefresh: true,
+    refreshInterval: 5000, // Refresh every 5 seconds for real-time reactivity
+  });
   const storageKey = useMemo(
     () =>
       `p2e-inferno-daily-strip-hidden-until:${(userAddress || "").toLowerCase()}`,

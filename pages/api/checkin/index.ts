@@ -7,7 +7,7 @@ const log = getLogger("api:checkin");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse
+  res: NextApiResponse,
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -85,11 +85,11 @@ export default async function handler(
       const expirationIso = attestation.expirationTime
         ? new Date(attestation.expirationTime * 1000).toISOString()
         : null;
-      
+
       // Normalize addresses to lowercase to avoid case sensitivity issues
-      const normalizedAttester = attestation.attester?.toLowerCase() || '';
-      const normalizedRecipient = attestation.recipient?.toLowerCase() || '';
-      
+      const normalizedAttester = attestation.attester?.toLowerCase() || "";
+      const normalizedRecipient = attestation.recipient?.toLowerCase() || "";
+
       log.info("Inserting attestation", {
         uid: attestation.uid,
         schemaUid: attestation.schemaUid,
@@ -98,7 +98,7 @@ export default async function handler(
         attesterLength: normalizedAttester.length,
         recipientLength: normalizedRecipient.length,
       });
-      
+
       const { error: attErr } = await supabase.from("attestations").insert({
         attestation_uid: attestation.uid,
         schema_uid: attestation.schemaUid,
@@ -107,7 +107,7 @@ export default async function handler(
         data: attestation.data || {},
         expiration_time: expirationIso,
       });
-      
+
       if (attErr) {
         // CRITICAL: Attestation failures break streak tracking
         log.error("Failed to insert attestation row - STREAK TRACKING BROKEN", {

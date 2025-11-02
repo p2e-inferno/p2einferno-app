@@ -15,6 +15,7 @@ import {
 } from "@/lib/checkin/core/types";
 import { getDefaultCheckinService } from "@/lib/checkin";
 import { useStreakData } from "./useStreakData";
+import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("hooks:useDailyCheckin");
@@ -309,21 +310,14 @@ export const useDailyCheckin = (
     }
   }, [userAddress, fetchCheckinStatus]);
 
-  // Auto refresh status
-  useEffect(() => {
-    if (!autoRefreshStatus || !userAddress) return;
-
-    const interval = setInterval(() => {
-      fetchCheckinStatus();
-    }, statusRefreshInterval);
-
-    return () => clearInterval(interval);
-  }, [
-    autoRefreshStatus,
-    statusRefreshInterval,
-    userAddress,
+  // Auto refresh status with visibility awareness
+  useVisibilityAwarePoll(
     fetchCheckinStatus,
-  ]);
+    statusRefreshInterval,
+    {
+      enabled: autoRefreshStatus && !!userAddress,
+    }
+  );
 
   return {
     // Status data
