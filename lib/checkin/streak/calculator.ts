@@ -70,21 +70,6 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
       // Get current streak
       const currentStreak = await this.calculateStreak(userAddress);
 
-      // Check if user has checked in today using database function
-      const { data: hasCheckedInToday, error: todayError } = await supabase.rpc(
-        "has_checked_in_today",
-        {
-          user_address: userAddress,
-        }
-      );
-
-      if (todayError) {
-        throw new StreakCalculationError(
-          `Failed to check today's checkin: ${todayError.message}`,
-          { userAddress, error: todayError }
-        );
-      }
-
       // Get last checkin date from user_activities (EAS-independent)
       let lastCheckinDate: Date | null = null;
       
@@ -117,9 +102,12 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
       // This could be enhanced with a separate tracking mechanism
       const longestStreak = Math.max(currentStreak, 0);
 
-      // Determine if streak is active based on whether user checked in today
-      // and if streak is greater than 0
-      const isActive = hasCheckedInToday && currentStreak > 0;
+      // Determine if streak is active: a streak exists if currentStreak > 0
+      // The streak count itself encodes the active status.
+      // NOTE: hasCheckedInToday only becomes true AFTER today's check-in,
+      // so we can't use it to determine if an existing streak should be shown.
+      // Instead, we simply check if streak count > 0.
+      const isActive = currentStreak > 0;
 
       return {
         currentStreak,
@@ -171,12 +159,9 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
     try {
       const streakInfo = await this.getStreakInfo(userAddress);
 
+      // No streak exists
       if (streakInfo.currentStreak === 0) {
         return "new";
-      }
-
-      if (!streakInfo.isActive) {
-        return "broken";
       }
 
       // Check if streak is at risk (within last few hours of breaking)
@@ -186,6 +171,11 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
           now.getTime() - streakInfo.lastCheckinDate.getTime();
         const hoursUntilBreak =
           this.config.maxStreakGap - timeSinceLastCheckin / (1000 * 60 * 60);
+
+        if (hoursUntilBreak <= 0) {
+          // Streak has been broken (>24 hours since last checkin)
+          return "broken";
+        }
 
         if (hoursUntilBreak <= 3) {
           // At risk if less than 3 hours remaining
