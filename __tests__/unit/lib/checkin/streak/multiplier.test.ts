@@ -227,8 +227,8 @@ describe("TieredMultiplierStrategy", () => {
     test("should have non-overlapping tier ranges", () => {
       const tiers = strategy.getMultiplierTiers();
       for (let i = 0; i < tiers.length - 1; i++) {
-        const current = tiers[i];
-        const next = tiers[i + 1];
+        const current = tiers[i]!;
+        const next = tiers[i + 1]!;
         expect(next.minStreak).toBe((current.maxStreak ?? 0) + 1);
       }
     });
@@ -361,8 +361,8 @@ describe("LinearMultiplierStrategy", () => {
     test("should have increasing multipliers", () => {
       const tiers = strategy.getMultiplierTiers();
       for (let i = 1; i < tiers.length; i++) {
-        expect(tiers[i].multiplier).toBeGreaterThanOrEqual(
-          tiers[i - 1].multiplier,
+        expect(tiers[i]!.multiplier).toBeGreaterThanOrEqual(
+          tiers[i - 1]!.multiplier,
         );
       }
     });
@@ -467,18 +467,33 @@ describe("ExponentialMultiplierStrategy", () => {
 
   describe("Custom Configuration", () => {
     test("should respect custom exponent base", () => {
-      const customStrategy = new ExponentialMultiplierStrategy(1.0, 1.1, 5.0, 7);
+      const customStrategy = new ExponentialMultiplierStrategy(
+        1.0,
+        1.1,
+        5.0,
+        7,
+      );
       const mult7 = customStrategy.calculateMultiplier(7);
       expect(mult7).toBeCloseTo(1.1, 5);
     });
 
     test("should respect custom max multiplier", () => {
-      const customStrategy = new ExponentialMultiplierStrategy(1.0, 1.05, 10.0, 7);
+      const customStrategy = new ExponentialMultiplierStrategy(
+        1.0,
+        1.05,
+        10.0,
+        7,
+      );
       expect(customStrategy.calculateMultiplier(500)).toBe(10.0);
     });
 
     test("should respect custom interval", () => {
-      const customStrategy = new ExponentialMultiplierStrategy(1.0, 1.05, 5.0, 14);
+      const customStrategy = new ExponentialMultiplierStrategy(
+        1.0,
+        1.05,
+        5.0,
+        14,
+      );
       const mult14 = customStrategy.calculateMultiplier(14);
       expect(mult14).toBeCloseTo(1.05, 5);
     });
@@ -557,7 +572,12 @@ describe("SeasonalMultiplierStrategy", () => {
       // Create strategy with future event (event NOT active)
       const futureStart = new Date(Date.now() + 1000 * 60 * 60);
       const futureEnd = new Date(Date.now() + 2 * 1000 * 60 * 60);
-      strategy = new SeasonalMultiplierStrategy(baseStrategy, 1.5, futureStart, futureEnd);
+      strategy = new SeasonalMultiplierStrategy(
+        baseStrategy,
+        1.5,
+        futureStart,
+        futureEnd,
+      );
     });
 
     test("should delegate getCurrentTier to base strategy", () => {

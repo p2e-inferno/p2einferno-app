@@ -5,7 +5,10 @@
 
 import { renderHook } from "@testing-library/react";
 import { useVisibilityAwarePoll } from "@/hooks/checkin/useVisibilityAwarePoll";
-import { createMockCallback, resetAllMocks } from "__tests__/helpers/streak-test-utils";
+import {
+  createMockCallback,
+  resetAllMocks,
+} from "__tests__/helpers/streak-test-utils";
 
 describe("useVisibilityAwarePoll Hook", () => {
   let mockCallback: jest.Mock;
@@ -291,8 +294,8 @@ describe("useVisibilityAwarePoll Hook", () => {
     });
 
     test("should handle async callback promises", () => {
-      const asyncCallback = jest.fn(async () => {
-        return new Promise((resolve) => setTimeout(resolve, 100));
+      const asyncCallback = jest.fn(() => {
+        return new Promise<void>((resolve) => setTimeout(resolve, 100));
       });
 
       renderHook(() =>

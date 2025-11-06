@@ -8,7 +8,9 @@ import { StreakInfo, StreakStatus } from "@/lib/checkin/core/types";
 /**
  * Create a mock StreakInfo object with sensible defaults
  */
-export function createMockStreakInfo(overrides: Partial<StreakInfo> = {}): StreakInfo {
+export function createMockStreakInfo(
+  overrides: Partial<StreakInfo> = {},
+): StreakInfo {
   return {
     currentStreak: 5,
     lastCheckinDate: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
@@ -28,8 +30,7 @@ export const timeOffsets = {
   minutesAgo: (minutes: number): Date =>
     new Date(Date.now() - minutes * 60 * 1000),
 
-  secondsAgo: (seconds: number): Date =>
-    new Date(Date.now() - seconds * 1000),
+  secondsAgo: (seconds: number): Date => new Date(Date.now() - seconds * 1000),
 
   daysAgo: (days: number): Date =>
     new Date(Date.now() - days * 24 * 60 * 60 * 1000),
@@ -145,7 +146,7 @@ export function mockSupabaseGetStreakRpc(streakValue: number): any {
         eq: jest.fn(),
       })),
     })),
-    rpc: jest.fn((name: string, params: any) => {
+    rpc: jest.fn((name: string) => {
       if (name === "get_user_checkin_streak") {
         return Promise.resolve({ data: streakValue, error: null });
       }

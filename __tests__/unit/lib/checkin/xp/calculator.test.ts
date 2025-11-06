@@ -24,7 +24,6 @@ import {
   getXPColor,
   calculateXPGrowth,
 } from "@/lib/checkin/xp/calculator";
-import type { XPConfig } from "@/lib/checkin/core/types";
 
 // ================================
 // StandardXPCalculator Tests
@@ -128,14 +127,14 @@ describe("StandardXPCalculator", () => {
     test("should break down weekly and daily bonuses", () => {
       const breakdown = calculator.calculateXPBreakdown(7, 1.0);
       // Week 1: weeklyBonus = 50, dailyBonus = 60
-      expect(breakdown.breakdown.weeklyBonus).toBe(50);
-      expect(breakdown.breakdown.dailyBonus).toBe(60);
-      expect(breakdown.breakdown.tierBonus).toBe(0);
+      expect(breakdown.breakdown!.weeklyBonus).toBe(50);
+      expect(breakdown.breakdown!.dailyBonus).toBe(60);
+      expect(breakdown.breakdown!.tierBonus).toBe(0);
     });
 
     test("should have zero tier bonus for standard calculator", () => {
       const breakdown = calculator.calculateXPBreakdown(100, 2.0);
-      expect(breakdown.breakdown.tierBonus).toBe(0);
+      expect(breakdown.breakdown!.tierBonus).toBe(0);
     });
   });
 
@@ -243,14 +242,14 @@ describe("ProgressiveXPCalculator", () => {
   describe("calculateXPBreakdown", () => {
     test("should include milestone bonus in breakdown", () => {
       const breakdown = calculator.calculateXPBreakdown(30, 1.0);
-      expect(breakdown.breakdown.tierBonus).toBeGreaterThan(0);
+      expect(breakdown.breakdown!.tierBonus).toBeGreaterThan(0);
     });
 
     test("should correctly calculate tier bonus", () => {
       // At streak 30, we've passed milestones 7, 14, 30
       const breakdown = calculator.calculateXPBreakdown(30, 1.0);
       const expectedTierBonus = (7 + 14 + 30) * 0.05;
-      expect(breakdown.breakdown.tierBonus).toBeCloseTo(expectedTierBonus, 2);
+      expect(breakdown.breakdown!.tierBonus).toBeCloseTo(expectedTierBonus, 2);
     });
   });
 
@@ -307,7 +306,7 @@ describe("TieredXPCalculator", () => {
     test("should apply tier multipliers to bonus XP", () => {
       // Streak 10 is in "Regular" tier with bonusXPMultiplier 1.3
       const breakdown = calculator.calculateXPBreakdown(10, 1.0);
-      expect(breakdown.breakdown.weeklyBonus).toBe(5 * 1.3); // 6.5
+      expect(breakdown.breakdown!.weeklyBonus).toBe(5 * 1.3); // 6.5
     });
 
     test("Newcomer tier (0-6)", () => {
@@ -367,8 +366,8 @@ describe("TieredXPCalculator", () => {
     test("should have non-overlapping ranges", () => {
       const tiers = calculator.getAllTiers();
       for (let i = 0; i < tiers.length - 1; i++) {
-        const current = tiers[i];
-        const next = tiers[i + 1];
+        const current = tiers[i]!;
+        const next = tiers[i + 1]!;
         if (current.maxStreak !== null) {
           expect(current.maxStreak).toBeLessThan(next.minStreak);
         }
@@ -466,14 +465,18 @@ describe("EventXPCalculator", () => {
     test("should multiply final multiplier by event multiplier", () => {
       const eventXP = calculator.calculateTotalXP(100, 50, 1.5);
       const expectedMultiplier = 1.5 * 2.0;
-      const expectedXP = baseCalculator.calculateTotalXP(100, 50, expectedMultiplier);
+      const expectedXP = baseCalculator.calculateTotalXP(
+        100,
+        50,
+        expectedMultiplier,
+      );
       expect(eventXP).toBe(expectedXP);
     });
 
     test("should add event bonus to breakdown", () => {
       const breakdown = calculator.calculateXPBreakdown(10, 1.0);
-      expect(breakdown.breakdown.eventBonus).toBeDefined();
-      expect(breakdown.breakdown.eventBonus).toBeGreaterThan(0);
+      expect(breakdown.breakdown!.eventBonus).toBeDefined();
+      expect(breakdown.breakdown!.eventBonus).toBeGreaterThan(0);
     });
   });
 
@@ -515,7 +518,12 @@ describe("EventXPCalculator", () => {
       const progressive = new ProgressiveXPCalculator();
       const pastStart = new Date(Date.now() - 1000 * 60 * 60);
       const futureEnd = new Date(Date.now() + 1000 * 60 * 60);
-      const eventCalc = new EventXPCalculator(progressive, 1.5, pastStart, futureEnd);
+      const eventCalc = new EventXPCalculator(
+        progressive,
+        1.5,
+        pastStart,
+        futureEnd,
+      );
 
       const eventXP = eventCalc.calculateTotalXP(10, 20, 1.0);
       const baseXP = progressive.calculateTotalXP(10, 20, 1.0);
@@ -526,7 +534,12 @@ describe("EventXPCalculator", () => {
       const tiered = new TieredXPCalculator();
       const pastStart = new Date(Date.now() - 1000 * 60 * 60);
       const futureEnd = new Date(Date.now() + 1000 * 60 * 60);
-      const eventCalc = new EventXPCalculator(tiered, 2.0, pastStart, futureEnd);
+      const eventCalc = new EventXPCalculator(
+        tiered,
+        2.0,
+        pastStart,
+        futureEnd,
+      );
 
       const eventXP = eventCalc.calculateTotalXP(12, 15, 1.0);
       const baseXP = tiered.calculateTotalXP(12, 15, 1.0);
@@ -585,8 +598,8 @@ describe("ContextualXPCalculator", () => {
     test("should add context bonus to breakdown", () => {
       calculator.addContext("weekend", 1.5);
       const breakdown = calculator.calculateXPWithContext(10, 1.0, ["weekend"]);
-      expect(breakdown.breakdown.contextBonus).toBeDefined();
-      expect(breakdown.breakdown.contextBonus).toBeGreaterThan(0);
+      expect(breakdown.breakdown!.contextBonus).toBeDefined();
+      expect(breakdown.breakdown!.contextBonus).toBeGreaterThan(0);
     });
 
     test("should handle non-existent context gracefully", () => {
@@ -678,7 +691,10 @@ describe("Factory Functions", () => {
   });
 
   test("createProgressiveXPCalculator with custom progression rate", () => {
-    const calc = createProgressiveXPCalculator({}, 0.1);
+    const calc = createProgressiveXPCalculator(
+      {},
+      0.1,
+    ) as ProgressiveXPCalculator;
     const next = calc.getNextMilestone(5);
     expect(next?.bonus).toBe(7 * 0.1);
   });
@@ -736,7 +752,11 @@ describe("XP_PRESETS", () => {
 
   test("conservative gives less XP than standard", () => {
     // Test with streak that produces more reliable differences
-    const conservativeXP = XP_PRESETS.conservative.calculateTotalXP(50, 50, 1.0);
+    const conservativeXP = XP_PRESETS.conservative.calculateTotalXP(
+      50,
+      50,
+      1.0,
+    );
     const standardXP = XP_PRESETS.standard.calculateTotalXP(50, 50, 1.0);
     expect(conservativeXP).toBeLessThanOrEqual(standardXP);
   });
@@ -815,9 +835,9 @@ describe("calculateXPGrowth", () => {
   test("should show increasing XP with streak", () => {
     const calc = createStandardXPCalculator();
     const growth = calculateXPGrowth(calc, 10, 1.0, 3);
-    expect(growth[1].totalXP).toBeGreaterThanOrEqual(growth[0].totalXP);
-    expect(growth[2].totalXP).toBeGreaterThanOrEqual(growth[1].totalXP);
-    expect(growth[3].totalXP).toBeGreaterThanOrEqual(growth[2].totalXP);
+    expect(growth[1]!.totalXP).toBeGreaterThanOrEqual(growth[0]!.totalXP);
+    expect(growth[2]!.totalXP).toBeGreaterThanOrEqual(growth[1]!.totalXP);
+    expect(growth[3]!.totalXP).toBeGreaterThanOrEqual(growth[2]!.totalXP);
   });
 
   test("should respect custom projection days", () => {
@@ -830,6 +850,6 @@ describe("calculateXPGrowth", () => {
     const calc = createStandardXPCalculator();
     const growth1x = calculateXPGrowth(calc, 10, 1.0, 0);
     const growth2x = calculateXPGrowth(calc, 10, 2.0, 0);
-    expect(growth2x[0].totalXP).toBe(growth1x[0].totalXP * 2);
+    expect(growth2x[0]!.totalXP).toBe(growth1x[0]!.totalXP * 2);
   });
 });

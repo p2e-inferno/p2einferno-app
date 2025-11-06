@@ -10,7 +10,6 @@ import {
   timeOffsets,
   COMMON_TIME_SCENARIOS,
   createStreakInfoWithTimeOffset,
-  getExpectedStreakStatus,
   resetAllMocks,
 } from "__tests__/helpers/streak-test-utils";
 
@@ -30,9 +29,11 @@ describe("DefaultStreakCalculator", () => {
 
   describe("getStreakStatus - Status Transitions", () => {
     test("should return 'new' when currentStreak is 0", async () => {
-      jest.spyOn(calculator, "getStreakInfo").mockResolvedValue(
-        createMockStreakInfo({ currentStreak: 0, isActive: false }),
-      );
+      jest
+        .spyOn(calculator, "getStreakInfo")
+        .mockResolvedValue(
+          createMockStreakInfo({ currentStreak: 0, isActive: false }),
+        );
 
       const status = await calculator.getStreakStatus("0x123");
 
@@ -88,9 +89,7 @@ describe("DefaultStreakCalculator", () => {
             lastCheckinHoursAgo,
             5,
           );
-          jest
-            .spyOn(calculator, "getStreakInfo")
-            .mockResolvedValue(streakInfo);
+          jest.spyOn(calculator, "getStreakInfo").mockResolvedValue(streakInfo);
 
           const status = await calculator.getStreakStatus("0x123");
 
@@ -152,10 +151,7 @@ describe("DefaultStreakCalculator", () => {
       testCases.forEach(({ hours, shouldBreak }) => {
         const laterDate = new Date(baseDate.getTime() + hours * 60 * 60 * 1000);
         const result = calculator.isStreakBroken(baseDate, laterDate);
-        expect(result).toBe(
-          shouldBreak,
-          `Failed for ${hours} hours: expected ${shouldBreak}`,
-        );
+        expect(result).toBe(shouldBreak);
       });
     });
   });
@@ -225,16 +221,14 @@ describe("DefaultStreakCalculator", () => {
         }),
       );
 
-      const timeRemaining1 = await calculator.getTimeUntilStreakExpires(
-        "0x123",
-      );
+      const timeRemaining1 =
+        await calculator.getTimeUntilStreakExpires("0x123");
 
       // Advance time by 1 hour
       jest.advanceTimersByTime(1 * 60 * 60 * 1000);
 
-      const timeRemaining2 = await calculator.getTimeUntilStreakExpires(
-        "0x123",
-      );
+      const timeRemaining2 =
+        await calculator.getTimeUntilStreakExpires("0x123");
 
       expect(timeRemaining2).toBeLessThan(timeRemaining1!);
 

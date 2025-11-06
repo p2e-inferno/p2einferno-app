@@ -18,7 +18,6 @@ jest.mock("@/hooks/checkin/useVisibilityAwarePoll", () => ({
 import { renderHook, waitFor } from "@testing-library/react";
 import {
   createMockStreakInfo,
-  timeOffsets,
   resetAllMocks,
   createStreakInfoWithTimeOffset,
   COMMON_TIME_SCENARIOS,
@@ -88,9 +87,7 @@ describe("useStreakData Hook", () => {
     });
 
     test("should not fetch when user address is not provided", async () => {
-      const { result } = renderHook(() =>
-        useStreakData("", { autoRefresh: false }),
-      );
+      renderHook(() => useStreakData("", { autoRefresh: false }));
 
       await waitFor(() => {
         expect(mockService.getStreakInfo).not.toHaveBeenCalled();
@@ -518,7 +515,9 @@ describe("useStreakData Hook", () => {
 
   describe("Auto-Refresh", () => {
     test("should call useVisibilityAwarePoll when autoRefresh is enabled", async () => {
-      const { useVisibilityAwarePoll } = require("@/hooks/checkin/useVisibilityAwarePoll");
+      const {
+        useVisibilityAwarePoll,
+      } = require("@/hooks/checkin/useVisibilityAwarePoll");
       mockService.getStreakInfo.mockResolvedValue(
         createMockStreakInfo({ currentStreak: 5 }),
       );
@@ -536,7 +535,9 @@ describe("useStreakData Hook", () => {
     });
 
     test("should pass enabled: false to useVisibilityAwarePoll when autoRefresh is disabled", async () => {
-      const { useVisibilityAwarePoll } = require("@/hooks/checkin/useVisibilityAwarePoll");
+      const {
+        useVisibilityAwarePoll,
+      } = require("@/hooks/checkin/useVisibilityAwarePoll");
       mockService.getStreakInfo.mockResolvedValue(
         createMockStreakInfo({ currentStreak: 5 }),
       );
@@ -558,7 +559,9 @@ describe("useStreakData Hook", () => {
     });
 
     test("should pass correct interval to useVisibilityAwarePoll", async () => {
-      const { useVisibilityAwarePoll } = require("@/hooks/checkin/useVisibilityAwarePoll");
+      const {
+        useVisibilityAwarePoll,
+      } = require("@/hooks/checkin/useVisibilityAwarePoll");
       mockService.getStreakInfo.mockResolvedValue(
         createMockStreakInfo({ currentStreak: 5 }),
       );
@@ -626,8 +629,7 @@ describe("useStreakData Hook", () => {
         .mockResolvedValueOnce(updatedInfo);
 
       const { rerender } = renderHook(
-        ({ userAddress }) =>
-          useStreakData(userAddress, { autoRefresh: false }),
+        ({ userAddress }) => useStreakData(userAddress, { autoRefresh: false }),
         { initialProps: { userAddress: "0x123" } },
       );
 
