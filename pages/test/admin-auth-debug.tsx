@@ -6,7 +6,10 @@ import {
 } from "@/components/admin/AdminAuthDebugPanel";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import { useHasValidKey } from "@/hooks/unlock/useHasValidKey";
+import { getLogger } from "@/lib/utils/logger";
 import type { Address } from "viem";
+
+const log = getLogger("admin-auth-debug");
 
 const LockManagerChecker = () => {
   const [walletAddress, setWalletAddress] = useState("");
@@ -31,7 +34,7 @@ const LockManagerChecker = () => {
       );
       setResult(isManager);
     } catch (err) {
-      console.error("Check failed:", err);
+      log.error("Lock manager check failed", { err });
     } finally {
       setIsChecking(false);
     }
@@ -126,7 +129,7 @@ const ValidKeyChecker = () => {
       );
       setResult(keyInfo);
     } catch (err) {
-      console.error("Check failed:", err);
+      log.error("Valid key check failed", { err });
     } finally {
       setIsChecking(false);
     }
