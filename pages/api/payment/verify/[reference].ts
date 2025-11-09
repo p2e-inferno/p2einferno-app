@@ -3,7 +3,9 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import axios from "axios";
 import { extractAndValidateApplicationId } from "../../../../lib/helpers/payment-helpers";
-import { grantKeyService } from "../../../../lib/blockchain/services/grant-key-service";
+import { grantKeyToUser } from "../../../../lib/blockchain/services/grant-key-service";
+import { createWalletClientUnified } from "../../../../lib/blockchain/config/clients/wallet-client";
+import { createPublicClientUnified } from "../../../../lib/blockchain/config/clients/public-client";
 import { isServerBlockchainConfigured } from "../../../../lib/blockchain/legacy/server-config";
 import { isValidEthereumAddress } from "../../../../lib/blockchain/services/transaction-service";
 import { getLogger } from "@/lib/utils/logger";
@@ -105,7 +107,10 @@ async function processPaymentManually(paystackData: any) {
 }
 
 // Grant key to user after successful payment
-async function grantKeyToUser(applicationId: string, maxRetries: number = 2) {
+async function grantKeyToUserForPayment(
+  applicationId: string,
+  maxRetries: number = 2,
+) {
   if (!isServerBlockchainConfigured()) {
     log.warn("Key granting skipped - server blockchain not configured");
     return { success: false, error: "Blockchain not configured" };
@@ -173,20 +178,30 @@ async function grantKeyToUser(applicationId: string, maxRetries: number = 2) {
       `Granting key to user ${userProfile.wallet_address} for cohort ${cohort.name} (${cohort.lock_address})`,
     );
 
+    // Create wallet client for key granting
+    const walletClient = createWalletClientUnified();
+    if (!walletClient) {
+      return { success: false, error: "Server wallet not configured" };
+    }
+
+    const publicClient = createPublicClientUnified();
+
     // Grant key with retry logic (service handles pre-grant key check internally)
     let lastError: string = "";
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         log.info(`Key granting attempt ${attempt}/${maxRetries}`);
 
-        const grantResult = await grantKeyService.grantKeyToUser({
-          walletAddress: userProfile.wallet_address,
-          lockAddress: cohort.lock_address as `0x${string}`,
-          keyManagers: getKeyManagersForContext(
+        const grantResult = await grantKeyToUser(
+          walletClient,
+          publicClient,
+          userProfile.wallet_address,
+          cohort.lock_address as `0x${string}`,
+          getKeyManagersForContext(
             userProfile.wallet_address as `0x${string}`,
             "payment",
           ),
-        });
+        );
 
         if (grantResult.success) {
           log.info(
@@ -357,7 +372,9 @@ export default async function handler(
       log.info(
         "Webhook-processed payment successful, attempting to grant key to user...",
       );
-      const keyGrantResult = await grantKeyToUser(transaction.application_id);
+      const keyGrantResult = await grantKeyToUserForPayment(
+        transaction.application_id,
+      );
 
       if (keyGrantResult.success) {
         log.info(
@@ -521,7 +538,7 @@ export default async function handler(
           log.info(
             "Payment processing successful, attempting to grant key to user...",
           );
-          const keyGrantResult = await grantKeyToUser(
+          const keyGrantResult = await grantKeyToUserForPayment(
             processResult.returned_application_id,
           );
 

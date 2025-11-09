@@ -8,6 +8,11 @@ import TaskSubmissionModal from "@/components/lobby/TaskSubmissionModal";
 import MilestoneTimer from "@/components/lobby/MilestoneTimer";
 import { toast } from "react-hot-toast";
 import MilestoneTaskClaimButton from "@/components/lobby/MilestoneTaskClaimButton";
+import { useBootcampCompletionStatus } from "@/hooks/bootcamp-completion";
+import {
+  CertificateClaimButton,
+  CompletionBadge,
+} from "@/components/bootcamp-completion";
 import { useMilestoneClaim } from "@/hooks/useMilestoneClaim";
 import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
 import { FlameIcon, CrystalIcon } from "@/components/icons/dashboard-icons";
@@ -107,6 +112,7 @@ export default function BootcampLearningPage() {
   );
   const [selectedTask, setSelectedTask] = useState<MilestoneTask | null>(null);
   const [showSubmissionModal, setShowSubmissionModal] = useState(false);
+  const completion = useBootcampCompletionStatus(String(cohortId || ""));
 
   const fetchCohortData = useCallback(async () => {
     try {
@@ -336,7 +342,28 @@ export default function BootcampLearningPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          {/* Completion & Certificate */}
+          {completion.status && (
+            <div className="mb-5 flex items-center justify-between">
+              <CompletionBadge
+                isCompleted={completion.status.isCompleted}
+                completionDate={completion.status.completionDate}
+                certificateIssued={completion.status.certificate.issued}
+              />
+              {completion.status.isCompleted && (
+                <CertificateClaimButton
+                  cohortId={String(cohortId)}
+                  bootcampName={data.cohort.bootcamp_program.name}
+                  lockAddress={completion.status.lockAddress}
+                  isCompleted={completion.status.isCompleted}
+                  alreadyClaimed={completion.status.certificate.issued}
+                  onClaimed={() => completion.refetch()}
+                />
+              )}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-5">
             <div className="bg-background/30 rounded-xl p-4 text-center">
               <Award size={24} className="text-cyan-400 mx-auto mb-2" />
               <div className="font-bold">
@@ -377,7 +404,11 @@ export default function BootcampLearningPage() {
             </div>
             <div className="w-full bg-background/30 rounded-full h-4">
               <div
-                className="bg-gradient-to-r from-flame-yellow to-flame-orange h-4 rounded-full transition-all duration-500"
+                className={`h-4 rounded-full transition-all duration-500 ${
+                  data.overall_progress.overall_percentage === 100
+                    ? "bg-green-400"
+                    : "bg-gradient-to-r from-flame-yellow to-flame-orange"
+                }`}
                 style={{
                   width: `${data.overall_progress.overall_percentage}%`,
                 }}

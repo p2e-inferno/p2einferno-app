@@ -68,10 +68,41 @@ export const SCHEMA_REGISTRY_ABI = [
   },
 ] as const;
 
-// Default schema UIDs for P2E Inferno specific attestations
+// Schema UIDs for P2E Inferno specific attestations
+// Only use NEXT_PUBLIC environment variables (accessible in both client and server)
+// No hardcoded fallbacks - explicit configuration required
 export const P2E_SCHEMA_UIDS = {
-  DAILY_CHECKIN: "0xp2e_daily_checkin_001",
-  QUEST_COMPLETION: "0xp2e_quest_completion_001",
-  BOOTCAMP_COMPLETION: "0xp2e_bootcamp_completion_001",
-  MILESTONE_ACHIEVEMENT: "0xp2e_milestone_achievement_001",
+  DAILY_CHECKIN: process.env.NEXT_PUBLIC_DAILY_CHECKIN_SCHEMA_UID || null,
+  QUEST_COMPLETION: process.env.NEXT_PUBLIC_QUEST_COMPLETION_SCHEMA_UID || null,
+  BOOTCAMP_COMPLETION: process.env.NEXT_PUBLIC_BOOTCAMP_COMPLETION_SCHEMA_UID || null,
+  MILESTONE_ACHIEVEMENT: process.env.NEXT_PUBLIC_MILESTONE_ACHIEVEMENT_SCHEMA_UID || null,
 } as const;
+
+// Helper function to get schema UID with validation and clear error messages
+export function requireSchemaUID(type: keyof typeof P2E_SCHEMA_UIDS): string {
+  const uid = P2E_SCHEMA_UIDS[type];
+  
+  if (!uid) {
+    throw new Error(
+      `Schema UID not configured for ${type}. ` +
+      `Please set NEXT_PUBLIC_${type}_SCHEMA_UID environment variable.`
+    );
+  }
+  
+  // Only validate format when EAS is enabled
+  const isEasEnabled = process.env.NEXT_PUBLIC_ENABLE_EAS === 'true';
+  if (isEasEnabled && !/^0x[0-9a-fA-F]{64}$/.test(uid)) {
+    throw new Error(
+      `Invalid schema UID format for ${type}. ` +
+      `When EAS is enabled, schema UID must be 64-character hex string starting with 0x. ` +
+      `Got: ${uid}. Either disable EAS or provide valid schema UID.`
+    );
+  }
+  
+  return uid;
+}
+
+// Helper function to check if EAS is enabled
+export function isEASEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_ENABLE_EAS === 'true';
+}

@@ -2,7 +2,8 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import type { ApiResponse } from "@/lib/helpers/api";
-import { UserKeyService } from "@/lib/services/user-key-service";
+import { checkUserKeyOwnership } from "@/lib/services/user-key-service";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:user:cohort:[cohortId]:milestones");
@@ -105,13 +106,13 @@ export default async function handler(
       });
     }
 
-    // Verify user is enrolled in this cohort
+    // Verify user is enrolled in this cohort (including completed enrollments)
     const { data: enrollment, error: enrollmentError } = await supabase
       .from("bootcamp_enrollments")
       .select("id, enrollment_status")
       .eq("user_profile_id", profile.id)
       .eq("cohort_id", cohortId)
-      .in("enrollment_status", ["enrolled", "active"])
+      .in("enrollment_status", ["enrolled", "active", "completed"])
       .maybeSingle();
 
     if (enrollmentError || !enrollment) {
@@ -278,12 +279,14 @@ export default async function handler(
     });
 
     // --- NEW: Add on-chain key ownership status ---
+    const publicClient = createPublicClientUnified();
     const milestonesWithOnChainStatus = await Promise.all(
       milestonesWithProgress.map(async (milestone) => {
         if (!milestone.lock_address) {
           return { ...milestone, has_key: false };
         }
-        const keyCheck = await UserKeyService.checkUserKeyOwnership(
+        const keyCheck = await checkUserKeyOwnership(
+          publicClient,
           user.id,
           milestone.lock_address,
         );

@@ -11,7 +11,6 @@ import {
   StreakStatus,
 } from "../core/types";
 import { supabase } from "@/lib/supabase";
-import { P2E_SCHEMA_UIDS } from "@/lib/attestation/core/config";
 
 // ================================
 // Default Streak Calculator Implementation
@@ -22,7 +21,7 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
     protected config: StreakConfig = {
       maxStreakGap: 24, // 24 hours before streak is broken
       timezone: "UTC",
-    },
+    }
   ) {}
 
   /**
@@ -37,7 +36,7 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
       if (error) {
         throw new StreakCalculationError(
           `Failed to calculate streak: ${error.message}`,
-          { userAddress, error },
+          { userAddress, error }
         );
       }
 
@@ -71,36 +70,44 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
       // Get current streak
       const currentStreak = await this.calculateStreak(userAddress);
 
-      // Get last checkin information
-      const { data: lastCheckinData, error: lastCheckinError } = await supabase
-        .from("attestations")
-        .select("created_at")
-        .eq("recipient", userAddress)
-        .eq("schema_uid", P2E_SCHEMA_UIDS.DAILY_CHECKIN)
-        .eq("is_revoked", false)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Get last checkin date from user_activities (EAS-independent)
+      let lastCheckinDate: Date | null = null;
+      
+      // Get user profile ID for user_activities query
+      const { data: profiles, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("wallet_address", userAddress.toLowerCase())
+        .limit(1);
 
-      if (lastCheckinError) {
-        throw new StreakCalculationError(
-          `Failed to get last checkin: ${lastCheckinError.message}`,
-          { userAddress, error: lastCheckinError },
-        );
+      if (!profileError && profiles && profiles.length > 0) {
+        const profile = profiles[0];
+        if (profile?.id) {
+          const { data: lastActivity, error: activityError } = await supabase
+            .from("user_activities")
+            .select("created_at")
+            .eq("user_profile_id", profile.id)
+            .eq("activity_type", "daily_checkin")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (!activityError && lastActivity) {
+            lastCheckinDate = new Date(lastActivity.created_at);
+          }
+        }
       }
-
-      const lastCheckinDate = lastCheckinData
-        ? new Date(lastCheckinData.created_at)
-        : null;
 
       // For now, use current streak as longest streak
       // This could be enhanced with a separate tracking mechanism
       const longestStreak = Math.max(currentStreak, 0);
 
-      // Determine if streak is active
-      const isActive = lastCheckinDate
-        ? !this.isStreakBroken(lastCheckinDate, new Date())
-        : false;
+      // Determine if streak is active: a streak exists if currentStreak > 0
+      // The streak count itself encodes the active status.
+      // NOTE: hasCheckedInToday only becomes true AFTER today's check-in,
+      // so we can't use it to determine if an existing streak should be shown.
+      // Instead, we simply check if streak count > 0.
+      const isActive = currentStreak > 0;
 
       return {
         currentStreak,
@@ -124,7 +131,7 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
    */
   async validateStreakContinuity(
     userAddress: string,
-    checkinDate: Date,
+    checkinDate: Date
   ): Promise<boolean> {
     try {
       const streakInfo = await this.getStreakInfo(userAddress);
@@ -152,12 +159,9 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
     try {
       const streakInfo = await this.getStreakInfo(userAddress);
 
+      // No streak exists
       if (streakInfo.currentStreak === 0) {
         return "new";
-      }
-
-      if (!streakInfo.isActive) {
-        return "broken";
       }
 
       // Check if streak is at risk (within last few hours of breaking)
@@ -167,6 +171,11 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
           now.getTime() - streakInfo.lastCheckinDate.getTime();
         const hoursUntilBreak =
           this.config.maxStreakGap - timeSinceLastCheckin / (1000 * 60 * 60);
+
+        if (hoursUntilBreak <= 0) {
+          // Streak has been broken (>24 hours since last checkin)
+          return "broken";
+        }
 
         if (hoursUntilBreak <= 3) {
           // At risk if less than 3 hours remaining
@@ -197,7 +206,7 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
       const now = new Date();
       const expirationTime = new Date(
         streakInfo.lastCheckinDate.getTime() +
-          this.config.maxStreakGap * 60 * 60 * 1000,
+          this.config.maxStreakGap * 60 * 60 * 1000
       );
 
       const timeRemaining = expirationTime.getTime() - now.getTime();
@@ -205,7 +214,7 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
     } catch (error) {
       throw new StreakCalculationError(
         "Failed to calculate time until streak expires",
-        { userAddress, error },
+        { userAddress, error }
       );
     }
   }
@@ -233,13 +242,28 @@ export class EnhancedStreakCalculator extends DefaultStreakCalculator {
 
   private async calculateLongestStreak(userAddress: string): Promise<number> {
     try {
-      // Get all checkins ordered by date
+      // Get user profile ID for user_activities query
+      const { data: profiles, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("id")
+        .eq("wallet_address", userAddress.toLowerCase())
+        .limit(1);
+
+      if (profileError || !profiles || profiles.length === 0) {
+        return 0;
+      }
+
+      const profile = profiles[0];
+      if (!profile?.id) {
+        return 0;
+      }
+
+      // Get all checkins from user_activities ordered by date (EAS-independent)
       const { data: checkins, error } = await supabase
-        .from("attestations")
+        .from("user_activities")
         .select("created_at")
-        .eq("recipient", userAddress)
-        .eq("schema_uid", P2E_SCHEMA_UIDS.DAILY_CHECKIN)
-        .eq("is_revoked", false)
+        .eq("user_profile_id", profile.id)
+        .eq("activity_type", "daily_checkin")
         .order("created_at", { ascending: true });
 
       if (error) {
@@ -269,7 +293,7 @@ export class EnhancedStreakCalculator extends DefaultStreakCalculator {
 
         // Check if dates are consecutive days
         const daysDifference = Math.floor(
-          (currentDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24),
+          (currentDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24)
         );
 
         if (daysDifference === 1) {
@@ -305,7 +329,7 @@ export class TimezoneAwareStreakCalculator extends DefaultStreakCalculator {
       maxStreakGap: 24,
       timezone: "UTC",
       userTimezone: "UTC",
-    },
+    }
   ) {
     super(config);
   }
@@ -328,7 +352,7 @@ export class TimezoneAwareStreakCalculator extends DefaultStreakCalculator {
     } catch (error) {
       throw new StreakCalculationError(
         "Failed to check today's checkin status",
-        { userAddress, error },
+        { userAddress, error }
       );
     }
   }
@@ -338,7 +362,7 @@ export class TimezoneAwareStreakCalculator extends DefaultStreakCalculator {
    */
   async getNextCheckinTime(
     userAddress: string,
-    userTimezone?: string,
+    userTimezone?: string
   ): Promise<Date | null> {
     try {
       const hasCheckedIn = await this.hasCheckedInToday(userAddress);
@@ -355,7 +379,7 @@ export class TimezoneAwareStreakCalculator extends DefaultStreakCalculator {
 
       // Set to start of day in user's timezone
       const tomorrowStart = new Date(
-        tomorrow.toLocaleString("en-US", { timeZone: timezone }),
+        tomorrow.toLocaleString("en-US", { timeZone: timezone })
       );
       tomorrowStart.setHours(0, 0, 0, 0);
 
@@ -363,7 +387,7 @@ export class TimezoneAwareStreakCalculator extends DefaultStreakCalculator {
     } catch (error) {
       throw new StreakCalculationError(
         "Failed to calculate next checkin time",
-        { userAddress, error },
+        { userAddress, error }
       );
     }
   }
@@ -374,19 +398,19 @@ export class TimezoneAwareStreakCalculator extends DefaultStreakCalculator {
 // ================================
 
 export const createStreakCalculator = (
-  config?: StreakConfig,
+  config?: StreakConfig
 ): StreakCalculatorStrategy => {
   return new DefaultStreakCalculator(config);
 };
 
 export const createEnhancedStreakCalculator = (
-  config?: StreakConfig,
+  config?: StreakConfig
 ): StreakCalculatorStrategy => {
   return new EnhancedStreakCalculator(config);
 };
 
 export const createTimezoneAwareStreakCalculator = (
-  config?: StreakConfig & { userTimezone?: string },
+  config?: StreakConfig & { userTimezone?: string }
 ): StreakCalculatorStrategy => {
   return new TimezoneAwareStreakCalculator(config);
 };
@@ -421,10 +445,14 @@ export const formatStreakDuration = (streak: number): string => {
   } else if (streak < 30) {
     const weeks = Math.floor(streak / 7);
     const days = streak % 7;
-    return `${weeks} week${weeks !== 1 ? "s" : ""}${days > 0 ? ` ${days} day${days !== 1 ? "s" : ""}` : ""}`;
+    return `${weeks} week${weeks !== 1 ? "s" : ""}${
+      days > 0 ? ` ${days} day${days !== 1 ? "s" : ""}` : ""
+    }`;
   } else {
     const months = Math.floor(streak / 30);
     const days = streak % 30;
-    return `${months} month${months !== 1 ? "s" : ""}${days > 0 ? ` ${days} day${days !== 1 ? "s" : ""}` : ""}`;
+    return `${months} month${months !== 1 ? "s" : ""}${
+      days > 0 ? ` ${days} day${days !== 1 ? "s" : ""}` : ""
+    }`;
   }
 };

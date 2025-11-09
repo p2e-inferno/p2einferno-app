@@ -13,6 +13,10 @@ import {
 } from "@/components/profile";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { getLogger } from "@/lib/utils/logger";
+import { WithdrawDGButton } from "@/components/token-withdrawal/WithdrawDGButton";
+import { WithdrawalHistoryTable } from "@/components/token-withdrawal/WithdrawalHistoryTable";
+import { SubscriptionBadge } from "@/components/token-withdrawal/SubscriptionBadge";
+import { AccessRequirementCard } from "@/components/token-withdrawal/AccessRequirementCard";
 
 const log = getLogger("lobby:profile:index");
 
@@ -187,6 +191,35 @@ const ProfilePage = () => {
           />
 
           <CompletionCallToAction completionPercentage={completionPercentage} />
+
+          {/* DG Token Withdrawal Section */}
+          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 mt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+              <div>
+                <h2 className="text-xl font-bold text-white mb-2">DG Nation</h2>
+                <p className="text-gray-400 text-sm">
+                  Pull out your earned DG tokens to your wallet
+                </p>
+              </div>
+              <div className="sm:ml-4 flex-shrink-0">
+                <SubscriptionBadge compact />
+              </div>
+            </div>
+
+            {/* Show purchase card if user doesn't have DG Nation membership */}
+            <AccessRequirementCard />
+
+            <div className="mb-4">
+              <WithdrawDGButton />
+            </div>
+
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold text-white mb-4">
+                Pullout History
+              </h3>
+              <WithdrawalHistoryTable />
+            </div>
+          </div>
         </div>
       </div>
     </LobbyLayout>

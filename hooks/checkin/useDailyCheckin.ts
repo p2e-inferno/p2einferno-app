@@ -5,6 +5,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { usePrivy } from "@privy-io/react-auth";
+import { usePrivyWriteWallet } from "@/hooks/unlock/usePrivyWriteWallet";
 import { toast } from "react-hot-toast";
 import {
   CheckinStatus,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/checkin/core/types";
 import { getDefaultCheckinService } from "@/lib/checkin";
 import { useStreakData } from "./useStreakData";
+import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("hooks:useDailyCheckin");
@@ -43,6 +45,7 @@ export const useDailyCheckin = (
 
   // Privy for wallet connection
   const { user } = usePrivy();
+  const writeWallet = usePrivyWriteWallet();
 
   // State
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(
@@ -59,6 +62,14 @@ export const useDailyCheckin = (
   const checkinService = useMemo(() => getDefaultCheckinService(), []);
 
   // Use streak data hook
+  const handleStreakError = useCallback(
+    (err: string) => {
+      log.error("Streak data error", { userAddress, error: err });
+      setError(err);
+    },
+    [userAddress],
+  );
+
   const {
     streakInfo,
     isLoading: isStreakLoading,
@@ -67,10 +78,7 @@ export const useDailyCheckin = (
   } = useStreakData(userAddress, {
     autoRefresh: autoRefreshStatus,
     refreshInterval: statusRefreshInterval,
-    onError: (err) => {
-      log.error("Streak data error", { userAddress, error: err });
-      setError(err);
-    },
+    onError: handleStreakError,
   });
 
   // Fetch check-in status
@@ -126,7 +134,7 @@ export const useDailyCheckin = (
         };
       }
 
-      if (!user?.wallet) {
+      if (!writeWallet) {
         const error = "Wallet not connected";
         log.error("Wallet not connected for checkin", { userAddress });
         return {
@@ -148,6 +156,10 @@ export const useDailyCheckin = (
         });
 
         // Validate checkin eligibility
+        if (!user?.wallet) {
+          throw new Error("User wallet not available");
+        }
+        
         const validation = await checkinService.validateCheckin(
           userAddress,
           userProfileId,
@@ -179,7 +191,7 @@ export const useDailyCheckin = (
           userAddress,
           userProfileId,
           greeting,
-          user.wallet,
+          writeWallet as any,
         );
 
         if (result.success) {
@@ -298,21 +310,14 @@ export const useDailyCheckin = (
     }
   }, [userAddress, fetchCheckinStatus]);
 
-  // Auto refresh status
-  useEffect(() => {
-    if (!autoRefreshStatus || !userAddress) return;
-
-    const interval = setInterval(() => {
-      fetchCheckinStatus();
-    }, statusRefreshInterval);
-
-    return () => clearInterval(interval);
-  }, [
-    autoRefreshStatus,
-    statusRefreshInterval,
-    userAddress,
+  // Auto refresh status with visibility awareness
+  useVisibilityAwarePoll(
     fetchCheckinStatus,
-  ]);
+    statusRefreshInterval,
+    {
+      enabled: autoRefreshStatus && !!userAddress,
+    }
+  );
 
   return {
     // Status data

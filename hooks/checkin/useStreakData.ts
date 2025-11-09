@@ -11,6 +11,7 @@ import {
   StreakStatus,
 } from "@/lib/checkin/core/types";
 import { getDefaultCheckinService } from "@/lib/checkin";
+import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("hooks:useStreakData");
@@ -108,16 +109,17 @@ export const useStreakData = (
   const getStreakStatus = useCallback((): StreakStatus => {
     if (!streakInfo) return "new";
 
+    // No streak exists
     if (streakInfo.currentStreak === 0) return "new";
-    if (!streakInfo.isActive) return "broken";
 
-    // Check if at risk (within last few hours)
+    // Check if streak is broken or at risk (based on time since last checkin)
     if (streakInfo.lastCheckinDate) {
       const now = new Date();
       const timeSinceLastCheckin =
         now.getTime() - streakInfo.lastCheckinDate.getTime();
       const hoursUntilBreak = 24 - timeSinceLastCheckin / (1000 * 60 * 60);
 
+      if (hoursUntilBreak <= 0) return "broken";
       if (hoursUntilBreak <= 3) return "at_risk";
     }
 
@@ -165,16 +167,14 @@ export const useStreakData = (
     }
   }, [userAddress, fetchStreakData]);
 
-  // Auto refresh interval
-  useEffect(() => {
-    if (!autoRefresh || !userAddress) return;
-
-    const interval = setInterval(() => {
-      fetchStreakData();
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, userAddress, fetchStreakData]);
+  // Auto refresh interval with visibility awareness
+  useVisibilityAwarePoll(
+    fetchStreakData,
+    refreshInterval,
+    {
+      enabled: autoRefresh && !!userAddress,
+    }
+  );
 
   return {
     streakInfo,

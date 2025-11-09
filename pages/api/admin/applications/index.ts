@@ -44,9 +44,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     let query = supabase.from("all_applications_view").select(`
         application_id,
         user_profile_id,
-        user_application_status_id as id,
-        user_application_status as status,
-        application_created_at as created_at,
+        user_application_status_id,
+        user_application_status,
+        application_created_at,
         cohort_id,
         cohort_name,
         user_name,
@@ -77,7 +77,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
     // Apply pagination
     const offset = (Number(page) - 1) * Number(limit);
     query = query
-      .order("created_at", { ascending: false })
+      .order("application_created_at", { ascending: false })
       .range(offset, offset + Number(limit) - 1);
 
     const { data: applications, error } = await query;
@@ -107,7 +107,9 @@ async function handler(req: NextApiRequest, res: NextApiResponse) {
         return {
           ...app,
           // Map fields to expected names
-          id: app.id || app.application_id, // Use app ID if status ID is missing
+          id: app.user_application_status_id || app.application_id, // Use status ID if available, fallback to app ID
+          status: app.user_application_status,
+          created_at: app.application_created_at,
           bootcamp_enrollments,
           // Add data quality indicators
           data_issues: {

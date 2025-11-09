@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
@@ -20,9 +20,11 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { NetworkError } from "@/components/ui/network-error";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
+import type { Address } from "viem";
 
 const log = getLogger("admin:quests:[id]");
 
@@ -48,6 +50,14 @@ export default function QuestDetailsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
+  const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(
+    null,
+  );
+  const [actualManagerStatus, setActualManagerStatus] = useState<
+    boolean | null
+  >(null);
+
+  const { checkIsLockManager } = useIsLockManager();
 
   // Reusable function to fetch quest details by id
   const fetchQuestDetails = useCallback(
@@ -108,6 +118,45 @@ export default function QuestDetailsPage() {
       }
     },
   });
+
+  // Fetch server wallet address
+  const fetchServerWallet = useCallback(async () => {
+    try {
+      const result = await adminFetch<{ serverWalletAddress: string }>(
+        "/api/admin/server-wallet",
+      );
+      if (result.data?.serverWalletAddress) {
+        setServerWalletAddress(result.data.serverWalletAddress);
+      }
+    } catch (err) {
+      log.error("Failed to fetch server wallet address:", err);
+    }
+  }, [adminFetch]);
+
+  // Check actual lock manager status on blockchain
+  const checkActualManagerStatus = useCallback(async () => {
+    if (!quest?.lock_address || !serverWalletAddress) return;
+
+    try {
+      const isManager = await checkIsLockManager(
+        serverWalletAddress as Address,
+        quest.lock_address as Address,
+      );
+      setActualManagerStatus(isManager);
+    } catch (err) {
+      log.error("Failed to check lock manager status:", err);
+    }
+  }, [quest?.lock_address, serverWalletAddress, checkIsLockManager]);
+
+  useEffect(() => {
+    fetchServerWallet();
+  }, [fetchServerWallet]);
+
+  useEffect(() => {
+    if (quest?.lock_address && serverWalletAddress) {
+      checkActualManagerStatus();
+    }
+  }, [quest?.lock_address, serverWalletAddress, checkActualManagerStatus]);
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {
@@ -257,8 +306,56 @@ export default function QuestDetailsPage() {
               </div>
             </div>
 
+            {/* Lock Manager Status Display */}
+            {quest.lock_address && serverWalletAddress && (
+              <div className="mb-6 rounded-lg border border-slate-700 bg-slate-900 p-4">
+                <h3 className="text-sm font-medium text-slate-300 mb-3">
+                  Lock Manager Status
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Database Status:</span>
+                    <span
+                      className={`font-medium ${quest.lock_manager_granted ? "text-green-400" : "text-red-400"}`}
+                    >
+                      {quest.lock_manager_granted
+                        ? "✅ Granted"
+                        : "❌ Not Granted"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Blockchain Status:</span>
+                    <span
+                      className={`font-medium ${
+                        actualManagerStatus === null
+                          ? "text-yellow-400"
+                          : actualManagerStatus
+                            ? "text-green-400"
+                            : "text-red-400"
+                      }`}
+                    >
+                      {actualManagerStatus === null
+                        ? "⏳ Checking..."
+                        : actualManagerStatus
+                          ? "✅ Is Manager"
+                          : "❌ Not Manager"}
+                    </span>
+                  </div>
+                  {actualManagerStatus !== null &&
+                    quest.lock_manager_granted !== actualManagerStatus && (
+                      <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
+                        <p className="text-amber-300 text-xs font-medium">
+                          ⚠️ Status Mismatch: Database and blockchain states
+                          don&apos;t match!
+                        </p>
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+
             {/* Lock Manager Grant Retry Button */}
-            {quest.lock_address && quest.lock_manager_granted === false && (
+            {quest.lock_address && actualManagerStatus === false && (
               <LockManagerRetryButton
                 entityType="quest"
                 entityId={quest.id}
@@ -268,6 +365,7 @@ export default function QuestDetailsPage() {
                   toast.success("Database updated successfully");
                   if (id && typeof id === "string") {
                     fetchQuestDetails(id); // Refresh quest data
+                    checkActualManagerStatus(); // Refresh blockchain status
                   }
                 }}
                 onError={(error) => {

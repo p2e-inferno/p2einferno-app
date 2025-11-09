@@ -370,6 +370,8 @@ export interface DailyCheckinButtonProps {
   onSuccess?: (result: CheckinResult) => void;
   onError?: (error: string) => void;
   className?: string;
+  /** When true, the inner button expands to container width */
+  fullWidth?: boolean;
 }
 
 export interface CheckinCardProps {

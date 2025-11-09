@@ -41,17 +41,38 @@ export function truncateErrorMessage(
 /**
  * Formats an error message for toast display with proper line breaks
  * @param message - The error message to format
- * @param maxLength - Maximum length per line (default: 200)
- * @returns Formatted message with line breaks
+ * @param maxLength - Maximum length per line (default: 300)
+ * @returns Formatted message with line breaks and truncated addresses/hashes
  */
 export function formatErrorMessageForToast(
   message: string,
-  maxLength: number = 200,
+  maxLength: number = 300,
 ): string {
-  const truncated = truncateErrorMessage(message, maxLength);
+  let formatted = message;
+
+  // Truncate long hex addresses and transaction hashes for better display
+  formatted = formatted.replace(/(0x[a-fA-F0-9]{40,})/g, (match) => {
+    if (match.length > 20) {
+      return `${match.substring(0, 10)}...${match.substring(match.length - 8)}`;
+    }
+    return match;
+  });
+
+  // Truncate the overall message if still too long
+  const truncated = truncateErrorMessage(formatted, maxLength);
 
   // Add line breaks for better readability in toast
-  return truncated.replace(/\. /g, ".\n").replace(/, /g, ",\n");
+  return truncated
+    .replace(/\. /g, ".\n")
+    .replace(/, /g, ",\n")
+    .replace(/: /g, ":\n")
+    .replace(/chain:/g, "chain:\n")
+    .replace(/from:/g, "from:\n")
+    .replace(/to:/g, "to:\n")
+    .replace(/data:/g, "data:\n")
+    .replace(/gas:/g, "gas:\n")
+    .replace(/Contract Call:/g, "Contract Call:\n")
+    .replace(/Request Arguments:/g, "Request Arguments:\n");
 }
 
 /**
@@ -63,6 +84,12 @@ export function showInfoToast(message: string, options?: ToastOptions) {
     style: {
       background: "#1d4ed8",
       color: "#fff",
+      maxWidth: "400px",
+      wordWrap: "break-word",
+      overflowWrap: "anywhere",
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-all",
+      lineHeight: "1.4",
     },
     ...options,
   });

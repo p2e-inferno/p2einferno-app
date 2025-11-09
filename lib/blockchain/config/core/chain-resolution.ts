@@ -14,9 +14,9 @@ import type { ChainConfig, RpcUrlsResult, RpcFallbackSettings } from "./types";
  */
 export const getAlchemyBaseUrl = (chainId: number): string => {
   const baseUrls = {
-    8453: "https://base-mainnet.g.alchemy.com/v2/",      // Base Mainnet
-    84532: "https://base-sepolia.g.alchemy.com/v2/",     // Base Sepolia  
-    1: "https://eth-mainnet.g.alchemy.com/v2/",          // Ethereum Mainnet
+    8453: "https://base-mainnet.g.alchemy.com/v2/", // Base Mainnet
+    84532: "https://base-sepolia.g.alchemy.com/v2/", // Base Sepolia
+    1: "https://eth-mainnet.g.alchemy.com/v2/", // Ethereum Mainnet
   };
 
   const baseUrl = baseUrls[chainId as keyof typeof baseUrls];

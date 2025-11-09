@@ -20,7 +20,7 @@ import {
   MultiplierTier,
 } from "./types";
 import { AttestationService } from "@/lib/attestation/core/service";
-import { P2E_SCHEMA_UIDS } from "@/lib/attestation/core/config";
+import { requireSchemaUID, isEASEnabled } from "@/lib/attestation/core/config";
 import { supabase } from "@/lib/supabase";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -261,28 +261,35 @@ export class DailyCheckinService {
         xpGained: xpBreakdown.totalXP,
       };
 
-      // 5. Create attestation using existing EAS system
-      log.debug("Creating attestation", { userAddress, checkinData });
+      // 5. Create attestation only when EAS is enabled
+      let attestationResult: { success: boolean; attestationUid?: string; error?: string } = { success: true, attestationUid: undefined };
 
-      const attestationResult = await this.attestationService.createAttestation(
-        {
-          schemaUid: P2E_SCHEMA_UIDS.DAILY_CHECKIN,
-          recipient: userAddress,
-          data: checkinData,
-          wallet,
-        },
-      );
+      if (isEASEnabled()) {
+        log.debug("Creating attestation (EAS enabled)", { userAddress, checkinData });
 
-      if (!attestationResult.success) {
-        log.error("Attestation creation failed", {
-          userAddress,
-          error: attestationResult.error,
-        });
-
-        throw new AttestationError(
-          attestationResult.error || "Failed to create attestation",
-          { userAddress, checkinData, result: attestationResult },
+        attestationResult = await this.attestationService.createAttestation(
+          {
+            schemaUid: requireSchemaUID('DAILY_CHECKIN'),
+            recipient: userAddress,
+            data: checkinData,
+            wallet,
+            allowMultiple: true,
+          },
         );
+
+        if (!attestationResult.success) {
+          log.error("Attestation creation failed", {
+            userAddress,
+            error: attestationResult.error,
+          });
+
+          throw new AttestationError(
+            attestationResult.error || "Failed to create attestation",
+            { userAddress, checkinData, result: attestationResult },
+          );
+        }
+      } else {
+        log.debug("Skipping attestation creation (EAS disabled)", { userAddress });
       }
 
       log.info("Attestation created successfully", {
@@ -300,6 +307,17 @@ export class DailyCheckinService {
         tierInfo: this.multiplierStrategy.getCurrentTier(newStreak),
         timestamp: new Date().toISOString(),
         activityType: "daily_checkin",
+        // Optional attestation for server API to persist when EAS is enabled
+        attestation: attestationResult.attestationUid && isEASEnabled()
+          ? {
+              uid: attestationResult.attestationUid,
+              schemaUid: requireSchemaUID('DAILY_CHECKIN'),
+              attester: wallet.address,
+              recipient: userAddress,
+              data: checkinData,
+              expirationTime: undefined as number | undefined,
+            }
+          : undefined,
       };
 
       log.debug("Updating user XP", {
@@ -496,11 +514,11 @@ export class DailyCheckinService {
           startDate.setHours(0, 0, 0, 0);
       }
 
+      // Use user_activities as single source of truth for analytics (EAS-independent)
       const { data, error } = await supabaseClient
-        .from("attestations")
-        .select("recipient, data, created_at")
-        .eq("schema_uid", P2E_SCHEMA_UIDS.DAILY_CHECKIN)
-        .eq("is_revoked", false)
+        .from("user_activities")
+        .select("user_profile_id, activity_data, points_earned, created_at")
+        .eq("activity_type", "daily_checkin")
         .gte("created_at", startDate.toISOString());
 
       if (error) {
@@ -508,15 +526,22 @@ export class DailyCheckinService {
       }
 
       const checkins = data || [];
-      const uniqueUsers = new Set(checkins.map((c) => c.recipient)).size;
+      const uniqueUsers = new Set(checkins.map((c) => c.user_profile_id)).size;
       const totalXPAwarded = checkins.reduce((sum, c) => {
-        const xpGained = c.data?.xpGained || 0;
-        return sum + xpGained;
+        return sum + (c.points_earned || 0);
       }, 0);
 
+      // Get wallet addresses for unique users to calculate streaks
+      const userProfiles = await supabaseClient
+        .from("user_profiles")
+        .select("wallet_address")
+        .in("id", Array.from(new Set(checkins.map((c) => c.user_profile_id))));
+
+      const walletAddresses = userProfiles.data?.map(p => p.wallet_address) || [];
+      
       // Calculate average streak (simplified)
       const streaks = await Promise.all(
-        Array.from(new Set(checkins.map((c) => c.recipient))).map((address) =>
+        walletAddresses.map((address) =>
           this.streakCalculator.calculateStreak(address),
         ),
       );
@@ -553,11 +578,11 @@ export class DailyCheckinService {
     let overallHealthy = true;
 
     try {
-      // Test database connection
+      // Test database connection using user_activities (EAS-independent)
       const { error: dbError } = await supabaseClient
-        .from("attestation_schemas")
-        .select("schema_uid")
-        .eq("schema_uid", P2E_SCHEMA_UIDS.DAILY_CHECKIN)
+        .from("user_activities")
+        .select("id")
+        .eq("activity_type", "daily_checkin")
         .limit(1);
 
       services.database = !dbError;

@@ -35,6 +35,7 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
   showCountdown = true,
   animate = true,
   customGreeting,
+  fullWidth,
   onSuccess,
   onError,
   className,
@@ -122,7 +123,7 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
     return (
       <>
         <span className="text-lg mr-1">🌅</span>
-        Check in for today
+        Check in
       </>
     );
   };
@@ -172,7 +173,7 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
         disabled={isButtonDisabled}
         onClick={handleClick}
         title={tooltipContent}
-        className={buttonClasses}
+        className={cn(buttonClasses, fullWidth && "w-full justify-center")}
       >
         {getButtonContent()}
 
@@ -191,7 +192,7 @@ export const DailyCheckinButton: React.FC<ExtendedDailyCheckinButtonProps> = ({
         previewXP > 0 && (
           <Badge
             variant="secondary"
-            className="absolute -top-2 -right-2 bg-green-100 text-green-700 border-green-200"
+            className="absolute -top-2 -right-2 z-10 bg-emerald-500 text-white border-emerald-400 shadow-md"
           >
             <Zap className="w-3 h-3 mr-1" />+{previewXP}
           </Badge>
@@ -236,12 +237,17 @@ export const LargeCheckinButton: React.FC<
     props.userProfileId,
   );
 
+  // Apply provided className to the wrapper so the component
+  // can participate in flex/grid sizing (e.g., basis-full on mobile)
+  const { className: wrapperClassName, ...buttonProps } = props as any;
+
   return (
-    <div className="space-y-2">
+    <div className={cn("space-y-2", wrapperClassName)}>
       <DailyCheckinButton
-        {...props}
+        {...buttonProps}
         size="lg"
-        className={cn("w-full py-3 text-lg", props.className)}
+        fullWidth
+        className={cn("w-full md:w-auto py-3 text-lg")}
       />
 
       {showStats && canCheckinToday && !hasCheckedInToday && previewXP > 0 && (

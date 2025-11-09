@@ -6,11 +6,11 @@
 import { XPCalculatorStrategy, XPBreakdown, XPConfig } from "../core/types";
 
 const STANDARD_DEFAULT_CONFIG: XPConfig = {
-  baseXP: 10,
-  weeklyBonus: 5,
-  dailyBonus: 1,
-  minimumXP: 5,
-  maximumXP: 1000,
+  baseXP: 100,
+  weeklyBonus: 50,
+  dailyBonus: 10,
+  minimumXP: 100,
+  maximumXP: 2000,
 };
 
 // ================================

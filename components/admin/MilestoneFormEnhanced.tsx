@@ -34,10 +34,11 @@ import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 import {
-  initialGrantState,
   applyDeploymentOutcome,
   effectiveGrantForSave,
 } from "@/lib/blockchain/shared/grant-state";
+import LockManagerToggle from "@/components/admin/LockManagerToggle";
+import { useLockManagerState } from "@/hooks/useLockManagerState";
 
 const log = getLogger("admin:MilestoneFormEnhanced");
 
@@ -101,13 +102,13 @@ export default function MilestoneFormEnhanced({
   const [deploymentStep, setDeploymentStep] = useState("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(!isEditing);
   const [error, setError] = useState<string | null>(null);
-  // Default to false for new milestones; set true explicitly when a grant succeeds
-  const [lockManagerGranted, setLockManagerGranted] = useState(
-    initialGrantState(isEditing, milestone?.lock_manager_granted ?? undefined),
-  );
-  const [grantFailureReason, setGrantFailureReason] = useState<
-    string | undefined
-  >(isEditing ? (milestone?.grant_failure_reason ?? undefined) : undefined);
+  // Use the reusable hook for lock manager state management
+  const {
+    lockManagerGranted,
+    setLockManagerGranted,
+    grantFailureReason,
+    setGrantFailureReason,
+  } = useLockManagerState(isEditing, milestone);
   // Track the most recent grant outcome during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
@@ -258,14 +259,6 @@ export default function MilestoneFormEnhanced({
       cancelled = true;
     };
   }, [isEditing, adminFetch, silentFetch, router, cohortId]);
-
-  // Sync grant failure state from entity props when editing
-  useEffect(() => {
-    if (isEditing && milestone) {
-      setLockManagerGranted(milestone.lock_manager_granted ?? true);
-      setGrantFailureReason(milestone.grant_failure_reason ?? undefined);
-    }
-  }, [isEditing, milestone]);
 
   const fetchExistingTasks = useCallback(async () => {
     if (!milestone?.id) {
@@ -508,27 +501,27 @@ export default function MilestoneFormEnhanced({
             Server wallet granted manager role.
             <br />
             {result.transactionHash && (
-              <a
-                href={getBlockExplorerUrl(result.transactionHash)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline"
-              >
-                View deployment
-              </a>
-            )}
-            {result.grantTransactionHash && (
               <>
-                {" | "}
                 <a
-                  href={getBlockExplorerUrl(result.grantTransactionHash)}
+                  href={getBlockExplorerUrl(result.transactionHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline"
                 >
-                  View grant
+                  View deployment
                 </a>
+                <br />
               </>
+            )}
+            {result.grantTransactionHash && (
+              <a
+                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View grant
+              </a>
             )}
           </>,
           {
@@ -1334,6 +1327,15 @@ export default function MilestoneFormEnhanced({
             className={inputClass}
             disabled={!isEditing && showAutoLockCreation}
           />
+
+          {/* Lock Manager Status Toggle */}
+          <LockManagerToggle
+            isGranted={lockManagerGranted}
+            onToggle={setLockManagerGranted}
+            lockAddress={formData.lock_address}
+            isEditing={isEditing}
+          />
+
           <p className="text-sm text-gray-400">
             {!isEditing && showAutoLockCreation
               ? "Lock address will be automatically generated during milestone creation"

@@ -9,6 +9,7 @@ import {
   CreditCard,
   Key,
   Play,
+  Coins,
 } from "lucide-react";
 
 const adminModules = [
@@ -68,6 +69,14 @@ const adminModules = [
     href: "/admin/blockchain",
     color: "from-indigo-600 to-indigo-700",
     buttonText: "Blockchain Tools",
+  },
+  {
+    title: "DG Pullouts",
+    description: "Configure withdrawal limits and view audit history",
+    icon: Coins,
+    href: "/admin/dg-pullouts",
+    color: "from-teal-600 to-teal-700",
+    buttonText: "Manage Pullouts",
   },
 ];
 

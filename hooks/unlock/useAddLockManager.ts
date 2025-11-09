@@ -105,14 +105,20 @@ export const useAddLockManager = () => {
           gas: gasWithPadding,
         });
 
-        await publicClient.waitForTransactionReceipt({
+        const receipt = await publicClient.waitForTransactionReceipt({
           hash: grantTx,
         });
+
+        // Check if transaction actually succeeded
+        if (receipt.status !== "success") {
+          throw new Error(`Transaction failed with status: ${receipt.status}`);
+        }
 
         log.info("Lock manager added successfully", {
           transactionHash: grantTx,
           lockAddress,
           managerAddress,
+          blockNumber: receipt.blockNumber.toString(),
         });
 
         setState({ isLoading: false, error: null, isSuccess: true });

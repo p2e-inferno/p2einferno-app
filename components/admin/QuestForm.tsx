@@ -34,10 +34,11 @@ import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 import {
-  initialGrantState,
   applyDeploymentOutcome,
   effectiveGrantForSave,
 } from "@/lib/blockchain/shared/grant-state";
+import LockManagerToggle from "@/components/admin/LockManagerToggle";
+import { useLockManagerState } from "@/hooks/useLockManagerState";
 
 const log = getLogger("admin:QuestForm");
 
@@ -67,13 +68,13 @@ export default function QuestForm({
   const [isDeployingLock, setIsDeployingLock] = useState(false);
   const [deploymentStep, setDeploymentStep] = useState<string>("");
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
-  // Default to false for new quests; set true explicitly when a grant succeeds
-  const [lockManagerGranted, setLockManagerGranted] = useState(
-    initialGrantState(isEditing, quest?.lock_manager_granted ?? undefined),
-  );
-  const [grantFailureReason, setGrantFailureReason] = useState<
-    string | undefined
-  >(isEditing ? (quest?.grant_failure_reason ?? undefined) : undefined);
+  // Use the reusable hook for lock manager state management
+  const {
+    lockManagerGranted,
+    setLockManagerGranted,
+    grantFailureReason,
+    setGrantFailureReason,
+  } = useLockManagerState(isEditing, quest);
   // Track the most recent grant outcome during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
@@ -173,14 +174,6 @@ export default function QuestForm({
       cancelled = true;
     };
   }, [isEditing, adminFetch, silentFetch, router]);
-
-  // Sync grant failure state from entity props when editing
-  useEffect(() => {
-    if (isEditing && quest) {
-      setLockManagerGranted(quest.lock_manager_granted ?? true);
-      setGrantFailureReason(quest.grant_failure_reason ?? undefined);
-    }
-  }, [isEditing, quest]);
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
@@ -699,6 +692,14 @@ export default function QuestForm({
               }
               className="bg-transparent border-gray-700 text-gray-100"
               disabled={(showAutoLockCreation && !isEditing) || isSubmitting}
+            />
+
+            {/* Lock Manager Status Toggle */}
+            <LockManagerToggle
+              isGranted={lockManagerGranted}
+              onToggle={setLockManagerGranted}
+              lockAddress={formData.lock_address}
+              isEditing={isEditing}
             />
 
             {showAutoLockCreation &&

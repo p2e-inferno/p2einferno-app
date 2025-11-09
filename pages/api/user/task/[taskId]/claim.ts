@@ -43,7 +43,7 @@ export default async function handler(
     if (profileErr || !profile)
       return res.status(404).json({ error: "User profile not found" });
 
-    // Verify user is enrolled in the cohort
+    // Verify user is enrolled in the cohort (including completed enrollments)
     const taskMilestone = task.milestone as any;
     const cohortId = taskMilestone?.cohort_id;
     const { data: enrollment } = await supabase
@@ -51,7 +51,7 @@ export default async function handler(
       .select("id")
       .eq("user_profile_id", profile.id)
       .eq("cohort_id", cohortId)
-      .in("enrollment_status", ["enrolled", "active"])
+      .in("enrollment_status", ["enrolled", "active", "completed"])
       .maybeSingle();
     if (!enrollment)
       return res.status(403).json({ error: "Not enrolled in this cohort" });

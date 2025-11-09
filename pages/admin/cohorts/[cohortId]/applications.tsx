@@ -13,6 +13,7 @@ import {
   Settings,
 } from "lucide-react";
 import AdminLayout from "../../../../components/layouts/AdminLayout";
+import { ReconciliationPanel } from "@/components/admin/bootcamp-completion/ReconciliationPanel";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
@@ -303,6 +304,12 @@ export default function CohortDetailPage() {
               )}
             </div>
           </div>
+        </div>
+
+        {/* Completion Reconciliation */}
+        <div className="bg-white shadow rounded-lg p-6">
+          <h2 className="text-xl font-semibold mb-4">Completion</h2>
+          <ReconciliationPanel cohortId={String(cohortId)} />
         </div>
 
         {/* Stats */}

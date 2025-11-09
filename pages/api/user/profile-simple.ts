@@ -60,50 +60,7 @@ async function createOrUpdateUserProfile(
         : `Infernal${privyUserId.slice(-6)}`),
   };
 
-  // Check if profile exists with retry logic for network issues
-  let existingProfile;
-  let retryCount = 0;
   const maxRetries = 3;
-
-  while (retryCount < maxRetries) {
-    try {
-      const { data, error: profileError } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .eq("privy_user_id", privyUserId)
-        .single();
-
-      if (profileError && profileError.code !== "PGRST116") {
-        log.error("Error checking existing profile:", {
-          message: profileError.message || "Unknown error",
-          code: profileError.code || "NO_CODE",
-          details: profileError.details || "No details",
-        });
-        throw new Error(
-          `Database error: ${profileError.message || "Unknown database error"}`,
-        );
-      }
-
-      existingProfile = data;
-      break; // Success, exit retry loop
-    } catch (error) {
-      retryCount++;
-      log.error(`Attempt ${retryCount} failed for profile check:`, {
-        message: error instanceof Error ? error.message : "Unknown error",
-        isNetworkError:
-          error instanceof Error && error.message.includes("fetch failed"),
-      });
-
-      if (retryCount >= maxRetries) {
-        throw new Error(
-          `Network error after ${maxRetries} attempts: ${error instanceof Error ? error.message : "Unknown error"}`,
-        );
-      }
-
-      // Wait before retry (exponential backoff)
-      await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
-    }
-  }
 
   // Helper function to retry database operations
   const executeWithRetry = async (
@@ -133,43 +90,46 @@ async function createOrUpdateUserProfile(
     }
   };
 
-  if (existingProfile) {
-    // Update existing profile with retry
-    const { data } = await executeWithRetry(async () => {
-      const result = await supabase
-        .from("user_profiles")
-        .update(profileData)
-        .eq("privy_user_id", privyUserId)
-        .select()
-        .single();
+  log.info("Starting profile upsert operation", {
+    privyUserId,
+    walletAddress: profileData.wallet_address,
+    operation: "upsert",
+  });
 
-      if (result.error) {
-        throw new Error(
-          `Failed to update profile: ${result.error.message || "Unknown error"}`,
-        );
-      }
-      return result;
-    }, "Profile update");
+  // Use atomic upsert operation to handle race conditions
+  const { data } = await executeWithRetry(async () => {
+    const result = await supabase
+      .from("user_profiles")
+      .upsert(profileData, {
+        onConflict: "privy_user_id",
+        ignoreDuplicates: false,
+      })
+      .select()
+      .single();
 
-    return data;
-  } else {
-    // Create new profile with retry
-    const { data } = await executeWithRetry(async () => {
-      const result = await supabase
-        .from("user_profiles")
-        .insert([profileData])
-        .select()
-        .single();
+    if (result.error) {
+      throw new Error(
+        `Failed to upsert profile: ${result.error.message || "Unknown error"}`,
+      );
+    }
+    return result;
+  }, "Profile upsert");
 
-      if (result.error) {
-        throw new Error(
-          `Failed to create profile: ${result.error.message || "Unknown error"}`,
-        );
-      }
-      return result;
-    }, "Profile creation");
+  // Check if this was a new profile creation (for welcome bonus)
+  // We can determine this by checking if created_at equals updated_at
+  const isNewProfile = data.created_at === data.updated_at;
 
-    // Log user registration activity (non-blocking)
+  log.info("Profile upsert completed successfully", {
+    privyUserId,
+    userId: data.id,
+    isNewProfile,
+    operation: isNewProfile ? "created" : "updated",
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  });
+
+  // Log user registration activity for new profiles only (non-blocking)
+  if (isNewProfile) {
     try {
       await supabase.from("user_activities").insert([
         {
@@ -179,12 +139,23 @@ async function createOrUpdateUserProfile(
           activity_data: { welcome_bonus: true },
         },
       ]);
+      log.info("Logged user registration activity for new profile", {
+        userId: data.id,
+        privyUserId,
+      });
     } catch (activityError) {
-      log.error("Error logging registration activity:", activityError);
+      // Don't fail profile creation if activity logging fails
+      log.warn("Failed to log user registration activity:", {
+        error:
+          activityError instanceof Error
+            ? activityError.message
+            : "Unknown error",
+        userId: data.id,
+      });
     }
-
-    return data;
   }
+
+  return data;
 }
 
 async function getUserDashboardData(

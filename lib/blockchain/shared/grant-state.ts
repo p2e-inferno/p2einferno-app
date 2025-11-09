@@ -1,6 +1,6 @@
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('grant-state');
+const log = getLogger("grant-state");
 
 export interface DeploymentResultLike {
   grantFailed?: boolean;
@@ -14,9 +14,12 @@ export interface EffectiveGrantInput {
   currentReason?: string | undefined | null;
 }
 
-export function initialGrantState(isEditing: boolean, existing?: boolean): boolean {
-  // New entities default to false; edits keep existing value (or true if missing)
-  return isEditing ? (typeof existing === 'boolean' ? existing : true) : false;
+export function initialGrantState(
+  isEditing: boolean,
+  existing?: boolean,
+): boolean {
+  // Always default to false for security - only true if explicitly set in database
+  return isEditing ? (existing ?? false) : false;
 }
 
 export function applyDeploymentOutcome(result: DeploymentResultLike): {
@@ -26,28 +29,47 @@ export function applyDeploymentOutcome(result: DeploymentResultLike): {
   lastGrantError?: string;
 } {
   const failed = result.grantFailed === true;
-  const reason = failed ? (result.grantError || 'Grant manager transaction failed') : undefined;
+  const reason = failed
+    ? result.grantError || "Grant manager transaction failed"
+    : undefined;
   const granted = !failed;
   try {
-    log.debug('applyDeploymentOutcome', { failed, reasonPresent: Boolean(reason) });
+    log.debug("applyDeploymentOutcome", {
+      failed,
+      reasonPresent: Boolean(reason),
+    });
   } catch {}
-  return { granted, reason, lastGrantFailed: failed, lastGrantError: result.grantError };
+  return {
+    granted,
+    reason,
+    lastGrantFailed: failed,
+    lastGrantError: result.grantError,
+  };
 }
 
 export function effectiveGrantForSave(input: EffectiveGrantInput): {
   granted: boolean;
   reason?: string;
 } {
-  const hasOutcome = typeof input.outcome?.lastGrantFailed === 'boolean';
+  const hasOutcome = typeof input.outcome?.lastGrantFailed === "boolean";
   if (hasOutcome) {
     const granted = !input.outcome!.lastGrantFailed!;
-    return { granted, reason: granted ? undefined : input.outcome!.lastGrantError || 'Grant manager transaction failed' };
+    return {
+      granted,
+      reason: granted
+        ? undefined
+        : input.outcome!.lastGrantError || "Grant manager transaction failed",
+    };
   }
   // Fall back to current state if we have a lock address
   if (input.lockAddress) {
-    return { granted: Boolean(input.currentGranted), reason: input.currentGranted ? undefined : input.currentReason || undefined };
+    return {
+      granted: Boolean(input.currentGranted),
+      reason: input.currentGranted
+        ? undefined
+        : input.currentReason || undefined,
+    };
   }
   // No lock => default to false
   return { granted: false, reason: undefined };
 }
-

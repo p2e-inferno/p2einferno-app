@@ -36,7 +36,13 @@ export function calculateTimeRemaining(deadline: string): string {
  * Get comprehensive registration status for a cohort
  */
 export function getCohortRegistrationStatus(
-  cohort: Pick<Cohort, "registration_deadline" | "status" | "max_participants" | "current_participants">,
+  cohort: Pick<
+    Cohort,
+    | "registration_deadline"
+    | "status"
+    | "max_participants"
+    | "current_participants"
+  >,
   isUserEnrolled = false,
 ): RegistrationStatus {
   const now = new Date();
