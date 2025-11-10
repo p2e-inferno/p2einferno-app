@@ -7,7 +7,7 @@ const log = getLogger("api:checkin");
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse,
+  res: NextApiResponse
 ) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -42,6 +42,12 @@ export default async function handler(
 
     const supabase = createAdminClient();
 
+    type PerformDailyCheckinResult = {
+      ok: boolean;
+      conflict: boolean;
+      new_xp: number | null;
+    };
+
     // Verify the profile belongs to this Privy user
     const { data: profile, error: profErr } = await supabase
       .from("user_profiles")
@@ -55,140 +61,55 @@ export default async function handler(
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    // Server-side validation: Check if user has already checked in today
-    if (profile.wallet_address) {
-      const { data: hasCheckedIn, error: checkErr } = await supabase.rpc(
-        "has_checked_in_today",
-        {
-          user_address: profile.wallet_address,
-        },
-      );
-
-      if (checkErr) {
-        log.error("Error checking checkin status", {
-          checkErr,
-          userProfileId,
-          walletAddress: profile.wallet_address,
-        });
-        return res.status(500).json({
-          error: "Failed to validate check-in status",
-        });
-      }
-
-      if (hasCheckedIn) {
-        log.warn("User already checked in today", {
-          userProfileId,
-          walletAddress: profile.wallet_address,
-        });
-        return res.status(409).json({
-          error: "Already checked in today",
-        });
-      }
-    } else {
-      log.warn(
-        "User profile missing wallet_address, cannot validate check-in",
-        {
-          userProfileId,
-        },
-      );
-      return res.status(400).json({
-        error: "User profile missing wallet address",
-      });
-    }
-
-    // Update XP
-    const newXP = (profile.experience_points || 0) + xpAmount;
-    const { error: upErr } = await supabase
-      .from("user_profiles")
-      .update({
-        experience_points: newXP,
-        updated_at: new Date().toISOString(),
+    // Atomic check-in via RPC: insert activity then update XP
+    const txResp = await supabase
+      .rpc("perform_daily_checkin", {
+        p_user_profile_id: userProfileId,
+        p_xp_amount: xpAmount,
+        p_activity_data: activityData || {},
+        p_attestation: attestation || null,
       })
-      .eq("id", userProfileId);
-    if (upErr) {
-      log.error("Failed to update XP", { upErr, userProfileId, xpAmount });
-      return res.status(500).json({ error: "Failed to update user XP" });
+      .single();
+
+    const txData = txResp.data as PerformDailyCheckinResult | null;
+    const txErr = txResp.error as any;
+
+    if (txErr || !txData) {
+      log.error("perform_daily_checkin RPC failed", {
+        txErr,
+        code: (txErr as any)?.code,
+        message: txErr?.message,
+        details: (txErr as any)?.details,
+        hint: (txErr as any)?.hint,
+        txData,
+      });
+      return res.status(500).json({ error: "Failed to perform check-in" });
     }
 
-    // Insert activity row (BLOCKING - fail if insert fails)
-    const { error: actErr } = await supabase.from("user_activities").insert({
-      user_profile_id: userProfileId,
-      activity_type: activityData?.activityType || "daily_checkin",
-      activity_data: activityData || {},
-      points_earned: xpAmount,
-    });
-    if (actErr) {
-      log.error("Failed to insert activity record", {
-        actErr,
+    if (txData.conflict) {
+      log.warn("Duplicate daily check-in detected by RPC", { userProfileId });
+      return res.status(409).json({ error: "Already checked in today" });
+    }
+
+    if (txData.ok === false) {
+      log.error("perform_daily_checkin returned not ok without conflict", {
         userProfileId,
-        code: actErr.code,
-        message: actErr.message,
-        details: actErr.details,
-        hint: actErr.hint,
+        txData,
       });
-      return res.status(500).json({
-        error: "Failed to save check-in activity",
-      });
+      return res.status(500).json({ error: "Check-in failed" });
     }
 
-    // Save attestation DB row (CRITICAL for streak tracking)
-    if (attestation?.uid && attestation?.schemaUid) {
-      const expirationIso = attestation.expirationTime
-        ? new Date(attestation.expirationTime * 1000).toISOString()
-        : null;
-
-      // Normalize addresses to lowercase to avoid case sensitivity issues
-      const normalizedAttester = attestation.attester?.toLowerCase() || "";
-      const normalizedRecipient = attestation.recipient?.toLowerCase() || "";
-
-      log.info("Inserting attestation", {
-        uid: attestation.uid,
-        schemaUid: attestation.schemaUid,
-        attester: normalizedAttester,
-        recipient: normalizedRecipient,
-        attesterLength: normalizedAttester.length,
-        recipientLength: normalizedRecipient.length,
+    if (txData.new_xp == null) {
+      log.error("perform_daily_checkin returned ok but missing new_xp", {
+        userProfileId,
+        txData,
       });
-
-      const { error: attErr } = await supabase.from("attestations").insert({
-        attestation_uid: attestation.uid,
-        schema_uid: attestation.schemaUid,
-        attester: normalizedAttester,
-        recipient: normalizedRecipient,
-        data: attestation.data || {},
-        expiration_time: expirationIso,
-      });
-
-      if (attErr) {
-        // CRITICAL: Attestation failures break streak tracking
-        log.error("Failed to insert attestation row - STREAK TRACKING BROKEN", {
-          error: attErr,
-          code: attErr.code,
-          message: attErr.message,
-          details: attErr.details,
-          hint: attErr.hint,
-          attestation: {
-            uid: attestation.uid,
-            schemaUid: attestation.schemaUid,
-            attester: normalizedAttester,
-            recipient: normalizedRecipient,
-          },
-        });
-        // Consider this a warning for now, but log prominently
-        // Future: may want to return error to client
-      } else {
-        log.info("Attestation inserted successfully", {
-          uid: attestation.uid,
-          recipient: normalizedRecipient,
-        });
-      }
-    } else {
-      log.warn("No attestation data provided - streak tracking may not work", {
-        hasAttestation: !!attestation,
-        hasUid: !!attestation?.uid,
-        hasSchemaUid: !!attestation?.schemaUid,
-      });
+      return res.status(500).json({ error: "Check-in result invalid" });
     }
+
+    const newXP = txData.new_xp;
+
+    // Attestation persistence handled inside perform_daily_checkin
 
     return res.status(200).json({ success: true, newXP });
   } catch (error: any) {
