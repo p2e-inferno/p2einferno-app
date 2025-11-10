@@ -30,7 +30,7 @@ export const useStreakData = (
 ): UseStreakDataReturn => {
   const {
     autoRefresh = false,
-    refreshInterval = 60000, // 1 minute
+    refreshInterval = 43200000, // 12 hours (daily check-in feature)
     onStreakUpdate,
     onError,
   } = options;

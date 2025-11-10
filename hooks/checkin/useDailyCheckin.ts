@@ -37,7 +37,7 @@ export const useDailyCheckin = (
 ): UseDailyCheckinReturn => {
   const {
     autoRefreshStatus = true,
-    statusRefreshInterval = 30000, // 30 seconds
+    statusRefreshInterval = 43200000, // 12 hours (daily check-in feature)
     onCheckinSuccess,
     onCheckinError,
     showToasts = true,
@@ -212,6 +212,16 @@ export const useDailyCheckin = (
           // Refresh status and streak data
           await Promise.all([fetchCheckinStatus(), refetchStreak()]);
 
+          // Dispatch custom event to notify all other hook instances
+          // This ensures all components stay in sync when check-in happens
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('checkin-success', {
+                detail: { userAddress, userProfileId },
+              })
+            );
+          }
+
           onCheckinSuccess?.(result);
         } else {
           log.error("Daily checkin failed", {
@@ -318,6 +328,28 @@ export const useDailyCheckin = (
       enabled: autoRefreshStatus && !!userAddress,
     }
   );
+
+  // Listen for check-in success events from other components
+  // This ensures all components stay in sync when check-in happens anywhere
+  useEffect(() => {
+    if (!userAddress) return;
+
+    const handleCheckinSuccess = (event: Event) => {
+      const customEvent = event as CustomEvent<{ userAddress: string; userProfileId: string }>;
+      // Only refresh if the event is for this user
+      if (customEvent.detail?.userAddress === userAddress) {
+        log.debug('Received checkin-success event, refreshing status', { userAddress });
+        fetchCheckinStatus();
+        refetchStreak();
+      }
+    };
+
+    window.addEventListener('checkin-success', handleCheckinSuccess);
+
+    return () => {
+      window.removeEventListener('checkin-success', handleCheckinSuccess);
+    };
+  }, [userAddress, fetchCheckinStatus, refetchStreak]);
 
   return {
     // Status data

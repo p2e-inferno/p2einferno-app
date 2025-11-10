@@ -45,7 +45,7 @@ export default async function handler(
     // Verify the profile belongs to this Privy user
     const { data: profile, error: profErr } = await supabase
       .from("user_profiles")
-      .select("id, privy_user_id, experience_points")
+      .select("id, privy_user_id, experience_points, wallet_address")
       .eq("id", userProfileId)
       .single();
     if (profErr || !profile) {
@@ -53,6 +53,47 @@ export default async function handler(
     }
     if (profile.privy_user_id !== user.id) {
       return res.status(403).json({ error: "Forbidden" });
+    }
+
+    // Server-side validation: Check if user has already checked in today
+    if (profile.wallet_address) {
+      const { data: hasCheckedIn, error: checkErr } = await supabase.rpc(
+        "has_checked_in_today",
+        {
+          user_address: profile.wallet_address,
+        },
+      );
+
+      if (checkErr) {
+        log.error("Error checking checkin status", {
+          checkErr,
+          userProfileId,
+          walletAddress: profile.wallet_address,
+        });
+        return res.status(500).json({
+          error: "Failed to validate check-in status",
+        });
+      }
+
+      if (hasCheckedIn) {
+        log.warn("User already checked in today", {
+          userProfileId,
+          walletAddress: profile.wallet_address,
+        });
+        return res.status(409).json({
+          error: "Already checked in today",
+        });
+      }
+    } else {
+      log.warn(
+        "User profile missing wallet_address, cannot validate check-in",
+        {
+          userProfileId,
+        },
+      );
+      return res.status(400).json({
+        error: "User profile missing wallet address",
+      });
     }
 
     // Update XP
@@ -69,7 +110,7 @@ export default async function handler(
       return res.status(500).json({ error: "Failed to update user XP" });
     }
 
-    // Insert activity row (non-blocking if it fails)
+    // Insert activity row (BLOCKING - fail if insert fails)
     const { error: actErr } = await supabase.from("user_activities").insert({
       user_profile_id: userProfileId,
       activity_type: activityData?.activityType || "daily_checkin",
@@ -77,7 +118,17 @@ export default async function handler(
       points_earned: xpAmount,
     });
     if (actErr) {
-      log.warn("Failed to insert activity record", { actErr, userProfileId });
+      log.error("Failed to insert activity record", {
+        actErr,
+        userProfileId,
+        code: actErr.code,
+        message: actErr.message,
+        details: actErr.details,
+        hint: actErr.hint,
+      });
+      return res.status(500).json({
+        error: "Failed to save check-in activity",
+      });
     }
 
     // Save attestation DB row (CRITICAL for streak tracking)
