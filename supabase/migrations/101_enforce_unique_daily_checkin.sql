@@ -34,6 +34,7 @@ WHERE checkin_day_utc IS NULL;
 CREATE OR REPLACE FUNCTION public.user_activities_set_checkin_day_utc()
 RETURNS trigger
 LANGUAGE plpgsql
+SET search_path = 'public'
 AS $$
 BEGIN
   NEW.checkin_day_utc := (NEW.created_at AT TIME ZONE 'UTC')::date;
