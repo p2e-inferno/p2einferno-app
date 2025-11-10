@@ -3,7 +3,7 @@
  * Main orchestrator hook for daily check-in functionality
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { usePrivyWriteWallet } from "@/hooks/unlock/usePrivyWriteWallet";
 import { toast } from "react-hot-toast";
@@ -20,6 +20,63 @@ import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("hooks:useDailyCheckin");
 
+// Minimal helper to detect the specific edge case where the user already
+// checked in today. Keeps semantics clear without broad refactors.
+const isAlreadyCheckedIn = (msg?: string): boolean =>
+  typeof msg === "string" && msg.toLowerCase().includes("already checked in");
+
+// Shared helper to refresh UI and notify other hook instances
+const useRefreshUIAndNotifyPeers = (
+  fetchCheckinStatus: () => Promise<void>,
+  refetchStreak: () => Promise<void>,
+  userAddress: string,
+  userProfileId: string,
+  originId: string
+) =>
+  useCallback(
+    async (opts?: {
+      event?: "checkin-success" | "checkin-complete";
+      reason?: string;
+      includeStatusRefresh?: boolean;
+    }) => {
+      try {
+        await Promise.all([fetchCheckinStatus(), refetchStreak()]);
+      } catch (err) {
+        log.error("UI refresh failed", { error: err });
+      }
+
+      if (typeof window !== "undefined") {
+        if (opts?.event === "checkin-success") {
+          window.dispatchEvent(
+            new CustomEvent("checkin-success", {
+              detail: { userAddress, userProfileId, originId },
+            })
+          );
+        }
+        if (opts?.event === "checkin-complete") {
+          window.dispatchEvent(
+            new CustomEvent("checkin-complete", {
+              detail: {
+                userAddress,
+                userProfileId,
+                reason: opts?.reason,
+                originId,
+              },
+            })
+          );
+        }
+        if (opts?.includeStatusRefresh) {
+          window.dispatchEvent(
+            new CustomEvent("checkin-status-refresh", {
+              detail: { userAddress, userProfileId, originId },
+            })
+          );
+        }
+      }
+    },
+    [fetchCheckinStatus, refetchStreak, userAddress, userProfileId, originId]
+  );
+
 export interface UseDailyCheckinOptions {
   userAddress?: string;
   userProfileId?: string;
@@ -33,7 +90,7 @@ export interface UseDailyCheckinOptions {
 export const useDailyCheckin = (
   userAddress: string,
   userProfileId: string,
-  options: UseDailyCheckinOptions = {},
+  options: UseDailyCheckinOptions = {}
 ): UseDailyCheckinReturn => {
   const {
     autoRefreshStatus = true,
@@ -49,10 +106,10 @@ export const useDailyCheckin = (
 
   // State
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(
-    null,
+    null
   );
   const [checkinPreview, setCheckinPreview] = useState<CheckinPreview | null>(
-    null,
+    null
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isPerformingCheckin, setIsPerformingCheckin] = useState(false);
@@ -61,13 +118,29 @@ export const useDailyCheckin = (
   // Service instance
   const checkinService = useMemo(() => getDefaultCheckinService(), []);
 
+  // Shared event detail shape for inter-instance communication
+  type CheckinEventDetail = {
+    userAddress: string;
+    userProfileId: string;
+    originId?: string;
+    reason?: string;
+  };
+
+  // Unique origin per hook instance to avoid re-processing self-originated events
+  const originRef = useRef<string>("");
+  if (!originRef.current) {
+    originRef.current = `${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+  }
+
   // Use streak data hook
   const handleStreakError = useCallback(
     (err: string) => {
       log.error("Streak data error", { userAddress, error: err });
       setError(err);
     },
-    [userAddress],
+    [userAddress]
   );
 
   const {
@@ -117,6 +190,14 @@ export const useDailyCheckin = (
     }
   }, [userAddress, checkinService]);
 
+  const refreshUIAndNotifyPeers = useRefreshUIAndNotifyPeers(
+    fetchCheckinStatus,
+    refetchStreak,
+    userAddress,
+    userProfileId,
+    originRef.current
+  );
+
   // Perform daily check-in
   const performCheckin = useCallback(
     async (greeting: string = "GM"): Promise<CheckinResult> => {
@@ -159,11 +240,11 @@ export const useDailyCheckin = (
         if (!user?.wallet) {
           throw new Error("User wallet not available");
         }
-        
+
         const validation = await checkinService.validateCheckin(
           userAddress,
           userProfileId,
-          user.wallet,
+          user.wallet
         );
 
         if (!validation.isValid) {
@@ -173,10 +254,31 @@ export const useDailyCheckin = (
             reason: validation.reason,
           });
 
+          // If user already checked in, emit completion + refresh and use info toast
+          if (isAlreadyCheckedIn(validation.reason)) {
+            if (showToasts) {
+              toast("Already checked in today");
+            }
+
+            await refreshUIAndNotifyPeers({
+              event: "checkin-complete",
+              reason: "already_checked_in",
+              includeStatusRefresh: true,
+            });
+
+            onCheckinError?.(error);
+            return {
+              success: false,
+              xpEarned: 0,
+              newStreak: 0,
+              error,
+            };
+          }
+
+          // Non-edge-case failure: keep existing error behavior
           if (showToasts) {
             toast.error(error);
           }
-
           onCheckinError?.(error);
           return {
             success: false,
@@ -191,7 +293,7 @@ export const useDailyCheckin = (
           userAddress,
           userProfileId,
           greeting,
-          writeWallet as any,
+          writeWallet as any
         );
 
         if (result.success) {
@@ -205,22 +307,15 @@ export const useDailyCheckin = (
           // Show success toast
           if (showToasts) {
             toast.success(
-              `Daily check-in complete! +${result.xpEarned} XP (Streak: ${result.newStreak} days)`,
+              `Daily check-in complete! +${result.xpEarned} XP (Streak: ${result.newStreak} days)`
             );
           }
 
-          // Refresh status and streak data
-          await Promise.all([fetchCheckinStatus(), refetchStreak()]);
-
-          // Dispatch custom event to notify all other hook instances
-          // This ensures all components stay in sync when check-in happens
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(
-              new CustomEvent('checkin-success', {
-                detail: { userAddress, userProfileId },
-              })
-            );
-          }
+          // Refresh UI and notify peers about successful check-in
+          await refreshUIAndNotifyPeers({
+            event: "checkin-success",
+            includeStatusRefresh: true,
+          });
 
           onCheckinSuccess?.(result);
         } else {
@@ -229,11 +324,24 @@ export const useDailyCheckin = (
             error: result.error,
           });
 
+          const already = isAlreadyCheckedIn(result.error);
+
           if (showToasts) {
-            toast.error(result.error || "Check-in failed");
+            if (already) {
+              toast("Already checked in today");
+            } else {
+              toast.error(result.error || "Check-in failed");
+            }
           }
 
           onCheckinError?.(result.error || "Check-in failed");
+
+          // Refresh UI and notify peers for failure
+          await refreshUIAndNotifyPeers({
+            event: already ? "checkin-complete" : undefined,
+            reason: already ? "already_checked_in" : undefined,
+            includeStatusRefresh: true,
+          });
         }
 
         return result;
@@ -244,11 +352,23 @@ export const useDailyCheckin = (
             : "Unexpected error during check-in";
         log.error("Error performing checkin", { userAddress, error: err });
 
+        const already = isAlreadyCheckedIn(errorMessage);
         if (showToasts) {
-          toast.error(errorMessage);
+          if (already) {
+            toast("Already checked in today");
+          } else {
+            toast.error(errorMessage);
+          }
         }
 
         onCheckinError?.(errorMessage);
+
+        // On error, refresh UI and notify peers to stay in sync
+        await refreshUIAndNotifyPeers({
+          event: already ? "checkin-complete" : undefined,
+          reason: already ? "already_checked_in" : undefined,
+          includeStatusRefresh: true,
+        });
 
         return {
           success: false,
@@ -265,12 +385,12 @@ export const useDailyCheckin = (
       userProfileId,
       user?.wallet,
       checkinService,
-      fetchCheckinStatus,
-      refetchStreak,
+      refreshUIAndNotifyPeers,
+      writeWallet,
       onCheckinSuccess,
       onCheckinError,
       showToasts,
-    ],
+    ]
   );
 
   // Refresh all status data
@@ -321,33 +441,33 @@ export const useDailyCheckin = (
   }, [userAddress, fetchCheckinStatus]);
 
   // Auto refresh status with visibility awareness
-  useVisibilityAwarePoll(
-    fetchCheckinStatus,
-    statusRefreshInterval,
-    {
-      enabled: autoRefreshStatus && !!userAddress,
-    }
-  );
+  useVisibilityAwarePoll(fetchCheckinStatus, statusRefreshInterval, {
+    enabled: autoRefreshStatus && !!userAddress,
+  });
 
-  // Listen for check-in success events from other components
-  // This ensures all components stay in sync when check-in happens anywhere
+  // Listen for check-in events from other components to keep instances in sync
   useEffect(() => {
     if (!userAddress) return;
 
-    const handleCheckinSuccess = (event: Event) => {
-      const customEvent = event as CustomEvent<{ userAddress: string; userProfileId: string }>;
+    const handleEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<CheckinEventDetail>;
       // Only refresh if the event is for this user
-      if (customEvent.detail?.userAddress === userAddress) {
-        log.debug('Received checkin-success event, refreshing status', { userAddress });
+      if (
+        customEvent.detail?.userAddress === userAddress &&
+        customEvent.detail?.originId !== originRef.current
+      ) {
+        log.debug("Received check-in event, refreshing status", {
+          userAddress,
+        });
         fetchCheckinStatus();
         refetchStreak();
       }
     };
 
-    window.addEventListener('checkin-success', handleCheckinSuccess);
+    window.addEventListener("checkin-status-refresh", handleEvent);
 
     return () => {
-      window.removeEventListener('checkin-success', handleCheckinSuccess);
+      window.removeEventListener("checkin-status-refresh", handleEvent);
     };
   }, [userAddress, fetchCheckinStatus, refetchStreak]);
 
