@@ -8,7 +8,7 @@ WITH duplicates AS (
   SELECT
     id,
     ROW_NUMBER() OVER (
-      PARTITION BY user_profile_id, DATE(created_at)
+      PARTITION BY user_profile_id, ((created_at AT TIME ZONE 'UTC')::date)
       ORDER BY created_at ASC, id ASC
     ) AS rn
   FROM public.user_activities
