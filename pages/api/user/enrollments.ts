@@ -171,7 +171,14 @@ export default async function handler(
 
     const enrollments = (enrollmentsData || []) as unknown as RawEnrollment[];
     for (const enrollment of enrollments) {
-      // Get milestone progress for this cohort
+      // Get all milestones for this cohort (source of truth for totals)
+      const { data: cohortMilestonesData } = await supabase
+        .from("cohort_milestones")
+        .select("id, name, order_index")
+        .eq("cohort_id", enrollment.cohort.id)
+        .order("order_index", { ascending: true });
+
+      // Get user's milestone progress for those milestones (may be sparse)
       const { data: milestoneProgressData } = await supabase
         .from("user_milestone_progress")
         .select(
@@ -187,26 +194,43 @@ export default async function handler(
         `,
         )
         .eq("user_profile_id", profile.id)
-        .in("milestone_id", [
-          // Get all milestone IDs for this cohort
-          ...((
-            await supabase
-              .from("cohort_milestones")
-              .select("id")
-              .eq("cohort_id", enrollment.cohort.id)
-          ).data?.map((m) => m.id) || []),
-        ]);
+        .in(
+          "milestone_id",
+          (cohortMilestonesData || []).map((m: any) => m.id),
+        );
 
       // Calculate milestone progress stats
       const milestoneProgress = (milestoneProgressData ||
         []) as unknown as RawMilestoneProgress[];
-      const totalMilestones = milestoneProgress.length;
+      const totalMilestones = (cohortMilestonesData || []).length;
       const completedMilestones = milestoneProgress.filter(
         (mp) => mp.status === "completed",
       ).length;
       const currentMilestone = milestoneProgress.find(
         (mp) => mp.status === "in_progress",
       );
+
+      // If no "in_progress" record, pick the earliest uncompleted cohort milestone
+      let fallbackCurrent:
+        | { id: string; name: string; progress_percentage: number }
+        | undefined = undefined;
+      if (!currentMilestone && totalMilestones > 0) {
+        const completedIds = new Set(
+          milestoneProgress
+            .filter((mp) => mp.status === "completed")
+            .map((mp) => mp.milestone_id),
+        );
+        const firstUncompleted = (cohortMilestonesData || []).find(
+          (m: any) => !completedIds.has(m.id),
+        );
+        if (firstUncompleted) {
+          fallbackCurrent = {
+            id: firstUncompleted.id,
+            name: firstUncompleted.name,
+            progress_percentage: 0,
+          };
+        }
+      }
 
       enrollmentsWithProgress.push({
         ...enrollment,
@@ -219,7 +243,7 @@ export default async function handler(
                 name: currentMilestone.milestone.name,
                 progress_percentage: currentMilestone.progress_percentage,
               }
-            : undefined,
+            : fallbackCurrent,
         },
       });
     }

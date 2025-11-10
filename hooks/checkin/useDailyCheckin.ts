@@ -234,6 +234,28 @@ export const useDailyCheckin = (
           }
 
           onCheckinError?.(result.error || "Check-in failed");
+
+          // If user already checked in (or any failure), refresh UI immediately
+          // so other components (e.g., quick-actions-grid) disable and show countdown.
+          try {
+            await Promise.all([fetchCheckinStatus(), refetchStreak()]);
+          } catch {}
+
+          // Dispatch cross-component refresh event so all hook instances update.
+          if (typeof window !== "undefined") {
+            // Back-compat: reuse success event so existing listeners react
+            window.dispatchEvent(
+              new CustomEvent("checkin-success", {
+                detail: { userAddress, userProfileId },
+              }),
+            );
+            // Explicit refresh event for clarity
+            window.dispatchEvent(
+              new CustomEvent("checkin-status-refresh", {
+                detail: { userAddress, userProfileId },
+              }),
+            );
+          }
         }
 
         return result;
@@ -249,6 +271,23 @@ export const useDailyCheckin = (
         }
 
         onCheckinError?.(errorMessage);
+
+        // On error, also refresh UI and notify peers to stay in sync
+        try {
+          await Promise.all([fetchCheckinStatus(), refetchStreak()]);
+        } catch {}
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("checkin-success", {
+              detail: { userAddress, userProfileId },
+            }),
+          );
+          window.dispatchEvent(
+            new CustomEvent("checkin-status-refresh", {
+              detail: { userAddress, userProfileId },
+            }),
+          );
+        }
 
         return {
           success: false,
@@ -345,9 +384,12 @@ export const useDailyCheckin = (
     };
 
     window.addEventListener('checkin-success', handleCheckinSuccess);
+    // Also react to explicit status refresh events
+    window.addEventListener('checkin-status-refresh', handleCheckinSuccess);
 
     return () => {
       window.removeEventListener('checkin-success', handleCheckinSuccess);
+      window.removeEventListener('checkin-status-refresh', handleCheckinSuccess);
     };
   }, [userAddress, fetchCheckinStatus, refetchStreak]);
 
