@@ -23,7 +23,7 @@ const log = getLogger("hooks:useDailyCheckin");
 // Minimal helper to detect the specific edge case where the user already
 // checked in today. Keeps semantics clear without broad refactors.
 const isAlreadyCheckedIn = (msg?: string): boolean =>
-  typeof msg === 'string' && msg.toLowerCase().includes('already checked in');
+  typeof msg === "string" && msg.toLowerCase().includes("already checked in");
 
 // Shared helper to refresh UI and notify other hook instances
 const useRefreshUIAndNotifyPeers = (
@@ -31,45 +31,50 @@ const useRefreshUIAndNotifyPeers = (
   refetchStreak: () => Promise<void>,
   userAddress: string,
   userProfileId: string,
-  originId: string,
+  originId: string
 ) =>
   useCallback(
     async (opts?: {
-      event?: 'checkin-success' | 'checkin-complete';
+      event?: "checkin-success" | "checkin-complete";
       reason?: string;
       includeStatusRefresh?: boolean;
     }) => {
       try {
         await Promise.all([fetchCheckinStatus(), refetchStreak()]);
       } catch (err) {
-        log.debug('UI refresh failed', { error: err });
+        log.error("UI refresh failed", { error: err });
       }
 
-      if (typeof window !== 'undefined') {
-        if (opts?.event === 'checkin-success') {
+      if (typeof window !== "undefined") {
+        if (opts?.event === "checkin-success") {
           window.dispatchEvent(
-            new CustomEvent('checkin-success', {
+            new CustomEvent("checkin-success", {
               detail: { userAddress, userProfileId, originId },
             })
           );
         }
-        if (opts?.event === 'checkin-complete') {
+        if (opts?.event === "checkin-complete") {
           window.dispatchEvent(
-            new CustomEvent('checkin-complete', {
-              detail: { userAddress, userProfileId, reason: opts?.reason, originId },
+            new CustomEvent("checkin-complete", {
+              detail: {
+                userAddress,
+                userProfileId,
+                reason: opts?.reason,
+                originId,
+              },
             })
           );
         }
         if (opts?.includeStatusRefresh) {
           window.dispatchEvent(
-            new CustomEvent('checkin-status-refresh', {
+            new CustomEvent("checkin-status-refresh", {
               detail: { userAddress, userProfileId, originId },
             })
           );
         }
       }
     },
-    [fetchCheckinStatus, refetchStreak, userAddress, userProfileId, originId],
+    [fetchCheckinStatus, refetchStreak, userAddress, userProfileId, originId]
   );
 
 export interface UseDailyCheckinOptions {
@@ -85,7 +90,7 @@ export interface UseDailyCheckinOptions {
 export const useDailyCheckin = (
   userAddress: string,
   userProfileId: string,
-  options: UseDailyCheckinOptions = {},
+  options: UseDailyCheckinOptions = {}
 ): UseDailyCheckinReturn => {
   const {
     autoRefreshStatus = true,
@@ -101,10 +106,10 @@ export const useDailyCheckin = (
 
   // State
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(
-    null,
+    null
   );
   const [checkinPreview, setCheckinPreview] = useState<CheckinPreview | null>(
-    null,
+    null
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isPerformingCheckin, setIsPerformingCheckin] = useState(false);
@@ -112,6 +117,14 @@ export const useDailyCheckin = (
 
   // Service instance
   const checkinService = useMemo(() => getDefaultCheckinService(), []);
+
+  // Shared event detail shape for inter-instance communication
+  type CheckinEventDetail = {
+    userAddress: string;
+    userProfileId: string;
+    originId?: string;
+    reason?: string;
+  };
 
   // Unique origin per hook instance to avoid re-processing self-originated events
   const originRef = useRef<string>("");
@@ -127,7 +140,7 @@ export const useDailyCheckin = (
       log.error("Streak data error", { userAddress, error: err });
       setError(err);
     },
-    [userAddress],
+    [userAddress]
   );
 
   const {
@@ -182,7 +195,7 @@ export const useDailyCheckin = (
     refetchStreak,
     userAddress,
     userProfileId,
-    originRef.current,
+    originRef.current
   );
 
   // Perform daily check-in
@@ -227,11 +240,11 @@ export const useDailyCheckin = (
         if (!user?.wallet) {
           throw new Error("User wallet not available");
         }
-        
+
         const validation = await checkinService.validateCheckin(
           userAddress,
           userProfileId,
-          user.wallet,
+          user.wallet
         );
 
         if (!validation.isValid) {
@@ -244,12 +257,12 @@ export const useDailyCheckin = (
           // If user already checked in, emit completion + refresh and use info toast
           if (isAlreadyCheckedIn(validation.reason)) {
             if (showToasts) {
-              toast('Already checked in today');
+              toast("Already checked in today");
             }
 
             await refreshUIAndNotifyPeers({
-              event: 'checkin-complete',
-              reason: 'already_checked_in',
+              event: "checkin-complete",
+              reason: "already_checked_in",
               includeStatusRefresh: true,
             });
 
@@ -280,7 +293,7 @@ export const useDailyCheckin = (
           userAddress,
           userProfileId,
           greeting,
-          writeWallet as any,
+          writeWallet as any
         );
 
         if (result.success) {
@@ -294,12 +307,15 @@ export const useDailyCheckin = (
           // Show success toast
           if (showToasts) {
             toast.success(
-              `Daily check-in complete! +${result.xpEarned} XP (Streak: ${result.newStreak} days)`,
+              `Daily check-in complete! +${result.xpEarned} XP (Streak: ${result.newStreak} days)`
             );
           }
 
           // Refresh UI and notify peers about successful check-in
-          await refreshUIAndNotifyPeers({ event: 'checkin-success', includeStatusRefresh: true });
+          await refreshUIAndNotifyPeers({
+            event: "checkin-success",
+            includeStatusRefresh: true,
+          });
 
           onCheckinSuccess?.(result);
         } else {
@@ -312,7 +328,7 @@ export const useDailyCheckin = (
 
           if (showToasts) {
             if (already) {
-              toast('Already checked in today');
+              toast("Already checked in today");
             } else {
               toast.error(result.error || "Check-in failed");
             }
@@ -322,8 +338,8 @@ export const useDailyCheckin = (
 
           // Refresh UI and notify peers for failure
           await refreshUIAndNotifyPeers({
-            event: already ? 'checkin-complete' : undefined,
-            reason: already ? 'already_checked_in' : undefined,
+            event: already ? "checkin-complete" : undefined,
+            reason: already ? "already_checked_in" : undefined,
             includeStatusRefresh: true,
           });
         }
@@ -339,7 +355,7 @@ export const useDailyCheckin = (
         const already = isAlreadyCheckedIn(errorMessage);
         if (showToasts) {
           if (already) {
-            toast('Already checked in today');
+            toast("Already checked in today");
           } else {
             toast.error(errorMessage);
           }
@@ -349,8 +365,8 @@ export const useDailyCheckin = (
 
         // On error, refresh UI and notify peers to stay in sync
         await refreshUIAndNotifyPeers({
-          event: already ? 'checkin-complete' : undefined,
-          reason: already ? 'already_checked_in' : undefined,
+          event: already ? "checkin-complete" : undefined,
+          reason: already ? "already_checked_in" : undefined,
           includeStatusRefresh: true,
         });
 
@@ -369,12 +385,12 @@ export const useDailyCheckin = (
       userProfileId,
       user?.wallet,
       checkinService,
-      fetchCheckinStatus,
-      refetchStreak,
+      refreshUIAndNotifyPeers,
+      writeWallet,
       onCheckinSuccess,
       onCheckinError,
       showToasts,
-    ],
+    ]
   );
 
   // Refresh all status data
@@ -425,39 +441,37 @@ export const useDailyCheckin = (
   }, [userAddress, fetchCheckinStatus]);
 
   // Auto refresh status with visibility awareness
-  useVisibilityAwarePoll(
-    fetchCheckinStatus,
-    statusRefreshInterval,
-    {
-      enabled: autoRefreshStatus && !!userAddress,
-    }
-  );
+  useVisibilityAwarePoll(fetchCheckinStatus, statusRefreshInterval, {
+    enabled: autoRefreshStatus && !!userAddress,
+  });
 
   // Listen for check-in events from other components to keep instances in sync
   useEffect(() => {
     if (!userAddress) return;
 
     const handleEvent = (event: Event) => {
-      const customEvent = event as CustomEvent<{ userAddress: string; userProfileId: string; originId?: string }>;
+      const customEvent = event as CustomEvent<CheckinEventDetail>;
       // Only refresh if the event is for this user
       if (
         customEvent.detail?.userAddress === userAddress &&
         customEvent.detail?.originId !== originRef.current
       ) {
-        log.debug('Received check-in event, refreshing status', { userAddress });
+        log.debug("Received check-in event, refreshing status", {
+          userAddress,
+        });
         fetchCheckinStatus();
         refetchStreak();
       }
     };
 
-    window.addEventListener('checkin-success', handleEvent);
-    window.addEventListener('checkin-complete', handleEvent);
-    window.addEventListener('checkin-status-refresh', handleEvent);
+    window.addEventListener("checkin-success", handleEvent);
+    window.addEventListener("checkin-complete", handleEvent);
+    window.addEventListener("checkin-status-refresh", handleEvent);
 
     return () => {
-      window.removeEventListener('checkin-success', handleEvent);
-      window.removeEventListener('checkin-complete', handleEvent);
-      window.removeEventListener('checkin-status-refresh', handleEvent);
+      window.removeEventListener("checkin-success", handleEvent);
+      window.removeEventListener("checkin-complete", handleEvent);
+      window.removeEventListener("checkin-status-refresh", handleEvent);
     };
   }, [userAddress, fetchCheckinStatus, refetchStreak]);
 
