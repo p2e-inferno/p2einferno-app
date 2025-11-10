@@ -96,21 +96,8 @@ export default async function handler(
       });
     }
 
-    // Update XP
-    const newXP = (profile.experience_points || 0) + xpAmount;
-    const { error: upErr } = await supabase
-      .from("user_profiles")
-      .update({
-        experience_points: newXP,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", userProfileId);
-    if (upErr) {
-      log.error("Failed to update XP", { upErr, userProfileId, xpAmount });
-      return res.status(500).json({ error: "Failed to update user XP" });
-    }
-
-    // Insert activity row (BLOCKING - fail if insert fails)
+    // Insert activity row FIRST to avoid TOCTOU: uniqueness is enforced by DB
+    // Only update XP after this insert succeeds.
     const { error: actErr } = await supabase.from("user_activities").insert({
       user_profile_id: userProfileId,
       activity_type: activityData?.activityType || "daily_checkin",
@@ -118,6 +105,16 @@ export default async function handler(
       points_earned: xpAmount,
     });
     if (actErr) {
+      // Handle unique-constraint violation from the new partial unique index
+      if (actErr.code === "23505") {
+        log.warn("Duplicate daily check-in blocked by unique index", {
+          userProfileId,
+          code: actErr.code,
+        });
+        return res.status(409).json({
+          error: "Already checked in today",
+        });
+      }
       log.error("Failed to insert activity record", {
         actErr,
         userProfileId,
@@ -131,7 +128,21 @@ export default async function handler(
       });
     }
 
-    // Save attestation DB row (CRITICAL for streak tracking)
+    // Update XP only after activity insert succeeds
+    const newXP = (profile.experience_points || 0) + xpAmount;
+    const { error: upErr } = await supabase
+      .from("user_profiles")
+      .update({
+        experience_points: newXP,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userProfileId);
+    if (upErr) {
+      log.error("Failed to update XP", { upErr, userProfileId, xpAmount });
+      return res.status(500).json({ error: "Failed to update user XP" });
+    }
+
+    // Save attestation DB row
     if (attestation?.uid && attestation?.schemaUid) {
       const expirationIso = attestation.expirationTime
         ? new Date(attestation.expirationTime * 1000).toISOString()
@@ -183,7 +194,7 @@ export default async function handler(
         });
       }
     } else {
-      log.warn("No attestation data provided - streak tracking may not work", {
+      log.warn("No attestation data provided", {
         hasAttestation: !!attestation,
         hasUid: !!attestation?.uid,
         hasSchemaUid: !!attestation?.schemaUid,
