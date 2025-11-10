@@ -464,13 +464,9 @@ export const useDailyCheckin = (
       }
     };
 
-    window.addEventListener("checkin-success", handleEvent);
-    window.addEventListener("checkin-complete", handleEvent);
     window.addEventListener("checkin-status-refresh", handleEvent);
 
     return () => {
-      window.removeEventListener("checkin-success", handleEvent);
-      window.removeEventListener("checkin-complete", handleEvent);
       window.removeEventListener("checkin-status-refresh", handleEvent);
     };
   }, [userAddress, fetchCheckinStatus, refetchStreak]);
