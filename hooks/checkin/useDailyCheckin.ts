@@ -3,7 +3,7 @@
  * Main orchestrator hook for daily check-in functionality
  */
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { usePrivyWriteWallet } from "@/hooks/unlock/usePrivyWriteWallet";
 import { toast } from "react-hot-toast";
@@ -31,6 +31,7 @@ const useRefreshUIAndNotifyPeers = (
   refetchStreak: () => Promise<void>,
   userAddress: string,
   userProfileId: string,
+  originId: string,
 ) =>
   useCallback(
     async (opts?: {
@@ -48,27 +49,27 @@ const useRefreshUIAndNotifyPeers = (
         if (opts?.event === 'checkin-success') {
           window.dispatchEvent(
             new CustomEvent('checkin-success', {
-              detail: { userAddress, userProfileId },
+              detail: { userAddress, userProfileId, originId },
             })
           );
         }
         if (opts?.event === 'checkin-complete') {
           window.dispatchEvent(
             new CustomEvent('checkin-complete', {
-              detail: { userAddress, userProfileId, reason: opts?.reason },
+              detail: { userAddress, userProfileId, reason: opts?.reason, originId },
             })
           );
         }
         if (opts?.includeStatusRefresh) {
           window.dispatchEvent(
             new CustomEvent('checkin-status-refresh', {
-              detail: { userAddress, userProfileId },
+              detail: { userAddress, userProfileId, originId },
             })
           );
         }
       }
     },
-    [fetchCheckinStatus, refetchStreak, userAddress, userProfileId],
+    [fetchCheckinStatus, refetchStreak, userAddress, userProfileId, originId],
   );
 
 export interface UseDailyCheckinOptions {
@@ -111,6 +112,14 @@ export const useDailyCheckin = (
 
   // Service instance
   const checkinService = useMemo(() => getDefaultCheckinService(), []);
+
+  // Unique origin per hook instance to avoid re-processing self-originated events
+  const originRef = useRef<string>("");
+  if (!originRef.current) {
+    originRef.current = `${Date.now().toString(36)}-${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+  }
 
   // Use streak data hook
   const handleStreakError = useCallback(
@@ -173,6 +182,7 @@ export const useDailyCheckin = (
     refetchStreak,
     userAddress,
     userProfileId,
+    originRef.current,
   );
 
   // Perform daily check-in
@@ -428,9 +438,12 @@ export const useDailyCheckin = (
     if (!userAddress) return;
 
     const handleEvent = (event: Event) => {
-      const customEvent = event as CustomEvent<{ userAddress: string; userProfileId: string }>;
+      const customEvent = event as CustomEvent<{ userAddress: string; userProfileId: string; originId?: string }>;
       // Only refresh if the event is for this user
-      if (customEvent.detail?.userAddress === userAddress) {
+      if (
+        customEvent.detail?.userAddress === userAddress &&
+        customEvent.detail?.originId !== originRef.current
+      ) {
         log.debug('Received check-in event, refreshing status', { userAddress });
         fetchCheckinStatus();
         refetchStreak();
