@@ -31,7 +31,6 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
   } = useDailyCheckin(userAddress || "", userProfileId || "", {
     showToasts: true,
     autoRefreshStatus: true,
-    statusRefreshInterval: 5000, // Refresh every 5 seconds for real-time reactivity
   });
 
   const checkinCtaText = hasCheckedInToday
@@ -95,7 +94,9 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
             <span className={`${ctaColor} font-medium`}>{checkinCtaText}</span>
             <ArrowIcon
               size={20}
-              className={`${ctaColor} ${isDisabled ? "" : "group-hover:translate-x-1"} transition-transform`}
+              className={`${ctaColor} ${
+                isDisabled ? "" : "group-hover:translate-x-1"
+              } transition-transform`}
             />
           </button>
         </div>
