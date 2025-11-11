@@ -81,7 +81,9 @@ async function createOrUpdateUserProfile(
 
         if (retryCount >= maxRetries) {
           throw new Error(
-            `${operationName} failed after ${maxRetries} attempts: ${error instanceof Error ? error.message : "Unknown error"}`,
+            `${operationName} failed after ${maxRetries} attempts: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
           );
         }
 
@@ -109,17 +111,18 @@ async function createOrUpdateUserProfile(
 
     if (result.error) {
       // Check for unique constraint violation (email or wallet already exists)
-      if (result.error.code === "23505") {
-        const errorMsg = result.error.message?.toLowerCase() || "";
-        if (errorMsg.includes("email")) {
+      if (result.error?.code === "23505") {
+        const constraintName = (result.error as any)?.constraint_name || "";
+
+        if (constraintName.includes("email")) {
           throw new Error("This email address is already registered");
-        } else if (errorMsg.includes("wallet")) {
+        } else if (constraintName.includes("wallet")) {
           throw new Error("This wallet address is already registered");
         }
       }
 
       throw new Error(
-        `Failed to upsert profile: ${result.error.message || "Unknown error"}`,
+        `Failed to upsert profile: ${result.error?.message || "Unknown error"}`,
       );
     }
     return result;

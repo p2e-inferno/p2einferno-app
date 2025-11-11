@@ -104,16 +104,19 @@ async function createOrUpdateUserProfile(
       log.error("Error creating profile:", error);
 
       // Check for unique constraint violation (email or wallet already exists)
-      if (error.code === "23505") {
-        const errorMsg = error.message?.toLowerCase() || "";
-        if (errorMsg.includes("email")) {
+      if (error?.code === "23505") {
+        const constraintName = (error as any)?.constraint_name || "";
+
+        if (constraintName.includes("email")) {
           throw new Error("This email address is already registered");
-        } else if (errorMsg.includes("wallet")) {
+        } else if (constraintName.includes("wallet")) {
           throw new Error("This wallet address is already registered");
         }
       }
 
-      throw new Error(`Failed to create profile: ${error.message}`);
+      throw new Error(
+        `Failed to create profile: ${error?.message || "Unknown error"}`,
+      );
     }
 
     // Log user registration activity (non-blocking)
