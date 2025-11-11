@@ -114,10 +114,13 @@ async function createOrUpdateUserProfile(
       if (result.error?.code === "23505") {
         const constraintName = (result.error as any)?.constraint_name || "";
 
-        if (constraintName.includes("email")) {
+        if (constraintName === "user_profiles_email_unique") {
           throw new Error("This email address is already registered");
-        } else if (constraintName.includes("wallet")) {
+        } else if (constraintName === "user_profiles_wallet_address_unique") {
           throw new Error("This wallet address is already registered");
+        } else {
+          // Fallback for other unique constraint violations
+          throw new Error("A profile with this information already exists");
         }
       }
 
@@ -329,18 +332,6 @@ export default async function handler(
       return res.status(504).json({
         error: "Request timeout - please try again",
         details: "The request took too long to complete",
-      });
-    }
-
-    // Return 409 Conflict for duplicate email/wallet errors
-    if (
-      error instanceof Error &&
-      (error.message.includes("already registered") ||
-        error.message.includes("email address is already") ||
-        error.message.includes("wallet address is already"))
-    ) {
-      return res.status(409).json({
-        error: error.message,
       });
     }
 
