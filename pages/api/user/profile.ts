@@ -102,6 +102,17 @@ async function createOrUpdateUserProfile(
 
     if (error) {
       log.error("Error creating profile:", error);
+
+      // Check for unique constraint violation (email or wallet already exists)
+      if (error.code === "23505") {
+        const errorMsg = error.message?.toLowerCase() || "";
+        if (errorMsg.includes("email")) {
+          throw new Error("This email address is already registered");
+        } else if (errorMsg.includes("wallet")) {
+          throw new Error("This wallet address is already registered");
+        }
+      }
+
       throw new Error(`Failed to create profile: ${error.message}`);
     }
 
@@ -323,6 +334,18 @@ export default async function handler(
       name: error.name,
       fullError: error,
     });
+
+    // Return 409 Conflict for duplicate email/wallet errors
+    if (
+      error.message?.includes("already registered") ||
+      error.message?.includes("email address is already") ||
+      error.message?.includes("wallet address is already")
+    ) {
+      return res.status(409).json({
+        error: error.message,
+      });
+    }
+
     res.status(500).json({
       error: "Failed to process request",
       details: error.message,
