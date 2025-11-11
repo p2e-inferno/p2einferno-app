@@ -112,7 +112,9 @@ async function createOrUpdateUserProfile(
     if (result.error) {
       // Check for unique constraint violation (email or wallet already exists)
       if (result.error?.code === "23505") {
-        const constraintName = (result.error as any)?.constraint_name || "";
+        const constraintNameMatch =
+          result.error.message?.match(/constraint "([^"]+)"/);
+        const constraintName = constraintNameMatch?.[1] || "";
 
         if (constraintName === "user_profiles_email_unique") {
           throw new Error("This email address is already registered");
