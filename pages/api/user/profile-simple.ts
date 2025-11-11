@@ -81,7 +81,9 @@ async function createOrUpdateUserProfile(
 
         if (retryCount >= maxRetries) {
           throw new Error(
-            `${operationName} failed after ${maxRetries} attempts: ${error instanceof Error ? error.message : "Unknown error"}`,
+            `${operationName} failed after ${maxRetries} attempts: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
           );
         }
 
@@ -108,8 +110,24 @@ async function createOrUpdateUserProfile(
       .single();
 
     if (result.error) {
+      // Check for unique constraint violation (email or wallet already exists)
+      if (result.error?.code === "23505") {
+        const constraintNameMatch =
+          result.error.message?.match(/constraint "([^"]+)"/);
+        const constraintName = constraintNameMatch?.[1] || "";
+
+        if (constraintName === "user_profiles_email_unique") {
+          throw new Error("This email address is already registered");
+        } else if (constraintName === "user_profiles_wallet_address_unique") {
+          throw new Error("This wallet address is already registered");
+        } else {
+          // Fallback for other unique constraint violations
+          throw new Error("A profile with this information already exists");
+        }
+      }
+
       throw new Error(
-        `Failed to upsert profile: ${result.error.message || "Unknown error"}`,
+        `Failed to upsert profile: ${result.error?.message || "Unknown error"}`,
       );
     }
     return result;
@@ -342,14 +360,30 @@ async function handleRequest(req: NextApiRequest, res: NextApiResponse) {
 
   log.info(`Processing profile request for user: ${privyUserId}`);
 
-  // Create or update user profile
-  const profile = await createOrUpdateUserProfile(privyUserId, req.body);
+  try {
+    // Create or update user profile
+    const profile = await createOrUpdateUserProfile(privyUserId, req.body);
 
-  // Get dashboard data
-  const dashboardData = await getUserDashboardData(profile.id);
+    // Get dashboard data
+    const dashboardData = await getUserDashboardData(profile.id);
 
-  return res.status(200).json({
-    success: true,
-    data: dashboardData,
-  });
+    return res.status(200).json({
+      success: true,
+      data: dashboardData,
+    });
+  } catch (error: any) {
+    // Return 409 Conflict for duplicate email/wallet errors
+    if (
+      error.message?.includes("already registered") ||
+      error.message?.includes("email address is already") ||
+      error.message?.includes("wallet address is already")
+    ) {
+      return res.status(409).json({
+        error: error.message,
+      });
+    }
+
+    // Re-throw other errors to be handled by outer catch
+    throw error;
+  }
 }

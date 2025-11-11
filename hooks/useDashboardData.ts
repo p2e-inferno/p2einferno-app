@@ -115,7 +115,7 @@ export const useDashboardData = (): UseDashboardDataResult => {
     } catch (err: any) {
       log.error("Dashboard data fetch error:", err);
       setError(err.message);
-      toast.error("Failed to load dashboard data");
+      toast.error(err.message || "Failed to load dashboard data");
     } finally {
       setLoading(false);
     }
