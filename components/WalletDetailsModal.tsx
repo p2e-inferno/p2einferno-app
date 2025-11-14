@@ -143,7 +143,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                 {error}
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3">
                 {/* ETH Balance */}
                 <Card className="p-4 bg-muted/30">
                   <div className="text-center">
@@ -170,6 +170,44 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                     </div>
                     <div className="text-xs text-gray-400">
                       {balances.usdc.symbol}
+                    </div>
+                  </div>
+                </Card>
+
+                {/* DG Balance */}
+                <Card className="p-4 bg-muted/30">
+                  <div className="text-center">
+                    <div
+                      className="text-lg sm:text-xl font-bold"
+                      title={balances.dg.fullFormatted}
+                    >
+                      {loading ? (
+                        <div className="w-16 h-4 bg-muted animate-pulse rounded mx-auto" />
+                      ) : (
+                        balances.dg.formatted
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {balances.dg.symbol}
+                    </div>
+                  </div>
+                </Card>
+
+                {/* UP Balance */}
+                <Card className="p-4 bg-muted/30">
+                  <div className="text-center">
+                    <div
+                      className="text-lg sm:text-xl font-bold"
+                      title={balances.up.fullFormatted}
+                    >
+                      {loading ? (
+                        <div className="w-16 h-4 bg-muted animate-pulse rounded mx-auto" />
+                      ) : (
+                        balances.up.formatted
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {balances.up.symbol}
                     </div>
                   </div>
                 </Card>

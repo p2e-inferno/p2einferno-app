@@ -163,6 +163,36 @@ export function PrivyConnectButton() {
                   )}
                 </span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  {balances.dg.symbol}:
+                </span>
+                <span
+                  className="font-medium"
+                  title={balances.dg.fullFormatted}
+                >
+                  {balancesLoading ? (
+                    <div className="w-12 h-3 bg-muted animate-pulse rounded" />
+                  ) : (
+                    balances.dg.formatted
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">
+                  {balances.up.symbol}:
+                </span>
+                <span
+                  className="font-medium"
+                  title={balances.up.fullFormatted}
+                >
+                  {balancesLoading ? (
+                    <div className="w-12 h-3 bg-muted animate-pulse rounded" />
+                  ) : (
+                    balances.up.formatted
+                  )}
+                </span>
+              </div>
             </div>
           </div>
         )}
