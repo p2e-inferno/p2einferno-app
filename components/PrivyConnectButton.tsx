@@ -167,10 +167,7 @@ export function PrivyConnectButton() {
                 <span className="text-muted-foreground">
                   {balances.dg.symbol}:
                 </span>
-                <span
-                  className="font-medium"
-                  title={balances.dg.fullFormatted}
-                >
+                <span className="font-medium" title={balances.dg.fullFormatted}>
                   {balancesLoading ? (
                     <div className="w-12 h-3 bg-muted animate-pulse rounded" />
                   ) : (
@@ -182,10 +179,7 @@ export function PrivyConnectButton() {
                 <span className="text-muted-foreground">
                   {balances.up.symbol}:
                 </span>
-                <span
-                  className="font-medium"
-                  title={balances.up.fullFormatted}
-                >
+                <span className="font-medium" title={balances.up.fullFormatted}>
                   {balancesLoading ? (
                     <div className="w-12 h-3 bg-muted animate-pulse rounded" />
                   ) : (
