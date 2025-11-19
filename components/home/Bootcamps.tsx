@@ -79,7 +79,7 @@ export function Bootcamps() {
 
   if (loading) {
     return (
-      <section id="bootcamps" className="py-20 md:py-32 bg-background">
+      <section id="bootcamps" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-flame-yellow mx-auto"></div>
@@ -92,13 +92,13 @@ export function Bootcamps() {
 
   if (error && !isRetrying) {
     return (
-      <section id="bootcamps" className="py-20 md:py-32 bg-background">
+      <section id="bootcamps" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold font-heading mb-4">
+          <div className="text-center mb-12">
+            <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold font-heading mb-4">
               Bootcamp Programs
             </h2>
-            <p className="text-lg text-faded-grey max-w-3xl mx-auto">
+            <p className="text-base md:text-lg text-faded-grey max-w-3xl mx-auto">
               Accelerate your Web3 journey through our immersive bootcamp
               experiences. Learn by doing, earn while learning, and join our
               thriving community.
@@ -122,16 +122,15 @@ export function Bootcamps() {
   const activeBootcamps = bootcamps.filter((b) => b.cohorts.length > 0);
 
   return (
-    <section id="bootcamps" className="py-20 md:py-32 bg-background">
+    <section id="bootcamps" className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold font-heading">
-            Bootcamp Programs
+        <div className="text-center mb-12">
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold font-heading mb-4">
+            Bootcamp Tracks
           </h2>
-          <p className="mt-4 text-lg text-faded-grey max-w-3xl mx-auto">
-            Accelerate your Web3 journey through our immersive bootcamp
-            experiences. Learn by doing, earn while learning, and join our
-            thriving community.
+          <p className="text-base md:text-lg text-faded-grey max-w-3xl mx-auto">
+            Each bootcamp is a track through the onchain economy. Learn by
+            doing, earn while learning, and join our community.
           </p>
         </div>
 

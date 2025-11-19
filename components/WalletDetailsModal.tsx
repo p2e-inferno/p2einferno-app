@@ -82,7 +82,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 sm:space-y-6">
+        <div className="space-y-4 sm:space-y-6 max-h-[60vh] overflow-y-auto scrollbar-hide pr-4">
           {/* Network Info */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">Network:</span>

@@ -642,7 +642,7 @@ export default function BootcampForm({
 
         <div className="space-y-2">
           <Label htmlFor="max_reward_dgt" className="text-white">
-            Max Reward (DGT)
+            Max Reward (xDG)
           </Label>
           <Input
             id="max_reward_dgt"

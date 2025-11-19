@@ -1,13 +1,15 @@
-import React from "react";
+import React, { useState } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Gamepad2, DoorOpen } from "lucide-react";
 import { getLogger } from "@/lib/utils/logger";
+import { LeadMagnetModal } from "@/components/marketing/LeadMagnetModal";
 
 const log = getLogger("home:Hero");
 
 export function Hero() {
   const { login, authenticated, ready } = usePrivy();
+  const [open, setOpen] = useState(false);
 
   const handleLogin = () => {
     login();
@@ -38,59 +40,73 @@ export function Hero() {
       </div>
 
       <div className="relative z-10 container mx-auto text-center px-4">
-        <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold font-heading mb-6 tracking-tighter">
-          P2E INFERNO
+        <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold font-heading mb-6 tracking-tight">
+          Master Web3.0 Skills
+          <br />
+          Through Gamified Bootcamps,
+          <br />
+          Quests & Community
         </h1>
-        <h2 className="text-2xl md:text-4xl lg:text-5xl font-bold font-heading mb-8 text-flame-yellow">
-          The Onchain Economy as a Game
+        <h2 className="text-xl md:text-2xl lg:text-3xl font-bold font-heading mb-6 text-flame-yellow">
+          Become Web3-Proficient in Weeks.
         </h2>
-        <p className="max-w-2xl mx-auto text-lg md:text-xl text-faded-grey mb-12">
-          Step into a world where every onchain action is part of an epic
-          adventure. Swap tokens, trade NFTs, and engage with DeFi—all while
-          leveling up your skills and earnings.
+        <p className="max-w-3xl mx-auto text-base md:text-lg text-faded-grey mb-8">
+          The fastest, most engaging way to learn about Ethereum, Web3,
+          Decentralized Finance, and emerging tech — through guided cohorts,
+          hands-on tasks, and onchain rewards.
         </p>
 
-        <div className="flex justify-center items-center gap-4 h-12">
-          {!ready ? (
+        <div className="flex flex-col items-center gap-4 mb-8">
+          <Button
+            onClick={() => setOpen(true)}
+            className="group bg-flame-yellow hover:bg-flame-yellow/90 text-black font-bold py-3 px-6 rounded-full text-base transition-transform transform hover:scale-105"
+          >
+            Get the Free Onchain Starter Kit
+            <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+          </Button>
+
+          <div className="flex flex-wrap justify-center gap-3 mt-8">
             <Button
-              disabled
-              className="bg-steel-red/50 text-white/50 font-bold py-3 px-6 rounded-full text-lg"
+              variant="outline"
+              onClick={handleBootcampRedirect}
+              className="border-flame-yellow/50 text-flame-yellow hover:bg-flame-yellow/10"
             >
-              <div className="w-5 h-5 rounded-full bg-white/20 animate-pulse mr-2"></div>
-              Loading...
+              Explore Bootcamps
+              <Gamepad2 className="ml-2 h-5 w-5" />
             </Button>
-          ) : !authenticated ? (
-            <Button
-              onClick={handleLogin}
-              className="group bg-steel-red hover:bg-steel-red/90 text-white font-bold py-3 px-6 rounded-full text-lg transition-transform transform hover:scale-105"
-            >
-              Join the Inferno
-              <ArrowRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
-            </Button>
-          ) : (
-            <div className="flex gap-4">
-              <Button
-                onClick={handleBootcampRedirect}
-                className="group bg-flame-yellow hover:bg-flame-yellow/90 text-black font-bold py-3 px-6 rounded-full text-lg transition-transform transform hover:scale-105"
-              >
-                Explore Bootcamps
-                <Gamepad2 className="ml-2 h-5 w-5 transition-transform group-hover:rotate-12" />
-              </Button>
+            {ready && authenticated ? (
               <Button
                 onClick={handleEnterApp}
-                className="group bg-steel-red hover:bg-steel-red/90 text-white font-bold py-3 px-6 rounded-full text-lg transition-transform transform hover:scale-105"
+                className="bg-steel-red hover:bg-steel-red/90 text-white"
               >
                 Enter App
-                <DoorOpen className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
+                <DoorOpen className="ml-2 h-5 w-5" />
               </Button>
-            </div>
-          )}
+            ) : (
+              <Button
+                onClick={handleLogin}
+                className="bg-steel-red hover:bg-steel-red/90 text-white"
+                disabled={!ready}
+              >
+                {ready ? "Connect Wallet" : "Loading..."}
+              </Button>
+            )}
+          </div>
         </div>
 
-        <p className="mt-12 text-sm text-faded-grey/80">
+        <p className="mt-6 text-sm text-faded-grey/80">
           Infernals – Forged in Fire. Fueled by Rewards!
         </p>
       </div>
+
+      <LeadMagnetModal
+        open={open}
+        onOpenChange={setOpen}
+        defaultIntent="starter_kit"
+        defaultSource="homepage_hero"
+        title="Get the Onchain Starter Kit"
+        description="Enter your email and we’ll send the Starter Kit + waitlist updates for new cohorts."
+      />
     </section>
   );
 }

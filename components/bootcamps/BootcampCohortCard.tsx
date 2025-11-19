@@ -127,7 +127,7 @@ export function BootcampCohortCard({
           <div className="bg-background/30 rounded-xl p-4 text-center">
             <CrystalIcon size={24} className="text-cyan-400 mx-auto mb-2" />
             <div className="font-bold">
-              {bootcamp.max_reward_dgt.toLocaleString()} DGT
+              {bootcamp.max_reward_dgt.toLocaleString()} DG
             </div>
             <div className="text-xs text-faded-grey">Max Rewards</div>
           </div>

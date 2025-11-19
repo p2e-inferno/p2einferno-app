@@ -10,7 +10,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   return (
     <>
       <Navbar />
-      <main>{children}</main>
+      <main className="pt-[60px]">{children}</main>
       <Footer />
     </>
   );

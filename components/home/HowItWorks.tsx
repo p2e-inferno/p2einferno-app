@@ -1,48 +1,51 @@
 import React from "react";
-import { Wallet, Gamepad2, Trophy, Coins } from "lucide-react";
+import { Target, CheckCircle, Trophy, BadgeCheck } from "lucide-react";
 
 const steps = [
   {
-    icon: Wallet,
-    title: "1. Connect & Onboard",
+    icon: Target,
+    title: "1. Join a Track",
     description:
-      "Your journey starts here. Connect your wallet and complete our gamified onboarding to learn the lay of the land. This is your first quest.",
+      "Choose the path that fits your goals — Beginner, Creator, Developer, Gamer, or Frontier-Tech.",
     color: "text-steel-red",
   },
   {
-    icon: Gamepad2,
-    title: "2. Play the Onchain Game",
+    icon: CheckCircle,
+    title: "2. Complete Milestones",
     description:
-      "Engage in the onchain economy. Every swap, trade, and interaction is a move in the game. Explore quests, from simple trades to complex DeFi strategies.",
+      "Each milestone includes hands-on tasks, videos, guides, or webinars.",
     color: "text-flame-yellow",
   },
   {
     icon: Trophy,
-    title: "3. Master & Earn",
+    title: "3. Earn Rewards",
     description:
-      "As you play, you'll level up your skills. Compete in challenges, climb the leaderboards, and earn real rewards for your mastery.",
+      "Collect $DG, unlock perks, climb leaderboards, and display your achievements.",
     color: "text-steel-red",
   },
   {
-    icon: Coins,
-    title: "4. Shape the World",
+    icon: BadgeCheck,
+    title: "4. Prove It Onchain",
     description:
-      "Become an Infernal Flamekeeper. Use your influence to vote on governance proposals and help shape the future of the onchain world.",
+      "Badges, attestations (EAS), and NFTs validate your skills onchain — forever.",
     color: "text-flame-yellow",
   },
 ];
 
 export function HowItWorks() {
   return (
-    <section id="how-it-works" className="py-20 md:py-32 bg-background/70">
+    <section id="how-it-works" className="py-16 md:py-24 bg-background/70">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-20">
-          <h2 className="text-3xl md:text-4xl font-bold font-heading">
-            Your Path to Onchain Mastery
+        <div className="text-center mb-12 md:mb-16">
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold font-heading mb-4">
+            How It Works
           </h2>
-          <p className="mt-4 text-lg text-faded-grey max-w-2xl mx-auto">
-            Follow these steps to transform from a novice to a master of the
-            onchain economy.
+          <p className="text-3xl md:text-4xl lg:text-5xl font-bold text-flame-yellow mb-6">
+            Learn → Do → Earn → Prove
+          </p>
+          <p className="text-base md:text-lg text-faded-grey max-w-2xl mx-auto">
+            Every bootcamp and quest inside P2E Inferno follows a proven
+            structure designed for rapid skill development.
           </p>
         </div>
         <div className="relative">
@@ -52,17 +55,19 @@ export function HowItWorks() {
           {steps.map((step, index) => (
             <div
               key={index}
-              className="flex md:items-center mb-12 md:mb-16 last:md:mb-0"
+              className="flex md:items-center mb-10 md:mb-12 last:md:mb-0"
             >
               <div className="hidden md:flex md:w-1/2 items-center justify-end pr-8">
                 {index % 2 === 0 && (
-                  <div className="text-right">
+                  <div className="text-right max-w-md">
                     <h3
-                      className={`text-xl font-bold font-heading ${step.color}`}
+                      className={`text-lg md:text-xl font-bold font-heading ${step.color} mb-2`}
                     >
                       {step.title}
                     </h3>
-                    <p className="text-faded-grey mt-4">{step.description}</p>
+                    <p className="text-sm md:text-base text-faded-grey leading-relaxed">
+                      {step.description}
+                    </p>
                   </div>
                 )}
               </div>
@@ -74,23 +79,27 @@ export function HowItWorks() {
                 </div>
                 <div className="ml-20 md:hidden">
                   <h3
-                    className={`text-xl font-bold font-heading ${step.color}`}
+                    className={`text-lg md:text-xl font-bold font-heading ${step.color} mb-2`}
                   >
                     {step.title}
                   </h3>
-                  <p className="text-faded-grey mt-4">{step.description}</p>
+                  <p className="text-sm md:text-base text-faded-grey leading-relaxed">
+                    {step.description}
+                  </p>
                 </div>
               </div>
 
               <div className="hidden md:flex md:w-1/2 items-center pl-8">
                 {index % 2 !== 0 && (
-                  <div>
+                  <div className="max-w-md">
                     <h3
-                      className={`text-xl font-bold font-heading ${step.color}`}
+                      className={`text-lg md:text-xl font-bold font-heading ${step.color} mb-2`}
                     >
                       {step.title}
                     </h3>
-                    <p className="text-faded-grey mt-4">{step.description}</p>
+                    <p className="text-sm md:text-base text-faded-grey leading-relaxed">
+                      {step.description}
+                    </p>
                   </div>
                 )}
               </div>

@@ -19,10 +19,9 @@ export function Navbar() {
   }, []);
 
   const navItems = [
-    { label: "Features", href: "#features" },
-    { label: "About", href: "#about" },
-    { label: "How It Works", href: "#how-it-works" },
-    { label: "Services", href: "#services" },
+    { label: "About", href: "/about" },
+    { label: "How It Works", href: "/how-it-works" },
+    { label: "Services", href: "/services" },
   ];
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
@@ -73,7 +72,7 @@ export function Navbar() {
     >
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-20">
-          <Link href="/" className="flex items-center space-x-2">
+          <Link href="/" className="flex items-center space-x-2 z-50 relative">
             <Gamepad2 className="w-8 h-8 text-flame-yellow" />
             <span className="text-xl font-bold font-heading">P2E INFERNO</span>
           </Link>
