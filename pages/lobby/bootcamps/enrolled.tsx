@@ -279,7 +279,7 @@ export default function EnrolledBootcampsPage() {
                           />
                           <div className="font-bold">
                             {enrollment.cohort.bootcamp_program.max_reward_dgt.toLocaleString()}{" "}
-                            DGT
+                            DG
                           </div>
                           <div className="text-xs text-faded-grey">
                             Max Rewards

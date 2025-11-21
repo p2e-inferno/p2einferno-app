@@ -161,7 +161,7 @@ export default function BootcampsPage() {
                     {bootcamp.duration_weeks} weeks
                   </td>
                   <td className="py-4 px-4 text-sm text-white">
-                    {bootcamp.max_reward_dgt?.toLocaleString() || 0} DGT
+                    {bootcamp.max_reward_dgt?.toLocaleString() || 0} DG
                   </td>
                   <td className="py-4 px-4 text-sm text-white">
                     Contact for pricing

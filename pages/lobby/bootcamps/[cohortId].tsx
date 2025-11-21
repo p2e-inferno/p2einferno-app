@@ -328,7 +328,7 @@ export default function BootcampLearningPage() {
                 <Trophy size={20} className="text-flame-yellow" />
                 <span className="font-bold">
                   {data.overall_progress.total_earned_rewards.toLocaleString()}{" "}
-                  DGT
+                  DG
                 </span>
                 <span className="text-faded-grey text-sm">earned</span>
               </div>
@@ -377,7 +377,7 @@ export default function BootcampLearningPage() {
               <div className="font-bold">
                 {data.overall_progress.total_earned_rewards.toLocaleString()}
               </div>
-              <div className="text-xs text-faded-grey">DGT Earned</div>
+              <div className="text-xs text-faded-grey">DG Earned</div>
             </div>
             <div className="bg-background/30 rounded-xl p-4 text-center">
               <Star size={24} className="text-cyan-400 mx-auto mb-2" />
@@ -509,7 +509,7 @@ export default function BootcampLearningPage() {
                       <div className="flex items-center space-x-2 mb-1">
                         <CrystalIcon size={16} className="text-cyan-400" />
                         <span className="font-bold">
-                          {milestone.total_reward.toLocaleString()} DGT
+                          {milestone.total_reward.toLocaleString()} xDG
                         </span>
                       </div>
                       {milestone.user_progress && (
@@ -580,7 +580,7 @@ export default function BootcampLearningPage() {
                         <Trophy size={20} className="text-cyan-400 mb-2" />
                         <div className="font-medium">Total Reward</div>
                         <div className="text-sm text-faded-grey">
-                          {milestone.total_reward.toLocaleString()} DGT
+                          {milestone.total_reward.toLocaleString()} xDG
                         </div>
                       </div>
                     </div>
@@ -619,7 +619,7 @@ export default function BootcampLearningPage() {
                                     className="text-cyan-400"
                                   />
                                   <span className="text-sm font-medium">
-                                    {task.reward_amount} DGT
+                                    {task.reward_amount} xDG
                                   </span>
                                 </div>
                               </div>

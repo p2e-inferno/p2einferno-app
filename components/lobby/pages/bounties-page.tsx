@@ -38,7 +38,7 @@ export const BountiesPage = () => {
                 High Rewards
               </h3>
               <p className="text-sm text-gray-400">
-                Earn substantial DG tokens for completing complex bounties
+                Earn substantial xDG tokens for completing complex bounties
               </p>
             </div>
             <div className="bg-gray-800/50 rounded-lg p-4">

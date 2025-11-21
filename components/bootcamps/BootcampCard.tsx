@@ -62,66 +62,69 @@ export function BootcampCard({ bootcamp }: BootcampCardProps) {
 
   return (
     <Card className="relative bg-gradient-to-br from-steel-red/10 via-background to-flame-yellow/10 border-steel-red/20 hover:border-flame-yellow/50 transition-all duration-500 transform hover:-translate-y-2 shadow-2xl h-full flex flex-col min-h-[480px]">
-      {/* Status Badge */}
-      <div className="absolute top-4 right-4 z-10">
-        <div
-          className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-3 py-1 ${
-            isRegistrationOpen
-              ? "bg-flame-yellow/20 border-flame-yellow/30"
-              : activeCohort?.status === "upcoming"
-                ? "bg-blue-500/20 border-blue-500/30"
-                : "bg-red-500/20 border-red-500/30"
-          }`}
-        >
+      <CardHeader className="pb-8 flex-1 flex flex-col space-y-4">
+        {/* Status Badge - First element, positioned at top */}
+        <div className="flex justify-end mb-2">
           <div
-            className={`w-2 h-2 rounded-full ${
+            className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-3 py-1 ${
               isRegistrationOpen
-                ? "bg-flame-yellow animate-pulse"
+                ? "bg-flame-yellow/20 border-flame-yellow/30"
                 : activeCohort?.status === "upcoming"
-                  ? "bg-blue-500"
-                  : "bg-red-500"
-            }`}
-          ></div>
-          <span
-            className={`font-medium text-sm ${
-              isRegistrationOpen
-                ? "text-flame-yellow"
-                : activeCohort?.status === "upcoming"
-                  ? "text-blue-400"
-                  : "text-red-400"
+                  ? "bg-blue-500/20 border-blue-500/30"
+                  : "bg-red-500/20 border-red-500/30"
             }`}
           >
-            {isRegistrationOpen
-              ? "Registration Open"
-              : activeCohort?.status === "upcoming"
-                ? "Coming Soon"
-                : !activeCohort
-                  ? "Cooking"
-                  : "Registration Closed"}
-          </span>
+            <div
+              className={`w-2 h-2 rounded-full ${
+                isRegistrationOpen
+                  ? "bg-flame-yellow animate-pulse"
+                  : activeCohort?.status === "upcoming"
+                    ? "bg-blue-500"
+                    : "bg-red-500"
+              }`}
+            ></div>
+            <span
+              className={`font-medium text-sm ${
+                isRegistrationOpen
+                  ? "text-flame-yellow"
+                  : activeCohort?.status === "upcoming"
+                    ? "text-blue-400"
+                    : "text-red-400"
+              }`}
+            >
+              {isRegistrationOpen
+                ? "Registration Open"
+                : activeCohort?.status === "upcoming"
+                  ? "Coming Soon"
+                  : !activeCohort
+                    ? "Cooking"
+                    : "Registration Closed"}
+            </span>
+          </div>
         </div>
-      </div>
 
-      <CardHeader className="pb-8 flex-1 flex flex-col">
-        <div className="flex items-start gap-4 mb-6">
-          <div className="p-3 bg-steel-red rounded-full text-white">
+        {/* Icon and Title on same line */}
+        <div className="flex items-center gap-3">
+          <div className="p-3 bg-steel-red rounded-full text-white flex-shrink-0">
             <Flame className="w-8 h-8" />
           </div>
-          <div className="flex-1">
-            <CardTitle className="font-heading text-2xl md:text-3xl mb-2 text-flame-yellow">
-              {bootcamp.name}
-            </CardTitle>
-            <div className="inline-flex items-center gap-2 bg-steel-red/20 border border-steel-red/30 rounded-full px-3 py-1 mb-4">
-              <Sparkles className="w-4 h-4 text-steel-red" />
-              <span className="text-steel-red font-medium text-sm">
-                Beginner Friendly
-              </span>
-            </div>
-            <CardDescription className="text-base leading-relaxed flex-1 min-h-[80px]">
-              {bootcamp.description}
-            </CardDescription>
-          </div>
+          <CardTitle className="font-heading text-2xl md:text-3xl text-flame-yellow flex-1">
+            {bootcamp.name}
+          </CardTitle>
         </div>
+
+        {/* Beginner Friendly Badge */}
+        <div className="inline-flex items-center gap-2 bg-steel-red/20 border border-steel-red/30 rounded-full px-3 py-1 w-fit self-start">
+          <Sparkles className="w-4 h-4 text-steel-red" />
+          <span className="text-steel-red font-medium text-sm">
+            Beginner Friendly
+          </span>
+        </div>
+
+        {/* Description flows naturally */}
+        <CardDescription className="text-base leading-relaxed">
+          {bootcamp.description}
+        </CardDescription>
 
         {/* Key Metrics - Remove pricing section */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8">
@@ -149,7 +152,7 @@ export function BootcampCard({ bootcamp }: BootcampCardProps) {
         </div>
 
         {/* Urgency and CTA */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-faded-grey/20 mt-auto">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-6 border-t border-faded-grey/20 mt-auto">
           <div className="flex items-center gap-2 text-steel-red">
             <Calendar className="w-5 h-5" />
             <span className="font-medium">{timeRemaining}</span>
@@ -158,10 +161,13 @@ export function BootcampCard({ bootcamp }: BootcampCardProps) {
           <div className="flex gap-3">
             <Button
               disabled={isButtonDisabled}
-              onClick={() =>
-                !isButtonDisabled &&
-                (window.location.href = `/bootcamp/${bootcamp.id}`)
-              }
+              onClick={() => {
+                if (!isButtonDisabled) {
+                  window.location.href = `/bootcamp/${bootcamp.id}${
+                    activeCohort ? `/cohort/${activeCohort.id}` : ""
+                  }`;
+                }
+              }}
               className={`group font-bold px-6 transition-all transform hover:scale-105 ${
                 !isButtonDisabled
                   ? "bg-steel-red hover:bg-steel-red/90 text-white"
