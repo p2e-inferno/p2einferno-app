@@ -3,6 +3,10 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/utils/privyUtils";
 import { getLogger } from "@/lib/utils/logger";
+import {
+  checkQuestPrerequisites,
+  getUserPrimaryWallet,
+} from "@/lib/quests/prerequisite-checker";
 
 const log = getLogger("api:quests:complete-task");
 
@@ -35,6 +39,40 @@ export default async function handler(
       return res.status(401).json({ error: "Unauthorized" });
     }
     const effectiveUserId = authUser.id;
+
+    // Get quest details to check prerequisites
+    const { data: quest, error: questError } = await supabase
+      .from("quests")
+      .select(
+        "prerequisite_quest_id, prerequisite_quest_lock_address, requires_prerequisite_key",
+      )
+      .eq("id", questId)
+      .single();
+
+    if (questError || !quest) {
+      log.error("Error fetching quest:", questError);
+      return res.status(404).json({ error: "Quest not found" });
+    }
+
+    // Check prerequisites before allowing task completion
+    const userWallet = await getUserPrimaryWallet(supabase, effectiveUserId);
+    const prereqCheck = await checkQuestPrerequisites(
+      supabase,
+      effectiveUserId,
+      userWallet,
+      {
+        prerequisite_quest_id: quest.prerequisite_quest_id,
+        prerequisite_quest_lock_address: quest.prerequisite_quest_lock_address,
+        requires_prerequisite_key: quest.requires_prerequisite_key,
+      },
+    );
+
+    if (!prereqCheck.canProceed) {
+      return res.status(403).json({
+        error: prereqCheck.reason || "Prerequisites not met",
+        prerequisiteState: prereqCheck.prerequisiteState,
+      });
+    }
 
     // Check if task has an existing completion
     const { data: existingCompletion } = await supabase

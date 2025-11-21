@@ -86,9 +86,21 @@ export interface Quest {
   lock_address?: string;
   lock_manager_granted?: boolean;
   grant_failure_reason?: string;
+  prerequisite_quest_id?: string | null;
+  prerequisite_quest_lock_address?: string | null;
+  requires_prerequisite_key?: boolean;
+  reward_type: "xdg" | "activation";
+  activation_type?: "dg_trial" | null;
+  activation_config?: {
+    lockAddress?: string;
+    trialDurationSeconds?: number;
+    keyManager?: string;
+  } | null;
   created_at: string;
   updated_at: string;
   quest_tasks: QuestTask[];
+  can_start?: boolean;
+  prerequisite_state?: "none" | "missing_completion" | "missing_key" | "ok";
 }
 
 export type TaskType =

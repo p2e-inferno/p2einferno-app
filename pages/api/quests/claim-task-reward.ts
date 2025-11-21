@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { getPrivyUser } from "@/lib/auth/privy";
 
 const log = getLogger("api:quests:claim-task-reward");
 
@@ -19,6 +20,11 @@ export default async function handler(
   }
 
   try {
+    const authUser = await getPrivyUser(req);
+    if (!authUser?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = authUser.id;
     const supabase = createAdminClient();
 
     // Check if the completion exists and hasn't been claimed yet
@@ -45,6 +51,12 @@ export default async function handler(
 
     if (completionError || !completion) {
       return res.status(404).json({ error: "Task completion not found" });
+    }
+
+    if (completion.user_id !== userId) {
+      return res
+        .status(403)
+        .json({ error: "Not authorized to claim this reward" });
     }
 
     if (completion.reward_claimed) {

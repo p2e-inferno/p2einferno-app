@@ -3,7 +3,7 @@
  * Handles network selection and RPC endpoint management
  */
 
-import { base, baseSepolia, mainnet } from "viem/chains";
+import { base, baseSepolia, mainnet, celo, fuse } from "viem/chains";
 import { blockchainLogger } from "../../shared/logging-utils";
 import type { ChainConfig, RpcUrlsResult, RpcFallbackSettings } from "./types";
 
@@ -17,6 +17,7 @@ export const getAlchemyBaseUrl = (chainId: number): string => {
     8453: "https://base-mainnet.g.alchemy.com/v2/", // Base Mainnet
     84532: "https://base-sepolia.g.alchemy.com/v2/", // Base Sepolia
     1: "https://eth-mainnet.g.alchemy.com/v2/", // Ethereum Mainnet
+    42220: "https://celo-mainnet.g.alchemy.com/v2/", // Celo Mainnet
   };
 
   const baseUrl = baseUrls[chainId as keyof typeof baseUrls];
@@ -64,7 +65,7 @@ export const resolveChain = (): ChainConfig => {
         chain: base,
         rpcUrl: createAlchemyRpcUrl(
           process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL ||
-            "https://base-mainnet.g.alchemy.com/v2/",
+            "https://base-mainnet.g.alchemy.com/v2/"
         ),
         usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET,
         networkName: "Base Mainnet",
@@ -86,7 +87,7 @@ export const resolveChain = (): ChainConfig => {
         chain: baseSepolia,
         rpcUrl: createAlchemyRpcUrl(
           process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL ||
-            "https://base-sepolia.g.alchemy.com/v2/",
+            "https://base-sepolia.g.alchemy.com/v2/"
         ),
         usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA,
         networkName: "Base Sepolia",
@@ -116,6 +117,13 @@ export const getPreferredProvider = (): "alchemy" | "infura" => {
   return pref === "infura" ? "infura" : "alchemy";
 };
 
+type ChainRpcConfig = {
+  alchemyBase?: string | (() => string);
+  infuraBase?: string;
+  infuraEnv?: string;
+  publicFallback: string;
+};
+
 /**
  * Resolve prioritized RPC URLs for a given chain
  * @param chainId The chain ID to resolve URLs for
@@ -129,19 +137,60 @@ export const resolveRpcUrls = (chainId: number): RpcUrlsResult => {
   const infuraKey = process.env.NEXT_PUBLIC_INFURA_API_KEY;
   const preferred = getPreferredProvider();
 
-  if (chainId === base.id) {
-    // Base Mainnet: Alchemy -> Infura -> Base public
-    const alchemyUrl = alchemyKey
-      ? `${process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL || "https://base-mainnet.g.alchemy.com/v2/"}${alchemyKey}`
-      : undefined;
-    const infuraEnv = process.env.NEXT_PUBLIC_INFURA_BASE_MAINNET_RPC_URL;
-    const infuraUrl =
-      infuraEnv ||
-      (infuraKey
-        ? `https://base-mainnet.infura.io/v3/${infuraKey}`
-        : undefined);
+  // Configuration map
+  const configs: Record<number, ChainRpcConfig> = {
+    [base.id]: {
+      alchemyBase:
+        process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL ||
+        "https://base-mainnet.g.alchemy.com/v2/",
+      infuraBase: "https://base-mainnet.infura.io/v3/",
+      infuraEnv: process.env.NEXT_PUBLIC_INFURA_BASE_MAINNET_RPC_URL,
+      publicFallback: "https://mainnet.base.org",
+    },
+    [baseSepolia.id]: {
+      alchemyBase:
+        process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL ||
+        "https://base-sepolia.g.alchemy.com/v2/",
+      infuraBase: "https://base-sepolia.infura.io/v3/",
+      infuraEnv: process.env.NEXT_PUBLIC_INFURA_BASE_SEPOLIA_RPC_URL,
+      publicFallback: "https://sepolia.base.org",
+    },
+    [mainnet.id]: {
+      alchemyBase: "https://eth-mainnet.g.alchemy.com/v2/",
+      infuraBase: "https://mainnet.infura.io/v3/",
+      publicFallback: "https://cloudflare-eth.com",
+    },
+    [celo.id]: {
+      alchemyBase: () => getAlchemyBaseUrl(celo.id),
+      publicFallback: "https://forno.celo.org",
+    },
+    [fuse.id]: {
+      publicFallback: "https://rpc.fuse.io",
+    },
+  };
 
-    // Push in preferred order
+  const config = configs[chainId];
+
+  if (config) {
+    // 1. Resolve Alchemy URL
+    let alchemyUrl: string | undefined;
+    if (config.alchemyBase && alchemyKey) {
+      const base =
+        typeof config.alchemyBase === "function"
+          ? config.alchemyBase()
+          : config.alchemyBase;
+      alchemyUrl = `${base}${alchemyKey}`;
+    }
+
+    // 2. Resolve Infura URL
+    let infuraUrl: string | undefined;
+    if (config.infuraEnv) {
+      infuraUrl = config.infuraEnv;
+    } else if (config.infuraBase && infuraKey) {
+      infuraUrl = `${config.infuraBase}${infuraKey}`;
+    }
+
+    // 3. Push keyed providers in preferred order
     if (preferred === "infura") {
       if (infuraUrl) urls.push(infuraUrl);
       if (alchemyUrl) urls.push(alchemyUrl);
@@ -149,46 +198,9 @@ export const resolveRpcUrls = (chainId: number): RpcUrlsResult => {
       if (alchemyUrl) urls.push(alchemyUrl);
       if (infuraUrl) urls.push(infuraUrl);
     }
-    urls.push("https://mainnet.base.org");
-  } else if (chainId === baseSepolia.id) {
-    // Base Sepolia: Alchemy -> Infura -> Base public
-    const alchemyUrl = alchemyKey
-      ? `${process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || "https://base-sepolia.g.alchemy.com/v2/"}${alchemyKey}`
-      : undefined;
-    const infuraEnv = process.env.NEXT_PUBLIC_INFURA_BASE_SEPOLIA_RPC_URL;
-    const infuraUrl =
-      infuraEnv ||
-      (infuraKey
-        ? `https://base-sepolia.infura.io/v3/${infuraKey}`
-        : undefined);
 
-    if (preferred === "infura") {
-      if (infuraUrl) urls.push(infuraUrl);
-      if (alchemyUrl) urls.push(alchemyUrl);
-    } else {
-      if (alchemyUrl) urls.push(alchemyUrl);
-      if (infuraUrl) urls.push(infuraUrl);
-    }
-    urls.push("https://sepolia.base.org");
-  } else if (chainId === mainnet.id) {
-    // Ethereum Mainnet: Alchemy -> Infura -> public
-    const alchemyEthBase = "https://eth-mainnet.g.alchemy.com/v2/";
-    const alchemyUrl = alchemyKey
-      ? `${alchemyEthBase}${alchemyKey}`
-      : undefined;
-    const infuraUrl = infuraKey
-      ? `https://mainnet.infura.io/v3/${infuraKey}`
-      : undefined;
-
-    if (preferred === "infura") {
-      if (infuraUrl) urls.push(infuraUrl);
-      if (alchemyUrl) urls.push(alchemyUrl);
-    } else {
-      if (alchemyUrl) urls.push(alchemyUrl);
-      if (infuraUrl) urls.push(infuraUrl);
-    }
-    // Public fallback (Cloudflare)
-    urls.push("https://cloudflare-eth.com");
+    // 4. Push public fallback
+    urls.push(config.publicFallback);
   }
 
   // De-duplicate while preserving order

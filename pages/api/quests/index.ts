@@ -1,6 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  checkQuestPrerequisites,
+  getUserPrimaryWallet,
+} from "@/lib/quests/prerequisite-checker";
 
 const log = getLogger("api:quests:index");
 
@@ -14,6 +19,11 @@ export default async function handler(
 
   try {
     const supabase = createAdminClient();
+    const authUser = await getPrivyUser(req);
+    const userId = authUser?.id || null;
+    const userWallet = userId
+      ? await getUserPrimaryWallet(supabase, userId)
+      : null;
 
     const { data: quests, error } = await supabase
       .from("quests")
@@ -28,7 +38,12 @@ export default async function handler(
           verification_method,
           reward_amount,
           order_index,
-          created_at
+          created_at,
+          input_required,
+          input_label,
+          input_placeholder,
+          input_validation,
+          requires_admin_review
         )
       `,
       )
@@ -44,7 +59,38 @@ export default async function handler(
       });
     }
 
-    res.status(200).json({ quests });
+    const questsWithPrereqs = await Promise.all(
+      (quests || []).map(async (quest: any) => {
+        if (!userId) {
+          return quest;
+        }
+
+        const prereqCheck = await checkQuestPrerequisites(
+          supabase,
+          userId,
+          userWallet,
+          {
+            prerequisite_quest_id: quest.prerequisite_quest_id || null,
+            prerequisite_quest_lock_address:
+              quest.prerequisite_quest_lock_address || null,
+            requires_prerequisite_key: quest.requires_prerequisite_key ?? false,
+          },
+        );
+
+        return {
+          ...quest,
+          can_start: prereqCheck.canProceed,
+          prerequisite_state:
+            prereqCheck.prerequisiteState ||
+            (quest.prerequisite_quest_id ||
+            quest.prerequisite_quest_lock_address
+              ? "missing_completion"
+              : "none"),
+        };
+      }),
+    );
+
+    res.status(200).json({ quests: questsWithPrereqs });
   } catch (error) {
     log.error("Error in quests API:", error);
     res.status(500).json({ error: "Internal server error" });

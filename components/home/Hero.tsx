@@ -53,7 +53,7 @@ export function Hero() {
         <p className="max-w-3xl mx-auto text-base md:text-lg text-faded-grey mb-8">
           The fastest, most engaging way to learn about Ethereum, Web3,
           Decentralized Finance, and emerging tech — through guided cohorts,
-          hands-on tasks, and onchain rewards.
+          hands-on tasks, and rewards.
         </p>
 
         <div className="flex flex-col items-center gap-4 mb-8">

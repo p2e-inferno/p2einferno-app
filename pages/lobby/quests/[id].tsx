@@ -10,6 +10,13 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
+import {
+  claimActivationRewardRequest,
+  completeQuestRequest,
+  claimTaskRewardRequest,
+  completeQuestTaskRequest,
+  startQuestRequest,
+} from "@/lib/quests/client";
 
 // Import the new components
 import QuestHeader from "@/components/quests/QuestHeader";
@@ -46,60 +53,15 @@ const QuestDetailsPage = () => {
   >([]);
   const [progress, setProgress] = useState(0); // Percentage
   const [processingTask, setProcessingTask] = useState<string | null>(null); // For button loading states
+  const [isClaimingQuestReward, setIsClaimingQuestReward] = useState(false);
 
   // Data fetching and processing logic (fetchQuestDetails, startQuest, calculateQuestProgress, claimTaskReward, etc.)
   // remains largely the same in this file for now.
   // These functions will be called and their results/handlers passed to the new components.
 
   const fetchQuestDetailsAPI = async (qId: string) => {
-    const url = user?.id
-      ? `/api/quests/${qId}?userId=${encodeURIComponent(user.id)}`
-      : `/api/quests/${qId}`;
-    const response = await fetch(url);
+    const response = await fetch(`/api/quests/${qId}`);
     if (!response.ok) throw new Error("Failed to fetch quest details");
-    return response.json();
-  };
-
-  const startQuestAPI = async (qId: string) => {
-    const response = await fetch(`/api/quests/${qId}/start`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user?.id }),
-    });
-    return response.json();
-  };
-
-  const claimTaskRewardAPI = async (completionId: string) => {
-    const response = await fetch(`/api/quests/claim-task-reward`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ completionId }),
-    });
-    return response.json();
-  };
-
-  const completeTaskAPI = async (qId: string, taskId: string, details: any) => {
-    // This function is a simplified placeholder for the `completeTask` logic
-    // from the original `useQuests` hook or similar.
-    // The actual implementation would call the relevant API endpoint.
-    // For now, it simulates the call structure.
-    const response = await fetch(`/api/quests/complete-task`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        questId: qId,
-        taskId,
-        userId: user?.id,
-        verificationData: details,
-        inputData: details.inputData,
-      }),
-    });
-    if (!response.ok) {
-      const errorData = await response
-        .json()
-        .catch(() => ({ message: "Failed to complete task" }));
-      throw new Error(errorData.message || "Failed to complete task");
-    }
     return response.json();
   };
 
@@ -158,7 +120,7 @@ const QuestDetailsPage = () => {
     if (!questId) return;
     setProcessingTask("start_quest"); // Use a unique ID for start quest processing
     try {
-      const result = await startQuestAPI(questId as string);
+      const result = await startQuestRequest(questId as string);
       if (result.success) {
         toast.success("Quest started! Begin your journey!");
         await loadQuestDetails(); // Refresh data
@@ -183,8 +145,10 @@ const QuestDetailsPage = () => {
         case "link_email":
           // Simulate linking email - actual logic might involve Privy SDK or other services
           if (user?.email?.address) {
-            result = await completeTaskAPI(questId as string, task.id, {
-              email: user.email.address,
+            result = await completeQuestTaskRequest({
+              questId: questId as string,
+              taskId: task.id,
+              verificationData: { email: user.email.address },
             });
           } else {
             toast.error("Please link your email in your profile first."); // Or trigger Privy email linking
@@ -192,16 +156,22 @@ const QuestDetailsPage = () => {
           }
           break;
         case "link_wallet":
-          result = await completeTaskAPI(questId as string, task.id, {
-            wallet: user?.wallet?.address,
+          result = await completeQuestTaskRequest({
+            questId: questId as string,
+            taskId: task.id,
+            verificationData: { wallet: user?.wallet?.address },
           });
           break;
         case "link_farcaster":
           // Verify Farcaster is linked in Privy, then complete via API
           if (user?.farcaster?.fid) {
-            result = await completeTaskAPI(questId as string, task.id, {
-              fid: user.farcaster.fid,
-              username: user.farcaster.username,
+            result = await completeQuestTaskRequest({
+              questId: questId as string,
+              taskId: task.id,
+              verificationData: {
+                fid: user.farcaster.fid,
+                username: user.farcaster.username,
+              },
             });
           } else {
             toast.error("No Farcaster found. Link it in your profile first.");
@@ -211,8 +181,10 @@ const QuestDetailsPage = () => {
         case "sign_tos":
           const signature = await signTOS();
           if (signature) {
-            result = await completeTaskAPI(questId as string, task.id, {
-              signature,
+            result = await completeQuestTaskRequest({
+              questId: questId as string,
+              taskId: task.id,
+              verificationData: { signature },
             });
           } else {
             result = {
@@ -226,7 +198,10 @@ const QuestDetailsPage = () => {
         case "submit_proof":
           // These task types require input data
           if (inputData && inputData.trim()) {
-            result = await completeTaskAPI(questId as string, task.id, {
+            result = await completeQuestTaskRequest({
+              questId: questId as string,
+              taskId: task.id,
+              verificationData: { inputData },
               inputData,
             });
           } else {
@@ -238,15 +213,22 @@ const QuestDetailsPage = () => {
           break;
         case "complete_external":
           // External tasks are completed outside the platform
-          result = await completeTaskAPI(questId as string, task.id, {
-            completed_external: true,
-            timestamp: new Date().toISOString(),
+          result = await completeQuestTaskRequest({
+            questId: questId as string,
+            taskId: task.id,
+            verificationData: {
+              completed_external: true,
+              timestamp: new Date().toISOString(),
+            },
           });
           break;
         case "custom":
           // Custom tasks may or may not require input
           if (task.input_required && inputData) {
-            result = await completeTaskAPI(questId as string, task.id, {
+            result = await completeQuestTaskRequest({
+              questId: questId as string,
+              taskId: task.id,
+              verificationData: { inputData },
               inputData,
             });
           } else if (task.input_required) {
@@ -255,8 +237,10 @@ const QuestDetailsPage = () => {
               error: `Please provide ${task.input_label || "required input"}`,
             };
           } else {
-            result = await completeTaskAPI(questId as string, task.id, {
-              custom_action: true,
+            result = await completeQuestTaskRequest({
+              questId: questId as string,
+              taskId: task.id,
+              verificationData: { custom_action: true },
             });
           }
           break;
@@ -283,7 +267,7 @@ const QuestDetailsPage = () => {
   const handleClaimReward = async (completionId: string, amount: number) => {
     setProcessingTask(completionId); // Use completionId for claiming, as task.id might be duplicated for processingTask if user clicks complete then claim quickly
     try {
-      const result = await claimTaskRewardAPI(completionId);
+      const result = await claimTaskRewardRequest(completionId);
       if (result.success) {
         toast.success(`Claimed ${amount} DG tokens! 🎉`);
         await loadQuestDetails(); // Refresh data
@@ -297,6 +281,35 @@ const QuestDetailsPage = () => {
       );
     } finally {
       setProcessingTask(null);
+    }
+  };
+
+  const handleQuestRewardClaim = async () => {
+    if (!questId || !questData?.quest) return;
+    if (!canClaimQuestReward) {
+      return;
+    }
+    setIsClaimingQuestReward(true);
+    try {
+      if (questData.quest.reward_type === "activation") {
+        const response = await claimActivationRewardRequest<{
+          message?: string;
+        }>(questId as string);
+        toast.success(response.message || "Trial claimed successfully!");
+      } else {
+        const response = await completeQuestRequest<{
+          message?: string;
+        }>(questId as string);
+        toast.success(
+          response.message || "Quest completed and key granted successfully",
+        );
+      }
+      await loadQuestDetails();
+    } catch (error: any) {
+      log.error("Error claiming quest reward:", error);
+      toast.error(error.message || "Failed to claim quest reward");
+    } finally {
+      setIsClaimingQuestReward(false);
     }
   };
 
@@ -317,7 +330,29 @@ const QuestDetailsPage = () => {
 
   const { quest, progress: questProgressInfo } = questData; // Assuming 'progress' here is the quest_user_progress record
   const isQuestStarted = !!questProgressInfo;
-  const isQuestCompleted = progress === 100;
+  const questCompleted = Boolean(questProgressInfo?.is_completed);
+  const isQuestCompleted = questCompleted || progress === 100;
+  const isActivationQuest = quest?.reward_type === "activation";
+  const activationRewardClaimable =
+    isActivationQuest && questCompleted && !questProgressInfo?.reward_claimed;
+  const xpRewardClaimable =
+    !isActivationQuest && questCompleted && !questProgressInfo?.reward_claimed;
+  const canClaimQuestReward = activationRewardClaimable || xpRewardClaimable;
+  const hasClaimedQuestReward = Boolean(questProgressInfo?.reward_claimed);
+  const canStartQuest = quest?.can_start !== false;
+  const prerequisiteWarningMessage = (() => {
+    if (!quest || quest.can_start !== false) {
+      return null;
+    }
+    switch (quest.prerequisite_state) {
+      case "missing_completion":
+        return "Complete the prerequisite quest before starting this quest.";
+      case "missing_key":
+        return "You need an active key from the prerequisite quest to continue.";
+      default:
+        return "Prerequisite requirements are not met yet.";
+    }
+  })();
 
   return (
     <LobbyLayout>
@@ -331,6 +366,12 @@ const QuestDetailsPage = () => {
             Back to Quests
           </Link>
 
+          {prerequisiteWarningMessage && (
+            <div className="mb-6 bg-yellow-900/20 border border-yellow-700/60 text-yellow-100 rounded-lg p-4">
+              {prerequisiteWarningMessage}
+            </div>
+          )}
+
           <QuestHeader
             quest={quest} // Pass the main quest object
             progressPercentage={progress}
@@ -342,6 +383,13 @@ const QuestDetailsPage = () => {
             totalTasksCount={tasksWithCompletion.length}
             onStartQuest={!isQuestStarted ? handleStartQuest : undefined} // Only pass if not started
             isLoadingStartQuest={processingTask === "start_quest"}
+            canStartQuest={canStartQuest}
+            canClaimReward={canClaimQuestReward}
+            hasClaimedReward={hasClaimedQuestReward}
+            onClaimReward={
+              isQuestCompleted ? handleQuestRewardClaim : undefined
+            }
+            isClaimingReward={isClaimingQuestReward}
           />
 
           {isQuestStarted && tasksWithCompletion.length > 0 && (

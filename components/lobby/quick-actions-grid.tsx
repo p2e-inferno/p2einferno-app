@@ -1,6 +1,6 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Shield } from "lucide-react";
 import {
   FlameIcon,
   LightningIcon,
@@ -9,6 +9,14 @@ import {
 } from "../icons/dashboard-icons";
 import { useDailyCheckin } from "@/hooks/checkin";
 import { ArrowRight as ArrowIcon } from "lucide-react";
+
+// Lazy load FaceVerificationButton to avoid bundling @goodsdks/citizen-sdk
+// and its transitive dependency lz-string during build (they have ESM/CommonJS issues)
+const FaceVerificationButton = lazy(() =>
+  import("@/components/gooddollar/FaceVerificationButton").then((mod) => ({
+    default: mod.FaceVerificationButton,
+  })),
+);
 
 interface QuickActionsGridProps {
   userAddress?: string;
@@ -56,7 +64,7 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
       : "text-faded-grey";
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
       {/* Daily Check-in */}
       <div className={`group ${isDisabled ? "pointer-events-none" : ""}`}>
         <div
@@ -194,6 +202,29 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
           </div>
         </div>
       </Link>
+
+      {/* Face Verification - Temporary Card */}
+      <div className="group">
+        <div className="bg-gradient-to-br from-blue-800/30 to-blue-900/30 rounded-xl p-6 border border-blue-500/20 backdrop-blur-sm hover:border-blue-400/40 transition-all duration-300 group-hover:scale-105">
+          <div className="flex items-center space-x-4 mb-4">
+            <Shield
+              size={40}
+              className="text-blue-400 group-hover:animate-pulse"
+            />
+            <div>
+              <h3 className="font-bold text-lg">Verify Identity</h3>
+              <p className="text-sm text-faded-grey">Face verification</p>
+            </div>
+          </div>
+          <Suspense fallback={<div className="h-10" />}>
+            <FaceVerificationButton
+              variant="ghost"
+              size="sm"
+              className="w-full justify-between text-blue-400 hover:text-blue-300 p-0 h-auto font-medium"
+            />
+          </Suspense>
+        </div>
+      </div>
     </div>
   );
 };
