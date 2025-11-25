@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { toast } from "react-hot-toast";
 import { usePrivy } from "@privy-io/react-auth";
@@ -44,6 +44,39 @@ export default function LobbyPage() {
     null,
   );
   const [isRemoving, setIsRemoving] = useState(false);
+  const verificationHandledRef = useRef(false);
+
+  // Handle verification callback feedback (success/error) from GoodDollar flow
+  useEffect(() => {
+    if (!router.isReady) return;
+    if (verificationHandledRef.current) return;
+    const { verification, message, ...restQuery } = router.query;
+
+    if (verification) {
+      const msg =
+        typeof message === "string" && message.length > 0
+          ? message
+          : verification === "success"
+            ? "Face verification completed successfully"
+            : "Face verification failed";
+
+      if (verification === "success") {
+        toast.success(msg);
+      } else {
+        toast.error(msg);
+      }
+
+      router.replace(
+        {
+          pathname: router.pathname,
+          query: restQuery,
+        },
+        undefined,
+        { shallow: true },
+      );
+      verificationHandledRef.current = true;
+    }
+  }, [router]);
 
   const handleCompletePayment = async (applicationId: string) => {
     try {

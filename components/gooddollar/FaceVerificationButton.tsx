@@ -70,8 +70,14 @@ export function useFaceVerificationAction(onVerified?: () => void) {
         address: walletAddress,
       });
 
-      // Generate FV link
-      const callbackUrl = `${window.location.origin}/api/gooddollar/verify-callback`;
+      // Generate FV link (send users back to the client callback page)
+      const callbackUrl = `${window.location.origin}/gooddollar/verify-callback`;
+      try {
+        const currentUrl = window.location.href;
+        window.sessionStorage.setItem("gooddollar:returnUrl", currentUrl);
+      } catch (storageError) {
+        log.warn("Failed to persist return URL", { storageError });
+      }
       const fvLink = await generateFVLink({
         sdk,
         callbackUrl,

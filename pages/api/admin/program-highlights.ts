@@ -1,15 +1,12 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { supabase } from "@/lib/supabase/client";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/server";
 import { withAdminAuth } from "@/lib/auth/admin-auth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:admin:program-highlights");
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!,
-);
+const supabaseAdmin = createAdminClient();
 
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "POST") {

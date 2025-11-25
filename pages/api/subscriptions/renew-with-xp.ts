@@ -12,7 +12,7 @@
  */
 
 import type { NextApiRequest, NextApiResponse } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
@@ -61,10 +61,7 @@ export default async function handler(
   }
 
   const body = req.body as RenewalRequest;
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  const supabase = createAdminClient();
 
   let renewalAttemptId: string | null = null;
 
