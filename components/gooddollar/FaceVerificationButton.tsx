@@ -7,8 +7,9 @@ import { getDisplayNameSync } from "@/lib/gooddollar/get-display-name";
 import { Button } from "@/components/ui/button";
 import { getLogger } from "@/lib/utils/logger";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { ArrowRight } from "lucide-react";
 
 const log = getLogger("component:face-verification-button");
 
@@ -19,23 +20,30 @@ interface FaceVerificationButtonProps {
   size?: "default" | "sm" | "lg";
 }
 
-/**
- * Button component to initiate GoodDollar face verification flow
- * Generates verification link and redirects user to face verification
- */
-export function FaceVerificationButton({
-  onVerified,
-  className,
-  variant = "default",
-  size = "default",
-}: FaceVerificationButtonProps) {
-  void onVerified;
+export function useFaceVerificationAction(onVerified?: () => void) {
   const { user } = usePrivy();
   const { walletAddress } = useDetectConnectedWalletAddress(user);
   const sdk = useIdentitySDK();
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleVerify = async () => {
+  const isDisabled = isLoading || !sdk || !walletAddress || !user;
+
+  // Handle bfcache restoration (when user navigates back)
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        log.info("Restored from bfcache, resetting loading state");
+        setIsLoading(false);
+      }
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
+  const handleVerify = useCallback(async () => {
+    log.info("Starting face verification", { walletAddress });
+
     try {
       if (!sdk) {
         toast.error("SDK not initialized. Please refresh and try again.");
@@ -55,7 +63,7 @@ export function FaceVerificationButton({
 
       setIsLoading(true);
 
-      // Get display name (SDK signs this, so it's used for identity verification)
+      // Get display name for face verification UI
       const displayName = getDisplayNameSync(user);
       log.info("Initiating face verification", {
         displayName,
@@ -71,15 +79,32 @@ export function FaceVerificationButton({
       });
 
       log.info("FV link generated, redirecting", { fvLink });
+      if (onVerified) {
+        onVerified();
+      }
       window.location.href = fvLink;
     } catch (error) {
       log.error("Failed to initiate face verification", { error });
       toast.error("Failed to initiate face verification. Please try again.");
       setIsLoading(false);
     }
-  };
+  }, [sdk, walletAddress, user, onVerified]);
 
-  const isDisabled = isLoading || !sdk || !walletAddress || !user;
+  return { handleVerify, isLoading, isDisabled };
+}
+
+/**
+ * Button component to initiate GoodDollar face verification flow
+ * Generates verification link and redirects user to face verification
+ */
+export function FaceVerificationButton({
+  onVerified,
+  className,
+  variant = "default",
+  size = "default",
+}: FaceVerificationButtonProps) {
+  const { handleVerify, isLoading, isDisabled } =
+    useFaceVerificationAction(onVerified);
 
   return (
     <Button
@@ -89,7 +114,17 @@ export function FaceVerificationButton({
       size={size}
       className={className}
     >
-      {isLoading ? "Loading..." : "Verify Your Identity"}
+      {isLoading ? (
+        "Loading..."
+      ) : (
+        <>
+          <span>Verify</span>
+          <ArrowRight
+            size={20}
+            className="group-hover:translate-x-1 transition-transform"
+          />
+        </>
+      )}
     </Button>
   );
 }

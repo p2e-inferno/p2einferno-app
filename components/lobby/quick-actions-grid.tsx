@@ -1,4 +1,4 @@
-import React, { lazy, Suspense } from "react";
+import React from "react";
 import Link from "next/link";
 import { ArrowRight, Shield } from "lucide-react";
 import {
@@ -7,16 +7,34 @@ import {
   SwordIcon,
   ProfileIcon,
 } from "../icons/dashboard-icons";
+import { useFaceVerificationAction } from "@/components/gooddollar/FaceVerificationButton";
 import { useDailyCheckin } from "@/hooks/checkin";
 import { ArrowRight as ArrowIcon } from "lucide-react";
 
-// Lazy load FaceVerificationButton to avoid bundling @goodsdks/citizen-sdk
-// and its transitive dependency lz-string during build (they have ESM/CommonJS issues)
-const FaceVerificationButton = lazy(() =>
-  import("@/components/gooddollar/FaceVerificationButton").then((mod) => ({
-    default: mod.FaceVerificationButton,
-  })),
-);
+class FaceVerificationCardBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  override state: { hasError: boolean } = { hasError: false };
+
+  override componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    this.setState({ hasError: true });
+    // Hide the card if the verify button blows up but surface the error for debugging.
+    // eslint-disable-next-line no-console
+    console.error("Face verification card failed to render", {
+      error,
+      errorInfo,
+    });
+  }
+
+  override render() {
+    if (this.state.hasError) {
+      return null;
+    }
+
+    return this.props.children;
+  }
+}
 
 interface QuickActionsGridProps {
   userAddress?: string;
@@ -31,6 +49,12 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
   userAddress,
   userProfileId,
 }) => {
+  const {
+    handleVerify,
+    isLoading: isVerifying,
+    isDisabled: isVerificationDisabled,
+  } = useFaceVerificationAction();
+
   const {
     performCheckin,
     canCheckinToday,
@@ -204,8 +228,18 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
       </Link>
 
       {/* Face Verification - Temporary Card */}
-      <div className="group">
-        <div className="bg-gradient-to-br from-blue-800/30 to-blue-900/30 rounded-xl p-6 border border-blue-500/20 backdrop-blur-sm hover:border-blue-400/40 transition-all duration-300 group-hover:scale-105">
+      <FaceVerificationCardBoundary>
+        <button
+          type="button"
+          onClick={isVerificationDisabled ? undefined : handleVerify}
+          disabled={isVerificationDisabled || isVerifying}
+          className={`group w-full text-left bg-gradient-to-br from-blue-800/30 to-blue-900/30 rounded-xl p-6 border border-blue-500/20 backdrop-blur-sm transition-all duration-300 ${
+            isVerificationDisabled || isVerifying
+              ? "opacity-60 cursor-not-allowed"
+              : "hover:border-blue-400/40 hover:scale-105"
+          }`}
+          aria-busy={isVerifying}
+        >
           <div className="flex items-center space-x-4 mb-4">
             <Shield
               size={40}
@@ -216,15 +250,23 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
               <p className="text-sm text-faded-grey">Face verification</p>
             </div>
           </div>
-          <Suspense fallback={<div className="h-10" />}>
-            <FaceVerificationButton
-              variant="ghost"
-              size="sm"
-              className="w-full justify-between text-blue-400 hover:text-blue-300 p-0 h-auto font-medium"
+          <div className="flex items-center justify-between text-blue-400 font-medium">
+            <span>
+              {isVerifying
+                ? "Starting verification..."
+                : isVerificationDisabled
+                  ? "Unavailable"
+                  : "Verify"}
+            </span>
+            <ArrowRight
+              size={20}
+              className={`group-hover:translate-x-1 transition-transform ${
+                isVerificationDisabled || isVerifying ? "opacity-60" : ""
+              }`}
             />
-          </Suspense>
-        </div>
-      </div>
+          </div>
+        </button>
+      </FaceVerificationCardBoundary>
     </div>
   );
 };

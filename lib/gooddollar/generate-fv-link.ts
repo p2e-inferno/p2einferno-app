@@ -1,14 +1,12 @@
-import { getLogger } from '@/lib/utils/logger';
+import { getLogger } from "@/lib/utils/logger";
 
-const log = getLogger('gooddollar:generate-fv-link');
+const log = getLogger("gooddollar:generate-fv-link");
 
 /**
  * Parameters for generating a face verification link.
  *
- * NOTE: We don't import IdentitySDK from @goodsdks/citizen-sdk here because
- * this file is used in client-side components and citizen-sdk has ESM/CommonJS
- * compatibility issues with lz-string. Using 'any' for the sdk type since
- * we only call methods on it and the @goodsdks/react-hooks handles initialization.
+ * NOTE: We use 'any' for the sdk type since we only call methods on it
+ * and the actual IdentitySDK type comes from @goodsdks/citizen-sdk.
  */
 export interface GenerateFVLinkParams {
   sdk: any; // IdentitySDK from @goodsdks/citizen-sdk
@@ -18,10 +16,6 @@ export interface GenerateFVLinkParams {
 
 /**
  * Generate a face verification link
- *
- * Note: The SDK does NOT accept a firstName parameter.
- * The user's name/identity is derived from the message they sign during verification.
- *
  * @param sdk - IdentitySDK instance
  * @param callbackUrl - URL to redirect after verification (must be whitelisted in GoodDollar portal)
  * @param popupMode - If true, opens in popup; if false, full-page redirect (default: false)
@@ -35,14 +29,14 @@ export async function generateFVLink({
   try {
     const fvLink = await sdk.generateFVLink(popupMode, callbackUrl);
 
-    log.info('Face verification link generated', {
+    log.info("Face verification link generated", {
       popupMode,
       callbackUrl,
     });
 
     return fvLink;
   } catch (error) {
-    log.error('Failed to generate FV link', {
+    log.error("Failed to generate FV link", {
       callbackUrl,
       error,
     });

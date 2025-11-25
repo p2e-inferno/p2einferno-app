@@ -4,9 +4,8 @@ const nextConfig = {
   compress: true,
   poweredByHeader: false,
 
-  // Mark GoodDollar packages as server-only to avoid client-side bundling issues
-  // lz-string is a transitive dependency with CommonJS/ESM compatibility issues
-  serverExternalPackages: ['@goodsdks/citizen-sdk', '@goodsdks/react-hooks', 'lz-string'],
+  // GoodDollar SDK pulls in lz-string (CJS/UMD). Force Next to transpile so client bundling works.
+  transpilePackages: ['@goodsdks/citizen-sdk', '@goodsdks/react-hooks', 'lz-string'],
 
   compiler: {
     // Remove console logs in production only
@@ -131,6 +130,12 @@ const nextConfig = {
         test: /HeartbeatWorker\.js$/,
         use: 'ignore-loader'
       });
+
+      // Fix lz-string module resolution for client-side
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'lz-string': require.resolve('lz-string'),
+      };
     }
     return config;
   },

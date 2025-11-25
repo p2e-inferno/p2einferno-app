@@ -179,6 +179,7 @@ export default function CohortForm({
   }, [formData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load draft data on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isEditing) return;
 
@@ -245,7 +246,7 @@ export default function CohortForm({
     return () => {
       cancelled = true;
     };
-  }, [isEditing, adminFetch, silentFetch, router]);
+  }, [isEditing, adminFetch, silentFetch, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch bootcamp programs on mount only
   useEffect(() => {
