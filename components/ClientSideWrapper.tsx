@@ -1,5 +1,5 @@
 import { PrivyProvider } from "@privy-io/react-auth";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/router";
 import { AdminAuthProvider } from "@/contexts/admin-context";
 import { WagmiProvider } from "./providers/WagmiProvider";
@@ -24,11 +24,7 @@ export interface ClientSideWrapperProps {
 
 function ClientSideWrapper({ children }: ClientSideWrapperProps) {
   const router = useRouter();
-  const [isAdminRoute, setIsAdminRoute] = useState(false);
-
-  useEffect(() => {
-    setIsAdminRoute(router.pathname.startsWith("/admin"));
-  }, [router.pathname]);
+  const isAdminRoute = router.pathname.startsWith("/admin");
 
   const content = isAdminRoute ? (
     <AdminAuthProvider>{children}</AdminAuthProvider>
