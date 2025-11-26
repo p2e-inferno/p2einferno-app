@@ -1,5 +1,6 @@
 import { PrivyProvider } from "@privy-io/react-auth";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
+import { useRouter } from "next/router";
 import { AdminAuthProvider } from "@/contexts/admin-context";
 
 // This component is a workaround for a common issue with scrollbars in server-rendered
@@ -18,13 +19,16 @@ const ScrollbarFix = () => {
 // This is the key to preventing SSR-related errors from libraries that expect a window object.
 export interface ClientSideWrapperProps {
   children: React.ReactNode;
-  isAdminRoute?: boolean;
 }
 
-function ClientSideWrapper({
-  children,
-  isAdminRoute = false,
-}: ClientSideWrapperProps) {
+function ClientSideWrapper({ children }: ClientSideWrapperProps) {
+  const router = useRouter();
+  const [isAdminRoute, setIsAdminRoute] = useState(false);
+
+  useEffect(() => {
+    setIsAdminRoute(router.pathname.startsWith("/admin"));
+  }, [router.pathname]);
+
   const content = isAdminRoute ? (
     <AdminAuthProvider>{children}</AdminAuthProvider>
   ) : (

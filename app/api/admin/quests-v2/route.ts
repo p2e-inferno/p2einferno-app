@@ -72,9 +72,31 @@ export async function POST(req: NextRequest) {
       lock_address,
       lock_manager_granted,
       grant_failure_reason,
+      // New fields for prerequisites and activation
+      prerequisite_quest_id,
+      prerequisite_quest_lock_address,
+      requires_prerequisite_key,
+      reward_type,
+      activation_type,
+      activation_config,
     } = body || {};
 
     if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+
+    // Validate activation quest configuration
+    if (reward_type === 'activation') {
+      if (!activation_type) {
+        return NextResponse.json({ error: 'activation_type is required for activation quests' }, { status: 400 });
+      }
+      if (activation_type === 'dg_trial') {
+        if (!activation_config?.lockAddress) {
+          return NextResponse.json({ error: 'activation_config.lockAddress is required for DG trial quests' }, { status: 400 });
+        }
+        if (!activation_config?.trialDurationSeconds || activation_config.trialDurationSeconds <= 0) {
+          return NextResponse.json({ error: 'activation_config.trialDurationSeconds must be a positive number' }, { status: 400 });
+        }
+      }
+    }
 
     // Harden grant flags
     const grantGrantedFinal =
@@ -93,6 +115,13 @@ export async function POST(req: NextRequest) {
         lock_address,
         lock_manager_granted: grantGrantedFinal,
         grant_failure_reason: grantReasonFinal,
+        // New fields
+        prerequisite_quest_id: prerequisite_quest_id || null,
+        prerequisite_quest_lock_address: prerequisite_quest_lock_address || null,
+        requires_prerequisite_key: requires_prerequisite_key || false,
+        reward_type: reward_type || 'xdg',
+        activation_type: activation_type || null,
+        activation_config: activation_config || null,
       })
       .select('*')
       .single();

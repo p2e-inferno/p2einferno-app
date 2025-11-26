@@ -96,3 +96,74 @@ export interface OperationState {
   error: string | null;
   isSuccess: boolean;
 }
+
+// ============================================================================
+// RENEWAL & REFUND TYPES
+// ============================================================================
+
+// Paid key extension
+export interface ExtendKeyParams {
+  lockAddress: Address;
+  value: bigint;
+  tokenId: bigint;
+  referrer?: Address;
+  data?: `0x${string}`;
+}
+
+export interface ExtendKeyResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+}
+
+// Free key extension (lock manager only)
+export interface GrantKeyExtensionParams {
+  lockAddress: Address;
+  tokenId: bigint;
+  duration: bigint;
+}
+
+export interface GrantKeyExtensionResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+}
+
+// Membership renewal
+export interface RenewMembershipParams {
+  lockAddress: Address;
+  tokenId: bigint;
+  referrer?: Address;
+}
+
+export interface RenewMembershipResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+}
+
+// Refund policy configuration (lock manager only)
+export interface UpdateRefundPenaltyParams {
+  lockAddress: Address;
+  freeTrialLength: bigint;
+  refundPenaltyBasisPoints: bigint;
+}
+
+export interface UpdateRefundPenaltyResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+}
+
+// Key cancellation with refund
+export interface CancelAndRefundParams {
+  lockAddress: Address;
+  tokenId: bigint;
+}
+
+export interface CancelAndRefundResult {
+  success: boolean;
+  transactionHash?: string;
+  refundAmount?: bigint;
+  error?: string;
+}

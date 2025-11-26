@@ -94,11 +94,272 @@ export const ADDITIONAL_LOCK_ABI = [
 ] as const;
 
 /**
- * Complete Public Lock ABI combining base and additional functions
+ * ABI for Subscription Renewal, Trials, and Refund operations
+ */
+export const RENEWAL_LOCK_ABI = [
+  // Paid extensions
+  {
+    inputs: [
+      { internalType: "uint256", name: "_value", type: "uint256" },
+      { internalType: "uint256", name: "_tokenId", type: "uint256" },
+      { internalType: "address", name: "_referrer", type: "address" },
+      { internalType: "bytes", name: "_data", type: "bytes" },
+    ],
+    name: "extend",
+    outputs: [],
+    stateMutability: "payable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "_tokenId", type: "uint256" },
+      { internalType: "uint256", name: "_duration", type: "uint256" },
+    ],
+    name: "grantKeyExtension",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // Membership renewal
+  {
+    inputs: [
+      { internalType: "uint256", name: "_tokenId", type: "uint256" },
+      { internalType: "address", name: "_referrer", type: "address" },
+    ],
+    name: "renewMembershipFor",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "_tokenId", type: "uint256" },
+      { internalType: "address", name: "_referrer", type: "address" },
+    ],
+    name: "isRenewable",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  // Trial & refund configuration
+  {
+    inputs: [],
+    name: "freeTrialLength",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "_freeTrialLength", type: "uint256" },
+      {
+        internalType: "uint256",
+        name: "_refundPenaltyBasisPoints",
+        type: "uint256",
+      },
+    ],
+    name: "updateRefundPenalty",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // Refund security functions
+  {
+    inputs: [{ internalType: "uint256", name: "_tokenId", type: "uint256" }],
+    name: "getCancelAndRefundValue",
+    outputs: [{ internalType: "uint256", name: "refund", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "_tokenId", type: "uint256" }],
+    name: "cancelAndRefund",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+/**
+ * ABI for Lock Configuration and Management operations
+ */
+export const LOCK_CONFIG_ABI = [
+  // View configuration
+  {
+    inputs: [],
+    name: "expirationDuration",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  // Core configuration updates
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_newExpirationDuration",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "_maxNumberOfKeys",
+        type: "uint256",
+      },
+      {
+        internalType: "uint256",
+        name: "_maxKeysPerAcccount",
+        type: "uint256",
+      },
+    ],
+    name: "updateLockConfig",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "_keyPrice", type: "uint256" },
+      { internalType: "address", name: "_tokenAddress", type: "address" },
+    ],
+    name: "updateKeyPricing",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint256",
+        name: "_transferFeeBasisPoints",
+        type: "uint256",
+      },
+    ],
+    name: "updateTransferFee",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // Metadata and identity
+  {
+    inputs: [
+      { internalType: "string", name: "_lockName", type: "string" },
+      { internalType: "string", name: "_lockSymbol", type: "string" },
+      { internalType: "string", name: "_baseTokenURI", type: "string" },
+    ],
+    name: "setLockMetadata",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "account", type: "address" },
+    ],
+    name: "setOwner",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // Event hooks configuration
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "_onKeyPurchaseHook",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_onKeyCancelHook",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_onValidKeyHook",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_onTokenURIHook",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_onKeyTransferHook",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_onKeyExtendHook",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_onKeyGrantHook",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_onHasRoleHook",
+        type: "address",
+      },
+    ],
+    name: "setEventHooks",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // Gas refund and referrer configuration
+  {
+    inputs: [
+      { internalType: "uint256", name: "_refundValue", type: "uint256" },
+    ],
+    name: "setGasRefundValue",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "_referrer", type: "address" },
+      { internalType: "uint256", name: "_feeBasisPoint", type: "uint256" },
+    ],
+    name: "setReferrerFee",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  // Individual key management
+  {
+    inputs: [
+      { internalType: "uint256", name: "_tokenId", type: "uint256" },
+      { internalType: "uint256", name: "_newExpiration", type: "uint256" },
+    ],
+    name: "setKeyExpiration",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "_tokenId", type: "uint256" },
+      { internalType: "address", name: "_keyManager", type: "address" },
+    ],
+    name: "setKeyManagerOf",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+/**
+ * Complete Public Lock ABI combining base, additional, renewal, and config functions
  */
 export const COMPLETE_LOCK_ABI = [
   ...PUBLIC_LOCK_CONTRACT.abi,
   ...ADDITIONAL_LOCK_ABI,
+  ...RENEWAL_LOCK_ABI,
+  ...LOCK_CONFIG_ABI,
 ];
 
 // ============================================================================

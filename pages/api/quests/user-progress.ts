@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { getPrivyUser } from "@/lib/auth/privy";
 
 const log = getLogger("api:quests:user-progress");
 
@@ -12,13 +13,12 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { userId } = req.query;
-
-  if (!userId) {
-    return res.status(400).json({ error: "User ID is required" });
-  }
-
   try {
+    const authUser = await getPrivyUser(req);
+    if (!authUser?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = authUser.id;
     const supabase = createAdminClient();
 
     // Fetch user quest progress

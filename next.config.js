@@ -3,7 +3,11 @@ const nextConfig = {
   reactStrictMode: true,
   compress: true,
   poweredByHeader: false,
-  
+
+  // Mark GoodDollar packages as server-only to avoid client-side bundling issues
+  // lz-string is a transitive dependency with CommonJS/ESM compatibility issues
+  serverExternalPackages: ['@goodsdks/citizen-sdk', '@goodsdks/react-hooks', 'lz-string'],
+
   compiler: {
     // Remove console logs in production only
     removeConsole: process.env.NODE_ENV === "production",
