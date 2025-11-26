@@ -96,6 +96,7 @@ export default function QuestForm({
   });
 
   // Load draft data on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isEditing) return;
 
@@ -181,7 +182,7 @@ export default function QuestForm({
     return () => {
       cancelled = true;
     };
-  }, [isEditing, adminFetch, silentFetch, router]);
+  }, [isEditing, adminFetch, silentFetch, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {

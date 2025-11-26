@@ -4,20 +4,18 @@
 
 **✅ Already Configured:**
 - Privy Auth: `@privy-io/react-auth` v2.12.0 with embedded wallets
-- Blockchain: viem v2.31.3 + ethers v6.15.0
+- Blockchain: viem v2.38.3 + ethers v6.15.0
 - Unified Provider System: Advanced viem-based RPC fallback in `lib/blockchain/config/unified-config.ts`
 - Auth Hooks: `lib/auth/hooks/useAuth.ts` with blockchain admin verification
 
 **❌ Missing for Wagmi:**
 - `@privy-io/wagmi` package (replaces old wagmi-connector)
-- `@tanstack/react-query`
-- `wagmi` package
 
 ## Implementation Plan
 
 ### 1. Package Installation
 ```bash
-npm install @privy-io/wagmi wagmi @tanstack/react-query
+npm install @privy-io/wagmi
 ```
 
 ### 2. Wagmi Configuration (`lib/wagmi/config.ts`)

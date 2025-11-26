@@ -119,6 +119,7 @@ export default function BootcampForm({
   );
 
   // Load draft data on mount and check for pending deployments
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isEditing) return;
 
@@ -189,7 +190,7 @@ export default function BootcampForm({
     return () => {
       cancelled = true;
     };
-  }, [isEditing, adminFetch, silentFetch, router]);
+  }, [isEditing, adminFetch, silentFetch, router]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Clear local error when adminApi error is cleared
   useEffect(() => {

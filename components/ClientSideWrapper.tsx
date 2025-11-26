@@ -1,7 +1,8 @@
 import { PrivyProvider } from "@privy-io/react-auth";
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { useRouter } from "next/router";
 import { AdminAuthProvider } from "@/contexts/admin-context";
+import { WagmiProvider } from "./providers/WagmiProvider";
 
 // This component is a workaround for a common issue with scrollbars in server-rendered
 // applications that have different content lengths on server and client. It ensures
@@ -23,11 +24,7 @@ export interface ClientSideWrapperProps {
 
 function ClientSideWrapper({ children }: ClientSideWrapperProps) {
   const router = useRouter();
-  const [isAdminRoute, setIsAdminRoute] = useState(false);
-
-  useEffect(() => {
-    setIsAdminRoute(router.pathname.startsWith("/admin"));
-  }, [router.pathname]);
+  const isAdminRoute = router.pathname.startsWith("/admin");
 
   const content = isAdminRoute ? (
     <AdminAuthProvider>{children}</AdminAuthProvider>
@@ -55,8 +52,10 @@ function ClientSideWrapper({ children }: ClientSideWrapperProps) {
         defaultChain: undefined,
       }}
     >
-      <ScrollbarFix />
-      {content}
+      <WagmiProvider>
+        <ScrollbarFix />
+        {content}
+      </WagmiProvider>
     </PrivyProvider>
   );
 }

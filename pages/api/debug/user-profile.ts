@@ -1,14 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:debug:user-profile");
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!,
-);
+const supabase = createAdminClient();
 
 type DebugResponse = {
   success: boolean;

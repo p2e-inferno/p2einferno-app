@@ -159,6 +159,7 @@ export default function MilestoneFormEnhanced({
   const [isDeletingTask, setIsDeletingTask] = useState(false);
 
   // Load draft data on mount for new milestones
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isEditing) return;
 
@@ -258,7 +259,7 @@ export default function MilestoneFormEnhanced({
     return () => {
       cancelled = true;
     };
-  }, [isEditing, adminFetch, silentFetch, router, cohortId]);
+  }, [isEditing, adminFetch, silentFetch, router, cohortId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchExistingTasks = useCallback(async () => {
     if (!milestone?.id) {

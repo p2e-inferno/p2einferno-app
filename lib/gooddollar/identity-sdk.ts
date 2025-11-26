@@ -18,7 +18,11 @@ export async function createIdentitySDK() {
   // Use the shared client helper to get a public client for the GoodDollar chain.
   const publicClient = createPublicClientForChain(celo);
 
+  // For server-side read-only operations (checking whitelist/expiry),
+  // we create a minimal wallet client with a dummy account.
+  // This is only used for SDK initialization; actual signing is not performed server-side.
   const walletClient = createWalletClient({
+    account: "0x0000000000000000000000000000000000000000" as `0x${string}`,
     chain: celo,
     transport: http(),
   });

@@ -10,70 +10,74 @@ import {
   validateAndNormalizeAddress,
 } from "@/lib/gooddollar/error-handler";
 import { getPrivyUser } from "@/lib/auth/privy";
-import { createClient } from "@supabase/supabase-js";
-import crypto from "crypto";
+import { createAdminClient } from "@/lib/supabase/server";
+import {
+  VerifyCallbackResponse,
+  sendResponse,
+  retryWithDelay,
+  extractStatus,
+  extractUserWallet,
+  isRetryableDbError,
+  generateProofHash,
+} from "@/lib/gooddollar/callback-handler";
 
 const log = getLogger("api:gooddollar-verify-callback");
 
-interface VerifyCallbackResponse {
-  success: boolean;
-  message: string;
-  data?: {
-    address: string;
-    isWhitelisted: boolean;
-    expiryTimestamp?: number;
-  };
-  error?: string;
-}
-
 /**
  * Handler for GoodDollar face verification callback
- *
- * CRITICAL SECURITY NOTES:
- * 1. Always verify on-chain whitelist status - never trust client callback alone
- * 2. Validate address matches connected wallet - prevent hijacking attempts
- * 3. Use service role for database updates - ensure proper authorization
- * 4. Store proof hash for audit trail
- *
- * Flow:
- * 1. Validate callback status and address format
- * 2. Verify user is authenticated
- * 3. Verify address matches connected wallet
- * 4. Check on-chain whitelist status
- * 5. Get expiry data
- * 6. Update database with verification status
  */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<VerifyCallbackResponse>,
 ) {
   if (req.method !== "GET" && req.method !== "POST") {
-    return res.status(405).json({
-      success: false,
-      message: "Method not allowed",
-      error: "Only GET and POST are supported",
-    });
+    return sendResponse(
+      res,
+      405,
+      false,
+      "Method not allowed",
+      "Only GET and POST are supported",
+    );
   }
 
   try {
-    // Extract callback parameters
     const params = req.method === "GET" ? req.query : req.body;
-    const status = params.status as string;
-    const address = params.address as string;
+    const status = extractStatus(params);
+    const addressParam =
+      (params.wallet as string) || (params.address as string);
+    let address = addressParam as string | undefined;
+    let privyUser: any = null;
 
     log.info("Face verification callback received", { status, address });
 
-    // ✅ VALIDATION 1: Check callback status
+    // Validate status
     if (status !== "success") {
       log.warn("Face verification failed at provider", { status, address });
-      return res.status(200).json({
-        success: false,
-        message: "Face verification failed",
-        error: `Verification status: ${status}`,
+      log.warn("Face verification provider failure payload", {
+        payload: params,
       });
+      return sendResponse(
+        res,
+        200,
+        false,
+        "Face verification failed",
+        `Verification status: ${status}`,
+      );
     }
 
-    // ✅ VALIDATION 2: Validate address format
+    // Validate address exists (require caller-provided wallet)
+    if (!address) {
+      log.warn("Callback missing address on success", { params });
+      return sendResponse(
+        res,
+        200,
+        false,
+        "Face verification failed",
+        "Missing wallet address in verification callback",
+      );
+    }
+
+    // Validate and normalize address
     let normalizedAddress: `0x${string}`;
     try {
       normalizedAddress = validateAndNormalizeAddress(address);
@@ -86,59 +90,70 @@ export default async function handler(
       } else {
         log.error("Address validation failed", { error });
       }
-      return res.status(400).json({
-        success: false,
-        message: "Invalid address format",
-        error: "Address must be a valid Ethereum address",
-      });
+      return sendResponse(
+        res,
+        400,
+        false,
+        "Invalid address format",
+        "Address must be a valid Ethereum address",
+      );
     }
 
-    // ✅ VALIDATION 3: Verify user is authenticated
-    const privyUser = await getPrivyUser(req, true);
+    // Verify authentication
+    if (!privyUser) {
+      privyUser = await getPrivyUser(req, true);
+    }
     if (!privyUser) {
       log.warn("Unauthenticated callback attempt", {
         callbackAddress: normalizedAddress,
       });
-      return res.status(401).json({
-        success: false,
-        message: "Not authenticated",
-        error: "User must be authenticated to verify face",
-      });
+      return sendResponse(
+        res,
+        401,
+        false,
+        "Not authenticated",
+        "User must be authenticated to verify face",
+      );
     }
 
-    // ✅ VALIDATION 4: Verify address matches connected wallet
-    const userWalletAddress =
-      "wallet" in privyUser && privyUser.wallet?.address
-        ? privyUser.wallet.address
-        : "walletAddresses" in privyUser
-          ? privyUser.walletAddresses?.[0]
-          : undefined;
+    // Verify address matches
+    const userWalletAddress = extractUserWallet(privyUser);
+    const userWallets =
+      Array.isArray((privyUser as any)?.walletAddresses) &&
+      (privyUser as any)?.walletAddresses.length > 0
+        ? ((privyUser as any).walletAddresses as string[])
+        : userWalletAddress
+          ? [userWalletAddress]
+          : [];
 
-    if (
-      !userWalletAddress ||
-      userWalletAddress.toLowerCase() !== normalizedAddress
-    ) {
-      const userAddress = userWalletAddress || "none";
+    const ownsAddress = userWallets.some(
+      (w) => w && w.toLowerCase() === normalizedAddress,
+    );
+
+    if (!ownsAddress) {
       log.error("Address mismatch - potential hijacking or session issue", {
         callbackAddress: normalizedAddress,
-        userAddress,
+        userAddress: userWalletAddress || "none",
         userId: privyUser.id,
       });
-      return res.status(403).json({
-        success: false,
-        message: "Address mismatch",
-        error:
-          "The address in the callback does not match your connected wallet. This could indicate a security issue.",
-      });
+      return sendResponse(
+        res,
+        403,
+        false,
+        "Address mismatch",
+        "The address in the callback does not match your connected wallet. This could indicate a security issue.",
+      );
     }
 
-    // ✅ VALIDATION 5: Verify on-chain whitelist status
-    // This is the MOST IMPORTANT check - don't trust GoodDollar callback alone
+    // Check on-chain whitelist status
     let isWhitelisted: boolean;
     let root: any;
-
     try {
-      const result = await checkWhitelistStatus(normalizedAddress);
+      const result = await retryWithDelay(
+        () => checkWhitelistStatus(normalizedAddress),
+        3,
+        400,
+      );
       isWhitelisted = result.isWhitelisted;
       root = result.root;
     } catch (error) {
@@ -146,30 +161,32 @@ export default async function handler(
         address: normalizedAddress,
         error,
       });
-      return res.status(500).json({
-        success: false,
-        message: "Failed to verify on-chain status",
-        error: "Could not verify whitelist status on blockchain",
-      });
+      return sendResponse(
+        res,
+        500,
+        false,
+        "Failed to verify on-chain status",
+        "Could not verify whitelist status on blockchain",
+      );
     }
 
     if (!isWhitelisted) {
       log.warn("Address not whitelisted on-chain after callback", {
         address: normalizedAddress,
       });
-      return res.status(200).json({
-        success: false,
-        message: "Face verification not confirmed on-chain",
-        error:
-          "Verification failed on-chain validation. Address is not whitelisted.",
-      });
+      return sendResponse(
+        res,
+        200,
+        false,
+        "Face verification not confirmed on-chain",
+        "Verification failed on-chain validation. Address is not whitelisted.",
+      );
     }
 
-    // ✅ VALIDATION 6: Get expiry data for re-verification tracking
+    // Get expiry data (optional)
     let expiryTimestampMs: number | undefined;
     try {
       const expiryData = await getIdentityExpiry(normalizedAddress);
-      // Calculate expiry from lastAuthenticated + authPeriod
       expiryTimestampMs =
         Number(expiryData.lastAuthenticated) * 1000 +
         Number(expiryData.authPeriod) * 24 * 60 * 60 * 1000;
@@ -184,61 +201,57 @@ export default async function handler(
         address: normalizedAddress,
         error,
       });
-      // Don't fail the whole callback - expiry is optional
     }
 
-    // ✅ UPDATE DATABASE with verification status
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseKey) {
-      log.error("Supabase credentials not configured");
-      return res.status(500).json({
-        success: false,
-        message: "Internal server error",
-        error: "Database credentials not configured",
-      });
+    // Initialize database client
+    let supabase;
+    try {
+      supabase = createAdminClient();
+    } catch (error) {
+      log.error("Supabase credentials not configured", { error });
+      return sendResponse(
+        res,
+        500,
+        false,
+        "Internal server error",
+        "Database credentials not configured",
+      );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    // Update database
+    const proofHash = generateProofHash(status, normalizedAddress, root);
+    const updateUserVerification = async () => {
+      const { error: dbError } = await supabase
+        .from("user_profiles")
+        .update({
+          is_face_verified: true,
+          face_verified_at: new Date().toISOString(),
+          gooddollar_whitelist_checked_at: new Date().toISOString(),
+          face_verification_expiry: expiryTimestampMs
+            ? new Date(expiryTimestampMs).toISOString()
+            : null,
+          face_verification_proof_hash: proofHash,
+        })
+        .eq("wallet_address", normalizedAddress);
+      if (dbError) throw dbError;
+    };
 
-    // Generate proof hash for audit trail
-    const proofData = JSON.stringify({
-      status,
-      address: normalizedAddress,
-      timestamp: new Date().toISOString(),
-      rootHash: root
-        ? crypto.createHash("sha256").update(JSON.stringify(root)).digest("hex")
-        : null,
-    });
-    const proofHash = crypto
-      .createHash("sha256")
-      .update(proofData)
-      .digest("hex");
-
-    const { error: dbError } = await supabase
-      .from("user_profiles")
-      .update({
-        is_face_verified: true,
-        face_verified_at: new Date().toISOString(),
-        gooddollar_whitelist_checked_at: new Date().toISOString(),
-        face_verification_expiry: expiryTimestampMs
-          ? new Date(expiryTimestampMs).toISOString()
-          : null,
-        face_verification_proof_hash: proofHash,
-      })
-      .eq("wallet_address", normalizedAddress);
-
-    if (dbError) {
+    try {
+      await retryWithDelay(updateUserVerification, 3, 400);
+    } catch (dbError: any) {
+      const retryable = isRetryableDbError(dbError);
       log.error("Failed to update user face verification status", {
         address: normalizedAddress,
         error: dbError,
+        retryable,
       });
-      return res.status(500).json({
-        success: false,
-        message: "Failed to save verification status",
-        error: "Could not update database",
-      });
+      return sendResponse(
+        res,
+        500,
+        false,
+        "Verification confirmed on-chain, but we could not save it. Please retry shortly.",
+        "Could not update database",
+      );
     }
 
     log.info("Face verification completed successfully", {
@@ -247,25 +260,30 @@ export default async function handler(
       proofHash,
     });
 
-    return res.status(200).json({
-      success: true,
-      message: "Face verification completed successfully",
-      data: {
+    return sendResponse(
+      res,
+      200,
+      true,
+      "Face verification completed successfully",
+      undefined,
+      {
         address: normalizedAddress,
         isWhitelisted: true,
         expiryTimestamp: expiryTimestampMs,
       },
-    });
+    );
   } catch (error) {
     const gooddollarError = handleGoodDollarError(error);
     log.error("Unexpected error in verify callback", {
       code: gooddollarError.code,
       message: gooddollarError.message,
     });
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: "An unexpected error occurred",
-    });
+    return sendResponse(
+      res,
+      500,
+      false,
+      "Internal server error",
+      "An unexpected error occurred",
+    );
   }
 }
