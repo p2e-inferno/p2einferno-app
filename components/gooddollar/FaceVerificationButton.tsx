@@ -71,7 +71,11 @@ export function useFaceVerificationAction(onVerified?: () => void) {
       });
 
       // Generate FV link (send users back to the client callback page)
-      const callbackUrl = `${window.location.origin}/gooddollar/verify-callback`;
+      const callbackUrl = new URL(
+        "/gooddollar/verify-callback",
+        window.location.origin,
+      );
+      callbackUrl.searchParams.set("wallet", walletAddress);
       try {
         const currentUrl = window.location.href;
         window.sessionStorage.setItem("gooddollar:returnUrl", currentUrl);
@@ -80,7 +84,7 @@ export function useFaceVerificationAction(onVerified?: () => void) {
       }
       const fvLink = await generateFVLink({
         sdk,
-        callbackUrl,
+        callbackUrl: callbackUrl.toString(),
         popupMode: false,
       });
 

@@ -6,6 +6,7 @@ import { useIdentitySDK } from "@/lib/gooddollar/use-identity-sdk";
 import { isVerificationExpired } from "@/lib/gooddollar/identity-sdk";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { getLogger } from "@/lib/utils/logger";
+import { useRef } from "react";
 
 const log = getLogger("hook:use-gooddollar-verification");
 
@@ -15,6 +16,7 @@ export interface VerificationStatus {
   expiresAt?: Date;
   lastChecked?: Date;
   needsReVerification: boolean;
+  reconcileStatus?: "pending" | "ok" | "error";
 }
 
 /**
@@ -31,6 +33,7 @@ export function useGoodDollarVerification() {
   const { user } = useUser();
   const { walletAddress } = useDetectConnectedWalletAddress(user);
   const sdk = useIdentitySDK();
+  const reconciliationAttempted = useRef(false);
 
   const query = useQuery<VerificationStatus>({
     queryKey: ["gooddollar-verification", walletAddress],
@@ -40,6 +43,7 @@ export function useGoodDollarVerification() {
           isWhitelisted: false,
           isExpired: false,
           needsReVerification: false,
+          reconcileStatus: undefined,
         };
       }
 
@@ -55,7 +59,35 @@ export function useGoodDollarVerification() {
         let expiresAt: Date | undefined;
         let needsReVerification = false;
 
+        let reconcileStatus: "pending" | "ok" | "error" | undefined;
+
         if (isWhitelisted) {
+          reconcileStatus = "pending";
+          // Attempt to reconcile DB state when on-chain is verified
+          if (!reconciliationAttempted.current) {
+            reconciliationAttempted.current = true;
+            try {
+              const response = await fetch("/api/gooddollar/verify-callback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  status: "success",
+                  wallet: normalizedAddress,
+                }),
+              });
+              const data = await response.json();
+              reconcileStatus = data?.success ? "ok" : "error";
+            } catch (reconcileError) {
+              reconcileStatus = "error";
+              log.warn("Reconcile attempt failed", {
+                address: normalizedAddress,
+                error: reconcileError,
+              });
+            }
+          } else {
+            reconcileStatus = "ok";
+          }
+
           try {
             const expiryData = await sdk.getIdentityExpiryData(
               normalizedAddress
@@ -87,6 +119,7 @@ export function useGoodDollarVerification() {
           expiresAt,
           lastChecked: new Date(),
           needsReVerification,
+          reconcileStatus,
         };
       } catch (error) {
         log.error("Failed to check verification status", {
@@ -97,6 +130,7 @@ export function useGoodDollarVerification() {
           isWhitelisted: false,
           isExpired: false,
           needsReVerification: false,
+          reconcileStatus: undefined,
         };
       }
     },
@@ -107,6 +141,19 @@ export function useGoodDollarVerification() {
     retryDelay: (attemptIndex: number) =>
       Math.min(1000 * 2 ** attemptIndex, 30000),
   });
+
+  if (query.data) {
+    // Temporary debug for UI state investigation
+    // eslint-disable-next-line no-console
+    console.log("[useGoodDollarVerification] State", {
+      walletAddress,
+      isWhitelisted: query.data.isWhitelisted,
+      needsReVerification: query.data.needsReVerification,
+      expiresAt: query.data.expiresAt,
+      reconcileStatus: query.data.reconcileStatus,
+      lastChecked: query.data.lastChecked,
+    });
+  }
 
   return query;
 }

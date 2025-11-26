@@ -48,7 +48,6 @@ export function useIdentitySDK(): any {
 
         // Create Celo public client for reading contract data
         const celoRpc = resolveRpcUrls(celo.id);
-
         const celoPublicClient = createPublicClient({
           chain: celo,
           transport: http(celoRpc.urls[0]),

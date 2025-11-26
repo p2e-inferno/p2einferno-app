@@ -43,7 +43,10 @@ export default async function handler(
   try {
     const params = req.method === "GET" ? req.query : req.body;
     const status = extractStatus(params);
-    const address = params.address as string;
+    const addressParam =
+      (params.wallet as string) || (params.address as string);
+    let address = addressParam as string | undefined;
+    let privyUser: any = null;
 
     log.info("Face verification callback received", { status, address });
 
@@ -62,7 +65,7 @@ export default async function handler(
       );
     }
 
-    // Validate address exists
+    // Validate address exists (require caller-provided wallet)
     if (!address) {
       log.warn("Callback missing address on success", { params });
       return sendResponse(
@@ -97,7 +100,9 @@ export default async function handler(
     }
 
     // Verify authentication
-    const privyUser = await getPrivyUser(req, true);
+    if (!privyUser) {
+      privyUser = await getPrivyUser(req, true);
+    }
     if (!privyUser) {
       log.warn("Unauthenticated callback attempt", {
         callbackAddress: normalizedAddress,
@@ -113,10 +118,19 @@ export default async function handler(
 
     // Verify address matches
     const userWalletAddress = extractUserWallet(privyUser);
-    if (
-      !userWalletAddress ||
-      userWalletAddress.toLowerCase() !== normalizedAddress
-    ) {
+    const userWallets =
+      Array.isArray((privyUser as any)?.walletAddresses) &&
+      (privyUser as any)?.walletAddresses.length > 0
+        ? ((privyUser as any).walletAddresses as string[])
+        : userWalletAddress
+          ? [userWalletAddress]
+          : [];
+
+    const ownsAddress = userWallets.some(
+      (w) => w && w.toLowerCase() === normalizedAddress,
+    );
+
+    if (!ownsAddress) {
       log.error("Address mismatch - potential hijacking or session issue", {
         callbackAddress: normalizedAddress,
         userAddress: userWalletAddress || "none",

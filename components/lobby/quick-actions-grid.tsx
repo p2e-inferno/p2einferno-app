@@ -8,6 +8,7 @@ import {
   ProfileIcon,
 } from "../icons/dashboard-icons";
 import { useFaceVerificationAction } from "@/components/gooddollar/FaceVerificationButton";
+import { useGoodDollarVerification } from "@/hooks/useGoodDollarVerification";
 import { useDailyCheckin } from "@/hooks/checkin";
 import { ArrowRight as ArrowIcon } from "lucide-react";
 
@@ -49,6 +50,8 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
   userAddress,
   userProfileId,
 }) => {
+  const { data: verificationStatus, isLoading: isVerificationLoading } =
+    useGoodDollarVerification();
   const {
     handleVerify,
     isLoading: isVerifying,
@@ -231,14 +234,28 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
       <FaceVerificationCardBoundary>
         <button
           type="button"
-          onClick={isVerificationDisabled ? undefined : handleVerify}
-          disabled={isVerificationDisabled || isVerifying}
+          onClick={
+            isVerificationDisabled ||
+            isVerificationLoading ||
+            verificationStatus?.isWhitelisted
+              ? undefined
+              : handleVerify
+          }
+          disabled={
+            isVerificationDisabled ||
+            isVerifying ||
+            isVerificationLoading ||
+            verificationStatus?.isWhitelisted
+          }
           className={`group w-full text-left bg-gradient-to-br from-blue-800/30 to-blue-900/30 rounded-xl p-6 border border-blue-500/20 backdrop-blur-sm transition-all duration-300 ${
-            isVerificationDisabled || isVerifying
+            isVerificationDisabled ||
+            isVerifying ||
+            isVerificationLoading ||
+            verificationStatus?.isWhitelisted
               ? "opacity-60 cursor-not-allowed"
               : "hover:border-blue-400/40 hover:scale-105"
           }`}
-          aria-busy={isVerifying}
+          aria-busy={isVerifying || isVerificationLoading}
         >
           <div className="flex items-center space-x-4 mb-4">
             <Shield
@@ -252,19 +269,40 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
           </div>
           <div className="flex items-center justify-between text-blue-400 font-medium">
             <span>
-              {isVerifying
-                ? "Starting verification..."
-                : isVerificationDisabled
-                  ? "Unavailable"
-                  : "Verify"}
+              {isVerificationLoading
+                ? "Checking status..."
+                : verificationStatus?.isWhitelisted
+                  ? "Verified"
+                  : verificationStatus?.needsReVerification
+                    ? "Expired — reverify"
+                    : isVerifying
+                      ? "Starting verification..."
+                      : isVerificationDisabled
+                        ? "Unavailable"
+                        : "Verify"}
             </span>
             <ArrowRight
               size={20}
               className={`group-hover:translate-x-1 transition-transform ${
-                isVerificationDisabled || isVerifying ? "opacity-60" : ""
+                isVerificationDisabled ||
+                isVerifying ||
+                isVerificationLoading ||
+                verificationStatus?.isWhitelisted
+                  ? "opacity-60"
+                  : ""
               }`}
             />
           </div>
+          {verificationStatus?.reconcileStatus === "pending" && (
+            <p className="text-xs text-faded-grey mt-2">
+              Syncing verification status...
+            </p>
+          )}
+          {verificationStatus?.reconcileStatus === "error" && (
+            <p className="text-xs text-red-400 mt-2">
+              Verified on-chain, syncing failed. It will retry shortly.
+            </p>
+          )}
         </button>
       </FaceVerificationCardBoundary>
     </div>
