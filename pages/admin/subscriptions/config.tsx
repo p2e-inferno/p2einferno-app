@@ -274,7 +274,7 @@ export default function SubscriptionsConfigPage() {
             <div className="mb-6 rounded-lg border border-slate-600 bg-slate-800/50 p-4">
               <p className="text-sm text-gray-400">Treasury Balance</p>
               <p className="text-3xl font-bold text-white">
-                {config.treasuryBalance} XP
+                {config.treasuryBalance} xDG
               </p>
             </div>
 
@@ -284,7 +284,7 @@ export default function SubscriptionsConfigPage() {
                   htmlFor="burnAmount"
                   className="mb-2 block text-sm font-medium text-gray-300"
                 >
-                  XP Amount to Burn
+                  xDG Amount to Burn
                 </label>
                 <input
                   type="number"
@@ -297,7 +297,7 @@ export default function SubscriptionsConfigPage() {
                   className="w-full rounded-md border border-slate-600 bg-slate-800 px-3 py-2 text-white focus:border-flame-yellow focus:outline-none focus:ring-2 focus:ring-flame-yellow"
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  Maximum: {config.treasuryBalance} XP
+                  Maximum: {config.treasuryBalance} xDG
                 </p>
               </div>
 

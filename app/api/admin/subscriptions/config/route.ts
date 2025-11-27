@@ -45,12 +45,12 @@ export async function GET(): Promise<NextResponse<SubscriptionConfigResponse>> {
     // Fetch treasury balance from subscription_treasury
     const { data: treasuryData, error: treasuryError } = await supabase
       .from("subscription_treasury")
-      .select("total_xp, updated_at")
+      .select("xp_fees_accumulated, updated_at")
       .single();
 
     // Use defaults if queries don't find rows (PGRST116 = no rows)
     const xpServiceFeePercent = feeData ? parseFloat(feeData.value) : 1.0;
-    const treasuryBalance = treasuryData ? treasuryData.total_xp : 0;
+    const treasuryBalance = treasuryData ? treasuryData.xp_fees_accumulated : 0;
     const updatedAt = feeData?.updated_at || null;
     const updatedBy = feeData?.updated_by || null;
 
@@ -118,15 +118,16 @@ export async function PUT(
 
     const supabase = createAdminClient();
 
-    // Update service fee in system_config
-    const { error: updateError } = await supabase
-      .from("system_config")
-      .update({
+    // Upsert service fee in system_config (insert if not exists, update if exists)
+    const { error: updateError } = await supabase.from("system_config").upsert(
+      {
+        key: "subscription_xp_service_fee_percent",
         value: xpServiceFeePercent.toString(),
         updated_at: new Date().toISOString(),
         updated_by: user.id,
-      })
-      .eq("key", "subscription_xp_service_fee_percent");
+      },
+      { onConflict: "key" },
+    );
 
     if (updateError) {
       log.error("Failed to update service fee", { error: updateError });
@@ -135,23 +136,6 @@ export async function PUT(
         { status: 500 },
       );
     }
-
-    // Log to audit trail
-    const ipAddress =
-      req.headers.get("x-forwarded-for") ||
-      req.headers.get("x-real-ip") ||
-      "unknown";
-    const userAgent = req.headers.get("user-agent") || "unknown";
-
-    await supabase.from("config_audit_log").insert([
-      {
-        config_key: "subscription_xp_service_fee_percent",
-        new_value: xpServiceFeePercent.toString(),
-        changed_by: user.id,
-        ip_address: ipAddress,
-        user_agent: userAgent,
-      },
-    ]);
 
     log.info("Service fee updated", {
       xpServiceFeePercent,
@@ -219,7 +203,7 @@ export async function POST(
     // Fetch current balance
     const { data: treasuryData, error: fetchError } = await supabase
       .from("subscription_treasury")
-      .select("total_xp")
+      .select("xp_fees_accumulated")
       .single();
 
     if (fetchError) {
@@ -230,7 +214,7 @@ export async function POST(
       );
     }
 
-    const currentBalance = treasuryData?.total_xp || 0;
+    const currentBalance = treasuryData?.xp_fees_accumulated || 0;
 
     // Validate burn amount
     if (xpAmountToBurn > currentBalance) {

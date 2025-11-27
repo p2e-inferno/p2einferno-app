@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  Zap,
 } from "lucide-react";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -33,6 +34,11 @@ const adminNavItems = [
   { name: "Quests", href: "/admin/quests", icon: Award },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "DG Pullouts", href: "/admin/dg-pullouts", icon: DollarSign },
+  {
+    name: "Subscription Config",
+    href: "/admin/subscriptions/config",
+    icon: Zap,
+  },
   { name: "Applications", href: "/admin/applications", icon: FileText },
   { name: "Draft Recovery", href: "/admin/draft-recovery", icon: FileText },
 ];
