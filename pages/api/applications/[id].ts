@@ -102,11 +102,9 @@ export default async function handler(
         return res.status(401).json({ error: "Authentication required" });
       }
 
-      const ownership = await assertApplicationOwnership(
-        supabase,
-        id,
-        { userId: user.id },
-      );
+      const ownership = await assertApplicationOwnership(supabase, id, {
+        userId: user.id,
+      });
 
       if (!ownership.ok) {
         return res.status(403).json({ error: "Forbidden" });

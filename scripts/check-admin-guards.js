@@ -1,10 +1,11 @@
 #!/usr/bin/env node
+// @ts-nocheck
 
 /**
  * Small guardrail script for CI/lint:
- * - Ensures all app/api/admin/**/route.ts handlers use ensureAdminOrRespond,
- *   except for a small allowlist (session issuance/verify/logout).
- * - Ensures all pages/api/admin/**/*.ts (except session-fallback) and
+ * - Ensures all app/api/admin route handlers use ensureAdminOrRespond
+ *   (excluding a small allowlist for session issuance/verify/logout).
+ * - Ensures all pages/api/admin handlers (except session-fallback) and
  *   selected debug endpoints are wrapped with withAdminAuth.
  */
 
@@ -136,4 +137,3 @@ function main() {
 }
 
 main();
-

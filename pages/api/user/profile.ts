@@ -45,8 +45,7 @@ async function createOrUpdateUserProfile(
   userData: any,
 ): Promise<UserProfile> {
   // Extract data from multiple possible sources
-  const email =
-    userData.email?.address || userData.email || null;
+  const email = userData.email?.address || userData.email || null;
   const walletAddress =
     userData.wallet?.address || userData.walletAddress || null;
   const linkedWallets =
@@ -96,9 +95,7 @@ async function createOrUpdateUserProfile(
           );
         }
 
-        await new Promise((resolve) =>
-          setTimeout(resolve, 1000 * retryCount),
-        );
+        await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
       }
     }
   };
@@ -126,8 +123,7 @@ async function createOrUpdateUserProfile(
     log.error("Error upserting profile:", error);
 
     if (error?.code === "23505") {
-      const constraintNameMatch =
-        error.message?.match(/constraint "([^"]+)"/);
+      const constraintNameMatch = error.message?.match(/constraint "([^"]+)"/);
       const constraintName = constraintNameMatch?.[1] || "";
 
       if (constraintName === "user_profiles_email_unique") {

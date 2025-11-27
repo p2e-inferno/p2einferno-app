@@ -21,9 +21,7 @@ async function handler(
   res: NextApiResponse<DebugResponse>,
 ) {
   if (process.env.NODE_ENV === "production") {
-    return res
-      .status(404)
-      .json({ success: false, error: "Not found" });
+    return res.status(404).json({ success: false, error: "Not found" });
   }
 
   if (req.method !== "GET") {
