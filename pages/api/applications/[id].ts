@@ -1,33 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
+import { getPrivyUser } from "@/lib/auth/privy";
+import { assertApplicationOwnership } from "@/lib/auth/ownership";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:applications:[id]");
 
 const supabase = createAdminClient();
-
-/**
- * Handle application operations by ID
- * DELETE /api/applications/[id] - Cancel/delete an application
- */
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  const { id } = req.query;
-
-  if (!id || typeof id !== "string") {
-    return res.status(400).json({
-      error: "Invalid application ID",
-    });
-  }
-
-  if (req.method === "DELETE") {
-    return handleDeleteApplication(res, id);
-  }
-
-  return res.status(405).json({ error: "Method not allowed" });
-}
 
 /**
  * Cancel/delete an application and cleanup related data
@@ -98,4 +77,47 @@ async function handleDeleteApplication(
       error: "Internal server error",
     });
   }
+}
+
+/**
+ * Handle application operations by ID
+ * DELETE /api/applications/[id] - Cancel/delete an application
+ */
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  const { id } = req.query;
+
+  if (!id || typeof id !== "string") {
+    return res.status(400).json({
+      error: "Invalid application ID",
+    });
+  }
+
+  if (req.method === "DELETE") {
+    try {
+      const user = await getPrivyUser(req);
+      if (!user) {
+        return res.status(401).json({ error: "Authentication required" });
+      }
+
+      const ownership = await assertApplicationOwnership(
+        supabase,
+        id,
+        { userId: user.id },
+      );
+
+      if (!ownership.ok) {
+        return res.status(403).json({ error: "Forbidden" });
+      }
+
+      return handleDeleteApplication(res, id);
+    } catch (error) {
+      log.error("Error validating application ownership:", error);
+      return res.status(500).json({ error: "Internal server error" });
+    }
+  }
+
+  return res.status(405).json({ error: "Method not allowed" });
 }

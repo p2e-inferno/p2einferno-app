@@ -15,7 +15,7 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "format": "npx prettier --write \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\"",
-    "lint": "next lint && npx prettier --check \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\" && npx tsc --noEmit",
+    "lint": "next lint && node scripts/check-admin-guards.js && npx prettier --check \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\" && npx tsc --noEmit",
     "db:migrate": "node supabase/apply-migrations.js",
     "db:types": "npx supabase gen types typescript --local > lib/supabase/types-gen.ts",
     "db:types:remote": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > lib/supabase/types-gen.ts",

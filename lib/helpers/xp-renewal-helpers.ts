@@ -70,9 +70,8 @@ export async function getServiceFeePercent(
   try {
     const { data, error } = await supabase
       .from('system_config')
-      .select('config_value')
-      .eq('config_key', 'subscription_xp_service_fee_percent')
-      .eq('is_active', true)
+      .select('value')
+      .eq('key', 'subscription_xp_service_fee_percent')
       .single();
 
     if (error) {
@@ -82,7 +81,7 @@ export async function getServiceFeePercent(
       return 1.0; // Default 1%
     }
 
-    const percent = parseFloat(data.config_value);
+    const percent = parseFloat(data.value);
 
     // Validate percent
     if (!validateServiceFeePercent(percent)) {
