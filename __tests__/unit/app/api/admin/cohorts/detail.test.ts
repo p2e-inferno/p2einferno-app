@@ -1,4 +1,4 @@
-export {};
+export { };
 
 jest.mock("next/server", () => ({
   NextResponse: class {
@@ -43,7 +43,7 @@ describe("admin cohorts detail route handler", () => {
     const mockSingle = jest
       .fn()
       .mockResolvedValue({ data: cohort, error: null });
-    const mockEq = jest.fn().mockReturnValue({ single: mockSingle });
+    const mockEq = jest.fn().mockReturnValue({ maybeSingle: mockSingle });
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
     const mockFrom = jest.fn().mockReturnValue({ select: mockSelect });
     createAdminClient.mockReturnValue({ from: mockFrom });
@@ -64,7 +64,7 @@ describe("admin cohorts detail route handler", () => {
 
   test("GET returns 404 when cohort missing", async () => {
     const mockSingle = jest.fn().mockResolvedValue({ data: null, error: null });
-    const mockEq = jest.fn().mockReturnValue({ single: mockSingle });
+    const mockEq = jest.fn().mockReturnValue({ maybeSingle: mockSingle });
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
     const mockFrom = jest.fn().mockReturnValue({ select: mockSelect });
     createAdminClient.mockReturnValue({ from: mockFrom });

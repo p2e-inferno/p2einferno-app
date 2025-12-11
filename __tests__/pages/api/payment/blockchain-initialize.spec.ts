@@ -9,7 +9,16 @@ declare global {
 }
 global.__BC_PAYMENT_SCENARIO__ = "valid";
 
-// Mock Supabase admin client
+// Mock authentication utilities
+jest.mock("@/lib/utils/privyUtils", () => ({
+  createPrivyClient: jest.fn(),
+  fetchAndVerifyAuthorization: jest.fn().mockResolvedValue({ userId: "did:privy:test" }),
+}));
+
+jest.mock("@/lib/auth/ownership", () => ({
+  assertApplicationOwnership: jest.fn().mockResolvedValue({ ok: true }),
+}));
+
 jest.mock("@/lib/supabase/server", () => {
   const createAdminClient = jest.fn(() => ({
     from: (table: string) => {
@@ -22,37 +31,37 @@ jest.mock("@/lib/supabase/server", () => {
                   data:
                     global.__BC_PAYMENT_SCENARIO__ === "already_paid"
                       ? {
-                          id: "app1",
-                          user_email: "user@example.com",
-                          user_profile_id: "u1",
-                          payment_status: "completed",
-                          cohort_id: "co1",
-                          cohorts: [
-                            {
-                              id: "co1",
-                              lock_address: "0xLock",
-                              name: "C",
-                              usdt_amount: 10,
-                              bootcamp_program_id: "boot-1",
-                            },
-                          ],
-                        }
+                        id: "app1",
+                        user_email: "user@example.com",
+                        user_profile_id: "u1",
+                        payment_status: "completed",
+                        cohort_id: "co1",
+                        cohorts: [
+                          {
+                            id: "co1",
+                            lock_address: "0xLock",
+                            name: "C",
+                            usdt_amount: 10,
+                            bootcamp_program_id: "boot-1",
+                          },
+                        ],
+                      }
                       : {
-                          id: "app1",
-                          user_email: "user@example.com",
-                          user_profile_id: "u1",
-                          payment_status: "pending",
-                          cohort_id: "co1",
-                          cohorts: [
-                            {
-                              id: "co1",
-                              lock_address: "0xLock",
-                              name: "C",
-                              usdt_amount: 10,
-                              bootcamp_program_id: "boot-1",
-                            },
-                          ],
-                        },
+                        id: "app1",
+                        user_email: "user@example.com",
+                        user_profile_id: "u1",
+                        payment_status: "pending",
+                        cohort_id: "co1",
+                        cohorts: [
+                          {
+                            id: "co1",
+                            lock_address: "0xLock",
+                            name: "C",
+                            usdt_amount: 10,
+                            bootcamp_program_id: "boot-1",
+                          },
+                        ],
+                      },
                   error: null,
                 }),
               }),
@@ -66,11 +75,11 @@ jest.mock("@/lib/supabase/server", () => {
                   data:
                     global.__BC_PAYMENT_SCENARIO__ === "already_enrolled"
                       ? [
-                          {
-                            id: "en1",
-                            cohort: { id: "cX", bootcamp_program_id: "boot-1" },
-                          },
-                        ]
+                        {
+                          id: "en1",
+                          cohort: { id: "cX", bootcamp_program_id: "boot-1" },
+                        },
+                      ]
                       : [],
                   error: null,
                 }),

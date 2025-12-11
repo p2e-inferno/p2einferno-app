@@ -1,4 +1,4 @@
-export {};
+export { };
 
 jest.mock("next/server", () => ({
   NextResponse: class {
@@ -59,7 +59,7 @@ describe("admin cohorts applications route handler", () => {
         updated_at: "2024-01-02T00:00:00.000Z",
         user_profiles: [{ id: "profile-1" }],
         user_application_status: [
-          { status: "draft", amount_paid: 50, currency: "USD" },
+          { status: "enrolled", amount_paid: 50, currency: "USD" },
         ],
         payment_transactions: [
           { amount: 100, currency: "USD", status: "success" },

@@ -4,7 +4,7 @@ jest.mock("@/lib/auth/privy", () => ({
   getPrivyUser: jest.fn(async () => ({ id: "did:privy:test" })),
 }));
 
-jest.mock("@/lib/supabase/client", () => {
+jest.mock("@/lib/supabase/server", () => {
   const bootcamp = {
     id: "boot-1",
     name: "B1",
@@ -68,7 +68,7 @@ jest.mock("@/lib/supabase/client", () => {
       }
     },
   };
-  return { supabase };
+  return { createAdminClient: () => supabase };
 });
 
 import handler from "@/pages/api/bootcamps/[id]";

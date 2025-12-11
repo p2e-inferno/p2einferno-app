@@ -15,7 +15,7 @@ global.TextDecoder = TextDecoder;
 // Mock crypto.getRandomValues (needed for ethers.js)
 Object.defineProperty(global, "crypto", {
   value: {
-    getRandomValues: function(arr: Uint8Array) {
+    getRandomValues: function (arr: Uint8Array) {
       for (let i = 0; i < arr.length; i++) {
         arr[i] = Math.floor(Math.random() * 256);
       }
@@ -72,6 +72,17 @@ Object.defineProperty(window, "ethereum", {
 // Mock fetch globally
 global.fetch = jest.fn();
 
+// Add Request/Response/Headers polyfills if they don't exist
+if (typeof Request === 'undefined') {
+  global.Request = require('node-fetch').Request;
+}
+if (typeof Response === 'undefined') {
+  global.Response = require('node-fetch').Response;
+}
+if (typeof Headers === 'undefined') {
+  global.Headers = require('node-fetch').Headers;
+}
+
 // Reset mocks before each test
 beforeEach(() => {
   jest.clearAllMocks();
@@ -96,7 +107,7 @@ jest.mock('jose', () => {
 
 jest.mock('@privy-io/server-auth', () => {
   class PrivyClientMock {
-    constructor(_appId: string, _secret: string) {}
+    constructor(_appId: string, _secret: string) { }
     async getUser(_userId: string) { return { linkedAccounts: [] }; }
     async verifyAuthToken(_token: string) { return { userId: 'did:privy:test', sessionId: 'sess' }; }
   }

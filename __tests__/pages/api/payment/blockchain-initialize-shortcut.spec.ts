@@ -6,6 +6,10 @@ jest.mock("@/lib/utils/privyUtils", () => ({
   createPrivyClient: jest.fn(() => ({}) as any),
 }));
 
+jest.mock("@/lib/auth/ownership", () => ({
+  assertApplicationOwnership: jest.fn().mockResolvedValue({ ok: true }),
+}));
+
 // Mock Supabase admin client
 jest.mock("@/lib/supabase/server", () => {
   const createAdminClient = jest.fn(() => ({
