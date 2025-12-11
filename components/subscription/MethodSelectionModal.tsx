@@ -13,7 +13,11 @@ interface Props {
   onClose: () => void;
 }
 
-export const MethodSelectionModal = ({ mode, onSelectMethod, onClose }: Props) => {
+export const MethodSelectionModal = ({
+  mode,
+  onSelectMethod,
+  onClose,
+}: Props) => {
   const title = mode === "purchase" ? "Get Membership" : "Renew Membership";
   const description =
     mode === "purchase"
@@ -52,7 +56,7 @@ export const MethodSelectionModal = ({ mode, onSelectMethod, onClose }: Props) =
 
   // Filter methods based on mode
   const visibleMethods = methods.filter((method) =>
-    mode === "purchase" ? method.showInPurchase : method.showInRenewal
+    mode === "purchase" ? method.showInPurchase : method.showInRenewal,
   );
 
   return (

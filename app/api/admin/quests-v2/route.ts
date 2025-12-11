@@ -9,8 +9,8 @@ const log = getLogger('api:quests');
 
 function invalidateQuestCache(quest?: { id?: string | null }) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.questList);
-    if (quest?.id) revalidateTag(ADMIN_CACHE_TAGS.quest(String(quest.id)));
+    revalidateTag(ADMIN_CACHE_TAGS.questList, 'default');
+    if (quest?.id) revalidateTag(ADMIN_CACHE_TAGS.quest(String(quest.id)), 'default');
   } catch (error) {
     log.warn('quest cache revalidation failed', { error });
   }
@@ -40,11 +40,11 @@ export async function GET(req: NextRequest) {
         ...quest,
         stats: stats
           ? {
-              total_users: stats.total_users || 0,
-              completed_users: stats.completed_users || 0,
-              pending_submissions: stats.pending_submissions || 0,
-              completion_rate: stats.completion_rate || 0,
-            }
+            total_users: stats.total_users || 0,
+            completed_users: stats.completed_users || 0,
+            pending_submissions: stats.pending_submissions || 0,
+            completion_rate: stats.completion_rate || 0,
+          }
           : undefined,
       };
     });

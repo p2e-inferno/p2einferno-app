@@ -61,7 +61,9 @@ export function AccessRequirementCard() {
 
       {error && (
         <div className="mt-2 p-2 bg-red-900/20 border border-red-500/30 rounded-md flex justify-between items-start gap-2">
-          <p className="text-xs text-red-400 break-words overflow-hidden">{error}</p>
+          <p className="text-xs text-red-400 break-words overflow-hidden">
+            {error}
+          </p>
           <button
             onClick={() => setError(null)}
             className="text-red-400 hover:text-red-300 transition-colors flex-shrink-0"

@@ -19,7 +19,8 @@ interface Props {
 }
 
 export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
-  const lockAddress = process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
+  const lockAddress = process.env
+    .NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
 
   const [step, setStep] = useState<
     "confirm" | "confirming" | "success" | "error"
@@ -33,7 +34,11 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
   // Hooks for blockchain operations
   const { purchaseKey, isLoading: isPurchasing } = useKeyPurchase();
   const { extendKey, isLoading: isExtending } = useExtendKey();
-  const { expirationTimestamp: currentExpiration, hasValidKey, tokenId } = useDGNationKey();
+  const {
+    expirationTimestamp: currentExpiration,
+    hasValidKey,
+    tokenId,
+  } = useDGNationKey();
   const lockInfo = useLockInfo(lockAddress);
 
   const isLoading = isPurchasing || isExtending;
@@ -65,7 +70,6 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
 
         // Calculate expiration (30 days from now)
         newExpiration = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
       } else {
         // Renewal - extend existing key
         if (!hasValidKey) {
@@ -91,7 +95,9 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
         }
 
         // Calculate new expiration from current + 30 days
-        const currentExp = currentExpiration ? Number(currentExpiration) : Math.floor(Date.now() / 1000);
+        const currentExp = currentExpiration
+          ? Number(currentExpiration)
+          : Math.floor(Date.now() / 1000);
         newExpiration = new Date((currentExp + 30 * 24 * 60 * 60) * 1000);
       }
 
@@ -104,9 +110,11 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
         txHash: result.transactionHash,
       });
       setStep("success");
-
     } catch (err: any) {
-      setError(err.message || `Failed to ${mode === "purchase" ? "purchase" : "renew"} subscription`);
+      setError(
+        err.message ||
+          `Failed to ${mode === "purchase" ? "purchase" : "renew"} subscription`,
+      );
       setStep("error");
     }
   };
@@ -125,7 +133,9 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
           </div>
 
           <h3 className="font-bold text-lg text-center mt-4 text-white">
-            {mode === "purchase" ? "Membership Activated!" : "Subscription Renewed!"}
+            {mode === "purchase"
+              ? "Membership Activated!"
+              : "Subscription Renewed!"}
           </h3>
 
           <div className="mt-4 p-4 bg-green-900/20 rounded-lg border border-green-500/30">
@@ -169,10 +179,13 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
             <Loader className="animate-spin w-8 h-8 text-blue-500" />
           </div>
           <h3 className="font-bold text-lg text-center mt-4 text-white">
-            {mode === "purchase" ? "Processing Purchase..." : "Processing Renewal..."}
+            {mode === "purchase"
+              ? "Processing Purchase..."
+              : "Processing Renewal..."}
           </h3>
           <p className="text-sm text-gray-400 text-center mt-2">
-            Please confirm the transaction in your wallet and wait for confirmation.
+            Please confirm the transaction in your wallet and wait for
+            confirmation.
           </p>
         </div>
       </div>
@@ -264,7 +277,9 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
               <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 mb-4">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-gray-400">Duration</span>
-                  <span className="text-white font-semibold">1 Month (30 days)</span>
+                  <span className="text-white font-semibold">
+                    1 Month (30 days)
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Price</span>
@@ -298,7 +313,11 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
             onClick={handleAction}
             disabled={lockInfo.isLoading || !!lockInfo.error || isLoading}
           >
-            {isLoading ? "Processing..." : mode === "purchase" ? "Purchase Now" : "Renew Now"}
+            {isLoading
+              ? "Processing..."
+              : mode === "purchase"
+                ? "Purchase Now"
+                : "Renew Now"}
           </button>
         </div>
       </div>

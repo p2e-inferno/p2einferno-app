@@ -1,4 +1,4 @@
-export { };
+export {};
 
 jest.mock("next/server", () => ({
   NextResponse: class {

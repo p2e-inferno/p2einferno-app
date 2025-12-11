@@ -47,7 +47,9 @@ export const SubscriptionStatusCard = ({
     if (isDismissed) return null;
 
     return (
-      <div className={`card p-6 bg-red-900/20 border border-red-500/30 ${className} relative`}>
+      <div
+        className={`card p-6 bg-red-900/20 border border-red-500/30 ${className} relative`}
+      >
         <button
           onClick={() => setIsDismissed(true)}
           className="absolute top-4 right-4 text-red-400 hover:text-red-300 transition-colors"
@@ -58,9 +60,7 @@ export const SubscriptionStatusCard = ({
         <h3 className="font-semibold text-red-400 pr-8">
           Unable to Load Subscription Status
         </h3>
-        <p className="text-sm text-red-300 mt-1">
-          {error}
-        </p>
+        <p className="text-sm text-red-300 mt-1">{error}</p>
       </div>
     );
   }
@@ -141,7 +141,9 @@ export const SubscriptionStatusCard = ({
     <>
       <div className={`card ${color} border ${className}`}>
         <div className="p-6">
-          <h3 className="text-lg font-semibold text-white">DG Nation Membership</h3>
+          <h3 className="text-lg font-semibold text-white">
+            DG Nation Membership
+          </h3>
 
           {/* Days remaining display */}
           <div className="mt-4">
@@ -151,11 +153,13 @@ export const SubscriptionStatusCard = ({
             <p className="text-sm mt-1 text-gray-400">
               {daysRemaining < 0
                 ? "Your subscription has expired"
-                : `Expires ${expiresAt?.toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                  year: "numeric",
-                }) || ''}`}
+                : `Expires ${
+                    expiresAt?.toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    }) || ""
+                  }`}
             </p>
           </div>
 

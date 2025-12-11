@@ -204,13 +204,13 @@ const setupMocks = (
     ? { ...defaultWallets, ...overrides.wallets }
     : overrides.wallet?.walletAddress
       ? {
-        wallets: [
-          {
-            walletClientType: "injected",
-            address: overrides.wallet.walletAddress,
-          },
-        ],
-      }
+          wallets: [
+            {
+              walletClientType: "injected",
+              address: overrides.wallet.walletAddress,
+            },
+          ],
+        }
       : defaultWallets;
 
   mockUseWallets.mockReturnValue(

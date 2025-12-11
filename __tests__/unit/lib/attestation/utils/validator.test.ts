@@ -190,7 +190,7 @@ describe("attestation validator utils", () => {
     test("validates proper wallet object", () => {
       const wallet = {
         address: "0x1234567890123456789012345678901234567890",
-        getEthereumProvider: () => { },
+        getEthereumProvider: () => {},
       };
 
       const result = validateWalletConnection(wallet);
@@ -206,7 +206,7 @@ describe("attestation validator utils", () => {
     test("rejects wallet with invalid address", () => {
       const wallet = {
         address: "invalid",
-        getEthereumProvider: () => { },
+        getEthereumProvider: () => {},
       };
 
       const result = validateWalletConnection(wallet);

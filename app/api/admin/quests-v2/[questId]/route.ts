@@ -9,8 +9,8 @@ const log = getLogger('api:quests:[questId]');
 
 function invalidateQuestCache(id: string) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.quest(String(id)));
-    revalidateTag(ADMIN_CACHE_TAGS.questList);
+    revalidateTag(ADMIN_CACHE_TAGS.quest(String(id)), 'default');
+    revalidateTag(ADMIN_CACHE_TAGS.questList, 'default');
   } catch (error) {
     log.warn('quest cache revalidation failed', { error, id });
   }

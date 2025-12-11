@@ -15,7 +15,7 @@ interface Props {
   onSuccess: () => void;
 }
 
-export const XpRenewalModal = ({ mode = "renewal", onClose, onSuccess }: Props) => {
+export const XpRenewalModal = ({ onClose, onSuccess }: Props) => {
   const [selectedDuration, setSelectedDuration] = useState<30 | 90 | 365>(30);
   const renewal = useXpRenewal(); // Always renewal mode
 
@@ -188,7 +188,9 @@ export const XpRenewalModal = ({ mode = "renewal", onClose, onSuccess }: Props) 
         {/* Duration selector */}
         <div className="mt-4">
           <label className="block mb-2">
-            <span className="text-sm font-semibold text-gray-300">Duration</span>
+            <span className="text-sm font-semibold text-gray-300">
+              Duration
+            </span>
           </label>
           <div className="grid grid-cols-3 gap-2">
             {durations.map((d) => (

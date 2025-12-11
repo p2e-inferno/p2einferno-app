@@ -9,8 +9,8 @@ const log = getLogger('api:bootcamps:detail');
 
 function invalidateBootcamp(id: string) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.bootcampList);
-    revalidateTag(ADMIN_CACHE_TAGS.bootcamp(id));
+    revalidateTag(ADMIN_CACHE_TAGS.bootcampList, 'default');
+    revalidateTag(ADMIN_CACHE_TAGS.bootcamp(id), 'default');
   } catch (error) {
     log.warn('bootcamp revalidation failed', { error, id });
   }

@@ -78,7 +78,9 @@ describe("Apply page guard when already enrolled in bootcamp", () => {
     render(<ApplicationPage {...props} />);
 
     await waitFor(() => {
-      expect(screen.getAllByText(/already enrolled/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/already enrolled/i).length).toBeGreaterThan(
+        0,
+      );
     });
     expect(screen.getByText(/continue learning/i)).toBeInTheDocument();
   });

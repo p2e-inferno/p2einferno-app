@@ -14,8 +14,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test",
     "format": "npx prettier --write \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\"",
-    "lint": "next lint && node scripts/check-admin-guards.js && npx prettier --check \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\" && npx tsc --noEmit",
+    "lint": "npx eslint . && node scripts/check-admin-guards.js && npx prettier --check \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\" && npx tsc --noEmit",
     "db:migrate": "node supabase/apply-migrations.js",
     "db:types": "npx supabase gen types typescript --local > lib/supabase/types-gen.ts",
     "db:types:remote": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > lib/supabase/types-gen.ts",
@@ -47,10 +48,11 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
+    "@synthetixio/synpress": "^4.1.1",
     "@tabler/icons-react": "^3.34.0",
     "@tailwindcss/forms": "^0.5.3",
     "@tanstack/react-query": "^5.90.10",
-    "axios": "^1.12.0",
+    "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -76,6 +78,7 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.0.4",
+    "@playwright/test": "^1.48.2",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -99,5 +102,11 @@
     "tailwindcss": "^3.1.2",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
+  },
+  "overrides": {
+    "axios": "^1.7.9",
+    "ws": "^8.18.0",
+    "elliptic": "^6.6.1",
+    "glob": "^10.5.0"
   }
 }

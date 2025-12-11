@@ -10,7 +10,7 @@ const log = getLogger("api:admin:subscriptions:config");
 // Helper to revalidate cache tags on config mutations
 function invalidateConfigCache() {
   try {
-    revalidateTag("subscriptions-config");
+    revalidateTag("subscriptions-config", 'default');
   } catch (err) {
     log.warn("revalidateTag failed", { err });
   }

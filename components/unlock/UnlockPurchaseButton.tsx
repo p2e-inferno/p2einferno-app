@@ -1,8 +1,7 @@
 import { ButtonHTMLAttributes } from "react";
 import { Button } from "@/components/ui/button";
 
-interface UnlockPurchaseButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface UnlockPurchaseButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   lockAddress: string;
   networkId?: number; // default to env network
   children?: React.ReactNode;
