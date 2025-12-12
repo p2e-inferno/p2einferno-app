@@ -40,6 +40,18 @@
 - Coverage: collected from UI, lib, hooks; use `npm run test:coverage` for reports.
 - Mocks: see router/Privy/crypto mocks in `jest.setup.ts`.
 
+### E2E Testing (Synpress + Playwright)
+- Tool: Synpress v4 with Playwright for Web3/MetaMask wallet testing.
+- Config: `playwright.config.ts`, wallet setup in `tests/wallet-setup/`, specs in `tests/e2e/`.
+- Commands:
+  ```bash
+  npx synpress ./tests/wallet-setup  # Build wallet cache (one-time)
+  npm run test:e2e                   # Run E2E tests
+  ```
+- Known issue: Cache hash mismatch between CLI and runtime (Synpress #1103). Workaround: rename `.cache-synpress/[cli-hash]` to expected hash shown in error.
+- Dev server: `reuseExistingServer: !process.env.CI` means Playwright reuses running `npm run dev` locally.
+- Full guide: `docs/E2E_TESTING.md`.
+
 ## Admin Sessions & Bundle APIs
 - Admin session: short‑lived JWT stored in an HttpOnly cookie (`admin-session`).
   - Issue: `POST /api/admin/session` after Privy login; server verifies Privy and admin key once, then sets cookie.

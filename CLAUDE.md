@@ -9,12 +9,17 @@ npm run dev -- --turbo      # Turbopack (faster HMR)
 npm run build && npm start  # Production build/run
 npm run lint                # ESLint + Prettier check + tsc --noEmit
 npm run test:coverage       # Jest + coverage (jsdom)
+npm run test:e2e            # Synpress/Playwright E2E tests
 
 # Database commands
 npm run db:migrate          # Apply Supabase migrations
 npm run db:types            # Generate TypeScript types from local schema
 npm run db:types:remote     # Generate types from remote schema
 npm run db:seed             # Reset DB with migrations + seed data
+
+# E2E Testing (first-time setup)
+npx synpress ./tests/wallet-setup  # Build MetaMask wallet cache
+# Note: If cache hash mismatch error, rename folder in .cache-synpress/ to match expected hash
 ```
 
 ## Project Structure

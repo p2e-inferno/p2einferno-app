@@ -8,7 +8,7 @@ import ImageUpload from "@/components/ui/image-upload";
 import QuestTaskForm from "@/components/admin/QuestTaskForm";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
-import { PlusCircle, Coins, Save, X } from "lucide-react";
+import { PlusCircle, Coins, Save, X, Shield } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   formatErrorMessageForToast,
@@ -93,6 +93,7 @@ export default function QuestForm({
     reward_type: quest?.reward_type || "xdg",
     activation_type: quest?.activation_type || "",
     activation_config: quest?.activation_config || null,
+    requires_gooddollar_verification: quest?.requires_gooddollar_verification || false,
   });
 
   // Load draft data on mount
@@ -332,10 +333,10 @@ export default function QuestForm({
   // Deploy lock for the quest
   const deployLockForQuest = async (): Promise<
     | {
-        lockAddress: string;
-        grantFailed?: boolean;
-        grantError?: string;
-      }
+      lockAddress: string;
+      grantFailed?: boolean;
+      grantError?: string;
+    }
     | undefined
   > => {
     if (!wallet) {
@@ -825,6 +826,31 @@ export default function QuestForm({
               Quest is Active
             </Label>
           </div>
+
+          {/* GoodDollar Verification Requirement */}
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="requires_gooddollar_verification"
+              role="switch"
+              aria-label="Requires Verification"
+              checked={formData.requires_gooddollar_verification}
+              onChange={(e) =>
+                setFormData({ ...formData, requires_gooddollar_verification: e.target.checked })
+              }
+              className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+              disabled={isSubmitting}
+            />
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-green-400" />
+              <Label htmlFor="requires_gooddollar_verification" className="text-white cursor-pointer">
+                Requires Verification
+              </Label>
+            </div>
+          </div>
+          <p className="text-sm text-gray-400 -mt-2 ml-6">
+            Users must complete GoodDollar face verification to participate in this quest.
+          </p>
         </div>
       </div>
 

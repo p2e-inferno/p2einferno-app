@@ -101,6 +101,7 @@ export interface Quest {
   quest_tasks: QuestTask[];
   can_start?: boolean;
   prerequisite_state?: "none" | "missing_completion" | "missing_key" | "ok";
+  requires_gooddollar_verification?: boolean;
 }
 
 export type TaskType =
@@ -112,7 +113,11 @@ export type TaskType =
   | "submit_text"
   | "submit_proof"
   | "complete_external"
-  | "custom";
+  | "custom"
+  | "vendor_buy"
+  | "vendor_sell"
+  | "vendor_light_up"
+  | "vendor_level_up";
 
 export type InputValidationType =
   | "url"
@@ -241,11 +246,11 @@ export interface UserTaskProgress {
 
 export interface EnhancedMilestoneTask extends MilestoneTask {
   task_type:
-    | "file_upload"
-    | "url_submission"
-    | "contract_interaction"
-    | "text_submission"
-    | "external_verification";
+  | "file_upload"
+  | "url_submission"
+  | "contract_interaction"
+  | "text_submission"
+  | "external_verification";
   submission_requirements?: any;
   validation_criteria?: any;
   requires_admin_review: boolean;
