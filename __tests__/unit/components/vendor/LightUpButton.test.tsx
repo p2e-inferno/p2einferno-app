@@ -11,14 +11,15 @@ import userEvent from "@testing-library/user-event";
 
 // Mock the hook
 const mockLightUp = jest.fn();
+const mockUseDGLightUp = jest.fn();
+const mockUseDGVendorAccess = jest.fn();
 
 jest.mock("@/hooks/vendor/useDGLightUp", () => ({
-    useDGLightUp: () => ({
-        lightUp: mockLightUp,
-        isPending: false,
-        isSuccess: false,
-        hash: null,
-    }),
+    useDGLightUp: () => mockUseDGLightUp(),
+}));
+
+jest.mock("@/hooks/vendor/useDGVendorAccess", () => ({
+    useDGVendorAccess: () => mockUseDGVendorAccess(),
 }));
 
 describe("LightUpButton", () => {
@@ -35,6 +36,18 @@ describe("LightUpButton", () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+
+        mockUseDGLightUp.mockReturnValue({
+            lightUp: mockLightUp,
+            isPending: false,
+            isSuccess: false,
+            hash: null,
+        });
+
+        mockUseDGVendorAccess.mockReturnValue({
+            isKeyHolder: true,
+            isPaused: false,
+        });
     });
 
     describe("Component Export", () => {
@@ -79,34 +92,31 @@ describe("LightUpButton", () => {
 
     describe("Loading State", () => {
         it("should disable button when isPending is true", () => {
-            jest.doMock("@/hooks/vendor/useDGLightUp", () => ({
-                useDGLightUp: () => ({
-                    lightUp: mockLightUp,
-                    isPending: true,
-                    isSuccess: false,
-                    hash: null,
-                }),
-            }));
-
-            jest.resetModules();
+            mockUseDGLightUp.mockReturnValue({
+                lightUp: mockLightUp,
+                isPending: true,
+                isSuccess: false,
+                hash: null,
+            });
+            mockUseDGVendorAccess.mockReturnValue({
+                isKeyHolder: true,
+                isPaused: false,
+            });
 
             render(<LightUpButton />);
-            const button = screen.getByRole("button", { name: /light up/i });
+            const button = screen.getByRole("button");
 
             expect(button).toBeDisabled();
+            expect(button).toHaveTextContent(/burning/i);
         });
 
         it("should show loading indicator when pending", () => {
-            jest.doMock("@/hooks/vendor/useDGLightUp", () => ({
-                useDGLightUp: () => ({
-                    lightUp: mockLightUp,
-                    isPending: true,
-                    isSuccess: false,
-                    hash: null,
-                }),
-            }));
-
-            jest.resetModules();
+            mockUseDGLightUp.mockReturnValue({
+                lightUp: mockLightUp,
+                isPending: true,
+                isSuccess: false,
+                hash: null,
+            });
 
             render(<LightUpButton />);
 
@@ -117,21 +127,35 @@ describe("LightUpButton", () => {
 
     describe("Success State", () => {
         it("should show success feedback when isSuccess is true", () => {
-            jest.doMock("@/hooks/vendor/useDGLightUp", () => ({
-                useDGLightUp: () => ({
-                    lightUp: mockLightUp,
-                    isPending: false,
-                    isSuccess: true,
-                    hash: "0x123abc",
-                }),
-            }));
-
-            jest.resetModules();
+            mockUseDGLightUp.mockReturnValue({
+                lightUp: mockLightUp,
+                isPending: false,
+                isSuccess: true,
+                hash: "0x123abc",
+            });
+            mockUseDGVendorAccess.mockReturnValue({
+                isKeyHolder: true,
+                isPaused: false,
+            });
 
             render(<LightUpButton />);
 
             // Should show some success indication
             expect(screen.getByRole("button")).toBeInTheDocument();
+        });
+    });
+
+    describe("Access Control", () => {
+        it("should disable when user has no key", () => {
+            mockUseDGVendorAccess.mockReturnValue({
+                isKeyHolder: false,
+                isPaused: false,
+            });
+
+            render(<LightUpButton />);
+            const button = screen.getByRole("button");
+            expect(button).toBeDisabled();
+            expect(screen.getByText(/Valid NFT key required/i)).toBeInTheDocument();
         });
     });
 });

@@ -21,6 +21,7 @@ export const DG_TOKEN_VENDOR_ABI = [
             {
                 components: [
                     { internalType: "uint256", name: "maxFeeBps", type: "uint256" },
+                    { internalType: "uint256", name: "minFeeBps", type: "uint256" },
                     { internalType: "uint256", name: "buyFeeBps", type: "uint256" },
                     { internalType: "uint256", name: "sellFeeBps", type: "uint256" },
                     { internalType: "uint256", name: "rateChangeCooldown", type: "uint256" },
@@ -112,6 +113,13 @@ export const DG_TOKEN_VENDOR_ABI = [
                 type: "tuple",
             },
         ],
+        stateMutability: "view",
+        type: "function",
+    },
+    {
+        inputs: [],
+        name: "paused",
+        outputs: [{ internalType: "bool", name: "", type: "bool" }],
         stateMutability: "view",
         type: "function",
     },

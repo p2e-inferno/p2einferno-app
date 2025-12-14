@@ -72,8 +72,11 @@ describe("useDGMarket", () => {
             mockUseReadContract.mockReturnValue({
                 data: {
                     maxFeeBps: 500n,
+                    minFeeBps: 10n,
                     buyFeeBps: 100n,
                     sellFeeBps: 200n,
+                    rateChangeCooldown: 0n,
+                    appChangeCooldown: 0n,
                 },
             });
 
@@ -122,7 +125,7 @@ describe("useDGMarket", () => {
             const { result } = renderHook(() => useDGMarket());
 
             act(() => {
-                result.current.buyTokens("1000");
+                result.current.buyTokens(1000n);
             });
 
             expect(mockWriteContract).toHaveBeenCalledWith(
@@ -133,11 +136,11 @@ describe("useDGMarket", () => {
             );
         });
 
-        it("should parse amount string to BigInt", () => {
+        it("should accept bigint amount", () => {
             const { result } = renderHook(() => useDGMarket());
 
             act(() => {
-                result.current.buyTokens("5000000");
+                result.current.buyTokens(5000000n);
             });
 
             expect(mockWriteContract).toHaveBeenCalledWith(
@@ -148,12 +151,65 @@ describe("useDGMarket", () => {
         });
     });
 
+    describe("Token + Stage Config", () => {
+        it("should expose token and stage constants data when available", () => {
+            mockUseReadContract.mockImplementation((config: any) => {
+                if (config.functionName === "getExchangeRate") {
+                    return { data: 2n };
+                }
+                if (config.functionName === "getFeeConfig") {
+                    return {
+                        data: {
+                            maxFeeBps: 1000n,
+                            minFeeBps: 10n,
+                            buyFeeBps: 100n,
+                            sellFeeBps: 200n,
+                            rateChangeCooldown: 0n,
+                            appChangeCooldown: 0n,
+                        },
+                    };
+                }
+                if (config.functionName === "getTokenConfig") {
+                    return {
+                        data: {
+                            baseToken: "0x0000000000000000000000000000000000000001",
+                            swapToken: "0x0000000000000000000000000000000000000002",
+                            exchangeRate: 2n,
+                        },
+                    };
+                }
+                if (config.functionName === "getStageConstants") {
+                    return {
+                        data: {
+                            maxSellCooldown: 0n,
+                            dailyWindow: 0n,
+                            minBuyAmount: 1000n,
+                            minSellAmount: 5000n,
+                        },
+                    };
+                }
+                return { data: undefined };
+            });
+
+            const { result } = renderHook(() => useDGMarket());
+
+            expect(result.current.baseTokenAddress).toBe(
+                "0x0000000000000000000000000000000000000001",
+            );
+            expect(result.current.swapTokenAddress).toBe(
+                "0x0000000000000000000000000000000000000002",
+            );
+            expect(result.current.minBuyAmount).toBe(1000n);
+            expect(result.current.minSellAmount).toBe(5000n);
+        });
+    });
+
     describe("sellTokens", () => {
         it("should call writeContract with sellTokens function", () => {
             const { result } = renderHook(() => useDGMarket());
 
             act(() => {
-                result.current.sellTokens("500");
+                result.current.sellTokens(500n);
             });
 
             expect(mockWriteContract).toHaveBeenCalledWith(

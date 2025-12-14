@@ -86,6 +86,14 @@ describe("DG_TOKEN_VENDOR_ABI", () => {
             expect(fn?.inputs?.[0]?.type).toBe("address");
             expect(fn?.outputs?.[0]?.type).toBe("bool");
         });
+
+        it("should include paused function", () => {
+            const fn = DG_TOKEN_VENDOR_ABI.find((item) => item.name === "paused");
+            expect(fn).toBeDefined();
+            expect(fn?.stateMutability).toBe("view");
+            expect(fn?.inputs).toEqual([]);
+            expect(fn?.outputs?.[0]?.type).toBe("bool");
+        });
     });
 
     describe("Write Functions", () => {
@@ -128,17 +136,18 @@ describe("DG_TOKEN_VENDOR_ABI", () => {
     });
 
     describe("FeeConfig Structure", () => {
-        it("should have FeeConfig with maxFeeBps, buyFeeBps, sellFeeBps, cooldowns", () => {
+        it("should have FeeConfig with maxFeeBps, minFeeBps, buyFeeBps, sellFeeBps, cooldowns", () => {
             const fn = DG_TOKEN_VENDOR_ABI.find(
                 (item) => item.name === "getFeeConfig"
             );
             const components = fn?.outputs?.[0]?.components;
 
             expect(components).toBeDefined();
-            expect(components?.length).toBeGreaterThanOrEqual(5);
+            expect(components?.length).toBeGreaterThanOrEqual(6);
 
             const names = components?.map((c) => c.name);
             expect(names).toContain("maxFeeBps");
+            expect(names).toContain("minFeeBps");
             expect(names).toContain("buyFeeBps");
             expect(names).toContain("sellFeeBps");
             expect(names).toContain("rateChangeCooldown");

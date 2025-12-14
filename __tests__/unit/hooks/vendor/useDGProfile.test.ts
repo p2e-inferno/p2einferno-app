@@ -7,43 +7,53 @@
 
 import { renderHook, act } from "@testing-library/react";
 
-// Mock wagmi hooks
+// Mock wagmi hooks and Privy-related hooks used in the implementation
 const mockWriteContract = jest.fn();
 const mockRefetchState = jest.fn();
 
 const mockUseWriteContract = jest.fn(() => ({
-    writeContract: mockWriteContract,
-    data: null,
-    isPending: false,
+  writeContract: mockWriteContract,
+  data: null,
+  isPending: false,
 }));
 
 const mockUseReadContract = jest.fn(() => ({
-    data: undefined,
-    refetch: mockRefetchState,
+  data: undefined,
+  refetch: mockRefetchState,
 }));
 
-const mockUseAccount = jest.fn(() => ({
-    address: "0x1234567890123456789012345678901234567890",
+const mockUseUser = jest.fn(() => ({ user: null }));
+const mockUseDetectConnectedWalletAddress = jest.fn(() => ({
+  walletAddress: "0x1234567890123456789012345678901234567890",
 }));
 
 jest.mock("wagmi", () => ({
-    useWriteContract: () => mockUseWriteContract(),
-    useReadContract: (config: any) => mockUseReadContract(config),
-    useAccount: () => mockUseAccount(),
+  useWriteContract: () => mockUseWriteContract(),
+  useReadContract: (config: any) => mockUseReadContract(config),
+}));
+
+jest.mock("@privy-io/react-auth", () => ({
+  useUser: () => mockUseUser(),
+}));
+
+jest.mock("@/hooks/useDetectConnectedWalletAddress", () => ({
+  useDetectConnectedWalletAddress: () => mockUseDetectConnectedWalletAddress(),
 }));
 
 // Mock the ABI
 jest.mock("@/lib/blockchain/shared/vendor-abi", () => ({
-    DG_TOKEN_VENDOR_ABI: [],
+  DG_TOKEN_VENDOR_ABI: [],
 }));
 
 describe("useDGProfile", () => {
     let useDGProfile: any;
+    let USER_STAGE_LABELS: any;
 
     beforeAll(async () => {
         try {
             const module = await import("@/hooks/vendor/useDGProfile");
             useDGProfile = module.useDGProfile;
+            USER_STAGE_LABELS = module.USER_STAGE_LABELS;
         } catch {
             // Expected to fail until implemented
         }
@@ -63,7 +73,14 @@ describe("useDGProfile", () => {
     describe("Return Values", () => {
         it("should return userState object", () => {
             mockUseReadContract.mockReturnValue({
-                data: [0, 1000n, 500n, 0n, 0n, 0n], // Tuple from contract
+                data: {
+                    stage: 0,
+                    points: 1000n,
+                    fuel: 500n,
+                    lastStage3MaxSale: 0n,
+                    dailySoldAmount: 0n,
+                    dailyWindowStart: 0n,
+                },
                 refetch: mockRefetchState,
             });
 
@@ -103,7 +120,14 @@ describe("useDGProfile", () => {
     describe("userState Mapping", () => {
         it("should map tuple result to object with stage", () => {
             mockUseReadContract.mockReturnValue({
-                data: [2, 1000n, 500n, 0n, 0n, 0n],
+                data: {
+                    stage: 2,
+                    points: 1000n,
+                    fuel: 500n,
+                    lastStage3MaxSale: 0n,
+                    dailySoldAmount: 0n,
+                    dailyWindowStart: 0n,
+                },
                 refetch: mockRefetchState,
             });
 
@@ -114,7 +138,14 @@ describe("useDGProfile", () => {
 
         it("should map tuple result to object with points", () => {
             mockUseReadContract.mockReturnValue({
-                data: [0, 1500n, 500n, 0n, 0n, 0n],
+                data: {
+                    stage: 0,
+                    points: 1500n,
+                    fuel: 500n,
+                    lastStage3MaxSale: 0n,
+                    dailySoldAmount: 0n,
+                    dailyWindowStart: 0n,
+                },
                 refetch: mockRefetchState,
             });
 
@@ -125,7 +156,14 @@ describe("useDGProfile", () => {
 
         it("should map tuple result to object with fuel", () => {
             mockUseReadContract.mockReturnValue({
-                data: [0, 1000n, 750n, 0n, 0n, 0n],
+                data: {
+                    stage: 0,
+                    points: 1000n,
+                    fuel: 750n,
+                    lastStage3MaxSale: 0n,
+                    dailySoldAmount: 0n,
+                    dailyWindowStart: 0n,
+                },
                 refetch: mockRefetchState,
             });
 
@@ -136,7 +174,14 @@ describe("useDGProfile", () => {
 
         it("should map tuple result to object with dailySoldAmount", () => {
             mockUseReadContract.mockReturnValue({
-                data: [0, 0n, 0n, 0n, 1000n, 0n],
+                data: {
+                    stage: 0,
+                    points: 0n,
+                    fuel: 0n,
+                    lastStage3MaxSale: 0n,
+                    dailySoldAmount: 1000n,
+                    dailyWindowStart: 0n,
+                },
                 refetch: mockRefetchState,
             });
 
@@ -157,6 +202,26 @@ describe("useDGProfile", () => {
         });
     });
 
+    describe("Stage Labels", () => {
+        it("should map numeric stage to human-readable label", () => {
+            mockUseReadContract.mockReturnValue({
+                data: {
+                    stage: 1,
+                    points: 0n,
+                    fuel: 0n,
+                    lastStage3MaxSale: 0n,
+                    dailySoldAmount: 0n,
+                    dailyWindowStart: 0n,
+                },
+                refetch: mockRefetchState,
+            });
+
+            const { result } = renderHook(() => useDGProfile());
+
+            expect(result.current.stageLabel).toBe(USER_STAGE_LABELS[1]);
+        });
+    });
+
     describe("upgradeStage", () => {
         it("should call writeContract with upgradeStage function", () => {
             const { result } = renderHook(() => useDGProfile());
@@ -174,22 +239,23 @@ describe("useDGProfile", () => {
     });
 
     describe("Wallet Requirement", () => {
-        it("should not fetch userState when wallet not connected", () => {
-            mockUseAccount.mockReturnValue({ address: undefined });
+        it("should not fetch userState when walletAddress is undefined", () => {
+            mockUseDetectConnectedWalletAddress.mockReturnValue({
+                walletAddress: undefined,
+            });
 
             renderHook(() => useDGProfile());
 
-            // Check that useReadContract was called with enabled: false
             expect(mockUseReadContract).toHaveBeenCalledWith(
                 expect.objectContaining({
                     query: expect.objectContaining({ enabled: false }),
-                })
+                }),
             );
         });
 
-        it("should fetch userState when wallet is connected", () => {
-            mockUseAccount.mockReturnValue({
-                address: "0x1234567890123456789012345678901234567890",
+        it("should fetch userState when walletAddress is available", () => {
+            mockUseDetectConnectedWalletAddress.mockReturnValue({
+                walletAddress: "0x1234567890123456789012345678901234567890",
             });
 
             renderHook(() => useDGProfile());
@@ -197,7 +263,7 @@ describe("useDGProfile", () => {
             expect(mockUseReadContract).toHaveBeenCalledWith(
                 expect.objectContaining({
                     query: expect.objectContaining({ enabled: true }),
-                })
+                }),
             );
         });
     });

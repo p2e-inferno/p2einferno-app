@@ -9,17 +9,10 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 
 // Mock the hooks
+const mockUseDGProfile = jest.fn();
+
 jest.mock("@/hooks/vendor/useDGProfile", () => ({
-    useDGProfile: () => ({
-        userState: {
-            stage: 2,
-            points: 1500n,
-            fuel: 750n,
-        },
-        upgradeStage: jest.fn(),
-        refetchState: jest.fn(),
-        isPending: false,
-    }),
+    useDGProfile: () => mockUseDGProfile(),
 }));
 
 // Mock the child components
@@ -38,10 +31,10 @@ jest.mock("@/components/vendor/LightUpButton", () => ({
     default: () => <div data-testid="light-up-button">LightUpButton Mock</div>,
 }));
 
-jest.mock("@/components/layout/Layout", () => ({
+jest.mock("@/components/layouts/lobby-layout", () => ({
     __esModule: true,
-    default: ({ children }: { children: React.ReactNode }) => (
-        <div data-testid="layout">{children}</div>
+    LobbyLayout: ({ children }: { children: React.ReactNode }) => (
+        <div data-testid="lobby-layout">{children}</div>
     ),
 }));
 
@@ -57,6 +50,20 @@ describe("VendorPage", () => {
         }
     });
 
+    beforeEach(() => {
+        mockUseDGProfile.mockReturnValue({
+            userState: {
+                stage: 2,
+                points: 1500n,
+                fuel: 750n,
+            },
+            stageLabel: "Og",
+            upgradeStage: jest.fn(),
+            refetchState: jest.fn(),
+            isPending: false,
+        });
+    });
+
     describe("Component Export", () => {
         it("should export VendorPage as default export", () => {
             expect(VendorPage).toBeDefined();
@@ -64,9 +71,9 @@ describe("VendorPage", () => {
     });
 
     describe("Layout", () => {
-        it("should render within Layout component", () => {
+        it("should render within LobbyLayout component", () => {
             render(<VendorPage />);
-            expect(screen.getByTestId("layout")).toBeInTheDocument();
+            expect(screen.getByTestId("lobby-layout")).toBeInTheDocument();
         });
     });
 
@@ -79,7 +86,7 @@ describe("VendorPage", () => {
         it("should display current stage in header", () => {
             render(<VendorPage />);
             expect(screen.getByText(/Current Stage/i)).toBeInTheDocument();
-            expect(screen.getByText("2")).toBeInTheDocument(); // Stage from mock
+            expect(screen.getByText("Og")).toBeInTheDocument(); // Stage label from mock
         });
     });
 
@@ -111,16 +118,13 @@ describe("VendorPage", () => {
 
     describe("Unknown Stage Handling", () => {
         it("should show 'Unknown' when userState is undefined", () => {
-            jest.doMock("@/hooks/vendor/useDGProfile", () => ({
-                useDGProfile: () => ({
-                    userState: undefined,
-                    upgradeStage: jest.fn(),
-                    refetchState: jest.fn(),
-                    isPending: false,
-                }),
-            }));
-
-            jest.resetModules();
+            mockUseDGProfile.mockReturnValue({
+                userState: undefined,
+                stageLabel: "Unknown",
+                upgradeStage: jest.fn(),
+                refetchState: jest.fn(),
+                isPending: false,
+            });
 
             render(<VendorPage />);
             expect(screen.getByText(/Unknown/i)).toBeInTheDocument();

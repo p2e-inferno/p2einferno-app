@@ -1,10 +1,10 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
+import Image from "next/image";
 import { cn } from "@/lib/utils/wallet-change";
 import {
   FlameIcon,
-  CrystalIcon,
   SwordIcon,
   LightningIcon,
   ProfileIcon,
@@ -19,6 +19,20 @@ interface DockItem {
   activeColor: string;
   pulseColor: string;
 }
+
+const VendorIcon: React.FC<{ className?: string; size?: number }> = ({
+  className,
+  size = 24,
+}) => (
+  <Image
+    src="/images/dgTokenVendor_logo.png"
+    alt="Vendor"
+    width={size}
+    height={size}
+    className={className ?? ""}
+    priority
+  />
+);
 
 const dockItems: DockItem[] = [
   {
@@ -40,10 +54,10 @@ const dockItems: DockItem[] = [
     pulseColor: "shadow-magenta-400/50",
   },
   {
-    id: "bounties",
-    label: "Bounties",
-    href: "/lobby/bounties",
-    icon: CrystalIcon,
+    id: "vendor",
+    label: "Vendor",
+    href: "/lobby/vendor",
+    icon: VendorIcon,
     color: "text-cyan-300",
     activeColor: "text-cyan-200",
     pulseColor: "shadow-cyan-300/50",

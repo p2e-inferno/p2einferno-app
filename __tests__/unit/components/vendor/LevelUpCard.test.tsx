@@ -12,22 +12,10 @@ import userEvent from "@testing-library/user-event";
 // Mock the hook
 const mockUpgradeStage = jest.fn();
 const mockRefetchState = jest.fn();
+const mockUseDGProfile = jest.fn();
 
 jest.mock("@/hooks/vendor/useDGProfile", () => ({
-    useDGProfile: () => ({
-        userState: {
-            stage: 1,
-            points: 500n,
-            fuel: 200n,
-            lastStage3MaxSale: 0n,
-            dailySoldAmount: 0n,
-            dailyWindowStart: 0n,
-        },
-        upgradeStage: mockUpgradeStage,
-        refetchState: mockRefetchState,
-        isPending: false,
-        hash: null,
-    }),
+    useDGProfile: () => mockUseDGProfile(),
 }));
 
 describe("LevelUpCard", () => {
@@ -44,6 +32,32 @@ describe("LevelUpCard", () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+
+        mockUseDGProfile.mockReturnValue({
+            userState: {
+                stage: 1,
+                points: 500n,
+                fuel: 200n,
+                lastStage3MaxSale: 0n,
+                dailySoldAmount: 0n,
+                dailyWindowStart: 0n,
+            },
+            stageLabel: "Hustler",
+            isKeyHolder: true,
+            isPaused: false,
+            canUpgrade: true,
+            upgradeBlockedReason: null,
+            pointsProgress: 0.5,
+            fuelProgress: 0.4,
+            upgradeProgress: 0.4,
+            pointsRequired: 1000n,
+            fuelRequired: 500n,
+            nextStage: 2,
+            upgradeStage: mockUpgradeStage,
+            refetchState: mockRefetchState,
+            isPending: false,
+            hash: null,
+        });
     });
 
     describe("Component Export", () => {
@@ -55,18 +69,19 @@ describe("LevelUpCard", () => {
     describe("Rendering", () => {
         it("should render the card with level/stage information", () => {
             render(<LevelUpCard />);
-            // Should display current stage
-            expect(screen.getByText(/stage/i)).toBeInTheDocument();
+            expect(screen.getByText(/Stage Progress/i)).toBeInTheDocument();
         });
 
         it("should display current points", () => {
             render(<LevelUpCard />);
-            expect(screen.getByText(/points/i)).toBeInTheDocument();
+            expect(
+                screen.getAllByText(/points/i, { exact: false }).length,
+            ).toBeGreaterThanOrEqual(1);
         });
 
         it("should display current fuel", () => {
             render(<LevelUpCard />);
-            expect(screen.getByText(/fuel/i)).toBeInTheDocument();
+            expect(screen.getAllByText(/fuel/i, { exact: false }).length).toBeGreaterThanOrEqual(1);
         });
 
         it("should render an upgrade button", () => {
@@ -78,22 +93,29 @@ describe("LevelUpCard", () => {
     describe("User State Display", () => {
         it("should display the current stage value", () => {
             render(<LevelUpCard />);
-            // Stage 1 from mock
-            expect(screen.getByText("1")).toBeInTheDocument();
+            // Stage label from mock
+            expect(screen.getByText("Hustler")).toBeInTheDocument();
         });
 
         it("should handle undefined userState gracefully", () => {
-            jest.doMock("@/hooks/vendor/useDGProfile", () => ({
-                useDGProfile: () => ({
-                    userState: undefined,
-                    upgradeStage: mockUpgradeStage,
-                    refetchState: mockRefetchState,
-                    isPending: false,
-                    hash: null,
-                }),
-            }));
-
-            jest.resetModules();
+            mockUseDGProfile.mockReturnValue({
+                userState: undefined,
+                stageLabel: "Unknown",
+                isKeyHolder: true,
+                isPaused: false,
+                canUpgrade: false,
+                upgradeBlockedReason: "Insufficient points",
+                pointsProgress: 0,
+                fuelProgress: 0,
+                upgradeProgress: 0,
+                pointsRequired: undefined,
+                fuelRequired: undefined,
+                nextStage: 1,
+                upgradeStage: mockUpgradeStage,
+                refetchState: mockRefetchState,
+                isPending: false,
+                hash: null,
+            });
 
             render(<LevelUpCard />);
             // Should render without crashing
@@ -114,22 +136,30 @@ describe("LevelUpCard", () => {
 
     describe("Loading State", () => {
         it("should disable upgrade button when isPending is true", () => {
-            jest.doMock("@/hooks/vendor/useDGProfile", () => ({
-                useDGProfile: () => ({
-                    userState: { stage: 1, points: 500n, fuel: 200n },
-                    upgradeStage: mockUpgradeStage,
-                    refetchState: mockRefetchState,
-                    isPending: true,
-                    hash: null,
-                }),
-            }));
-
-            jest.resetModules();
+            mockUseDGProfile.mockReturnValue({
+                userState: { stage: 1, points: 500n, fuel: 200n },
+                stageLabel: "Hustler",
+                isKeyHolder: true,
+                isPaused: false,
+                canUpgrade: false,
+                upgradeBlockedReason: "Insufficient points",
+                pointsProgress: 0.5,
+                fuelProgress: 0.4,
+                upgradeProgress: 0.4,
+                pointsRequired: 1000n,
+                fuelRequired: 500n,
+                nextStage: 2,
+                upgradeStage: mockUpgradeStage,
+                refetchState: mockRefetchState,
+                isPending: true,
+                hash: null,
+            });
 
             render(<LevelUpCard />);
-            const button = screen.getByRole("button", { name: /upgrade/i });
+            const button = screen.getByRole("button");
 
             expect(button).toBeDisabled();
+            expect(button).toHaveTextContent(/upgrading/i);
         });
     });
 
@@ -137,8 +167,7 @@ describe("LevelUpCard", () => {
         it("should show progress towards next level", () => {
             render(<LevelUpCard />);
             // Should display some form of progress indicator
-            const card = screen.getByText(/stage/i).closest("div");
-            expect(card).toBeDefined();
+            expect(screen.getByText(/Progress to next stage/i)).toBeInTheDocument();
         });
     });
 });
