@@ -79,6 +79,8 @@ export const generateCohortLockConfig = (cohort: Cohort): LockConfig => {
  * Generate lock configuration for bootcamp program certification
  * - 1 year expiration
  * - Free or paid based on program settings
+ * - SECURITY: maxKeysPerAddress set to 0 to prevent unauthorized purchases
+ *   Certificates are granted server-side only after bootcamp completion
  */
 export const generateBootcampLockConfig = (
   bootcamp: BootcampProgram,
@@ -91,7 +93,7 @@ export const generateBootcampLockConfig = (
     expirationDuration: EXPIRATION_DURATIONS.ONE_YEAR,
     currency: "FREE",
     price: 0,
-    maxKeysPerAddress: 1, // One certificate per address
+    maxKeysPerAddress: 0, // Prevent direct purchases - grant-based only
     transferable: true, // Certificates can be transferred
     requiresApproval: false,
   };
@@ -101,6 +103,8 @@ export const generateBootcampLockConfig = (
  * Generate lock configuration for quest completion badge
  * - 1 year expiration
  * - Free completion badge
+ * - SECURITY: maxKeysPerAddress set to 0 to prevent unauthorized purchases
+ *   Badges are granted server-side only after quest completion
  */
 export const generateQuestLockConfig = (quest: Quest): LockConfig => {
   return {
@@ -111,7 +115,7 @@ export const generateQuestLockConfig = (quest: Quest): LockConfig => {
     expirationDuration: EXPIRATION_DURATIONS.ONE_YEAR,
     currency: "FREE",
     price: 0,
-    maxKeysPerAddress: 1, // One badge per address
+    maxKeysPerAddress: 0, // Prevent direct purchases - grant-based only
     transferable: true, // Badges can be transferred
     requiresApproval: false,
   };
@@ -121,6 +125,8 @@ export const generateQuestLockConfig = (quest: Quest): LockConfig => {
  * Generate lock configuration for milestone completion NFT badge
  * - 1 year expiration
  * - Free completion badge based on total reward amount
+ * - SECURITY: maxKeysPerAddress set to 0 to prevent unauthorized purchases
+ *   Badges are granted server-side only after milestone completion
  */
 export const generateMilestoneLockConfig = (
   milestone: CohortMilestone,
@@ -134,7 +140,7 @@ export const generateMilestoneLockConfig = (
     expirationDuration: EXPIRATION_DURATIONS.ONE_YEAR,
     currency: "FREE",
     price: 0,
-    maxKeysPerAddress: 1, // One badge per address per milestone
+    maxKeysPerAddress: 0, // Prevent direct purchases - grant-based only
     transferable: true, // Milestone badges can be transferred
     requiresApproval: false, // Automatic approval for completed milestones
   };
