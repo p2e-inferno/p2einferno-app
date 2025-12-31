@@ -13,6 +13,7 @@ import { toast } from "react-hot-toast";
 import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
+import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 
 const log = getLogger("admin:quests:index");
 
@@ -254,6 +255,11 @@ export default function AdminQuestsPage() {
                       lockManagerGranted={quest.lock_manager_granted}
                       reason={quest.grant_failure_reason}
                     />
+                    <MaxKeysSecurityBadge
+                      lockAddress={quest.lock_address}
+                      maxKeysSecured={quest.max_keys_secured}
+                      reason={quest.max_keys_failure_reason}
+                    />
                     {quest.stats && quest.stats.pending_submissions > 0 && (
                       <Badge className="bg-orange-600 text-xs">
                         {quest.stats.pending_submissions} Pending
@@ -410,6 +416,11 @@ export default function AdminQuestsPage() {
                         lockAddress={quest.lock_address}
                         lockManagerGranted={quest.lock_manager_granted}
                         reason={quest.grant_failure_reason}
+                      />
+                      <MaxKeysSecurityBadge
+                        lockAddress={quest.lock_address}
+                        maxKeysSecured={quest.max_keys_secured}
+                        reason={quest.max_keys_failure_reason}
                       />
                       {quest.stats && quest.stats.pending_submissions > 0 && (
                         <Badge className="bg-orange-600">

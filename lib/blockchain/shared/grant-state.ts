@@ -87,3 +87,42 @@ export function effectiveGrantForSave(input: EffectiveGrantInput): {
   // No lock => default to false
   return { granted: false, reason: undefined };
 }
+
+export interface EffectiveMaxKeysInput {
+  outcome?: { lastConfigFailed?: boolean; lastConfigError?: string };
+  lockAddress?: string | null;
+  currentSecured?: boolean;
+  currentReason?: string | undefined | null;
+}
+
+/**
+ * Determine effective max_keys_secured state based on deployment outcome
+ * Follows same pattern as effectiveGrantForSave for lock_manager_granted
+ */
+export function effectiveMaxKeysForSave(input: EffectiveMaxKeysInput): {
+  secured: boolean;
+  reason?: string;
+} {
+  const hasOutcome = typeof input.outcome?.lastConfigFailed === "boolean";
+  if (hasOutcome) {
+    const secured = !input.outcome!.lastConfigFailed!;
+    return {
+      secured,
+      reason: secured
+        ? undefined
+        : input.outcome!.lastConfigError ||
+          "Lock config update failed - maxKeysPerAddress not set to 0",
+    };
+  }
+  // Fall back to current state if we have a lock address
+  if (input.lockAddress) {
+    return {
+      secured: Boolean(input.currentSecured),
+      reason: input.currentSecured
+        ? undefined
+        : input.currentReason || undefined,
+    };
+  }
+  // No lock => default to false
+  return { secured: false, reason: undefined };
+}

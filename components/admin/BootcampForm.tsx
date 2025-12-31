@@ -41,9 +41,11 @@ import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/loc
 import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
+  effectiveMaxKeysForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
+import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
 
 const log = getLogger("admin:BootcampForm");
 
@@ -89,9 +91,17 @@ export default function BootcampForm({
     grantFailureReason,
     setGrantFailureReason,
   } = useLockManagerState(isEditing, bootcamp);
+  const {
+    maxKeysSecured,
+    setMaxKeysSecured,
+    maxKeysFailureReason,
+    setMaxKeysFailureReason,
+  } = useMaxKeysSecurityState(isEditing, bootcamp);
   // Track the most recent grant outcome during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
+  let lastConfigFailed: boolean | undefined;
+  let lastConfigError: string | undefined;
 
   // Keep track of the original bootcamp ID for updates
   const [originalBootcampId, setOriginalBootcampId] = useState<string | null>(
@@ -277,6 +287,8 @@ export default function BootcampForm({
       const outcome = applyDeploymentOutcome(result);
       if (outcome.lastGrantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
+      } else if (result.configFailed) {
+        setDeploymentStep("Lock deployed but config update failed!");
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
       }
@@ -288,6 +300,18 @@ export default function BootcampForm({
         log.warn("Lock deployed but grant manager transaction failed", {
           lockAddress,
           grantError: outcome.lastGrantError,
+        });
+      }
+
+      // Set max keys security state based on config outcome
+      setMaxKeysSecured(!result.configFailed);
+      setMaxKeysFailureReason(result.configError);
+      lastConfigFailed = result.configFailed;
+      lastConfigError = result.configError;
+      if (result.configFailed) {
+        log.warn("Lock deployed but config update failed", {
+          lockAddress,
+          configError: result.configError,
         });
       }
 
@@ -471,6 +495,13 @@ export default function BootcampForm({
         currentReason: grantFailureReason,
       });
 
+      const effectiveMaxKeys = effectiveMaxKeysForSave({
+        outcome: { lastConfigFailed, lastConfigError },
+        lockAddress,
+        currentSecured: maxKeysSecured,
+        currentReason: maxKeysFailureReason,
+      });
+
       const apiData: any = {
         id: bootcampId, // Always include ID
         name: formData.name,
@@ -481,6 +512,8 @@ export default function BootcampForm({
         image_url: formData.image_url || null,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
+        max_keys_secured: effectiveMaxKeys.secured,
+        max_keys_failure_reason: effectiveMaxKeys.reason,
         updated_at: new Date().toISOString(),
       };
 

@@ -102,6 +102,14 @@ export async function POST(req: NextRequest) {
       if (insertPayload.lock_manager_granted === true) {
         insertPayload.grant_failure_reason = null;
       }
+
+      // Harden max_keys_secured flag
+      if (typeof insertPayload.max_keys_secured === 'undefined' || insertPayload.max_keys_secured === null) {
+        insertPayload.max_keys_secured = false;
+      }
+      if (insertPayload.max_keys_secured === true) {
+        insertPayload.max_keys_failure_reason = null;
+      }
     }
     const { data, error } = await supabase.from('cohort_milestones').insert(insertPayload).select('*').single();
     if (error) {
@@ -155,6 +163,14 @@ export async function PUT(req: NextRequest) {
       }
       if (hardened.lock_manager_granted === true) {
         hardened.grant_failure_reason = null;
+      }
+
+      // Harden max_keys_secured flag
+      if (typeof hardened.max_keys_secured === 'undefined' || hardened.max_keys_secured === null) {
+        hardened.max_keys_secured = false;
+      }
+      if (hardened.max_keys_secured === true) {
+        hardened.max_keys_failure_reason = null;
       }
     }
     const { data, error } = await supabase.from('cohort_milestones').update(hardened).eq('id', id).select('*').single();

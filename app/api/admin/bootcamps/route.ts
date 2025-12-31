@@ -134,6 +134,14 @@ export async function POST(req: NextRequest) {
       if (record.lock_manager_granted === true) {
         record.grant_failure_reason = null;
       }
+
+      // Harden max_keys_secured flag
+      if (typeof record.max_keys_secured === 'undefined' || record.max_keys_secured === null) {
+        record.max_keys_secured = false;
+      }
+      if (record.max_keys_secured === true) {
+        record.max_keys_failure_reason = null;
+      }
     }
 
     const supabase = createAdminClient();
@@ -185,6 +193,14 @@ export async function PUT(req: NextRequest) {
       }
       if (updateData.lock_manager_granted === true) {
         updateData.grant_failure_reason = null;
+      }
+
+      // Harden max_keys_secured flag
+      if (typeof updateData.max_keys_secured === 'undefined' || updateData.max_keys_secured === null) {
+        updateData.max_keys_secured = false;
+      }
+      if (updateData.max_keys_secured === true) {
+        updateData.max_keys_failure_reason = null;
       }
     }
 

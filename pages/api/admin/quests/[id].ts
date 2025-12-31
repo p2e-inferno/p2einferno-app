@@ -148,6 +148,22 @@ async function updateQuest(
       if ((questFields as any).lock_manager_granted === true) {
         (questFields as any).grant_failure_reason = null;
       }
+
+      // Harden max_keys_secured flag
+      const hasMaxKeysSecured = Object.prototype.hasOwnProperty.call(
+        questFields,
+        "max_keys_secured",
+      );
+      if (
+        !hasMaxKeysSecured ||
+        (questFields as any).max_keys_secured === undefined ||
+        (questFields as any).max_keys_secured === null
+      ) {
+        (questFields as any).max_keys_secured = false;
+      }
+      if ((questFields as any).max_keys_secured === true) {
+        (questFields as any).max_keys_failure_reason = null;
+      }
     }
 
     // Prepare update data - map xp_reward to total_reward if provided
@@ -322,6 +338,21 @@ async function patchQuest(
       }
       if (updates.lock_manager_granted === true) {
         updates.grant_failure_reason = null;
+      }
+
+      // Harden max_keys_secured flag
+      if (
+        !Object.prototype.hasOwnProperty.call(
+          updates,
+          "max_keys_secured",
+        ) ||
+        updates.max_keys_secured === undefined ||
+        updates.max_keys_secured === null
+      ) {
+        updates.max_keys_secured = false;
+      }
+      if (updates.max_keys_secured === true) {
+        updates.max_keys_failure_reason = null;
       }
     }
 

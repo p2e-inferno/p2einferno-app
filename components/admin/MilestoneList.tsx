@@ -18,6 +18,7 @@ import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
 import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
+import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 
 const log = getLogger("admin:MilestoneList");
 
@@ -322,6 +323,11 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                                 milestone.lock_manager_granted
                               }
                               reason={milestone.grant_failure_reason}
+                            />
+                            <MaxKeysSecurityBadge
+                              lockAddress={milestone.lock_address}
+                              maxKeysSecured={milestone.max_keys_secured}
+                              reason={milestone.max_keys_failure_reason}
                             />
                           </div>
                           <p className="text-gray-400 text-xs mt-1 max-w-xs truncate">

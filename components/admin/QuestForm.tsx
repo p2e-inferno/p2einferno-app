@@ -36,9 +36,11 @@ import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/loc
 import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
+  effectiveMaxKeysForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
+import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
 
 const log = getLogger("admin:QuestForm");
 
@@ -75,9 +77,19 @@ export default function QuestForm({
     grantFailureReason,
     setGrantFailureReason,
   } = useLockManagerState(isEditing, quest);
-  // Track the most recent grant outcome during submit to avoid async state races
+
+  const {
+    maxKeysSecured,
+    setMaxKeysSecured,
+    maxKeysFailureReason,
+    setMaxKeysFailureReason,
+  } = useMaxKeysSecurityState(isEditing, quest);
+
+  // Track the most recent grant/config outcomes during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
+  let lastConfigFailed: boolean | undefined;
+  let lastConfigError: string | undefined;
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
@@ -382,6 +394,8 @@ export default function QuestForm({
       const outcome = applyDeploymentOutcome(result);
       if (outcome.lastGrantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
+      } else if (result.configFailed) {
+        setDeploymentStep("Lock deployed but config update failed!");
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
       }
@@ -389,6 +403,13 @@ export default function QuestForm({
       setGrantFailureReason(outcome.reason);
       lastGrantFailed = outcome.lastGrantFailed;
       lastGrantError = outcome.lastGrantError;
+
+      // Set max keys security state based on config outcome
+      setMaxKeysSecured(!result.configFailed);
+      setMaxKeysFailureReason(result.configError);
+      lastConfigFailed = result.configFailed;
+      lastConfigError = result.configError;
+
       if (outcome.lastGrantFailed) {
         log.warn("Lock deployed but grant manager transaction failed", {
           lockAddress,
@@ -623,12 +644,21 @@ export default function QuestForm({
         currentReason: grantFailureReason,
       });
 
+      const effectiveMaxKeys = effectiveMaxKeysForSave({
+        outcome: { lastConfigFailed, lastConfigError },
+        lockAddress,
+        currentSecured: maxKeysSecured,
+        currentReason: maxKeysFailureReason,
+      });
+
       const questData = {
         ...cleanFormData,
         lock_address: lockAddress,
         total_reward: totalReward,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
+        max_keys_secured: effectiveMaxKeys.secured,
+        max_keys_failure_reason: effectiveMaxKeys.reason,
       };
 
       // Prepare tasks data

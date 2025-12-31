@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo, useEffect } from "react";
 import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
+import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
+import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +23,7 @@ import { NetworkError } from "@/components/ui/network-error";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
+import { useMaxKeysPerAddress } from "@/hooks/unlock/useMaxKeysPerAddress";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
@@ -56,8 +59,12 @@ export default function QuestDetailsPage() {
   const [actualManagerStatus, setActualManagerStatus] = useState<
     boolean | null
   >(null);
+  const [actualMaxKeysValue, setActualMaxKeysValue] = useState<bigint | null>(
+    null,
+  );
 
   const { checkIsLockManager } = useIsLockManager();
+  const { checkMaxKeysPerAddress } = useMaxKeysPerAddress();
 
   // Reusable function to fetch quest details by id
   const fetchQuestDetails = useCallback(
@@ -148,6 +155,20 @@ export default function QuestDetailsPage() {
     }
   }, [quest?.lock_address, serverWalletAddress, checkIsLockManager]);
 
+  // Check actual maxKeysPerAddress value on blockchain
+  const checkActualMaxKeysValue = useCallback(async () => {
+    if (!quest?.lock_address) return;
+
+    try {
+      const maxKeys = await checkMaxKeysPerAddress(
+        quest.lock_address as Address,
+      );
+      setActualMaxKeysValue(maxKeys);
+    } catch (err) {
+      log.error("Failed to check maxKeysPerAddress:", err);
+    }
+  }, [quest?.lock_address, checkMaxKeysPerAddress]);
+
   useEffect(() => {
     fetchServerWallet();
   }, [fetchServerWallet]);
@@ -157,6 +178,12 @@ export default function QuestDetailsPage() {
       checkActualManagerStatus();
     }
   }, [quest?.lock_address, serverWalletAddress, checkActualManagerStatus]);
+
+  useEffect(() => {
+    if (quest?.lock_address) {
+      checkActualMaxKeysValue();
+    }
+  }, [quest?.lock_address, checkActualMaxKeysValue]);
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {
@@ -229,6 +256,11 @@ export default function QuestDetailsPage() {
                     {quest.stats.pending_submissions} Pending Reviews
                   </Badge>
                 )}
+                <MaxKeysSecurityBadge
+                  lockAddress={quest.lock_address}
+                  maxKeysSecured={quest.max_keys_secured}
+                  reason={quest.max_keys_failure_reason}
+                />
               </div>
             </div>
 
@@ -370,6 +402,74 @@ export default function QuestDetailsPage() {
                 }}
                 onError={(error) => {
                   toast.error(`Update failed: ${error}`);
+                }}
+              />
+            )}
+
+            {/* MaxKeysPerAddress Security Status Display */}
+            {quest.lock_address && (
+              <div className="mb-6 rounded-lg border border-slate-700 bg-slate-900 p-4">
+                <h3 className="text-sm font-medium text-slate-300 mb-3">
+                  MaxKeysPerAddress Security Status
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Database Status:</span>
+                    <span
+                      className={`font-medium ${quest.max_keys_secured ? "text-green-400" : "text-red-400"}`}
+                    >
+                      {quest.max_keys_secured ? "✅ Secured" : "❌ Not Secured"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Blockchain Value:</span>
+                    <span
+                      className={`font-medium ${
+                        actualMaxKeysValue === null
+                          ? "text-yellow-400"
+                          : actualMaxKeysValue === 0n
+                            ? "text-green-400"
+                            : "text-red-400"
+                      }`}
+                    >
+                      {actualMaxKeysValue === null
+                        ? "⏳ Checking..."
+                        : actualMaxKeysValue === 0n
+                          ? "✅ Secured (0)"
+                          : `❌ Insecure (${actualMaxKeysValue.toString()})`}
+                    </span>
+                  </div>
+                  {actualMaxKeysValue !== null &&
+                    ((quest.max_keys_secured && actualMaxKeysValue !== 0n) ||
+                      (!quest.max_keys_secured &&
+                        actualMaxKeysValue === 0n)) && (
+                      <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
+                        <p className="text-amber-300 text-xs font-medium">
+                          ⚠️ Status Mismatch: Database and blockchain states
+                          don&apos;t match!
+                        </p>
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+
+            {/* MaxKeysPerAddress Security Button */}
+            {quest.lock_address && actualMaxKeysValue !== 0n && (
+              <MaxKeysSecurityButton
+                entityType="quest"
+                entityId={quest.id}
+                lockAddress={quest.lock_address}
+                maxKeysFailureReason={quest.max_keys_failure_reason}
+                onSuccess={() => {
+                  toast.success("Lock secured successfully");
+                  if (id && typeof id === "string") {
+                    fetchQuestDetails(id); // Refresh quest data
+                    checkActualMaxKeysValue(); // Refresh blockchain status
+                  }
+                }}
+                onError={(error) => {
+                  toast.error(`Security update failed: ${error}`);
                 }}
               />
             )}
