@@ -197,10 +197,12 @@ export default function LobbyPage() {
       {/* Welcome Section */}
       <div className="mb-8">
         <WelcomeSection profile={profile} />
-        <LobbyCheckinStrip
-          userAddress={profile.wallet_address}
-          userProfileId={profile.id}
-        />
+        {profile.wallet_address && profile.id && (
+          <LobbyCheckinStrip
+            userAddress={profile.wallet_address}
+            userProfileId={profile.id}
+          />
+        )}
         <StatsGrid stats={stats} />
       </div>
 

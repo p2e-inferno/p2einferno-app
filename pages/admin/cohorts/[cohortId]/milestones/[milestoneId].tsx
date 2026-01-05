@@ -4,7 +4,6 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskList from "@/components/admin/TaskList";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
-import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 import { Calendar, Clock, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CohortMilestone, Cohort } from "@/lib/supabase/types";

@@ -394,6 +394,8 @@ export default function MilestoneFormEnhanced({
         lockAddress: string;
         grantFailed?: boolean;
         grantError?: string;
+        configFailed?: boolean;
+        configError?: string;
       }
     | undefined
   > => {

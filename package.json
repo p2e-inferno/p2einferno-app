@@ -65,7 +65,7 @@
     "lucide-react": "^0.513.0",
     "micro": "^10.0.1",
     "motion": "^12.16.0",
-    "next": "latest",
+    "next": "16.0.10",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-hot-toast": "^2.5.2",
@@ -78,7 +78,7 @@
   },
   "devDependencies": {
     "@jest/globals": "^30.0.4",
-    "@playwright/test": "^1.48.2",
+    "@playwright/test": "^1.51.1",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -107,6 +107,7 @@
     "axios": "^1.7.9",
     "ws": "^8.18.0",
     "elliptic": "^6.6.1",
-    "glob": "^10.5.0"
+    "glob": "^10.5.0",
+    "playwright-core": "1.57.0"
   }
 }

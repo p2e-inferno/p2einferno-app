@@ -375,8 +375,13 @@ export default async function handler(
     }
 
     if (req.method === "GET" || req.method === "POST") {
-      // Choose the richest source of user data we have
-      const userDataForProfile = privyUser || req.body;
+      // Merge request body data (which has wallet/email info) with privyUser
+      // Prefer req.body for wallet/email data as it comes from the client with full context
+      const userDataForProfile = {
+        ...privyUser,
+        ...req.body,
+        privyUserId, // Ensure we use the verified Privy user ID
+      };
 
       const profile = await createOrUpdateUserProfile(
         privyUserId,

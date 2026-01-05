@@ -12,7 +12,7 @@ const mockWriteContract = jest.fn();
 
 const mockUseWriteContract = jest.fn(() => ({
     writeContract: mockWriteContract,
-    data: null,
+    data: undefined as any,
     isPending: false,
 }));
 
@@ -152,7 +152,7 @@ describe("useDGLightUp", () => {
         it("should be true when transaction is confirmed", () => {
             mockUseWriteContract.mockReturnValue({
                 writeContract: mockWriteContract,
-                data: "0x123abc",
+                data: "0x123abc" as `0x${string}`,
                 isPending: false,
             });
             mockUseWaitForTransactionReceipt.mockReturnValue({
@@ -179,7 +179,7 @@ describe("useDGLightUp", () => {
         });
 
         it("should return hash when transaction is sent", () => {
-            const txHash = "0xabc123def456";
+            const txHash = "0xabc123def456" as `0x${string}`;
             mockUseWriteContract.mockReturnValue({
                 writeContract: mockWriteContract,
                 data: txHash,

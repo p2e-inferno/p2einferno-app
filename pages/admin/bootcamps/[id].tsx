@@ -4,7 +4,6 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
-import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";

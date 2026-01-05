@@ -16,11 +16,11 @@ export function formatAmount(
   maxDecimals = 4,
 ): string {
   const full = formatUnits(value, decimals);
-  const [intPart, fracPart = ""] = full.split(".");
-  if (!fracPart) return intPart;
+  const [intPart, fracPart] = full.split(".");
+  if (!fracPart) return intPart || "0";
 
   const trimmedFrac = fracPart.slice(0, maxDecimals).replace(/0+$/, "");
-  return trimmedFrac ? `${intPart}.${trimmedFrac}` : intPart;
+  return trimmedFrac ? `${intPart || "0"}.${trimmedFrac}` : (intPart || "0");
 }
 
 export function formatAmountForInput(value: bigint, decimals: number): string {

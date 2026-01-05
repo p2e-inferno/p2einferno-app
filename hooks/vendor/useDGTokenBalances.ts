@@ -28,7 +28,7 @@ export function useDGTokenBalances(
             address: baseToken!,
             abi: ERC20_ABI,
             functionName: "balanceOf",
-            args: [walletAddress!],
+            args: [walletAddress! as `0x${string}`],
           },
           {
             address: baseToken!,
@@ -44,7 +44,7 @@ export function useDGTokenBalances(
             address: swapToken!,
             abi: ERC20_ABI,
             functionName: "balanceOf",
-            args: [walletAddress!],
+            args: [walletAddress! as `0x${string}`],
           },
           {
             address: swapToken!,

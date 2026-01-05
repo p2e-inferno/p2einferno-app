@@ -1,5 +1,5 @@
 import { testWithSynpress } from '@synthetixio/synpress';
-import { MetaMask, metaMaskFixtures } from '@synthetixio/synpress/playwright';
+import { metaMaskFixtures } from '@synthetixio/synpress/playwright';
 import basicSetup from '../wallet-setup/basic.setup';
 
 const test = testWithSynpress(metaMaskFixtures(basicSetup));
@@ -7,19 +7,8 @@ const test = testWithSynpress(metaMaskFixtures(basicSetup));
 const { expect } = test;
 
 test('should load the homepage and show connect button', async ({
-    context,
     page,
-    metamaskPage,
-    extensionId,
 }) => {
-    // Create a new MetaMask instance
-    const metamask = new MetaMask(
-        context,
-        metamaskPage,
-        basicSetup.walletPassword,
-        extensionId
-    );
-
     // Navigate to homepage
     await page.goto('/');
 
@@ -31,5 +20,4 @@ test('should load the homepage and show connect button', async ({
     await expect(connectButton).toBeVisible();
 
     console.log('✅ Homepage loaded successfully with connect button visible');
-    console.log('MetaMask extension ID:', extensionId);
 });

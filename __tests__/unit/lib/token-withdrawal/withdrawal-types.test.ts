@@ -224,7 +224,7 @@ describe("Withdrawal Types", () => {
             };
 
             expect(response.withdrawals).toHaveLength(1);
-            expect(response.withdrawals[0].amount_dg).toBe(100);
+            expect(response.withdrawals[0]?.amount_dg).toBe(100);
         });
     });
 
@@ -274,8 +274,8 @@ describe("Withdrawal Types", () => {
             };
 
             expect(response.alerts).toHaveLength(2);
-            expect(response.alerts?.[0].severity).toBe("warning");
-            expect(response.alerts?.[1].severity).toBe("critical");
+            expect(response.alerts?.[0]?.severity).toBe("warning");
+            expect(response.alerts?.[1]?.severity).toBe("critical");
         });
 
         it("should include error on failure", () => {

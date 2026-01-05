@@ -6,7 +6,7 @@ const test = testWithSynpress(metaMaskFixtures(basicSetup));
 const { expect } = test;
 
 async function clickFirstMatching(
-  page: Parameters<typeof test>[0]["page"],
+  page: any,
   labels: RegExp[],
 ) {
   for (const label of labels) {

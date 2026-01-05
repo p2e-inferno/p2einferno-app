@@ -12,7 +12,7 @@ import { getLogger } from "@/lib/utils/logger";
 const log = getLogger("useMaxKeysSecurityState");
 
 interface EntityWithMaxKeysSecurity {
-  max_keys_secured?: boolean;
+  max_keys_secured?: boolean | null;
   max_keys_failure_reason?: string | null;
 }
 

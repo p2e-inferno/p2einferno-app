@@ -109,7 +109,10 @@ function DailyCheckinStripUI({
   const countdown = formatHMS(msUntilMidnight);
 
   async function handleClick() {
-    if (checkedToday || loading || busy) return;
+    if (checkedToday || loading || busy) {
+      return;
+    }
+
     try {
       setBusy(true);
       await onCheckIn?.();

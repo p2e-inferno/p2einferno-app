@@ -70,7 +70,7 @@ describe("useMaxKeysSecurityState", () => {
 
       const entity2 = {
         max_keys_secured: true,
-        max_keys_failure_reason: null,
+        max_keys_failure_reason: null as any,
       };
       rerender({ isEditing: true, entity: entity2 });
 
@@ -126,7 +126,7 @@ describe("useMaxKeysSecurityState", () => {
 
   describe("mode switching", () => {
     it("updates state when switching from create to edit mode", () => {
-      const entity = { max_keys_secured: true };
+      const entity = { max_keys_secured: true } as any;
       const { result, rerender } = renderHook(
         ({ isEditing, entity }) => useMaxKeysSecurityState(isEditing, entity),
         { initialProps: { isEditing: false, entity: undefined } },

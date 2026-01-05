@@ -46,10 +46,10 @@ describe("Verification Types", () => {
             // Create a mock implementation to verify interface contract
             const mockStrategy = {
                 verify: async (
-                    taskType: string,
-                    verificationData: any,
-                    userId: string,
-                    userAddress: string
+                    _taskType: string,
+                    _verificationData: any,
+                    _userId: string,
+                    _userAddress: string
                 ) => {
                     return { success: true };
                 },

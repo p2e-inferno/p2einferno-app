@@ -6,13 +6,12 @@
  */
 
 import { renderHook, act } from "@testing-library/react";
-import React from "react";
 
 // Mock wagmi hooks
 const mockWriteContract = jest.fn();
 const mockUseWriteContract = jest.fn(() => ({
     writeContract: mockWriteContract,
-    data: null,
+    data: undefined as any,
     isPending: false,
 }));
 
@@ -21,7 +20,7 @@ const mockUseWaitForTransactionReceipt = jest.fn(() => ({
     isSuccess: false,
 }));
 
-const mockUseReadContract = jest.fn(() => ({
+const mockUseReadContract = jest.fn((_config?: any) => ({
     data: undefined,
 }));
 
@@ -61,7 +60,7 @@ describe("useDGMarket", () => {
 
     describe("Return Values", () => {
         it("should return exchangeRate from contract", () => {
-            mockUseReadContract.mockReturnValue({ data: 1000000n });
+            mockUseReadContract.mockReturnValue({ data: 1000000n as any });
 
             const { result } = renderHook(() => useDGMarket());
 
@@ -77,7 +76,7 @@ describe("useDGMarket", () => {
                     sellFeeBps: 200n,
                     rateChangeCooldown: 0n,
                     appChangeCooldown: 0n,
-                },
+                } as any,
             });
 
             const { result } = renderHook(() => useDGMarket());
@@ -153,42 +152,16 @@ describe("useDGMarket", () => {
 
     describe("Token + Stage Config", () => {
         it("should expose token and stage constants data when available", () => {
-            mockUseReadContract.mockImplementation((config: any) => {
-                if (config.functionName === "getExchangeRate") {
-                    return { data: 2n };
-                }
-                if (config.functionName === "getFeeConfig") {
-                    return {
-                        data: {
-                            maxFeeBps: 1000n,
-                            minFeeBps: 10n,
-                            buyFeeBps: 100n,
-                            sellFeeBps: 200n,
-                            rateChangeCooldown: 0n,
-                            appChangeCooldown: 0n,
-                        },
-                    };
-                }
-                if (config.functionName === "getTokenConfig") {
-                    return {
-                        data: {
-                            baseToken: "0x0000000000000000000000000000000000000001",
-                            swapToken: "0x0000000000000000000000000000000000000002",
-                            exchangeRate: 2n,
-                        },
-                    };
-                }
-                if (config.functionName === "getStageConstants") {
-                    return {
-                        data: {
-                            maxSellCooldown: 0n,
-                            dailyWindow: 0n,
-                            minBuyAmount: 1000n,
-                            minSellAmount: 5000n,
-                        },
-                    };
-                }
-                return { data: undefined };
+            mockUseReadContract.mockReturnValue({
+                data: {
+                    baseToken: "0x0000000000000000000000000000000000000001",
+                    swapToken: "0x0000000000000000000000000000000000000002",
+                    exchangeRate: 2n,
+                    maxSellCooldown: 0n,
+                    dailyWindow: 0n,
+                    minBuyAmount: 1000n,
+                    minSellAmount: 5000n,
+                } as any,
             });
 
             const { result } = renderHook(() => useDGMarket());
@@ -237,7 +210,7 @@ describe("useDGMarket", () => {
         it("should be true when confirming transaction", () => {
             mockUseWriteContract.mockReturnValue({
                 writeContract: mockWriteContract,
-                data: "0x123",
+                data: "0x123" as `0x${string}`,
                 isPending: false,
             });
             mockUseWaitForTransactionReceipt.mockReturnValue({

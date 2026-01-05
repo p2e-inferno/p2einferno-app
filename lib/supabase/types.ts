@@ -14,6 +14,8 @@ export interface BootcampProgram {
   lock_address?: string;
   lock_manager_granted?: boolean;
   grant_failure_reason?: string;
+  max_keys_secured?: boolean | null;
+  max_keys_failure_reason?: string | null;
   image_url?: string;
   created_at: string;
   updated_at: string;
@@ -50,6 +52,8 @@ export interface CohortMilestone {
   lock_address: string;
   lock_manager_granted?: boolean;
   grant_failure_reason?: string;
+  max_keys_secured?: boolean | null;
+  max_keys_failure_reason?: string | null;
   prerequisite_milestone_id?: string;
   duration_hours?: number;
   total_reward?: number;
@@ -86,6 +90,8 @@ export interface Quest {
   lock_address?: string;
   lock_manager_granted?: boolean;
   grant_failure_reason?: string;
+  max_keys_secured?: boolean | null;
+  max_keys_failure_reason?: string | null;
   prerequisite_quest_id?: string | null;
   prerequisite_quest_lock_address?: string | null;
   requires_prerequisite_key?: boolean;

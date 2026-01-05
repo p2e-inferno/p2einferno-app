@@ -17,7 +17,7 @@ const mockUseWriteContract = jest.fn(() => ({
   isPending: false,
 }));
 
-const mockUseReadContract = jest.fn(() => ({
+const mockUseReadContract = jest.fn((_config?: any) => ({
   data: undefined,
   refetch: mockRefetchState,
 }));
@@ -80,7 +80,7 @@ describe("useDGProfile", () => {
                     lastStage3MaxSale: 0n,
                     dailySoldAmount: 0n,
                     dailyWindowStart: 0n,
-                },
+                } as any,
                 refetch: mockRefetchState,
             });
 
@@ -127,7 +127,7 @@ describe("useDGProfile", () => {
                     lastStage3MaxSale: 0n,
                     dailySoldAmount: 0n,
                     dailyWindowStart: 0n,
-                },
+                } as any,
                 refetch: mockRefetchState,
             });
 
@@ -145,7 +145,7 @@ describe("useDGProfile", () => {
                     lastStage3MaxSale: 0n,
                     dailySoldAmount: 0n,
                     dailyWindowStart: 0n,
-                },
+                } as any,
                 refetch: mockRefetchState,
             });
 
@@ -163,7 +163,7 @@ describe("useDGProfile", () => {
                     lastStage3MaxSale: 0n,
                     dailySoldAmount: 0n,
                     dailyWindowStart: 0n,
-                },
+                } as any,
                 refetch: mockRefetchState,
             });
 
@@ -181,7 +181,7 @@ describe("useDGProfile", () => {
                     lastStage3MaxSale: 0n,
                     dailySoldAmount: 1000n,
                     dailyWindowStart: 0n,
-                },
+                } as any,
                 refetch: mockRefetchState,
             });
 
@@ -212,7 +212,7 @@ describe("useDGProfile", () => {
                     lastStage3MaxSale: 0n,
                     dailySoldAmount: 0n,
                     dailyWindowStart: 0n,
-                },
+                } as any,
                 refetch: mockRefetchState,
             });
 
@@ -241,7 +241,7 @@ describe("useDGProfile", () => {
     describe("Wallet Requirement", () => {
         it("should not fetch userState when walletAddress is undefined", () => {
             mockUseDetectConnectedWalletAddress.mockReturnValue({
-                walletAddress: undefined,
+                walletAddress: undefined as any,
             });
 
             renderHook(() => useDGProfile());
