@@ -2,6 +2,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
+import {
+  sendEmail,
+  getWelcomeEmail,
+  sendEmailWithDedup,
+  normalizeEmail,
+} from "@/lib/email";
 
 const log = getLogger("api:user:profile");
 
@@ -151,6 +157,30 @@ async function createOrUpdateUserProfile(
     createdAt: data.created_at,
     updatedAt: data.updated_at,
   });
+
+  const email = normalizeEmail(data.email);
+  if (email) {
+    try {
+      const { sent } = await sendEmailWithDedup(
+        "welcome",
+        data.id,
+        email,
+        `profile:${data.id}`,
+        () => {
+          const tpl = getWelcomeEmail({
+            displayName: data.display_name || "there",
+          });
+          return sendEmail({ to: email, ...tpl, tags: ["welcome"] });
+        },
+      );
+
+      if (sent) {
+        log.info("Welcome email sent to new user", { userId: data.id });
+      }
+    } catch (emailErr) {
+      log.error("Failed to send welcome email", { userId: data.id, emailErr });
+    }
+  }
 
   if (isNewProfile) {
     try {

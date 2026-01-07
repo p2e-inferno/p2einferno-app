@@ -649,6 +649,69 @@ export type Database = {
         }
         Relationships: []
       }
+      csp_rate_limits: {
+        Row: {
+          count: number
+          ip: string
+          window_start: string
+        }
+        Insert: {
+          count: number
+          ip: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          ip?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      csp_reports: {
+        Row: {
+          blocked_uri: string | null
+          column_number: number | null
+          document_uri: string
+          id: string
+          ip: string | null
+          line_number: number | null
+          raw_report: Json | null
+          received_at: string
+          source_file: string | null
+          status_code: number | null
+          user_agent: string | null
+          violated_directive: string
+        }
+        Insert: {
+          blocked_uri?: string | null
+          column_number?: number | null
+          document_uri: string
+          id?: string
+          ip?: string | null
+          line_number?: number | null
+          raw_report?: Json | null
+          received_at?: string
+          source_file?: string | null
+          status_code?: number | null
+          user_agent?: string | null
+          violated_directive: string
+        }
+        Update: {
+          blocked_uri?: string | null
+          column_number?: number | null
+          document_uri?: string
+          id?: string
+          ip?: string | null
+          line_number?: number | null
+          raw_report?: Json | null
+          received_at?: string
+          source_file?: string | null
+          status_code?: number | null
+          user_agent?: string | null
+          violated_directive?: string
+        }
+        Relationships: []
+      }
       dg_token_withdrawals: {
         Row: {
           amount_dg: number
@@ -711,6 +774,90 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      email_events: {
+        Row: {
+          created_at: string | null
+          dedup_key: string
+          error_message: string | null
+          event_type: string
+          id: string
+          message_id: string | null
+          recipient_email: string
+          sent_at: string | null
+          status: string
+          target_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dedup_key: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          message_id?: string | null
+          recipient_email: string
+          sent_at?: string | null
+          status?: string
+          target_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dedup_key?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          message_id?: string | null
+          recipient_email?: string
+          sent_at?: string | null
+          status?: string
+          target_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      email_send_queue: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          next_retry_at: string | null
+          processed_at: string | null
+          recipient_email: string
+          retry_count: number | null
+          target_id: string | null
+          template_data: Json
+          template_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          next_retry_at?: string | null
+          processed_at?: string | null
+          recipient_email: string
+          retry_count?: number | null
+          target_id?: string | null
+          template_data: Json
+          template_name: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          next_retry_at?: string | null
+          processed_at?: string | null
+          recipient_email?: string
+          retry_count?: number | null
+          target_id?: string | null
+          template_data?: Json
+          template_name?: string
+        }
+        Relationships: []
       }
       lock_registry: {
         Row: {
@@ -2399,6 +2546,10 @@ export type Database = {
           remaining_treasury: number
           success: boolean
         }[]
+      }
+      check_and_increment_csp_rate_limit: {
+        Args: { p_ip: string; p_max: number; p_window_seconds: number }
+        Returns: boolean
       }
       complete_withdrawal: {
         Args: { p_tx_hash: string; p_withdrawal_id: string }

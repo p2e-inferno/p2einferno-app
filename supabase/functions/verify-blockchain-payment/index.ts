@@ -1,6 +1,7 @@
 // Path: supabase/functions/verify-blockchain-payment/index.ts
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { ethers } from 'https://esm.sh/ethers@6.11.1';
+import { sendEmail, getPaymentSuccessEmail, normalizeEmail } from '../_shared/email-utils.ts';
 // Lightweight logger for Edge Functions (avoid importing app logger in Deno)
 const log = {
   info: (...args: any[]) => console.log('[verify-blockchain-payment]', ...args),
@@ -146,6 +147,61 @@ Deno.serve(async (req) => {
             rpc_error: rpcError.message
         }
     }).eq('payment_reference', paymentReference);
+  }
+
+  if (!rpcError) {
+    const { data: appData } = await supabaseAdmin
+      .from('applications')
+      .select('user_email, cohort:cohort_id ( name )')
+      .eq('id', applicationId)
+      .single();
+
+    const email = normalizeEmail(appData?.user_email);
+    if (email) {
+      const cohort = Array.isArray(appData.cohort) ? appData.cohort[0] : appData.cohort;
+      const tpl = getPaymentSuccessEmail({
+        cohortName: cohort?.name || 'Bootcamp',
+        amount: 0,
+        currency: 'USDT',
+      });
+
+      const dedupKey = `payment:${email}`;
+      const { error: claimError } = await supabaseAdmin
+        .from('email_events')
+        .insert({
+          event_type: 'payment-success',
+          target_id: applicationId,
+          recipient_email: email,
+          dedup_key: dedupKey,
+          status: 'pending',
+        });
+
+      if (!claimError) {
+        const result = await sendEmail({
+          to: email,
+          ...tpl,
+          tags: ['payment-success', 'blockchain'],
+        });
+
+        if (result.ok) {
+          await supabaseAdmin
+            .from('email_events')
+            .update({ status: 'sent', message_id: result.messageId, sent_at: new Date().toISOString() })
+            .eq('event_type', 'payment-success')
+            .eq('target_id', applicationId)
+            .eq('recipient_email', email)
+            .eq('dedup_key', dedupKey);
+        } else {
+          await supabaseAdmin
+            .from('email_events')
+            .update({ status: 'failed', error_message: result.error || 'send_failed' })
+            .eq('event_type', 'payment-success')
+            .eq('target_id', applicationId)
+            .eq('recipient_email', email)
+            .eq('dedup_key', dedupKey);
+        }
+      }
+    }
   }
 
   return new Response(JSON.stringify({ success: true, message: "Verification successful." }), {

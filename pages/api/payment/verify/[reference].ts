@@ -10,6 +10,12 @@ import { isServerBlockchainConfigured } from "../../../../lib/blockchain/legacy/
 import { isValidEthereumAddress } from "../../../../lib/blockchain/services/transaction-service";
 import { getLogger } from "@/lib/utils/logger";
 import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
+import {
+  sendEmail,
+  getPaymentSuccessEmail,
+  getPaymentEmailContext,
+  sendEmailWithDedup,
+} from "@/lib/email";
 
 const log = getLogger("api:payment:verify:[reference]");
 
@@ -551,6 +557,35 @@ export default async function handler(
             );
             // Note: We don't fail the payment response if key granting fails
             // The reconciliation system will handle retry later
+          }
+
+          try {
+            const emailCtx = await getPaymentEmailContext(
+              supabase,
+              processResult.returned_application_id,
+            );
+            if (emailCtx) {
+              const tpl = getPaymentSuccessEmail({
+                cohortName: emailCtx.cohortName,
+                amount: paystackAmount / 100,
+                currency: "NGN",
+              });
+
+              await sendEmailWithDedup(
+                "payment-success",
+                processResult.returned_application_id,
+                emailCtx.email,
+                `payment:${emailCtx.email}`,
+                () =>
+                  sendEmail({
+                    to: emailCtx.email,
+                    ...tpl,
+                    tags: ["payment-success", "manual-verify"],
+                  }),
+              );
+            }
+          } catch (emailErr) {
+            log.error("Failed to send payment email", { emailErr });
           }
 
           return res.status(200).json({

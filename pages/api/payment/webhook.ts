@@ -4,6 +4,12 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { buffer } from "micro";
 import { extractAndValidateApplicationId } from "../../../lib/helpers/payment-helpers";
 import { getLogger } from "@/lib/utils/logger";
+import {
+  sendEmail,
+  getPaymentSuccessEmail,
+  getPaymentEmailContext,
+  sendEmailWithDedup,
+} from "@/lib/email";
 
 const log = getLogger("api:payment:webhook");
 
@@ -89,6 +95,35 @@ const handleSuccessfulCharge = async (supabase: any, paymentData: any) => {
         "Webhook: Updated transaction with Paystack reference:",
         paymentReference,
       );
+
+      try {
+        const emailCtx = await getPaymentEmailContext(supabase, applicationId);
+        if (emailCtx) {
+          const tpl = getPaymentSuccessEmail({
+            cohortName: emailCtx.cohortName,
+            amount: paymentData.amount / 100,
+            currency: "NGN",
+          });
+
+          await sendEmailWithDedup(
+            "payment-success",
+            applicationId,
+            emailCtx.email,
+            `payment:${emailCtx.email}`,
+            () =>
+              sendEmail({
+                to: emailCtx.email,
+                ...tpl,
+                tags: ["payment-success", "paystack-webhook"],
+              }),
+          );
+        }
+      } catch (emailErr) {
+        log.error("Failed to send payment confirmation email", {
+          applicationId,
+          emailErr,
+        });
+      }
     }
   } catch (e) {
     log.error("Payment processing exception:", e);
