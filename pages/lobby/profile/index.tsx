@@ -18,6 +18,7 @@ import { WithdrawalHistoryTable } from "@/components/token-withdrawal/Withdrawal
 import { SubscriptionBadge } from "@/components/token-withdrawal/SubscriptionBadge";
 import { AccessRequirementCard } from "@/components/token-withdrawal/AccessRequirementCard";
 import { SubscriptionStatusCard } from "@/components/subscription";
+import { useWithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 
 const log = getLogger("lobby:profile:index");
 
@@ -33,6 +34,9 @@ const ProfilePage = () => {
     loading: dashboardLoading,
     refetch,
   } = useDashboardData();
+
+  // Fetch withdrawal limits once at the page level (React Query will cache and deduplicate)
+  const withdrawalLimits = useWithdrawalLimits();
 
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [linking, setLinking] = useState<string | null>(null);
@@ -224,7 +228,7 @@ const ProfilePage = () => {
             <AccessRequirementCard />
 
             <div className="mb-4">
-              <WithdrawDGButton />
+              <WithdrawDGButton limits={withdrawalLimits} />
             </div>
 
             <div className="mt-6">

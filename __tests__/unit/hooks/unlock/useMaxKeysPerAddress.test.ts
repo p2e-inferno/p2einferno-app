@@ -127,15 +127,11 @@ describe("useMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useMaxKeysPerAddress());
 
       // First call fails
-      await act(() =>
-        result.current.checkMaxKeysPerAddress(mockLockAddress),
-      );
+      await act(() => result.current.checkMaxKeysPerAddress(mockLockAddress));
       expect(result.current.error).toBe("First error");
 
       // Second call succeeds
-      await act(() =>
-        result.current.checkMaxKeysPerAddress(mockLockAddress),
-      );
+      await act(() => result.current.checkMaxKeysPerAddress(mockLockAddress));
       expect(result.current.error).toBeNull();
     });
   });

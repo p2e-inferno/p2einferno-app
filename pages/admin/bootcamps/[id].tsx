@@ -36,7 +36,7 @@ export default function EditBootcampPage() {
     null,
   );
 
-  const { checkIsLockManager} = useIsLockManager();
+  const { checkIsLockManager } = useIsLockManager();
   const { checkMaxKeysPerAddress } = useMaxKeysPerAddress();
 
   const fetchBootcamp = useCallback(async () => {

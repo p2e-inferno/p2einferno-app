@@ -4,9 +4,7 @@ import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 describe("MaxKeysSecurityBadge", () => {
   describe("visibility conditions", () => {
     it("renders nothing when lockAddress is null", () => {
-      const { container } = render(
-        <MaxKeysSecurityBadge lockAddress={null} />,
-      );
+      const { container } = render(<MaxKeysSecurityBadge lockAddress={null} />);
       expect(container.firstChild).toBeNull();
     });
 

@@ -342,10 +342,7 @@ async function patchQuest(
 
       // Harden max_keys_secured flag
       if (
-        !Object.prototype.hasOwnProperty.call(
-          updates,
-          "max_keys_secured",
-        ) ||
+        !Object.prototype.hasOwnProperty.call(updates, "max_keys_secured") ||
         updates.max_keys_secured === undefined ||
         updates.max_keys_secured === null
       ) {

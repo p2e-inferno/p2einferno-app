@@ -78,10 +78,14 @@ export default function VendorSwap() {
   const inputTokenSymbol = mode === "buy" ? baseSymbol : swapSymbol;
   const outputTokenSymbol = mode === "buy" ? swapSymbol : baseSymbol;
   const inputDecimals =
-    mode === "buy" ? base.decimals ?? undefined : swap.decimals ?? undefined;
+    mode === "buy"
+      ? (base.decimals ?? undefined)
+      : (swap.decimals ?? undefined);
   const inputBalance = mode === "buy" ? base.balance : swap.balance;
   const outputDecimals =
-    mode === "buy" ? swap.decimals ?? undefined : base.decimals ?? undefined;
+    mode === "buy"
+      ? (swap.decimals ?? undefined)
+      : (base.decimals ?? undefined);
 
   const parsedAmount =
     inputDecimals !== undefined ? parseAmount(amount, inputDecimals) : null;
@@ -106,7 +110,12 @@ export default function VendorSwap() {
       : false;
 
   const estimate: BuyEstimate | SellEstimate | null = (() => {
-    if (!hasConfig || parsedAmount === null || exchangeRate === undefined || !feeConfig) {
+    if (
+      !hasConfig ||
+      parsedAmount === null ||
+      exchangeRate === undefined ||
+      !feeConfig
+    ) {
       return null;
     }
 
@@ -208,11 +217,13 @@ export default function VendorSwap() {
               <span className="text-slate-400">Rate</span>
               <div className="text-right font-mono">
                 <div>
-                  1 {baseSymbol} ≈ {buyPerBase !== undefined ? formatRatio(buyPerBase) : "--"}{" "}
+                  1 {baseSymbol} ≈{" "}
+                  {buyPerBase !== undefined ? formatRatio(buyPerBase) : "--"}{" "}
                   {swapSymbol}
                 </div>
                 <div className="text-[11px] text-slate-400">
-                  1 {swapSymbol} ≈ {sellPerSwap !== undefined ? formatRatio(sellPerSwap) : "--"}{" "}
+                  1 {swapSymbol} ≈{" "}
+                  {sellPerSwap !== undefined ? formatRatio(sellPerSwap) : "--"}{" "}
                   {baseSymbol}
                 </div>
               </div>
@@ -265,7 +276,7 @@ export default function VendorSwap() {
         {(isPaused || !isKeyHolder) && (
           <p className="text-xs text-red-400">
             {!isKeyHolder
-              ? "Valid NFT key required to trade."
+              ? "Active DG Nation Membership is required to trade."
               : "Vendor is paused."}
           </p>
         )}
@@ -284,7 +295,11 @@ export default function VendorSwap() {
               type="button"
               onClick={() => applyPercent(percent)}
               className="rounded-full bg-slate-700/70 px-3 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
-              disabled={isPending || inputBalance === undefined || inputDecimals === undefined}
+              disabled={
+                isPending ||
+                inputBalance === undefined ||
+                inputDecimals === undefined
+              }
             >
               {percent}%
             </button>
@@ -293,23 +308,23 @@ export default function VendorSwap() {
             type="button"
             onClick={() => applyPercent(100)}
             className="rounded-full bg-slate-700/70 px-3 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
-            disabled={isPending || inputBalance === undefined || inputDecimals === undefined}
+            disabled={
+              isPending ||
+              inputBalance === undefined ||
+              inputDecimals === undefined
+            }
           >
             Max
           </button>
         </div>
         {parsedAmount === null && amount.trim().length > 0 && (
-          <p className="text-xs text-red-400">
-            Enter a valid amount.
-          </p>
+          <p className="text-xs text-red-400">Enter a valid amount.</p>
         )}
         {isBelowMin && minText && (
           <p className="text-xs text-red-400">{minText}</p>
         )}
         {isOverBalance && (
-          <p className="text-xs text-red-400">
-            Insufficient balance.
-          </p>
+          <p className="text-xs text-red-400">Insufficient balance.</p>
         )}
         {isSellOutputZero && (
           <p className="text-xs text-red-400">

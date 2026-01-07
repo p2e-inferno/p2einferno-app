@@ -5,9 +5,9 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useXpRenewal } from "@/hooks/useXpRenewal";
-import { X, Loader, CheckCircle, AlertCircle } from "lucide-react";
+import { X, Loader, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react";
 
 interface Props {
   mode?: "renewal"; // Only renewal supported, purchase not available for XP
@@ -31,10 +31,11 @@ export const XpRenewalModal = ({ onClose, onSuccess }: Props) => {
     await renewal.getQuote(duration);
   };
 
-  // Initial quote fetch
-  if (!renewal.quote && renewal.step === "quote") {
-    setTimeout(() => renewal.getQuote(selectedDuration), 0);
-  }
+  // Initial quote fetch - only run once on mount
+  useEffect(() => {
+    renewal.getQuote(selectedDuration);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleRenewNow = async () => {
     await renewal.executeRenewal(selectedDuration);
@@ -42,6 +43,11 @@ export const XpRenewalModal = ({ onClose, onSuccess }: Props) => {
 
   const handleRetry = async () => {
     await renewal.retry(selectedDuration);
+  };
+
+  const handleGoBack = async () => {
+    renewal.reset();
+    await renewal.getQuote(selectedDuration);
   };
 
   // Success state
@@ -118,6 +124,13 @@ export const XpRenewalModal = ({ onClose, onSuccess }: Props) => {
       <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6">
           <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={handleGoBack}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+              title="Go back"
+            >
+              <ArrowLeft size={20} />
+            </button>
             <h3 className="font-bold text-lg text-white">Renewal Failed</h3>
             <button
               onClick={onClose}
@@ -138,9 +151,9 @@ export const XpRenewalModal = ({ onClose, onSuccess }: Props) => {
           <div className="mt-6 flex gap-2">
             <button
               className="flex-1 px-4 py-2 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
-              onClick={onClose}
+              onClick={handleGoBack}
             >
-              Close
+              Back
             </button>
             <button
               className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"

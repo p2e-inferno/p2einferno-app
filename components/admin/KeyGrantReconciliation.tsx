@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { toast } from "react-hot-toast";
-import { usePrivy } from "@privy-io/react-auth";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import {
   RefreshCw,
   AlertTriangle,
@@ -45,7 +45,7 @@ interface ReconciliationFilters {
 }
 
 export default function KeyGrantReconciliation() {
-  const { getAccessToken } = usePrivy();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
   const [failedGrants, setFailedGrants] = useState<FailedGrant[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
@@ -57,28 +57,23 @@ export default function KeyGrantReconciliation() {
   const loadFailedGrants = async () => {
     setIsLoading(true);
     try {
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
-      const response = await fetch("/api/admin/reconcile-key-grants", {
+      const result = await adminFetch<{
+        success?: boolean;
+        data?: { failedGrants?: FailedGrant[] };
+        error?: string;
+      }>("/api/admin/reconcile-key-grants", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           operation: "list_failed_grants",
           filters,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to load failed grants");
+      if (result.error) {
+        throw new Error(result.error || "Failed to load failed grants");
       }
 
-      const result = await response.json();
-      setFailedGrants(result.data?.failedGrants || []);
+      setFailedGrants(result.data?.data?.failedGrants || []);
     } catch (error: any) {
       log.error("Error loading failed grants:", error);
       toast.error(error.message || "Failed to load failed grants");
@@ -90,30 +85,25 @@ export default function KeyGrantReconciliation() {
   const retryAllFailedGrants = async () => {
     setIsRetrying(true);
     try {
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
       toast.loading("Retrying failed key grants...", { id: "bulk-retry" });
 
-      const response = await fetch("/api/admin/reconcile-key-grants", {
+      const result = await adminFetch<{
+        success?: boolean;
+        data?: { attempted: number; successful: number; failed: number };
+        error?: string;
+      }>("/api/admin/reconcile-key-grants", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           operation: "retry_failed_grants",
           filters,
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to retry grants");
+      if (result.error || !result.data?.data) {
+        throw new Error(result.error || "Failed to retry grants");
       }
 
-      const result = await response.json();
-      const { attempted, successful, failed } = result.data;
+      const { attempted, successful, failed } = result.data.data;
 
       toast.success(
         `Retry completed: ${successful} successful, ${failed} failed out of ${attempted} attempts`,
@@ -135,17 +125,14 @@ export default function KeyGrantReconciliation() {
   const retrySingleGrant = async (grant: FailedGrant) => {
     setRetryingGrantId(grant.id);
     try {
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
       toast.loading("Retrying key grant...", { id: `retry-${grant.id}` });
 
-      const response = await fetch("/api/admin/reconcile-key-grants", {
+      const result = await adminFetch<{
+        success?: boolean;
+        alreadyHasKey?: boolean;
+        error?: string;
+      }>("/api/admin/reconcile-key-grants", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
         body: JSON.stringify({
           operation: "retry_single_grant",
           userProfileId: grant.userProfileId,
@@ -155,15 +142,12 @@ export default function KeyGrantReconciliation() {
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to retry grant");
+      if (result.error) {
+        throw new Error(result.error || "Failed to retry grant");
       }
 
-      const result = await response.json();
-
-      if (result.success) {
-        if (result.alreadyHasKey) {
+      if (result.data?.success) {
+        if (result.data.alreadyHasKey) {
           toast.success("User already has a valid key", {
             id: `retry-${grant.id}`,
           });
@@ -175,7 +159,7 @@ export default function KeyGrantReconciliation() {
         // Reload the list to reflect changes
         await loadFailedGrants();
       } else {
-        toast.error(`Key grant failed: ${result.error}`, {
+        toast.error(`Key grant failed: ${result.data?.error}`, {
           id: `retry-${grant.id}`,
         });
       }

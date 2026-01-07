@@ -8,17 +8,23 @@
 import React, { useState } from "react";
 import { useWithdrawalAccess } from "@/hooks/useWithdrawalAccess";
 import { WithdrawDGModal } from "./WithdrawDGModal";
+import type { WithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 
 interface WithdrawDGButtonProps {
   className?: string;
   variant?: "primary" | "secondary";
+  limits: WithdrawalLimits;
 }
 
 export function WithdrawDGButton({
   className = "",
   variant = "primary",
+  limits,
 }: WithdrawDGButtonProps) {
-  const { canWithdraw, reason, isLoading } = useWithdrawalAccess();
+  const { canWithdraw, reason, isLoading } = useWithdrawalAccess({
+    minAmount: limits.minAmount,
+    isLoadingLimits: limits.isLoading,
+  });
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const baseClasses =
@@ -53,10 +59,13 @@ export function WithdrawDGButton({
         {isLoading ? "Checking Access..." : "Pullout DG"}
       </button>
 
-      <WithdrawDGModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      {isModalOpen && (
+        <WithdrawDGModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          limits={limits}
+        />
+      )}
     </>
   );
 }

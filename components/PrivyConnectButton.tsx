@@ -58,8 +58,9 @@ export function PrivyConnectButton() {
   const { walletAddress } = useDetectConnectedWalletAddress(user);
 
   // Use the wallet balances hook
+  // Only enable when menu is open AND modal is closed (modal has its own instance)
   const { balances, loading: balancesLoading } = useWalletBalances({
-    enabled: isMenuOpen || showWalletModal,
+    enabled: isMenuOpen && !showWalletModal,
   });
 
   // Format the wallet address consistently

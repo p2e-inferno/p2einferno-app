@@ -54,9 +54,7 @@ export default function MaxKeysSecurityButton({
       });
 
       if (!result.success) {
-        throw new Error(
-          result.error || "Failed to update lock configuration",
-        );
+        throw new Error(result.error || "Failed to update lock configuration");
       }
 
       log.info("Blockchain update successful", {
@@ -178,8 +176,7 @@ export default function MaxKeysSecurityButton({
             </div>
           )}
           <p className="text-gray-400 text-xs">
-            Click the button to set maxKeysPerAddress to 0 and secure this
-            lock.
+            Click the button to set maxKeysPerAddress to 0 and secure this lock.
           </p>
         </div>
 

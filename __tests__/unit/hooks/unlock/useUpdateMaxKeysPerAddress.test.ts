@@ -28,10 +28,14 @@ describe("useUpdateMaxKeysPerAddress", () => {
     jest.clearAllMocks();
 
     // Setup default mocks
-    const { usePrivyWriteWallet } = require("@/hooks/unlock/usePrivyWriteWallet");
+    const {
+      usePrivyWriteWallet,
+    } = require("@/hooks/unlock/usePrivyWriteWallet");
     usePrivyWriteWallet.mockReturnValue(mockWallet);
 
-    const { createViemFromPrivyWallet } = require("@/lib/blockchain/providers/privy-viem");
+    const {
+      createViemFromPrivyWallet,
+    } = require("@/lib/blockchain/providers/privy-viem");
     createViemFromPrivyWallet.mockResolvedValue({
       walletClient: mockWalletClient,
       publicClient: mockPublicClient,
@@ -45,19 +49,25 @@ describe("useUpdateMaxKeysPerAddress", () => {
       return Promise.resolve(0n);
     });
 
-    const { getLockConfigForUpdate } = require("@/lib/blockchain/helpers/max-keys-security");
+    const {
+      getLockConfigForUpdate,
+    } = require("@/lib/blockchain/helpers/max-keys-security");
     getLockConfigForUpdate.mockResolvedValue([1000n, 100n, 0n]);
   });
 
   describe("wallet validation", () => {
     it("returns error when wallet is null", async () => {
-      const { usePrivyWriteWallet } = require("@/hooks/unlock/usePrivyWriteWallet");
+      const {
+        usePrivyWriteWallet,
+      } = require("@/hooks/unlock/usePrivyWriteWallet");
       usePrivyWriteWallet.mockReturnValue(null);
 
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const response = await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(response).toEqual({
@@ -79,7 +89,9 @@ describe("useUpdateMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const response = await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(response).toEqual({
@@ -107,7 +119,9 @@ describe("useUpdateMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(mockWalletClient.writeContract).toHaveBeenCalledWith(
@@ -131,7 +145,9 @@ describe("useUpdateMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const response = await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(response).toEqual({
@@ -150,7 +166,9 @@ describe("useUpdateMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const response = await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(response.success).toBe(false);
@@ -167,7 +185,9 @@ describe("useUpdateMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const response = await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(response.success).toBe(false);
@@ -175,15 +195,17 @@ describe("useUpdateMaxKeysPerAddress", () => {
     });
 
     it("handles RPC failure on config read", async () => {
-      const { getLockConfigForUpdate } = require("@/lib/blockchain/helpers/max-keys-security");
-      getLockConfigForUpdate.mockRejectedValue(
-        new Error("RPC read failed"),
-      );
+      const {
+        getLockConfigForUpdate,
+      } = require("@/lib/blockchain/helpers/max-keys-security");
+      getLockConfigForUpdate.mockRejectedValue(new Error("RPC read failed"));
 
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const response = await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(response.success).toBe(false);
@@ -199,7 +221,9 @@ describe("useUpdateMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const response = await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(response.success).toBe(false);
@@ -216,7 +240,9 @@ describe("useUpdateMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const response = await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       expect(response.success).toBe(false);
@@ -228,9 +254,7 @@ describe("useUpdateMaxKeysPerAddress", () => {
     it("sets isLoading to true during execution", async () => {
       mockWalletClient.writeContract.mockImplementation(
         () =>
-          new Promise((resolve) =>
-            setTimeout(() => resolve("0xtxhash"), 100),
-          ),
+          new Promise((resolve) => setTimeout(() => resolve("0xtxhash"), 100)),
       );
       mockPublicClient.estimateContractGas.mockResolvedValue(100000n);
       mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
@@ -240,7 +264,9 @@ describe("useUpdateMaxKeysPerAddress", () => {
       const { result } = renderHook(() => useUpdateMaxKeysPerAddress());
 
       const promise = act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
 
       // Should be loading
@@ -265,13 +291,17 @@ describe("useUpdateMaxKeysPerAddress", () => {
 
       // First call fails
       await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
       expect(result.current.error).toContain("First error");
 
       // Second call succeeds
       await act(() =>
-        result.current.updateMaxKeysPerAddress({ lockAddress: mockLockAddress }),
+        result.current.updateMaxKeysPerAddress({
+          lockAddress: mockLockAddress,
+        }),
       );
       expect(result.current.error).toBeNull();
     });

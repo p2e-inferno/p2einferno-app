@@ -11,184 +11,184 @@ import { renderHook, act } from "@testing-library/react";
 const mockWriteContract = jest.fn();
 
 const mockUseWriteContract = jest.fn(() => ({
-    writeContract: mockWriteContract,
-    data: undefined as any,
-    isPending: false,
+  writeContract: mockWriteContract,
+  data: undefined as any,
+  isPending: false,
 }));
 
 const mockUseWaitForTransactionReceipt = jest.fn(() => ({
-    isSuccess: false,
+  isSuccess: false,
 }));
 
 jest.mock("wagmi", () => ({
-    useWriteContract: () => mockUseWriteContract(),
-    useWaitForTransactionReceipt: () => mockUseWaitForTransactionReceipt(),
+  useWriteContract: () => mockUseWriteContract(),
+  useWaitForTransactionReceipt: () => mockUseWaitForTransactionReceipt(),
 }));
 
 // Mock the ABI
 jest.mock("@/lib/blockchain/shared/vendor-abi", () => ({
-    DG_TOKEN_VENDOR_ABI: [],
+  DG_TOKEN_VENDOR_ABI: [],
 }));
 
 describe("useDGLightUp", () => {
-    let useDGLightUp: any;
+  let useDGLightUp: any;
 
-    beforeAll(async () => {
-        try {
-            const module = await import("@/hooks/vendor/useDGLightUp");
-            useDGLightUp = module.useDGLightUp;
-        } catch {
-            // Expected to fail until implemented
-        }
+  beforeAll(async () => {
+    try {
+      const mod = await import("@/hooks/vendor/useDGLightUp");
+      useDGLightUp = mod.useDGLightUp;
+    } catch {
+      // Expected to fail until implemented
+    }
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  describe("Hook Export", () => {
+    it("should export useDGLightUp function", () => {
+      expect(useDGLightUp).toBeDefined();
+      expect(typeof useDGLightUp).toBe("function");
+    });
+  });
+
+  describe("Return Values", () => {
+    it("should return lightUp function", () => {
+      const { result } = renderHook(() => useDGLightUp());
+
+      expect(result.current.lightUp).toBeDefined();
+      expect(typeof result.current.lightUp).toBe("function");
     });
 
-    beforeEach(() => {
-        jest.clearAllMocks();
+    it("should return isPending state", () => {
+      const { result } = renderHook(() => useDGLightUp());
+
+      expect(result.current.isPending).toBeDefined();
+      expect(typeof result.current.isPending).toBe("boolean");
     });
 
-    describe("Hook Export", () => {
-        it("should export useDGLightUp function", () => {
-            expect(useDGLightUp).toBeDefined();
-            expect(typeof useDGLightUp).toBe("function");
-        });
+    it("should return isSuccess state", () => {
+      const { result } = renderHook(() => useDGLightUp());
+
+      expect(result.current.isSuccess).toBeDefined();
+      expect(typeof result.current.isSuccess).toBe("boolean");
     });
 
-    describe("Return Values", () => {
-        it("should return lightUp function", () => {
-            const { result } = renderHook(() => useDGLightUp());
+    it("should return hash", () => {
+      const { result } = renderHook(() => useDGLightUp());
 
-            expect(result.current.lightUp).toBeDefined();
-            expect(typeof result.current.lightUp).toBe("function");
-        });
+      expect("hash" in result.current).toBe(true);
+    });
+  });
 
-        it("should return isPending state", () => {
-            const { result } = renderHook(() => useDGLightUp());
+  describe("lightUp", () => {
+    it("should call writeContract with lightUp function", () => {
+      const { result } = renderHook(() => useDGLightUp());
 
-            expect(result.current.isPending).toBeDefined();
-            expect(typeof result.current.isPending).toBe("boolean");
-        });
+      act(() => {
+        result.current.lightUp();
+      });
 
-        it("should return isSuccess state", () => {
-            const { result } = renderHook(() => useDGLightUp());
-
-            expect(result.current.isSuccess).toBeDefined();
-            expect(typeof result.current.isSuccess).toBe("boolean");
-        });
-
-        it("should return hash", () => {
-            const { result } = renderHook(() => useDGLightUp());
-
-            expect("hash" in result.current).toBe(true);
-        });
+      expect(mockWriteContract).toHaveBeenCalledWith(
+        expect.objectContaining({
+          functionName: "lightUp",
+        }),
+      );
     });
 
-    describe("lightUp", () => {
-        it("should call writeContract with lightUp function", () => {
-            const { result } = renderHook(() => useDGLightUp());
+    it("should not require any arguments", () => {
+      const { result } = renderHook(() => useDGLightUp());
 
-            act(() => {
-                result.current.lightUp();
-            });
+      act(() => {
+        result.current.lightUp();
+      });
 
-            expect(mockWriteContract).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    functionName: "lightUp",
-                })
-            );
-        });
+      expect(mockWriteContract).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          args: expect.anything(),
+        }),
+      );
+    });
+  });
 
-        it("should not require any arguments", () => {
-            const { result } = renderHook(() => useDGLightUp());
+  describe("isPending State", () => {
+    it("should be false initially", () => {
+      mockUseWriteContract.mockReturnValue({
+        writeContract: mockWriteContract,
+        data: null,
+        isPending: false,
+      });
 
-            act(() => {
-                result.current.lightUp();
-            });
+      const { result } = renderHook(() => useDGLightUp());
 
-            expect(mockWriteContract).toHaveBeenCalledWith(
-                expect.not.objectContaining({
-                    args: expect.anything(),
-                })
-            );
-        });
+      expect(result.current.isPending).toBe(false);
     });
 
-    describe("isPending State", () => {
-        it("should be false initially", () => {
-            mockUseWriteContract.mockReturnValue({
-                writeContract: mockWriteContract,
-                data: null,
-                isPending: false,
-            });
+    it("should be true when transaction is pending", () => {
+      mockUseWriteContract.mockReturnValue({
+        writeContract: mockWriteContract,
+        data: null,
+        isPending: true,
+      });
 
-            const { result } = renderHook(() => useDGLightUp());
+      const { result } = renderHook(() => useDGLightUp());
 
-            expect(result.current.isPending).toBe(false);
-        });
+      expect(result.current.isPending).toBe(true);
+    });
+  });
 
-        it("should be true when transaction is pending", () => {
-            mockUseWriteContract.mockReturnValue({
-                writeContract: mockWriteContract,
-                data: null,
-                isPending: true,
-            });
+  describe("isSuccess State", () => {
+    it("should be false initially", () => {
+      mockUseWaitForTransactionReceipt.mockReturnValue({
+        isSuccess: false,
+      });
 
-            const { result } = renderHook(() => useDGLightUp());
+      const { result } = renderHook(() => useDGLightUp());
 
-            expect(result.current.isPending).toBe(true);
-        });
+      expect(result.current.isSuccess).toBe(false);
     });
 
-    describe("isSuccess State", () => {
-        it("should be false initially", () => {
-            mockUseWaitForTransactionReceipt.mockReturnValue({
-                isSuccess: false,
-            });
+    it("should be true when transaction is confirmed", () => {
+      mockUseWriteContract.mockReturnValue({
+        writeContract: mockWriteContract,
+        data: "0x123abc" as `0x${string}`,
+        isPending: false,
+      });
+      mockUseWaitForTransactionReceipt.mockReturnValue({
+        isSuccess: true,
+      });
 
-            const { result } = renderHook(() => useDGLightUp());
+      const { result } = renderHook(() => useDGLightUp());
 
-            expect(result.current.isSuccess).toBe(false);
-        });
+      expect(result.current.isSuccess).toBe(true);
+    });
+  });
 
-        it("should be true when transaction is confirmed", () => {
-            mockUseWriteContract.mockReturnValue({
-                writeContract: mockWriteContract,
-                data: "0x123abc" as `0x${string}`,
-                isPending: false,
-            });
-            mockUseWaitForTransactionReceipt.mockReturnValue({
-                isSuccess: true,
-            });
+  describe("Transaction Hash", () => {
+    it("should return null hash when no transaction", () => {
+      mockUseWriteContract.mockReturnValue({
+        writeContract: mockWriteContract,
+        data: null,
+        isPending: false,
+      });
 
-            const { result } = renderHook(() => useDGLightUp());
+      const { result } = renderHook(() => useDGLightUp());
 
-            expect(result.current.isSuccess).toBe(true);
-        });
+      expect(result.current.hash).toBeNull();
     });
 
-    describe("Transaction Hash", () => {
-        it("should return null hash when no transaction", () => {
-            mockUseWriteContract.mockReturnValue({
-                writeContract: mockWriteContract,
-                data: null,
-                isPending: false,
-            });
+    it("should return hash when transaction is sent", () => {
+      const txHash = "0xabc123def456" as `0x${string}`;
+      mockUseWriteContract.mockReturnValue({
+        writeContract: mockWriteContract,
+        data: txHash,
+        isPending: false,
+      });
 
-            const { result } = renderHook(() => useDGLightUp());
+      const { result } = renderHook(() => useDGLightUp());
 
-            expect(result.current.hash).toBeNull();
-        });
-
-        it("should return hash when transaction is sent", () => {
-            const txHash = "0xabc123def456" as `0x${string}`;
-            mockUseWriteContract.mockReturnValue({
-                writeContract: mockWriteContract,
-                data: txHash,
-                isPending: false,
-            });
-
-            const { result } = renderHook(() => useDGLightUp());
-
-            expect(result.current.hash).toBe(txHash);
-        });
+      expect(result.current.hash).toBe(txHash);
     });
+  });
 });

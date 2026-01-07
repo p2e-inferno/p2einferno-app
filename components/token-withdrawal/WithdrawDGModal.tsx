@@ -11,23 +11,32 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useWithdrawalAccess } from "@/hooks/useWithdrawalAccess";
 import { useDGWithdrawal } from "@/hooks/useDGWithdrawal";
-import { useWithdrawalLimits } from "@/hooks/useWithdrawalLimits";
+import type { WithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 import { getBlockExplorerUrl } from "@/lib/blockchain/services/transaction-service";
 
 interface WithdrawDGModalProps {
   isOpen: boolean;
   onClose: () => void;
+  limits: WithdrawalLimits;
 }
 
-export function WithdrawDGModal({ isOpen, onClose }: WithdrawDGModalProps) {
-  const { xpBalance } = useWithdrawalAccess();
+export function WithdrawDGModal({
+  isOpen,
+  onClose,
+  limits,
+}: WithdrawDGModalProps) {
+  const { xpBalance } = useWithdrawalAccess({
+    minAmount: limits.minAmount,
+    isLoadingLimits: limits.isLoading,
+  });
   const {
     initiateWithdrawal,
     isLoading,
     error: withdrawalError,
     txHash,
   } = useDGWithdrawal();
-  const { minAmount, maxAmount: maxDailyAmount } = useWithdrawalLimits();
+
+  const { minAmount, maxAmount: maxDailyAmount } = limits;
 
   const [amount, setAmount] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);

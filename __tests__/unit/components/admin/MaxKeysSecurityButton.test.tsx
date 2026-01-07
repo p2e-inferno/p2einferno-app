@@ -24,7 +24,9 @@ describe("MaxKeysSecurityButton", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+    const {
+      useUpdateMaxKeysPerAddress,
+    } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
     useUpdateMaxKeysPerAddress.mockReturnValue({
       updateMaxKeysPerAddress: jest.fn(),
       isLoading: false,
@@ -66,7 +68,9 @@ describe("MaxKeysSecurityButton", () => {
         .mockResolvedValue({ success: true, transactionHash: "0xtxhash" });
       const mockAdminFetch = jest.fn().mockResolvedValue({ error: null });
 
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: mockUpdate,
         isLoading: false,
@@ -75,9 +79,7 @@ describe("MaxKeysSecurityButton", () => {
       useAdminApi.mockReturnValue({ adminFetch: mockAdminFetch });
 
       const onSuccess = jest.fn();
-      render(
-        <MaxKeysSecurityButton {...defaultProps} onSuccess={onSuccess} />,
-      );
+      render(<MaxKeysSecurityButton {...defaultProps} onSuccess={onSuccess} />);
 
       const button = screen.getByRole("button", { name: /secure lock/i });
       await userEvent.click(button);
@@ -108,7 +110,9 @@ describe("MaxKeysSecurityButton", () => {
         .mockResolvedValue({ success: true, transactionHash: "0xtxhash" });
       const mockAdminFetch = jest.fn().mockResolvedValue({ error: null });
 
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: mockUpdate,
         isLoading: false,
@@ -141,7 +145,9 @@ describe("MaxKeysSecurityButton", () => {
         .mockResolvedValue({ success: true, transactionHash: "0xtxhash" });
       const mockAdminFetch = jest.fn().mockResolvedValue({ error: null });
 
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: mockUpdate,
         isLoading: false,
@@ -174,26 +180,25 @@ describe("MaxKeysSecurityButton", () => {
       const mockUpdate = jest
         .fn()
         .mockResolvedValue({ success: false, error: "TX reverted" });
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: mockUpdate,
         isLoading: false,
       });
 
       const onError = jest.fn();
-      render(
-        <MaxKeysSecurityButton {...defaultProps} onError={onError} />,
-      );
+      render(<MaxKeysSecurityButton {...defaultProps} onError={onError} />);
 
       await userEvent.click(
         screen.getByRole("button", { name: /secure lock/i }),
       );
 
       await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith(
-          "TX reverted",
-          { id: "secure-max-keys" },
-        );
+        expect(toast.error).toHaveBeenCalledWith("TX reverted", {
+          id: "secure-max-keys",
+        });
         expect(onError).toHaveBeenCalledWith("TX reverted");
       });
     });
@@ -204,7 +209,9 @@ describe("MaxKeysSecurityButton", () => {
         .mockResolvedValue({ success: true, transactionHash: "0xtxhash" });
       const mockAdminFetch = jest.fn().mockResolvedValue({ error: "DB error" });
 
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: mockUpdate,
         isLoading: false,
@@ -226,8 +233,12 @@ describe("MaxKeysSecurityButton", () => {
     });
 
     it("handles generic errors", async () => {
-      const mockUpdate = jest.fn().mockRejectedValue(new Error("Unknown error"));
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const mockUpdate = jest
+        .fn()
+        .mockRejectedValue(new Error("Unknown error"));
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: mockUpdate,
         isLoading: false,
@@ -239,17 +250,18 @@ describe("MaxKeysSecurityButton", () => {
       );
 
       await waitFor(() => {
-        expect(toast.error).toHaveBeenCalledWith(
-          "Unknown error",
-          { id: "secure-max-keys" },
-        );
+        expect(toast.error).toHaveBeenCalledWith("Unknown error", {
+          id: "secure-max-keys",
+        });
       });
     });
   });
 
   describe("loading states", () => {
     it("disables button when isLoading is true", () => {
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: jest.fn(),
         isLoading: true,
@@ -261,7 +273,9 @@ describe("MaxKeysSecurityButton", () => {
     });
 
     it("shows loading text when securing", () => {
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: jest.fn(),
         isLoading: true,
@@ -279,7 +293,9 @@ describe("MaxKeysSecurityButton", () => {
         .mockResolvedValue({ success: true, transactionHash: "0xtxhash" });
       const mockAdminFetch = jest.fn().mockResolvedValue({ error: null });
 
-      const { useUpdateMaxKeysPerAddress } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
+      const {
+        useUpdateMaxKeysPerAddress,
+      } = require("@/hooks/unlock/useUpdateMaxKeysPerAddress");
       useUpdateMaxKeysPerAddress.mockReturnValue({
         updateMaxKeysPerAddress: mockUpdate,
         isLoading: false,

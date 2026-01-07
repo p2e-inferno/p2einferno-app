@@ -59,8 +59,18 @@ export default function QuestDetailsPage() {
   const [actualManagerStatus, setActualManagerStatus] = useState<
     boolean | null
   >(null);
+  const [activationManagerStatus, setActivationManagerStatus] = useState<
+    boolean | null
+  >(null);
+  const [activationManagerError, setActivationManagerError] = useState<
+    string | null
+  >(null);
   const [actualMaxKeysValue, setActualMaxKeysValue] = useState<bigint | null>(
     null,
+  );
+  const activationLockAddress = useMemo(
+    () => (quest?.activation_config as any)?.lockAddress || "",
+    [quest?.activation_config],
   );
 
   const { checkIsLockManager } = useIsLockManager();
@@ -178,6 +188,54 @@ export default function QuestDetailsPage() {
       checkActualManagerStatus();
     }
   }, [quest?.lock_address, serverWalletAddress, checkActualManagerStatus]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkActivationManagerStatus = async () => {
+      if (
+        quest?.reward_type !== "activation" ||
+        quest.activation_type !== "dg_trial" ||
+        !activationLockAddress ||
+        !serverWalletAddress
+      ) {
+        setActivationManagerStatus(null);
+        setActivationManagerError(null);
+        return;
+      }
+
+      try {
+        const isManager = await checkIsLockManager(
+          serverWalletAddress as Address,
+          activationLockAddress as Address,
+        );
+        if (!cancelled) {
+          setActivationManagerStatus(isManager);
+          setActivationManagerError(null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          log.error("Failed to check activation lock manager status:", err);
+          setActivationManagerStatus(null);
+          setActivationManagerError(
+            err?.message || "Failed to check lock manager status",
+          );
+        }
+      }
+    };
+
+    checkActivationManagerStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    quest?.reward_type,
+    quest?.activation_type,
+    activationLockAddress,
+    serverWalletAddress,
+    checkIsLockManager,
+  ]);
 
   useEffect(() => {
     if (quest?.lock_address) {
@@ -385,6 +443,61 @@ export default function QuestDetailsPage() {
                 </div>
               </div>
             )}
+
+            {/* Activation Lock Manager Status */}
+            {quest.reward_type === "activation" &&
+              quest.activation_type === "dg_trial" &&
+              activationLockAddress &&
+              serverWalletAddress && (
+                <div className="mb-6 rounded-lg border border-slate-700 bg-slate-900 p-4">
+                  <h3 className="text-sm font-medium text-slate-300 mb-3">
+                    Activation Lock Manager Status
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Server wallet</span>
+                      <span className="text-slate-200">
+                        {serverWalletAddress}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Lock address</span>
+                      <span className="text-slate-200">
+                        {activationLockAddress}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Blockchain Status:</span>
+                      <span
+                        className={`font-medium ${
+                          activationManagerStatus === null
+                            ? "text-yellow-400"
+                            : activationManagerStatus
+                              ? "text-green-400"
+                              : "text-red-400"
+                        }`}
+                      >
+                        {activationManagerStatus === null
+                          ? "⏳ Checking..."
+                          : activationManagerStatus
+                            ? "✅ Is Manager"
+                            : "❌ Not Manager"}
+                      </span>
+                    </div>
+                    {activationManagerError && (
+                      <p className="mt-2 text-xs text-amber-300">
+                        {activationManagerError}
+                      </p>
+                    )}
+                    {activationManagerStatus === false && (
+                      <p className="mt-2 text-xs text-amber-300">
+                        Granting trials will fail until the server wallet is
+                        added as a lock manager.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
 
             {/* Lock Manager Grant Retry Button */}
             {quest.lock_address && actualManagerStatus === false && (

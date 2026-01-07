@@ -41,6 +41,8 @@ import {
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
+import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
+import type { Address } from "viem";
 
 const log = getLogger("admin:QuestForm");
 
@@ -65,6 +67,7 @@ export default function QuestForm({
   const { isAdmin } = useAdminAuthContext();
   const { deployAdminLock, isLoading: isDeployingFromHook } =
     useDeployAdminLock({ isAdmin });
+  const { checkIsLockManager } = useIsLockManager();
 
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
@@ -84,6 +87,15 @@ export default function QuestForm({
     maxKeysFailureReason,
     setMaxKeysFailureReason,
   } = useMaxKeysSecurityState(isEditing, quest);
+  const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(
+    null,
+  );
+  const [activationManagerStatus, setActivationManagerStatus] = useState<
+    boolean | null
+  >(null);
+  const [activationManagerError, setActivationManagerError] = useState<
+    string | null
+  >(null);
 
   // Track the most recent grant/config outcomes during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
@@ -105,8 +117,13 @@ export default function QuestForm({
     reward_type: quest?.reward_type || "xdg",
     activation_type: quest?.activation_type || "",
     activation_config: quest?.activation_config || null,
-    requires_gooddollar_verification: quest?.requires_gooddollar_verification || false,
+    requires_gooddollar_verification:
+      quest?.requires_gooddollar_verification || false,
   });
+  const activationLockAddress = useMemo(
+    () => (formData.activation_config as any)?.lockAddress || "",
+    [formData.activation_config],
+  );
 
   // Load draft data on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -196,6 +213,81 @@ export default function QuestForm({
       cancelled = true;
     };
   }, [isEditing, adminFetch, silentFetch, router]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchServerWallet = async () => {
+      if (serverWalletAddress) return;
+      try {
+        const result = await adminFetch<{ serverWalletAddress: string }>(
+          "/api/admin/server-wallet",
+        );
+        if (cancelled) return;
+        if (result.data?.serverWalletAddress) {
+          setServerWalletAddress(result.data.serverWalletAddress);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          log.error("Failed to fetch server wallet address:", err);
+        }
+      }
+    };
+
+    fetchServerWallet();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminFetch, serverWalletAddress]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkManagerStatus = async () => {
+      if (
+        formData.reward_type !== "activation" ||
+        formData.activation_type !== "dg_trial" ||
+        !activationLockAddress ||
+        !serverWalletAddress
+      ) {
+        setActivationManagerStatus(null);
+        setActivationManagerError(null);
+        return;
+      }
+
+      try {
+        const isManager = await checkIsLockManager(
+          serverWalletAddress as Address,
+          activationLockAddress as Address,
+        );
+        if (!cancelled) {
+          setActivationManagerStatus(isManager);
+          setActivationManagerError(null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          log.error("Failed to check activation lock manager status:", err);
+          setActivationManagerStatus(null);
+          setActivationManagerError(
+            err?.message || "Failed to check lock manager status",
+          );
+        }
+      }
+    };
+
+    checkManagerStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    formData.reward_type,
+    formData.activation_type,
+    activationLockAddress,
+    serverWalletAddress,
+    checkIsLockManager,
+  ]);
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
@@ -345,10 +437,10 @@ export default function QuestForm({
   // Deploy lock for the quest
   const deployLockForQuest = async (): Promise<
     | {
-      lockAddress: string;
-      grantFailed?: boolean;
-      grantError?: string;
-    }
+        lockAddress: string;
+        grantFailed?: boolean;
+        grantError?: string;
+      }
     | undefined
   > => {
     if (!wallet) {
@@ -866,20 +958,27 @@ export default function QuestForm({
               aria-label="Requires Verification"
               checked={formData.requires_gooddollar_verification}
               onChange={(e) =>
-                setFormData({ ...formData, requires_gooddollar_verification: e.target.checked })
+                setFormData({
+                  ...formData,
+                  requires_gooddollar_verification: e.target.checked,
+                })
               }
               className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
               disabled={isSubmitting}
             />
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-green-400" />
-              <Label htmlFor="requires_gooddollar_verification" className="text-white cursor-pointer">
+              <Label
+                htmlFor="requires_gooddollar_verification"
+                className="text-white cursor-pointer"
+              >
                 Requires Verification
               </Label>
             </div>
           </div>
           <p className="text-sm text-gray-400 -mt-2 ml-6">
-            Users must complete GoodDollar face verification to participate in this quest.
+            Users must complete GoodDollar face verification to participate in
+            this quest.
           </p>
         </div>
       </div>
@@ -1077,6 +1176,45 @@ export default function QuestForm({
                       className="bg-transparent border-gray-700 text-gray-100"
                       disabled={isSubmitting}
                     />
+                    {activationLockAddress && (
+                      <div className="rounded border border-slate-700 bg-slate-900 p-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Server wallet</span>
+                          <span className="text-slate-200">
+                            {serverWalletAddress || "Loading..."}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Lock manager</span>
+                          <span
+                            className={`font-medium ${
+                              activationManagerStatus === null
+                                ? "text-yellow-400"
+                                : activationManagerStatus
+                                  ? "text-green-400"
+                                  : "text-red-400"
+                            }`}
+                          >
+                            {activationManagerStatus === null
+                              ? "Checking..."
+                              : activationManagerStatus
+                                ? "Is Manager"
+                                : "Not Manager"}
+                          </span>
+                        </div>
+                        {activationManagerError && (
+                          <p className="mt-2 text-xs text-amber-300">
+                            {activationManagerError}
+                          </p>
+                        )}
+                        {activationManagerStatus === false && (
+                          <p className="mt-2 text-xs text-amber-300">
+                            Granting trials will fail until the server wallet is
+                            added as a lock manager.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">

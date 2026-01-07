@@ -3,9 +3,10 @@
  *
  * Fetches dynamic withdrawal limits from the database configuration.
  * Provides fallback to default values if API fails.
+ * Uses React Query for automatic caching and request deduplication.
  */
 
-import { useState, useEffect } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('hooks:useWithdrawalLimits');
@@ -22,50 +23,48 @@ const DEFAULT_LIMITS = {
   maxAmount: 100000
 };
 
+const fetchWithdrawalLimits = async (): Promise<{ minAmount: number; maxAmount: number }> => {
+  const response = await fetch('/api/config/withdrawal-limits');
+  const data = await response.json();
+
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Failed to fetch limits');
+  }
+
+  return {
+    minAmount: data.limits.minAmount,
+    maxAmount: data.limits.maxAmount
+  };
+};
+
 /**
  * Fetches current withdrawal limits from API
  * Falls back to hardcoded defaults if API fails
+ * Uses React Query for automatic caching and deduplication across multiple hook instances
  */
-export function useWithdrawalLimits() {
-  const [limits, setLimits] = useState<WithdrawalLimits>({
-    minAmount: DEFAULT_LIMITS.minAmount,
-    maxAmount: DEFAULT_LIMITS.maxAmount,
-    isLoading: true,
-    error: null
+export function useWithdrawalLimits(): WithdrawalLimits {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['withdrawal-limits'],
+    queryFn: fetchWithdrawalLimits,
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+    gcTime: 1000 * 60 * 30, // Keep in cache for 30 minutes
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+    refetchOnWindowFocus: false, // Config data doesn't change often
+    placeholderData: DEFAULT_LIMITS, // Show defaults immediately while loading
   });
 
-  useEffect(() => {
-    fetchLimits();
-  }, []);
+  // Use fetched data if available, otherwise use defaults
+  const limits = data || DEFAULT_LIMITS;
 
-  const fetchLimits = async () => {
-    try {
-      setLimits(prev => ({ ...prev, isLoading: true, error: null }));
+  if (error) {
+    log.error('Failed to fetch withdrawal limits, using defaults', { error });
+  }
 
-      const response = await fetch('/api/config/withdrawal-limits');
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to fetch limits');
-      }
-
-      setLimits({
-        minAmount: data.limits.minAmount,
-        maxAmount: data.limits.maxAmount,
-        isLoading: false,
-        error: null
-      });
-    } catch (error) {
-      log.error('Failed to fetch withdrawal limits, using defaults', { error });
-      // Use defaults on error
-      setLimits({
-        minAmount: DEFAULT_LIMITS.minAmount,
-        maxAmount: DEFAULT_LIMITS.maxAmount,
-        isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to load limits'
-      });
-    }
+  return {
+    minAmount: limits.minAmount,
+    maxAmount: limits.maxAmount,
+    isLoading,
+    error: error ? (error instanceof Error ? error.message : 'Failed to load limits') : null
   };
-
-  return limits;
 }

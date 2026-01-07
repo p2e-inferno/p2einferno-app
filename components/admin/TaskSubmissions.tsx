@@ -19,10 +19,9 @@ import {
   XCircle,
   RotateCcw,
 } from "lucide-react";
+import { usePrivy } from "@privy-io/react-auth";
 import type { MilestoneTask } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -67,9 +66,8 @@ export default function TaskSubmissions({
       }
     >
   >({});
-  const { getAccessToken, user } = usePrivy();
+  const { user } = usePrivy();
   const { adminFetch } = useAdminApi({ suppressToasts: true });
-  const selectedWallet = useSmartWalletSelection() as any;
 
   useEffect(() => {
     fetchSubmissions();
@@ -146,22 +144,17 @@ export default function TaskSubmissions({
         },
       }));
 
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
       const gradingData = gradingStates[submissionId];
 
       if (!gradingData) {
         throw new Error("Grading data not found");
       }
 
-      const response = await fetch("/api/admin/task-submissions", {
+      const result = await adminFetch<{
+        success?: boolean;
+        error?: string;
+      }>("/api/admin/task-submissions", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
-        },
         body: JSON.stringify({
           id: submissionId,
           status: gradingData.status,
@@ -171,9 +164,8 @@ export default function TaskSubmissions({
         }),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to grade submission");
+      if (result.error) {
+        throw new Error(result.error || "Failed to grade submission");
       }
 
       // Refresh submissions

@@ -5,7 +5,8 @@ import {
 import type { PublicClient, Address } from "viem";
 
 describe("max-keys-security", () => {
-  const mockLockAddress = "0x1234567890abcdef1234567890abcdef12345678" as Address;
+  const mockLockAddress =
+    "0x1234567890abcdef1234567890abcdef12345678" as Address;
 
   // Helper to create stub public client
   function createStubClient(config: {

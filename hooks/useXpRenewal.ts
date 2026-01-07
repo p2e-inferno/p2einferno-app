@@ -48,13 +48,19 @@ export const useXpRenewal = () => {
         );
         const data = await res.json();
 
+        // DEBUG: Log raw API response
+        log.info('DEBUG: Raw API response', { data });
+
         if (!data.success) {
           throw new Error(data.error || 'Failed to fetch quote');
         }
 
-        log.info('Quote fetched successfully', {
+        log.info('DEBUG: Quote data parsed', {
           duration,
-          cost: data.data.totalCost,
+          baseCost: data.data.baseCost,
+          serviceFee: data.data.serviceFee,
+          totalCost: data.data.totalCost,
+          userXpBalance: data.data.userXpBalance,
           canAfford: data.data.canAfford,
         });
 

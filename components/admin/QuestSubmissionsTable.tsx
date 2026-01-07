@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { Eye, Filter } from "lucide-react";
 import SubmissionReviewModal from "./SubmissionReviewModal";
 import type {
@@ -50,8 +49,7 @@ export default function QuestSubmissionsTable({
   questId,
   onStatusUpdate,
 }: QuestSubmissionsTableProps) {
-  const { getAccessToken } = usePrivy();
-  const selectedWallet = useSmartWalletSelection() as any;
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
   const [submissions, setSubmissions] = useState<SubmissionWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,36 +70,21 @@ export default function QuestSubmissionsTable({
       setIsLoading(true);
       setError(null);
 
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
       const params = new URLSearchParams();
       params.append("questId", questId);
       if (statusFilter !== "all") {
         params.append("status", statusFilter);
       }
 
-      const response = await fetch(
+      const result = await adminFetch<{ submissions: SubmissionWithDetails[] }>(
         `/api/admin/quests/submissions?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "X-Active-Wallet": selectedWallet?.address || "",
-          },
-        },
       );
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch submissions");
+      if (result.error) {
+        throw new Error(result.error || "Failed to fetch submissions");
       }
 
-      const json = (await response.json()) as {
-        submissions: SubmissionWithDetails[];
-      };
-      setSubmissions(json.submissions || []);
+      setSubmissions(result.data?.submissions || []);
     } catch (err: any) {
       log.error("Error fetching submissions:", err);
       setError(err.message || "Failed to load submissions");
@@ -130,27 +113,20 @@ export default function QuestSubmissionsTable({
     feedback?: string,
   ) => {
     try {
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
-      const response = await fetch("/api/admin/quests/submissions", {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
+      const result = await adminFetch<{ success?: boolean; error?: string }>(
+        "/api/admin/quests/submissions",
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            submissionId,
+            status: newStatus,
+            feedback,
+          }),
         },
-        body: JSON.stringify({
-          submissionId,
-          status: newStatus,
-          feedback,
-        }),
-      });
+      );
 
-      if (!response.ok) {
-        throw new Error("Failed to update submission status");
+      if (result.error) {
+        throw new Error(result.error || "Failed to update submission status");
       }
 
       // Refresh submissions

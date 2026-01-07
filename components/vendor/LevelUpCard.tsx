@@ -100,7 +100,8 @@ export default function LevelUpCard() {
       )}
       {!upgradeBlockedReason && userState && (
         <p className="mt-2 text-center text-xs text-slate-400">
-          {Math.round(pointsProgress * 100)}% points · {Math.round(fuelProgress * 100)}% fuel
+          {Math.round(pointsProgress * 100)}% points ·{" "}
+          {Math.round(fuelProgress * 100)}% fuel
         </p>
       )}
     </div>
