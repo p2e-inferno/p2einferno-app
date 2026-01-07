@@ -126,9 +126,12 @@ export default function AdminCspReportsPage() {
     if (deleteConfirmation.type === "all") {
       setIsClearing(true);
       try {
-        const result = await adminFetch(`/api/admin/csp-reports?clearAll=true`, {
-          method: "DELETE",
-        });
+        const result = await adminFetch(
+          `/api/admin/csp-reports?clearAll=true`,
+          {
+            method: "DELETE",
+          },
+        );
 
         if (result.error) {
           toast.error(result.error);

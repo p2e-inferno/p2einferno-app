@@ -566,21 +566,23 @@ export default async function handler(
     });
 
     try {
-      const email = normalizeEmail(userProfile?.email);
-      if (email) {
+      const userEmail = normalizeEmail(userProfile?.email);
+      if (userEmail) {
         const tpl = getRenewalEmail({
           durationDays: body.duration,
-          newExpiration: new Date(Number(verifiedExpiration) * 1000).toISOString(),
+          newExpiration: new Date(
+            Number(verifiedExpiration) * 1000,
+          ).toISOString(),
         });
 
         await sendEmailWithDedup(
           "subscription-renewal",
-          renewalAttemptId,
-          email,
+          renewalAttemptId!,
+          userEmail as string,
           `renewal:${renewalAttemptId}`,
           () =>
             sendEmail({
-              to: email,
+              to: userEmail as string,
               ...tpl,
               tags: ["subscription-renewal", "xp"],
             }),

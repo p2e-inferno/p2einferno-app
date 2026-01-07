@@ -35,7 +35,10 @@ jest.mock("@/lib/supabase/server", () => ({
     return {
       from: jest.fn(() => builder),
       rpc: jest.fn(() =>
-        Promise.resolve({ data: [{ success: true, message: "ok" }], error: null }),
+        Promise.resolve({
+          data: [{ success: true, message: "ok" }],
+          error: null,
+        }),
       ),
     };
   }),

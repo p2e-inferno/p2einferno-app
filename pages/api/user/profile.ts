@@ -158,19 +158,19 @@ async function createOrUpdateUserProfile(
     updatedAt: data.updated_at,
   });
 
-  const email = normalizeEmail(data.email);
-  if (email) {
+  const normalizedEmail = normalizeEmail(data.email);
+  if (normalizedEmail) {
     try {
       const { sent } = await sendEmailWithDedup(
         "welcome",
         data.id,
-        email,
+        normalizedEmail,
         `profile:${data.id}`,
         () => {
           const tpl = getWelcomeEmail({
             displayName: data.display_name || "there",
           });
-          return sendEmail({ to: email, ...tpl, tags: ["welcome"] });
+          return sendEmail({ to: normalizedEmail, ...tpl, tags: ["welcome"] });
         },
       );
 
