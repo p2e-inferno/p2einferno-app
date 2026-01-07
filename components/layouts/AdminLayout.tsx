@@ -17,6 +17,7 @@ import {
   ChevronRight,
   DollarSign,
   Zap,
+  ShieldAlert,
 } from "lucide-react";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -39,6 +40,7 @@ const adminNavItems = [
     href: "/admin/subscriptions/config",
     icon: Zap,
   },
+  { name: "CSP Reports", href: "/admin/csp-reports", icon: ShieldAlert },
   { name: "Applications", href: "/admin/applications", icon: FileText },
   { name: "Draft Recovery", href: "/admin/draft-recovery", icon: FileText },
 ];
