@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_CACHE_TAGS } from '@/lib/app-config/admin';
+import { validateVendorTaskConfig } from '@/lib/quests/vendor-task-config';
 
 const log = getLogger('api:quests:[questId]');
 
@@ -96,6 +97,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ ques
 
     // Tasks update
     if (Array.isArray(tasks)) {
+      const validation = await validateVendorTaskConfig(tasks);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+
       const { data: existingTasks } = await supabase
         .from('quest_tasks')
         .select('id')
@@ -135,6 +141,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ ques
           return {
             quest_id: questId,
             ...rest,
+            task_config: task.task_config || {},
             order_index: task.order_index ?? toUpdate.length + index,
             created_at: now,
             updated_at: now,

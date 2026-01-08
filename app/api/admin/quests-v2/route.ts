@@ -4,6 +4,7 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_CACHE_TAGS } from '@/lib/app-config/admin';
+import { validateVendorTaskConfig } from '@/lib/quests/vendor-task-config';
 
 const log = getLogger('api:quests');
 
@@ -129,6 +130,11 @@ export async function POST(req: NextRequest) {
 
     // Insert tasks if provided
     if (Array.isArray(tasks) && tasks.length > 0) {
+      const validation = await validateVendorTaskConfig(tasks);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+
       const questTasks = tasks.map((task: any, index: number) => ({
         quest_id: quest.id,
         title: task.title,
@@ -137,6 +143,7 @@ export async function POST(req: NextRequest) {
         verification_method: task.verification_method,
         reward_amount: task.reward_amount || 0,
         order_index: task.order_index ?? index,
+        task_config: task.task_config || {},
         input_required: task.input_required,
         input_label: task.input_label,
         input_placeholder: task.input_placeholder,

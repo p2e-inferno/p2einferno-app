@@ -9,6 +9,7 @@ import { useUser } from "@privy-io/react-auth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { useReadContract, useWriteContract } from "wagmi";
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
+import { USER_STAGE_LABELS } from "@/lib/blockchain/shared/vendor-constants";
 
 const VENDOR_ADDRESS = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
 
@@ -28,12 +29,6 @@ type UserStateStruct = {
   lastStage3MaxSale: bigint;
   dailySoldAmount: bigint;
   dailyWindowStart: bigint;
-};
-
-export const USER_STAGE_LABELS: Record<number, string> = {
-  0: "Pleb",
-  1: "Hustler",
-  2: "Og",
 };
 
 export function useDGProfile() {

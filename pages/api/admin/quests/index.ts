@@ -4,6 +4,7 @@ import { withAdminAuth } from "@/lib/auth/admin-auth";
 
 import type { QuestTask, Quest } from "@/lib/supabase/types";
 import { getLogger } from "@/lib/utils/logger";
+import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 
 const log = getLogger("api:admin:quests:index");
 
@@ -130,6 +131,11 @@ async function createQuest(
 
     // 2. If tasks are provided, insert them
     if (tasks && Array.isArray(tasks) && tasks.length > 0) {
+      const validation = await validateVendorTaskConfig(tasks);
+      if (!validation.ok) {
+        return res.status(400).json({ error: validation.error });
+      }
+
       const questTasks = tasks.map(
         (task: Partial<QuestTask>, index: number) => ({
           quest_id: quest.id,
@@ -139,6 +145,7 @@ async function createQuest(
           verification_method: task.verification_method,
           reward_amount: task.reward_amount || 0,
           order_index: task.order_index ?? index,
+          task_config: task.task_config || {},
           // Optional fields if provided
           input_required: task.input_required,
           input_label: task.input_label,

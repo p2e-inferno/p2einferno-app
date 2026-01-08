@@ -39,6 +39,7 @@ export default async function handler(
           reward_amount,
           order_index,
           created_at,
+          task_config,
           input_required,
           input_label,
           input_placeholder,

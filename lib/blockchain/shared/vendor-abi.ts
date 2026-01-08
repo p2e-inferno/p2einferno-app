@@ -7,6 +7,48 @@
 
 // Core Read Functions
 export const DG_TOKEN_VENDOR_ABI = [
+    // Events
+    {
+        anonymous: false,
+        inputs: [
+            { indexed: true, internalType: "address", name: "buyer", type: "address" },
+            { indexed: false, internalType: "uint256", name: "baseTokenAmount", type: "uint256" },
+            { indexed: false, internalType: "uint256", name: "swapTokenAmount", type: "uint256" },
+            { indexed: false, internalType: "uint256", name: "fee", type: "uint256" },
+        ],
+        name: "TokensPurchased",
+        type: "event",
+    },
+    {
+        anonymous: false,
+        inputs: [
+            { indexed: true, internalType: "address", name: "seller", type: "address" },
+            { indexed: false, internalType: "uint256", name: "swapTokenAmount", type: "uint256" },
+            { indexed: false, internalType: "uint256", name: "baseTokenAmount", type: "uint256" },
+            { indexed: false, internalType: "uint256", name: "fee", type: "uint256" },
+        ],
+        name: "TokensSold",
+        type: "event",
+    },
+    {
+        anonymous: false,
+        inputs: [
+            { indexed: true, internalType: "address", name: "user", type: "address" },
+            { indexed: false, internalType: "uint256", name: "burnAmount", type: "uint256" },
+            { indexed: false, internalType: "uint256", name: "newFuel", type: "uint256" },
+        ],
+        name: "Lit",
+        type: "event",
+    },
+    {
+        anonymous: false,
+        inputs: [
+            { indexed: true, internalType: "address", name: "user", type: "address" },
+            { indexed: false, internalType: "enum IDGTokenVendor.UserStage", name: "newStage", type: "uint8" },
+        ],
+        name: "StageUpgraded",
+        type: "event",
+    },
     {
         inputs: [],
         name: "getExchangeRate",

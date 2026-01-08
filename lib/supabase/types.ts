@@ -141,6 +141,7 @@ export interface QuestTask {
   verification_method: string;
   reward_amount: number;
   order_index: number;
+  task_config?: Record<string, unknown> | null;
   input_required?: boolean;
   input_label?: string;
   input_placeholder?: string;

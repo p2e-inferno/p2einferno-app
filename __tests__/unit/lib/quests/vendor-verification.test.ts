@@ -22,6 +22,13 @@ jest.mock("@/lib/utils/logger", () => ({
   }),
 }));
 
+// Mock viem for decodeEventLog
+jest.mock("viem", () => ({
+  ...jest.requireActual("viem"),
+  decodeEventLog: jest.fn(),
+}));
+
+
 describe("VendorVerificationStrategy", () => {
   const mockVendorAddress =
     "0xVENDOR0000000000000000000000000000000000" as Address;
@@ -65,11 +72,21 @@ describe("VendorVerificationStrategy", () => {
 
   describe("verify() - vendor_buy", () => {
     it("should verify a valid buy transaction", async () => {
+      (decodeEventLog as jest.Mock).mockReturnValue({
+        eventName: "TokensPurchased",
+        args: {
+          buyer: mockUserAddress,
+          baseTokenAmount: 100n,
+          swapTokenAmount: 200n
+        },
+      });
+
       const client = createMockPublicClient({
         getTransactionReceipt: jest.fn().mockResolvedValue({
           status: "success",
           to: mockVendorAddress,
           from: mockUserAddress,
+          logs: [{ address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" }],
         }),
       });
 
@@ -105,6 +122,7 @@ describe("VendorVerificationStrategy", () => {
           status: "success",
           to: "0xWRONGCONTRACT000000000000000000000000",
           from: mockUserAddress,
+          logs: [],
         }),
       });
 
@@ -126,6 +144,7 @@ describe("VendorVerificationStrategy", () => {
           status: "success",
           to: mockVendorAddress,
           from: "0xDIFFERENTUSER000000000000000000000000",
+          logs: [],
         }),
       });
 
@@ -147,6 +166,7 @@ describe("VendorVerificationStrategy", () => {
           status: "reverted",
           to: mockVendorAddress,
           from: mockUserAddress,
+          logs: [],
         }),
       });
 
@@ -165,11 +185,21 @@ describe("VendorVerificationStrategy", () => {
 
   describe("verify() - vendor_sell", () => {
     it("should verify a valid sell transaction", async () => {
+      (decodeEventLog as jest.Mock).mockReturnValue({
+        eventName: "TokensSold",
+        args: {
+          seller: mockUserAddress,
+          baseTokenAmount: 100n,
+          swapTokenAmount: 200n
+        },
+      });
+
       const client = createMockPublicClient({
         getTransactionReceipt: jest.fn().mockResolvedValue({
           status: "success",
           to: mockVendorAddress,
           from: mockUserAddress,
+          logs: [{ address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" }],
         }),
       });
 
@@ -187,11 +217,19 @@ describe("VendorVerificationStrategy", () => {
 
   describe("verify() - vendor_light_up", () => {
     it("should verify a valid light up transaction", async () => {
+      (decodeEventLog as jest.Mock).mockReturnValue({
+        eventName: "Lit",
+        args: {
+          user: mockUserAddress,
+        },
+      });
+
       const client = createMockPublicClient({
         getTransactionReceipt: jest.fn().mockResolvedValue({
           status: "success",
           to: mockVendorAddress,
           from: mockUserAddress,
+          logs: [{ address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" }],
         }),
       });
 
@@ -223,9 +261,10 @@ describe("VendorVerificationStrategy", () => {
       const strategy = new VendorVerificationStrategy(client);
       const result = await strategy.verify(
         "vendor_level_up",
-        { targetStage: 2 },
+        {},
         "user-123",
         mockUserAddress,
+        { taskConfig: { target_stage: 2 } }
       );
 
       expect(result.success).toBe(true);
@@ -246,9 +285,10 @@ describe("VendorVerificationStrategy", () => {
       const strategy = new VendorVerificationStrategy(client);
       const result = await strategy.verify(
         "vendor_level_up",
-        { targetStage: 3 },
+        {},
         "user-123",
         mockUserAddress,
+        { taskConfig: { target_stage: 3 } }
       );
 
       expect(result.success).toBe(false);
@@ -270,9 +310,10 @@ describe("VendorVerificationStrategy", () => {
       const strategy = new VendorVerificationStrategy(client);
       const result = await strategy.verify(
         "vendor_level_up",
-        { targetStage: 2 },
+        {},
         "user-123",
         mockUserAddress,
+        { taskConfig: { target_stage: 2 } }
       );
 
       expect(result.success).toBe(true);
@@ -286,9 +327,10 @@ describe("VendorVerificationStrategy", () => {
       const strategy = new VendorVerificationStrategy(client);
       const result = await strategy.verify(
         "vendor_level_up",
-        { targetStage: 2 }, // No transactionHash
+        {}, // No transactionHash
         "user-123",
         mockUserAddress,
+        { taskConfig: { target_stage: 2 } }
       );
 
       expect(result.success).toBe(true);

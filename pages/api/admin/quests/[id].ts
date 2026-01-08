@@ -4,6 +4,7 @@ import { withAdminAuth } from "@/lib/auth/admin-auth";
 import type { QuestTask } from "@/lib/supabase/types";
 import { randomUUID } from "crypto";
 import { getLogger } from "@/lib/utils/logger";
+import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 
 const log = getLogger("api:admin:quests:[id]");
 
@@ -189,6 +190,11 @@ async function updateQuest(
 
     // Handle tasks update if provided
     if (tasks && Array.isArray(tasks)) {
+      const validation = await validateVendorTaskConfig(tasks);
+      if (!validation.ok) {
+        return res.status(400).json({ error: validation.error });
+      }
+
       // Step 1: Get existing tasks from database
       const { data: existingTasks, error: fetchError } = await supabase
         .from("quest_tasks")
@@ -257,6 +263,7 @@ async function updateQuest(
               id: randomUUID(),
               quest_id: questId,
               ...taskData,
+              task_config: task.task_config || {},
               order_index: task.order_index ?? tasksToUpdate.length + index,
               created_at: now,
               updated_at: now,

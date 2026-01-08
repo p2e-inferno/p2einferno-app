@@ -197,7 +197,7 @@ describe("VendorSwap", () => {
       const actionButton = screen.getByRole("button", { name: /buy dg/i });
 
       expect(
-        screen.getByText(/Valid NFT key required to trade./i),
+        screen.getByText(/Active DG Nation Membership is required to trade./i),
       ).toBeInTheDocument();
       expect(actionButton).toBeDisabled();
     });

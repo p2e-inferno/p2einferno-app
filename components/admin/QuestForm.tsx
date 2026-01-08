@@ -1113,7 +1113,7 @@ export default function QuestForm({
                 xDG (Experience Points)
               </option>
               <option value="activation" className="bg-gray-900">
-                Activation (e.g., DG Trial)
+                Activation (e.g., Membership Trial)
               </option>
             </select>
           </div>

@@ -50,6 +50,7 @@ export default async function handler(
           input_placeholder,
           input_validation,
           requires_admin_review,
+          task_config,
           created_at
         )
       `,

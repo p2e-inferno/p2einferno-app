@@ -9,6 +9,38 @@ import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
+// Mock Select components
+jest.mock("@/components/ui/select", () => ({
+  Select: ({ children, value, onValueChange }: any) => (
+    <div data-testid="select-mock" data-value={value}>
+      {children}
+    </div>
+  ),
+  SelectContent: ({ children }: any) => <div>{children}</div>,
+  SelectItem: ({ children, value }: any) => (
+    <div data-value={value}>{children}</div>
+  ),
+  SelectTrigger: ({ children }: any) => <button>{children}</button>,
+  SelectValue: ({ placeholder }: any) => <span>{placeholder}</span>,
+}));
+
+// Mock useDGMarket hook
+jest.mock("@/hooks/vendor/useDGMarket", () => ({
+  useDGMarket: () => ({
+    minBuyAmount: 1000000000000000000n,
+    minSellAmount: 500000000000000000n,
+  }),
+}));
+
+// Mock vendor constants
+jest.mock("@/lib/blockchain/shared/vendor-constants", () => ({
+  getStageOptions: () => [
+    { value: 0, label: "Pleb" },
+    { value: 1, label: "Hustler" },
+    { value: 2, label: "OG" },
+  ],
+}));
+
 describe("QuestTaskForm - Vendor Task Types", () => {
   let QuestTaskForm: any;
 

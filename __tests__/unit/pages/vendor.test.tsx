@@ -57,7 +57,7 @@ describe("VendorPage", () => {
         points: 1500n,
         fuel: 750n,
       },
-      stageLabel: "Og",
+      stageLabel: "OG",
       upgradeStage: jest.fn(),
       refetchState: jest.fn(),
       isPending: false,
@@ -86,7 +86,7 @@ describe("VendorPage", () => {
     it("should display current stage in header", () => {
       render(<VendorPage />);
       expect(screen.getByText(/Current Stage/i)).toBeInTheDocument();
-      expect(screen.getByText("Og")).toBeInTheDocument(); // Stage label from mock
+      expect(screen.getByText("OG")).toBeInTheDocument(); // Stage label from mock
     });
   });
 
