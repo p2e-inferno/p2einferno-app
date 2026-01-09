@@ -53,7 +53,8 @@ describe("useDGProfile", () => {
     try {
       const mod = await import("@/hooks/vendor/useDGProfile");
       useDGProfile = mod.useDGProfile;
-      const constantsMod = await import("@/lib/blockchain/shared/vendor-constants");
+      const constantsMod =
+        await import("@/lib/blockchain/shared/vendor-constants");
       USER_STAGE_LABELS = constantsMod.USER_STAGE_LABELS;
     } catch {
       // Expected to fail until implemented

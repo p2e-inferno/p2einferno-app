@@ -19,6 +19,9 @@ import {
 
 const log = getLogger("lib:attestation:service");
 
+const getDefaultNetworkName = (): string =>
+  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
+
 export class AttestationService {
   private eas: EAS | null = null;
 
@@ -233,8 +236,10 @@ export class AttestationService {
   async getAttestations(
     recipient: string,
     schemaUid?: string,
+    network?: string,
   ): Promise<Attestation[]> {
     try {
+      const resolvedNetwork = network || getDefaultNetworkName();
       let query = supabase
         .from("attestations")
         .select(
@@ -248,6 +253,7 @@ export class AttestationService {
         `,
         )
         .eq("recipient", recipient)
+        .eq("network", resolvedNetwork)
         .eq("is_revoked", false)
         .order("created_at", { ascending: false });
 
@@ -274,12 +280,15 @@ export class AttestationService {
    */
   private async getSchemaDefinition(
     schemaUid: string,
+    network?: string,
   ): Promise<AttestationSchema | null> {
     try {
+      const resolvedNetwork = network || getDefaultNetworkName();
       const { data, error } = await supabase
         .from("attestation_schemas")
         .select("*")
         .eq("schema_uid", schemaUid)
+        .eq("network", resolvedNetwork)
         .single();
 
       if (error || !data) {
@@ -300,13 +309,16 @@ export class AttestationService {
   private async checkExistingAttestation(
     recipient: string,
     schemaUid: string,
+    network?: string,
   ): Promise<boolean> {
     try {
+      const resolvedNetwork = network || getDefaultNetworkName();
       const { data } = await supabase
         .from("attestations")
         .select("id")
         .eq("recipient", recipient)
         .eq("schema_uid", schemaUid)
+        .eq("network", resolvedNetwork)
         .eq("is_revoked", false)
         .single();
 

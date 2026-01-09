@@ -11,7 +11,7 @@ import userEvent from "@testing-library/user-event";
 
 // Mock Select components
 jest.mock("@/components/ui/select", () => ({
-  Select: ({ children, value, onValueChange }: any) => (
+  Select: ({ children, value }: any) => (
     <div data-testid="select-mock" data-value={value}>
       {children}
     </div>

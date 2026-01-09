@@ -9,13 +9,21 @@ import { isValidSchemaDefinition } from "../utils/validator";
 
 const log = getLogger("lib:attestation:schemas");
 
+const getDefaultNetworkName = (): string =>
+  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
+
+const resolveNetwork = (network?: string): string =>
+  network || getDefaultNetworkName();
+
 /**
  * Register a new attestation schema
  */
 export const registerSchema = async (
   schema: Omit<AttestationSchema, "id" | "created_at" | "updated_at">,
+  network?: string,
 ): Promise<{ success: boolean; error?: string; schemaId?: string }> => {
   try {
+    const resolvedNetwork = schema.network || resolveNetwork(network);
     // Validate schema definition
     if (!isValidSchemaDefinition(schema.schema_definition)) {
       return {
@@ -29,6 +37,7 @@ export const registerSchema = async (
       .from("attestation_schemas")
       .select("id")
       .eq("schema_uid", schema.schema_uid)
+      .eq("network", resolvedNetwork)
       .single();
 
     if (existingSchema) {
@@ -41,7 +50,10 @@ export const registerSchema = async (
     // Insert new schema
     const { data, error } = await supabase
       .from("attestation_schemas")
-      .insert(schema)
+      .insert({
+        ...schema,
+        network: resolvedNetwork,
+      })
       .select("id")
       .single();
 
@@ -71,9 +83,12 @@ export const registerSchema = async (
  */
 export const getAllSchemas = async (
   category?: string,
+  network?: string,
 ): Promise<AttestationSchema[]> => {
   try {
     let query = supabase.from("attestation_schemas").select("*").order("name");
+    const resolvedNetwork = resolveNetwork(network);
+    query = query.eq("network", resolvedNetwork);
 
     if (category) {
       query = query.eq("category", category);
@@ -98,12 +113,15 @@ export const getAllSchemas = async (
  */
 export const getSchemaByUid = async (
   schemaUid: string,
+  network?: string,
 ): Promise<AttestationSchema | null> => {
   try {
+    const resolvedNetwork = resolveNetwork(network);
     const { data, error } = await supabase
       .from("attestation_schemas")
       .select("*")
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .single();
 
     if (error || !data) {
@@ -126,8 +144,10 @@ export const updateSchema = async (
   updates: Partial<
     Omit<AttestationSchema, "id" | "schema_uid" | "created_at" | "updated_at">
   >,
+  network?: string,
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    const resolvedNetwork = resolveNetwork(network);
     // Validate schema definition if being updated
     if (
       updates.schema_definition &&
@@ -145,7 +165,8 @@ export const updateSchema = async (
         ...updates,
         updated_at: new Date().toISOString(),
       })
-      .eq("schema_uid", schemaUid);
+      .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork);
 
     if (error) {
       log.error("Error updating schema", { error });
@@ -170,13 +191,16 @@ export const updateSchema = async (
  */
 export const deleteSchema = async (
   schemaUid: string,
+  network?: string,
 ): Promise<{ success: boolean; error?: string }> => {
   try {
+    const resolvedNetwork = resolveNetwork(network);
     // Check if schema has existing attestations
     const { data: attestations } = await supabase
       .from("attestations")
       .select("id")
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .limit(1);
 
     if (attestations && attestations.length > 0) {
@@ -190,7 +214,8 @@ export const deleteSchema = async (
     const { error } = await supabase
       .from("attestation_schemas")
       .delete()
-      .eq("schema_uid", schemaUid);
+      .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork);
 
     if (error) {
       log.error("Error deleting schema", { error });
@@ -215,6 +240,7 @@ export const deleteSchema = async (
  */
 export const getSchemasByCategory = async (
   category: string,
+  network?: string,
 ): Promise<AttestationSchema[]> => {
-  return getAllSchemas(category);
+  return getAllSchemas(category, network);
 };

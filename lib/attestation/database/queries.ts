@@ -8,6 +8,9 @@ import { Attestation } from "../core/types";
 
 const log = getLogger("lib:attestation:database");
 
+const getDefaultNetworkName = (): string =>
+  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
+
 /**
  * Get attestations for a specific user
  */
@@ -18,9 +21,11 @@ export const getUserAttestations = async (
     category?: string;
     limit?: number;
     offset?: number;
+    network?: string;
   },
 ): Promise<Attestation[]> => {
   try {
+    const resolvedNetwork = options?.network || getDefaultNetworkName();
     let query = supabase
       .from("attestations")
       .select(
@@ -34,6 +39,7 @@ export const getUserAttestations = async (
       `,
       )
       .eq("recipient", userAddress)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false)
       .order("created_at", { ascending: false });
 
@@ -74,9 +80,11 @@ export const getAttestationsBySchema = async (
   options?: {
     limit?: number;
     offset?: number;
+    network?: string;
   },
 ): Promise<Attestation[]> => {
   try {
+    const resolvedNetwork = options?.network || getDefaultNetworkName();
     let query = supabase
       .from("attestations")
       .select(
@@ -90,6 +98,7 @@ export const getAttestationsBySchema = async (
       `,
       )
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false)
       .order("created_at", { ascending: false });
 
@@ -158,13 +167,16 @@ export const getAttestationByUid = async (
 export const hasUserAttestation = async (
   userAddress: string,
   schemaUid: string,
+  network?: string,
 ): Promise<boolean> => {
   try {
+    const resolvedNetwork = network || getDefaultNetworkName();
     const { data } = await supabase
       .from("attestations")
       .select("id")
       .eq("recipient", userAddress)
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false)
       .single();
 
@@ -179,8 +191,10 @@ export const hasUserAttestation = async (
  */
 export const getUserDailyCheckinStreak = async (
   userAddress: string,
+  network?: string,
 ): Promise<number> => {
   try {
+    const resolvedNetwork = network || getDefaultNetworkName();
     // Get daily check-ins for the last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -189,6 +203,7 @@ export const getUserDailyCheckinStreak = async (
       .select("created_at")
       .eq("recipient", userAddress)
       .eq("schema_uid", "0xp2e_daily_checkin_001") // Daily check-in schema UID
+      .eq("network", resolvedNetwork)
       .gte("created_at", thirtyDaysAgo.toISOString())
       .order("created_at", { ascending: false });
 
@@ -237,12 +252,15 @@ export const getUserDailyCheckinStreak = async (
 export const getUserAttestationCount = async (
   userAddress: string,
   schemaUid?: string,
+  network?: string,
 ): Promise<number> => {
   try {
+    const resolvedNetwork = network || getDefaultNetworkName();
     let query = supabase
       .from("attestations")
       .select("id", { count: "exact", head: true })
       .eq("recipient", userAddress)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false);
 
     if (schemaUid) {
@@ -269,8 +287,10 @@ export const getUserAttestationCount = async (
 export const getRecentAttestations = async (
   schemaUid: string,
   limit = 10,
+  network?: string,
 ): Promise<Attestation[]> => {
   try {
+    const resolvedNetwork = network || getDefaultNetworkName();
     const { data, error } = await supabase
       .from("attestations")
       .select(
@@ -284,6 +304,7 @@ export const getRecentAttestations = async (
       `,
       )
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false)
       .order("created_at", { ascending: false })
       .limit(limit);
@@ -305,6 +326,7 @@ export const getRecentAttestations = async (
  */
 export const getSchemaStatistics = async (
   schemaUid: string,
+  network?: string,
 ): Promise<{
   totalCount: number;
   uniqueUsers: number;
@@ -312,6 +334,7 @@ export const getSchemaStatistics = async (
   thisWeekCount: number;
 }> => {
   try {
+    const resolvedNetwork = network || getDefaultNetworkName();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -322,6 +345,7 @@ export const getSchemaStatistics = async (
       .from("attestations")
       .select("id", { count: "exact", head: true })
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false);
 
     // Get unique users
@@ -329,6 +353,7 @@ export const getSchemaStatistics = async (
       .from("attestations")
       .select("recipient")
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false);
 
     const uniqueUsers = new Set(uniqueUsersData?.map((a) => a.recipient) || [])
@@ -339,6 +364,7 @@ export const getSchemaStatistics = async (
       .from("attestations")
       .select("id", { count: "exact", head: true })
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false)
       .gte("created_at", today.toISOString());
 
@@ -347,6 +373,7 @@ export const getSchemaStatistics = async (
       .from("attestations")
       .select("id", { count: "exact", head: true })
       .eq("schema_uid", schemaUid)
+      .eq("network", resolvedNetwork)
       .eq("is_revoked", false)
       .gte("created_at", weekAgo.toISOString());
 

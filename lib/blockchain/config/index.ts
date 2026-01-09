@@ -51,7 +51,10 @@ export {
 // ============================================================================
 
 // Public client creation (createPublicClientUnified is used in main config)
-export { createPublicClientForChain } from "./clients/public-client";
+export {
+  createPublicClientForChain,
+  createPublicClientForNetwork,
+} from "./clients/public-client";
 
 // Account creation
 export { createAccountUnified } from "./clients/account";
@@ -113,7 +116,10 @@ export const UNIFIED_BLOCKCHAIN_CONFIG: BlockchainConfig = {
 
 // Export the client creation functions that are used in the main config
 export { createPublicClientUnified } from "./clients/public-client";
-export { createWalletClientUnified } from "./clients/wallet-client";
+export {
+  createWalletClientUnified,
+  createWalletClientForNetwork,
+} from "./clients/wallet-client";
 export { createAlchemyPublicClient } from "./clients/alchemy-client";
 export {
   createAlchemyEthersAdapterReadClient,

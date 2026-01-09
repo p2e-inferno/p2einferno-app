@@ -5,7 +5,7 @@
  * Tests will FAIL until lib/quests/verification/vendor-verification.ts is implemented.
  */
 
-import type { PublicClient, Address } from "viem";
+import { decodeEventLog, type Address, type PublicClient } from "viem";
 
 // Mock the ABI - will be replaced when vendor-abi.ts is implemented
 jest.mock("@/lib/blockchain/shared/vendor-abi", () => ({
@@ -27,7 +27,6 @@ jest.mock("viem", () => ({
   ...jest.requireActual("viem"),
   decodeEventLog: jest.fn(),
 }));
-
 
 describe("VendorVerificationStrategy", () => {
   const mockVendorAddress =
@@ -77,7 +76,7 @@ describe("VendorVerificationStrategy", () => {
         args: {
           buyer: mockUserAddress,
           baseTokenAmount: 100n,
-          swapTokenAmount: 200n
+          swapTokenAmount: 200n,
         },
       });
 
@@ -86,7 +85,9 @@ describe("VendorVerificationStrategy", () => {
           status: "success",
           to: mockVendorAddress,
           from: mockUserAddress,
-          logs: [{ address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" }],
+          logs: [
+            { address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" },
+          ],
         }),
       });
 
@@ -190,7 +191,7 @@ describe("VendorVerificationStrategy", () => {
         args: {
           seller: mockUserAddress,
           baseTokenAmount: 100n,
-          swapTokenAmount: 200n
+          swapTokenAmount: 200n,
         },
       });
 
@@ -199,7 +200,9 @@ describe("VendorVerificationStrategy", () => {
           status: "success",
           to: mockVendorAddress,
           from: mockUserAddress,
-          logs: [{ address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" }],
+          logs: [
+            { address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" },
+          ],
         }),
       });
 
@@ -229,7 +232,9 @@ describe("VendorVerificationStrategy", () => {
           status: "success",
           to: mockVendorAddress,
           from: mockUserAddress,
-          logs: [{ address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" }],
+          logs: [
+            { address: mockVendorAddress, topics: ["0xKEY"], data: "0xDATA" },
+          ],
         }),
       });
 
@@ -264,7 +269,7 @@ describe("VendorVerificationStrategy", () => {
         {},
         "user-123",
         mockUserAddress,
-        { taskConfig: { target_stage: 2 } }
+        { taskConfig: { target_stage: 2 } },
       );
 
       expect(result.success).toBe(true);
@@ -288,7 +293,7 @@ describe("VendorVerificationStrategy", () => {
         {},
         "user-123",
         mockUserAddress,
-        { taskConfig: { target_stage: 3 } }
+        { taskConfig: { target_stage: 3 } },
       );
 
       expect(result.success).toBe(false);
@@ -313,7 +318,7 @@ describe("VendorVerificationStrategy", () => {
         {},
         "user-123",
         mockUserAddress,
-        { taskConfig: { target_stage: 2 } }
+        { taskConfig: { target_stage: 2 } },
       );
 
       expect(result.success).toBe(true);
@@ -330,7 +335,7 @@ describe("VendorVerificationStrategy", () => {
         {}, // No transactionHash
         "user-123",
         mockUserAddress,
-        { taskConfig: { target_stage: 2 } }
+        { taskConfig: { target_stage: 2 } },
       );
 
       expect(result.success).toBe(true);

@@ -18,6 +18,7 @@ import {
   DollarSign,
   Zap,
   ShieldAlert,
+  FileCode2,
 } from "lucide-react";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -43,6 +44,7 @@ const adminNavItems = [
   { name: "CSP Reports", href: "/admin/csp-reports", icon: ShieldAlert },
   { name: "Applications", href: "/admin/applications", icon: FileText },
   { name: "Draft Recovery", href: "/admin/draft-recovery", icon: FileText },
+  { name: "EAS Schemas", href: "/admin/eas-schemas", icon: FileCode2 },
 ];
 
 export default function AdminLayout({
