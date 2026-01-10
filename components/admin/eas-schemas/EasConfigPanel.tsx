@@ -290,7 +290,11 @@ export default function EasConfigPanel({ onChanged }: EasConfigPanelProps) {
     setSuccess(null);
     setSavingKey("new");
     const normalizedKey = normalizeSchemaKey(newSchemaKey.key);
-    if (!normalizedKey || !isValidSchemaKey(normalizedKey) || !newSchemaKey.label) {
+    if (
+      !normalizedKey ||
+      !isValidSchemaKey(normalizedKey) ||
+      !newSchemaKey.label
+    ) {
       setSavingKey(null);
       setError("Schema key and label are required");
       return;
@@ -322,14 +326,17 @@ export default function EasConfigPanel({ onChanged }: EasConfigPanelProps) {
     setSuccess(null);
     setSavingKey(row.key);
     try {
-      const { error } = await adminFetch(`/api/admin/eas-schema-keys/${row.key}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          label: row.label,
-          description: row.description || null,
-          active: Boolean(row.active),
-        }),
-      });
+      const { error } = await adminFetch(
+        `/api/admin/eas-schema-keys/${row.key}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            label: row.label,
+            description: row.description || null,
+            active: Boolean(row.active),
+          }),
+        },
+      );
       if (error) {
         setError(error);
         return;
@@ -732,16 +739,16 @@ export default function EasConfigPanel({ onChanged }: EasConfigPanelProps) {
               setNewSchemaKey((p) => ({ ...p, description: e.target.value }))
             }
           />
-                <div className="flex items-center gap-3 text-sm text-gray-200">
-                  <span>Active</span>
-                  <Toggle
-                    checked={newSchemaKey.active}
-                    onCheckedChange={(checked) =>
-                      setNewSchemaKey((p) => ({ ...p, active: checked }))
-                    }
-                    ariaLabel="Toggle schema key active"
-                  />
-                </div>
+          <div className="flex items-center gap-3 text-sm text-gray-200">
+            <span>Active</span>
+            <Toggle
+              checked={newSchemaKey.active}
+              onCheckedChange={(checked) =>
+                setNewSchemaKey((p) => ({ ...p, active: checked }))
+              }
+              ariaLabel="Toggle schema key active"
+            />
+          </div>
         </div>
         <div className="mt-3">
           <Button

@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getLogger } from "@/lib/utils/logger";
 import { resolveSchemaUIDFromEnv, type SchemaKey } from "@/lib/attestation/core/config";
 
@@ -12,6 +12,31 @@ type CacheEntry = {
 };
 
 const cache = new Map<string, CacheEntry>();
+
+const getSupabaseUrl = (): string | null =>
+  process.env.NEXT_PUBLIC_SUPABASE_URL || null;
+
+const getSupabaseAnonKey = (): string | null =>
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || null;
+
+let publicSupabaseClient:
+  | ReturnType<typeof createSupabaseClient>
+  | null
+  | undefined;
+
+const getPublicSupabaseClient = () => {
+  if (publicSupabaseClient !== undefined) return publicSupabaseClient;
+  const url = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+  if (!url || !anonKey) {
+    publicSupabaseClient = null;
+    return publicSupabaseClient;
+  }
+  publicSupabaseClient = createSupabaseClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return publicSupabaseClient;
+};
 
 const getDefaultNetworkName = (): string =>
   process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
@@ -45,7 +70,10 @@ export const resolveSchemaUID = async (
   }
 
   try {
-    const supabase = createAdminClient();
+    const supabase = getPublicSupabaseClient();
+    if (!supabase) {
+      throw new Error("Missing Supabase public env vars");
+    }
     const { data, error } = await supabase
       .from("attestation_schemas")
       .select("schema_uid")
@@ -63,9 +91,10 @@ export const resolveSchemaUID = async (
       });
     }
 
-    if (data?.schema_uid) {
-      setCachedValue(cacheKey, data.schema_uid);
-      return data.schema_uid;
+    const schemaUid = (data as any)?.schema_uid;
+    if (typeof schemaUid === "string" && schemaUid.length > 0) {
+      setCachedValue(cacheKey, schemaUid);
+      return schemaUid;
     }
   } catch (error: any) {
     log.warn("Schema UID DB lookup failed", {

@@ -125,6 +125,7 @@ npx synpress ./tests/wallet-setup  # Build MetaMask wallet cache
   - **EAS Config tab** mutations are DB-only (no on-chain activity); require admin session + `X-Active-Wallet` but **do not** require signed actions.
 - **Network config**: `public.eas_networks` (migrations `118`, `121`) is DB‑backed with fallback in `lib/attestation/core/network-config.ts`. Only enabled networks appear in UI/API.
 - **Schema IDs**: `schema_uid` may be non‑bytes32 placeholders; UI flags invalid UIDs as "Not on-chain" without RPC calls.
+- **Schema UID resolution**: Use `resolveSchemaUID(schemaKey, network)` (DB → env fallback) and avoid hardcoded placeholder UIDs in app code; add network filters only after data consistency is verified.
 - **EAS Scan**: Only show when UID is valid; use `eas_scan_base_url` from `eas_networks`.
 - **Network updates**: Admin config changes invalidate `eas_networks` cache so the dropdown updates immediately.
 

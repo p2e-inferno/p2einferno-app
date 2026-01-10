@@ -15,7 +15,7 @@ jest.mock("@/lib/supabase/server", () => ({
 const mockEnsureAdminOrRespond = ensureAdminOrRespond as jest.Mock;
 const mockCreateAdminClient = createAdminClient as jest.Mock;
 
-const thenableQuery = <T,>(result: T) => {
+const thenableQuery = <T>(result: T) => {
   const query: any = {
     order: jest.fn(() => query),
     eq: jest.fn(() => query),
@@ -23,8 +23,10 @@ const thenableQuery = <T,>(result: T) => {
     select: jest.fn(() => query),
     maybeSingle: jest.fn(async () => result),
     single: jest.fn(async () => result),
-    then: (resolve: (value: T) => unknown, reject?: (reason: unknown) => unknown) =>
-      Promise.resolve(result).then(resolve, reject),
+    then: (
+      resolve: (value: T) => unknown,
+      reject?: (reason: unknown) => unknown,
+    ) => Promise.resolve(result).then(resolve, reject),
   };
   return query as T & { order: jest.Mock; eq: jest.Mock };
 };
@@ -36,10 +38,14 @@ const makeSupabase = (overrides?: {
 }) => {
   const selectResult =
     overrides?.selectResult ??
-    ({ data: [{ key: "daily_checkin", label: "Daily Check-in", active: true }], error: null } as any);
+    ({
+      data: [{ key: "daily_checkin", label: "Daily Check-in", active: true }],
+      error: null,
+    } as any);
   const insertResult = overrides?.insertResult ?? ({ error: null } as any);
   const updateResult =
-    overrides?.updateResult ?? ({ data: { key: "daily_checkin" }, error: null } as any);
+    overrides?.updateResult ??
+    ({ data: { key: "daily_checkin" }, error: null } as any);
 
   const from = jest.fn(() => ({
     select: jest.fn(() => thenableQuery(selectResult)),
@@ -80,7 +86,9 @@ describe("admin eas-schema-keys routes", () => {
     const supabase = makeSupabase();
     mockCreateAdminClient.mockReturnValue(supabase);
 
-    const req = new Request("http://localhost/api/admin/eas-schema-keys") as any;
+    const req = new Request(
+      "http://localhost/api/admin/eas-schema-keys",
+    ) as any;
     const res = await GET(req);
     const json = await res.json();
 
@@ -109,11 +117,14 @@ describe("admin eas-schema-keys routes", () => {
     const supabase = makeSupabase();
     mockCreateAdminClient.mockReturnValue(supabase);
 
-    const req = new Request("http://localhost/api/admin/eas-schema-keys/daily_checkin", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ label: "Daily Check-in", active: true }),
-    }) as any;
+    const req = new Request(
+      "http://localhost/api/admin/eas-schema-keys/daily_checkin",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ label: "Daily Check-in", active: true }),
+      },
+    ) as any;
 
     const res = await PATCH(req, { params: { key: "daily_checkin" } } as any);
     const json = await res.json();
@@ -126,9 +137,12 @@ describe("admin eas-schema-keys routes", () => {
     const supabase = makeSupabase();
     mockCreateAdminClient.mockReturnValue(supabase);
 
-    const req = new Request("http://localhost/api/admin/eas-schema-keys/daily_checkin", {
-      method: "DELETE",
-    }) as any;
+    const req = new Request(
+      "http://localhost/api/admin/eas-schema-keys/daily_checkin",
+      {
+        method: "DELETE",
+      },
+    ) as any;
 
     const res = await DELETE(req, { params: { key: "daily_checkin" } } as any);
     const json = await res.json();

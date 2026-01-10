@@ -42,7 +42,9 @@ export default function SchemaKeySelect({
         <SelectTrigger>
           <SelectValue
             placeholder={
-              loading ? "Loading schema keys..." : "Select schema key (optional)"
+              loading
+                ? "Loading schema keys..."
+                : "Select schema key (optional)"
             }
           />
         </SelectTrigger>

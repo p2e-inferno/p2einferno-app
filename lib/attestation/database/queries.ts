@@ -5,6 +5,8 @@
 import { supabase } from "@/lib/supabase";
 import { getLogger } from "@/lib/utils/logger";
 import { Attestation } from "../core/types";
+import { resolveSchemaUID } from "../schemas/network-resolver";
+import type { SchemaKey } from "../core/config";
 
 const log = getLogger("lib:attestation:database");
 
@@ -195,6 +197,14 @@ export const getUserDailyCheckinStreak = async (
 ): Promise<number> => {
   try {
     const resolvedNetwork = network || getDefaultNetworkName();
+
+    // Resolve schema UID dynamically (resolver has DB → env fallback)
+    const dailyCheckinSchemaUid = await resolveSchemaUID(
+      "daily_checkin",
+      resolvedNetwork,
+    );
+    // NOTE: Do NOT check for null/return 0 - resolver has fallback built in
+
     // Get daily check-ins for the last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -202,8 +212,7 @@ export const getUserDailyCheckinStreak = async (
       .from("attestations")
       .select("created_at")
       .eq("recipient", userAddress)
-      .eq("schema_uid", "0xp2e_daily_checkin_001") // Daily check-in schema UID
-      .eq("network", resolvedNetwork)
+      .eq("schema_uid", dailyCheckinSchemaUid as string) // CHANGED: use resolved UID
       .gte("created_at", thirtyDaysAgo.toISOString())
       .order("created_at", { ascending: false });
 
@@ -391,5 +400,26 @@ export const getSchemaStatistics = async (
       todayCount: 0,
       thisWeekCount: 0,
     };
+  }
+};
+
+/**
+ * Check if user has attestation for specific schema key
+ * Cleaner API than passing UID directly - resolves schema UID dynamically
+ */
+export const hasUserAttestationBySchemaKey = async (
+  userAddress: string,
+  schemaKey: SchemaKey,
+  network?: string,
+): Promise<boolean> => {
+  try {
+    const resolvedNetwork = network || getDefaultNetworkName();
+    // Resolver has DB → env fallback, so this won't return null unless truly misconfigured
+    const schemaUid = await resolveSchemaUID(schemaKey, resolvedNetwork);
+
+    return hasUserAttestation(userAddress, schemaUid as string, resolvedNetwork);
+  } catch (error) {
+    log.error("Error in hasUserAttestationBySchemaKey", { error, schemaKey });
+    return false;
   }
 };

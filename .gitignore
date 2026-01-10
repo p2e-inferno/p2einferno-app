@@ -133,4 +133,4 @@ __inspector_reports__/
 # Synpress / Playwright generated artifacts
 .cache-synpress/
 .cache-synpress/.wallet-setup-dist/
-/playwright-report/
+playwright-report/

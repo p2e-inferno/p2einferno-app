@@ -230,7 +230,9 @@ export default function SchemaDetailsCard({
           <Select value={schemaKeyValue} onValueChange={setSchemaKeyValue}>
             <SelectTrigger>
               <SelectValue
-                placeholder={keysLoading ? "Loading keys..." : "Select schema key"}
+                placeholder={
+                  keysLoading ? "Loading keys..." : "Select schema key"
+                }
               />
             </SelectTrigger>
             <SelectContent className="z-[200]">
@@ -245,11 +247,7 @@ export default function SchemaDetailsCard({
           <Button
             variant="secondary"
             className="w-full"
-            disabled={
-              isSavingKey ||
-              keysLoading ||
-              !hasKeyChanged
-            }
+            disabled={isSavingKey || keysLoading || !hasKeyChanged}
             onClick={handleSaveSchemaKey}
           >
             {isSavingKey ? (
