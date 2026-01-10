@@ -34,6 +34,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_action_nonces: {
+        Row: {
+          action_hash: string
+          created_at: string
+          expires_at: string
+          id: string
+          nonce: string
+          wallet_address: string
+        }
+        Insert: {
+          action_hash: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          nonce: string
+          wallet_address: string
+        }
+        Update: {
+          action_hash?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          nonce?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           application_status: string
@@ -133,8 +160,10 @@ export type Database = {
           description: string
           id: string
           name: string
+          network: string
           revocable: boolean
           schema_definition: string
+          schema_key: string | null
           schema_uid: string
           updated_at: string
         }
@@ -144,8 +173,10 @@ export type Database = {
           description: string
           id?: string
           name: string
+          network?: string
           revocable?: boolean
           schema_definition: string
+          schema_key?: string | null
           schema_uid: string
           updated_at?: string
         }
@@ -155,12 +186,22 @@ export type Database = {
           description?: string
           id?: string
           name?: string
+          network?: string
           revocable?: boolean
           schema_definition?: string
+          schema_key?: string | null
           schema_uid?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "attestation_schemas_schema_key_fkey"
+            columns: ["schema_key"]
+            isOneToOne: false
+            referencedRelation: "eas_schema_keys"
+            referencedColumns: ["key"]
+          },
+        ]
       }
       attestations: {
         Row: {
@@ -171,6 +212,7 @@ export type Database = {
           expiration_time: string | null
           id: string
           is_revoked: boolean
+          network: string
           recipient: string
           revocation_time: string | null
           schema_uid: string
@@ -184,6 +226,7 @@ export type Database = {
           expiration_time?: string | null
           id?: string
           is_revoked?: boolean
+          network?: string
           recipient: string
           revocation_time?: string | null
           schema_uid: string
@@ -197,6 +240,7 @@ export type Database = {
           expiration_time?: string | null
           id?: string
           is_revoked?: boolean
+          network?: string
           recipient?: string
           revocation_time?: string | null
           schema_uid?: string
@@ -209,6 +253,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "attestation_schemas"
             referencedColumns: ["schema_uid"]
+          },
+          {
+            foreignKeyName: "attestations_schema_uid_network_fkey"
+            columns: ["schema_uid", "network"]
+            isOneToOne: false
+            referencedRelation: "attestation_schemas"
+            referencedColumns: ["schema_uid", "network"]
           },
         ]
       }
@@ -775,6 +826,87 @@ export type Database = {
           },
         ]
       }
+      eas_networks: {
+        Row: {
+          chain_id: number
+          created_at: string
+          display_name: string
+          eas_contract_address: string
+          eas_scan_base_url: string | null
+          eip712_proxy_address: string | null
+          enabled: boolean
+          explorer_base_url: string | null
+          is_testnet: boolean
+          name: string
+          rpc_url: string | null
+          schema_registry_address: string
+          source: string | null
+          source_commit: string | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: number
+          created_at?: string
+          display_name: string
+          eas_contract_address: string
+          eas_scan_base_url?: string | null
+          eip712_proxy_address?: string | null
+          enabled?: boolean
+          explorer_base_url?: string | null
+          is_testnet?: boolean
+          name: string
+          rpc_url?: string | null
+          schema_registry_address: string
+          source?: string | null
+          source_commit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: number
+          created_at?: string
+          display_name?: string
+          eas_contract_address?: string
+          eas_scan_base_url?: string | null
+          eip712_proxy_address?: string | null
+          enabled?: boolean
+          explorer_base_url?: string | null
+          is_testnet?: boolean
+          name?: string
+          rpc_url?: string | null
+          schema_registry_address?: string
+          source?: string | null
+          source_commit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      eas_schema_keys: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          key: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          key: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          key?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       email_events: {
         Row: {
           created_at: string | null
@@ -1254,6 +1386,7 @@ export type Database = {
           quest_id: string
           requires_admin_review: boolean | null
           reward_amount: number
+          task_config: Json | null
           task_type: string
           title: string
           updated_at: string | null
@@ -1271,6 +1404,7 @@ export type Database = {
           quest_id: string
           requires_admin_review?: boolean | null
           reward_amount?: number
+          task_config?: Json | null
           task_type: string
           title: string
           updated_at?: string | null
@@ -1288,6 +1422,7 @@ export type Database = {
           quest_id?: string
           requires_admin_review?: boolean | null
           reward_amount?: number
+          task_config?: Json | null
           task_type?: string
           title?: string
           updated_at?: string | null
@@ -1306,6 +1441,56 @@ export type Database = {
             columns: ["quest_id"]
             isOneToOne: false
             referencedRelation: "quests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quest_verified_transactions: {
+        Row: {
+          block_number: number | null
+          chain_id: number
+          created_at: string | null
+          event_name: string | null
+          id: string
+          log_index: number | null
+          task_id: string
+          task_type: string
+          transaction_hash: string
+          user_id: string
+          verified_amount: string | null
+        }
+        Insert: {
+          block_number?: number | null
+          chain_id?: number
+          created_at?: string | null
+          event_name?: string | null
+          id?: string
+          log_index?: number | null
+          task_id: string
+          task_type: string
+          transaction_hash: string
+          user_id: string
+          verified_amount?: string | null
+        }
+        Update: {
+          block_number?: number | null
+          chain_id?: number
+          created_at?: string | null
+          event_name?: string | null
+          id?: string
+          log_index?: number | null
+          task_id?: string
+          task_type?: string
+          transaction_hash?: string
+          user_id?: string
+          verified_amount?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quest_verified_transactions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "quest_tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -2596,7 +2781,6 @@ export type Database = {
           success: boolean
         }[]
       }
-      exec_sql: { Args: { sql_query: string }; Returns: undefined }
       fix_completion_status: {
         Args: { p_enrollment_id: string }
         Returns: Json
@@ -2618,12 +2802,20 @@ export type Database = {
         | { Args: { p_default?: number; p_key: string }; Returns: number }
         | { Args: { p_key: string }; Returns: number }
       get_last_checkin_date: { Args: { user_address: string }; Returns: string }
+      get_schema_uid: {
+        Args: { p_network: string; p_schema_key: string }
+        Returns: string
+      }
       get_user_checkin_streak: {
         Args: { user_address: string }
         Returns: number
       }
       get_user_checkin_streak_from_activities: {
         Args: { profile_id: string }
+        Returns: number
+      }
+      get_user_checkin_streak_v2: {
+        Args: { p_network: string; user_address: string }
         Returns: number
       }
       get_user_profile_id_from_address: {
@@ -2645,6 +2837,10 @@ export type Database = {
         }[]
       }
       has_checked_in_today: { Args: { user_address: string }; Returns: boolean }
+      has_checked_in_today_v2: {
+        Args: { p_network: string; user_address: string }
+        Returns: boolean
+      }
       increment_certificate_retry_count: {
         Args: { p_enrollment_id: string }
         Returns: undefined
@@ -2688,6 +2884,20 @@ export type Database = {
           payment_status: string
           user_profile_id: string
         }[]
+      }
+      register_quest_transaction: {
+        Args: {
+          p_block_number?: number
+          p_chain_id: number
+          p_event_name?: string
+          p_log_index?: number
+          p_task_id: string
+          p_task_type: string
+          p_tx_hash: string
+          p_user_id: string
+          p_verified_amount?: string
+        }
+        Returns: Json
       }
       rollback_withdrawal: {
         Args: { p_error_message?: string; p_withdrawal_id: string }
@@ -2757,21 +2967,48 @@ export type Database = {
       buckets_analytics: {
         Row: {
           created_at: string
+          deleted_at: string | null
           format: string
+          id: string
+          name: string
+          type: Database["storage"]["Enums"]["buckettype"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          format?: string
+          id?: string
+          name: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          format?: string
+          id?: string
+          name?: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      buckets_vectors: {
+        Row: {
+          created_at: string
           id: string
           type: Database["storage"]["Enums"]["buckettype"]
           updated_at: string
         }
         Insert: {
           created_at?: string
-          format?: string
           id: string
           type?: Database["storage"]["Enums"]["buckettype"]
           updated_at?: string
         }
         Update: {
           created_at?: string
-          format?: string
           id?: string
           type?: Database["storage"]["Enums"]["buckettype"]
           updated_at?: string
@@ -2780,30 +3017,36 @@ export type Database = {
       }
       iceberg_namespaces: {
         Row: {
-          bucket_id: string
+          bucket_name: string
+          catalog_id: string
           created_at: string
           id: string
+          metadata: Json
           name: string
           updated_at: string
         }
         Insert: {
-          bucket_id: string
+          bucket_name: string
+          catalog_id: string
           created_at?: string
           id?: string
+          metadata?: Json
           name: string
           updated_at?: string
         }
         Update: {
-          bucket_id?: string
+          bucket_name?: string
+          catalog_id?: string
           created_at?: string
           id?: string
+          metadata?: Json
           name?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "iceberg_namespaces_bucket_id_fkey"
-            columns: ["bucket_id"]
+            foreignKeyName: "iceberg_namespaces_catalog_id_fkey"
+            columns: ["catalog_id"]
             isOneToOne: false
             referencedRelation: "buckets_analytics"
             referencedColumns: ["id"]
@@ -2812,36 +3055,48 @@ export type Database = {
       }
       iceberg_tables: {
         Row: {
-          bucket_id: string
+          bucket_name: string
+          catalog_id: string
           created_at: string
           id: string
           location: string
           name: string
           namespace_id: string
+          remote_table_id: string | null
+          shard_id: string | null
+          shard_key: string | null
           updated_at: string
         }
         Insert: {
-          bucket_id: string
+          bucket_name: string
+          catalog_id: string
           created_at?: string
           id?: string
           location: string
           name: string
           namespace_id: string
+          remote_table_id?: string | null
+          shard_id?: string | null
+          shard_key?: string | null
           updated_at?: string
         }
         Update: {
-          bucket_id?: string
+          bucket_name?: string
+          catalog_id?: string
           created_at?: string
           id?: string
           location?: string
           name?: string
           namespace_id?: string
+          remote_table_id?: string | null
+          shard_id?: string | null
+          shard_key?: string | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "iceberg_tables_bucket_id_fkey"
-            columns: ["bucket_id"]
+            foreignKeyName: "iceberg_tables_catalog_id_fkey"
+            columns: ["catalog_id"]
             isOneToOne: false
             referencedRelation: "buckets_analytics"
             referencedColumns: ["id"]
@@ -3062,6 +3317,50 @@ export type Database = {
           },
         ]
       }
+      vector_indexes: {
+        Row: {
+          bucket_id: string
+          created_at: string
+          data_type: string
+          dimension: number
+          distance_metric: string
+          id: string
+          metadata_configuration: Json | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          bucket_id: string
+          created_at?: string
+          data_type: string
+          dimension: number
+          distance_metric: string
+          id?: string
+          metadata_configuration?: Json | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          bucket_id?: string
+          created_at?: string
+          data_type?: string
+          dimension?: number
+          distance_metric?: string
+          id?: string
+          metadata_configuration?: Json | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vector_indexes_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets_vectors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -3215,7 +3514,7 @@ export type Database = {
       }
     }
     Enums: {
-      buckettype: "STANDARD" | "ANALYTICS"
+      buckettype: "STANDARD" | "ANALYTICS" | "VECTOR"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3349,7 +3648,7 @@ export const Constants = {
   },
   storage: {
     Enums: {
-      buckettype: ["STANDARD", "ANALYTICS"],
+      buckettype: ["STANDARD", "ANALYTICS", "VECTOR"],
     },
   },
 } as const
