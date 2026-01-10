@@ -54,17 +54,68 @@ export const EAS_ABI = [
 ] as const;
 
 // Schema Registry ABI - For registering new schemas
+// Schema Registry ABI (from EAS contracts) - For registering new schemas
 export const SCHEMA_REGISTRY_ABI = [
   {
     inputs: [
       { internalType: "string", name: "schema", type: "string" },
-      { internalType: "address", name: "resolver", type: "address" },
+      { internalType: "contract ISchemaResolver", name: "resolver", type: "address" },
       { internalType: "bool", name: "revocable", type: "bool" },
     ],
     name: "register",
     outputs: [{ internalType: "bytes32", name: "", type: "bytes32" }],
     stateMutability: "nonpayable",
     type: "function",
+  },
+] as const;
+
+// Schema Registry read ABI (from EAS contracts)
+export const SCHEMA_REGISTRY_READ_ABI = [
+  {
+    inputs: [
+      { internalType: "bytes32", name: "uid", type: "bytes32" },
+    ],
+    name: "getSchema",
+    outputs: [
+      {
+        components: [
+          { internalType: "bytes32", name: "uid", type: "bytes32" },
+          { internalType: "contract ISchemaResolver", name: "resolver", type: "address" },
+          { internalType: "bool", name: "revocable", type: "bool" },
+          { internalType: "string", name: "schema", type: "string" },
+        ],
+        internalType: "struct SchemaRecord",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+// Schema Registry event ABI (from EAS contracts)
+export const SCHEMA_REGISTRY_REGISTERED_EVENT_ABI = [
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "bytes32", name: "uid", type: "bytes32" },
+      { indexed: true, internalType: "address", name: "registerer", type: "address" },
+      {
+        components: [
+          { internalType: "bytes32", name: "uid", type: "bytes32" },
+          { internalType: "contract ISchemaResolver", name: "resolver", type: "address" },
+          { internalType: "bool", name: "revocable", type: "bool" },
+          { internalType: "string", name: "schema", type: "string" },
+        ],
+        indexed: false,
+        internalType: "struct SchemaRecord",
+        name: "schema",
+        type: "tuple",
+      },
+    ],
+    name: "Registered",
+    type: "event",
   },
 ] as const;
 
@@ -100,6 +151,24 @@ export function requireSchemaUID(type: keyof typeof P2E_SCHEMA_UIDS): string {
   }
   
   return uid;
+}
+
+export type SchemaKey =
+  | "daily_checkin"
+  | "quest_completion"
+  | "bootcamp_completion"
+  | "milestone_achievement";
+
+const schemaKeyEnvMap: Record<SchemaKey, keyof typeof P2E_SCHEMA_UIDS> = {
+  daily_checkin: "DAILY_CHECKIN",
+  quest_completion: "QUEST_COMPLETION",
+  bootcamp_completion: "BOOTCAMP_COMPLETION",
+  milestone_achievement: "MILESTONE_ACHIEVEMENT",
+};
+
+export function resolveSchemaUIDFromEnv(schemaKey: SchemaKey): string | null {
+  const envKey = schemaKeyEnvMap[schemaKey];
+  return envKey ? P2E_SCHEMA_UIDS[envKey] : null;
 }
 
 // Helper function to check if EAS is enabled

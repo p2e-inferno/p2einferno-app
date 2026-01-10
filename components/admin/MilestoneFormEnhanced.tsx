@@ -36,9 +36,11 @@ import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/loc
 import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
+  effectiveMaxKeysForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
+import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
 
 const log = getLogger("admin:MilestoneFormEnhanced");
 
@@ -109,9 +111,19 @@ export default function MilestoneFormEnhanced({
     grantFailureReason,
     setGrantFailureReason,
   } = useLockManagerState(isEditing, milestone);
-  // Track the most recent grant outcome during submit to avoid async state races
+
+  const {
+    maxKeysSecured,
+    setMaxKeysSecured,
+    maxKeysFailureReason,
+    setMaxKeysFailureReason,
+  } = useMaxKeysSecurityState(isEditing, milestone);
+
+  // Track the most recent grant/config outcomes during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
+  let lastConfigFailed: boolean | undefined;
+  let lastConfigError: string | undefined;
   const { adminFetch } = useAdminApi();
   const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
@@ -382,6 +394,8 @@ export default function MilestoneFormEnhanced({
         lockAddress: string;
         grantFailed?: boolean;
         grantError?: string;
+        configFailed?: boolean;
+        configError?: string;
       }
     | undefined
   > => {
@@ -427,7 +441,7 @@ export default function MilestoneFormEnhanced({
 
       const lockAddress = result.lockAddress;
 
-      // Check if grant failed
+      // Check if grant or config failed
       if (result.grantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
         setLockManagerGranted(false);
@@ -439,6 +453,14 @@ export default function MilestoneFormEnhanced({
           grantError: result.grantError,
           lockManagerGranted: false,
         });
+      } else if (result.configFailed) {
+        setDeploymentStep("Lock deployed but config update failed!");
+        setLockManagerGranted(true);
+        setGrantFailureReason(undefined);
+        log.warn("Lock deployed but config update failed", {
+          lockAddress,
+          configError: result.configError,
+        });
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
         setLockManagerGranted(true);
@@ -448,6 +470,10 @@ export default function MilestoneFormEnhanced({
           lockManagerGranted: true,
         });
       }
+
+      // Set max keys security state based on config outcome
+      setMaxKeysSecured(!result.configFailed);
+      setMaxKeysFailureReason(result.configError);
 
       // Update draft with deployment result to preserve it in case of database failure
       updateDraftWithDeploymentResult("milestone", {
@@ -679,6 +705,18 @@ export default function MilestoneFormEnhanced({
               grantError: outcome.lastGrantError,
             });
           }
+
+          // Set max keys security state based on config outcome
+          setMaxKeysSecured(!deploymentResult.configFailed);
+          setMaxKeysFailureReason(deploymentResult.configError);
+          lastConfigFailed = deploymentResult.configFailed;
+          lastConfigError = deploymentResult.configError;
+          if (deploymentResult.configFailed) {
+            log.warn("Milestone will be created with config failure flag", {
+              lockAddress,
+              configError: deploymentResult.configError,
+            });
+          }
         } catch (deployError: any) {
           // If lock deployment fails, don't create the milestone
           throw new Error(`Lock deployment failed: ${deployError.message}`);
@@ -715,6 +753,13 @@ export default function MilestoneFormEnhanced({
         currentReason: grantFailureReason,
       });
 
+      const effectiveMaxKeys = effectiveMaxKeysForSave({
+        outcome: { lastConfigFailed, lastConfigError },
+        lockAddress,
+        currentSecured: maxKeysSecured,
+        currentReason: maxKeysFailureReason,
+      });
+
       const milestoneData = {
         ...formDataWithoutTasks,
         name: formDataWithoutTasks.name || "",
@@ -728,6 +773,8 @@ export default function MilestoneFormEnhanced({
         total_reward: totalTaskReward,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
+        max_keys_secured: effectiveMaxKeys.secured,
+        max_keys_failure_reason: effectiveMaxKeys.reason,
         updated_at: now,
       };
 

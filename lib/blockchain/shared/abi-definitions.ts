@@ -252,9 +252,7 @@ export const LOCK_CONFIG_ABI = [
     type: "function",
   },
   {
-    inputs: [
-      { internalType: "address", name: "account", type: "address" },
-    ],
+    inputs: [{ internalType: "address", name: "account", type: "address" }],
     name: "setOwner",
     outputs: [],
     stateMutability: "nonpayable",
@@ -498,3 +496,65 @@ export const isValidAddress = (address: string): boolean => {
 export const isZeroAddress = (address: string): boolean => {
   return address === "0x0000000000000000000000000000000000000000";
 };
+
+// ============================================================================
+// LOCK CONFIGURATION HELPERS
+// ============================================================================
+
+/**
+ * Helper to create updateLockConfig parameters for securing grant-based locks
+ * Sets maxKeysPerAddress to 0 to prevent unauthorized purchases
+ *
+ * @param expirationDuration - Current or new expiration duration in seconds
+ * @param maxNumberOfKeys - Current or new max total keys
+ * @param maxKeysPerAddress - Set to 0 for grant-based locks (milestones, quests, bootcamps)
+ * @returns Parameters ready for updateLockConfig contract call
+ *
+ * @example
+ * // Secure an existing milestone lock
+ * const params = createSecureLockConfigParams(
+ *   365 * 24 * 60 * 60, // 1 year
+ *   10000,              // max total keys
+ *   0                   // prevent purchases
+ * );
+ * await lockContract.updateLockConfig(...params);
+ */
+export const createSecureLockConfigParams = (
+  expirationDuration: number | bigint,
+  maxNumberOfKeys: number | bigint,
+  maxKeysPerAddress: number | bigint = 0,
+): [bigint, bigint, bigint] => {
+  return [
+    BigInt(expirationDuration),
+    BigInt(maxNumberOfKeys),
+    BigInt(maxKeysPerAddress),
+  ];
+};
+
+/**
+ * View functions to read current lock configuration
+ * Use these to query existing values before updating
+ */
+export const LOCK_CONFIG_VIEW_ABI = [
+  {
+    inputs: [],
+    name: "expirationDuration",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "maxNumberOfKeys",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "maxKeysPerAddress",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;

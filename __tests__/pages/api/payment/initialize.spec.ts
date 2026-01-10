@@ -9,6 +9,18 @@ declare global {
 }
 global.__PAYMENT_SCENARIO__ = "valid";
 
+// Mock authentication utilities
+jest.mock("@/lib/utils/privyUtils", () => ({
+  createPrivyClient: jest.fn(),
+  fetchAndVerifyAuthorization: jest
+    .fn()
+    .mockResolvedValue({ userId: "did:privy:test" }),
+}));
+
+jest.mock("@/lib/auth/ownership", () => ({
+  assertApplicationOwnership: jest.fn().mockResolvedValue({ ok: true }),
+}));
+
 // Mock Supabase admin client
 jest.mock("@/lib/supabase/server", () => {
   const createAdminClient = jest.fn(() => ({

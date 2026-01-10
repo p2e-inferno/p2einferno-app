@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Eye, Users, Trophy } from "lucide-react";
 import Link from "next/link";
 import type { MilestoneTask } from "@/lib/supabase/types";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -26,6 +27,7 @@ export default function TaskList({
   milestoneId,
   milestoneName,
 }: TaskListProps) {
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
   const [tasks, setTasks] = useState<TaskWithSubmissions[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,15 +44,13 @@ export default function TaskList({
 
       const apiUrl = `/api/admin/tasks/by-milestone?milestone_id=${milestoneId}`;
 
-      const response = await fetch(apiUrl);
+      const result = await adminFetch<{ data?: TaskWithSubmissions[] }>(apiUrl);
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch tasks");
+      if (result.error) {
+        throw new Error(result.error || "Failed to fetch tasks");
       }
 
-      const result = await response.json();
-
-      const tasksData = result.data || [];
+      const tasksData = result.data?.data || [];
 
       if (!tasksData || tasksData.length === 0) {
         setTasks([]);
@@ -61,13 +61,10 @@ export default function TaskList({
       const tasksWithSubmissions = await Promise.all(
         tasksData.map(async (task: any) => {
           try {
-            const submissionsResponse = await fetch(
-              `/api/admin/task-submissions?taskId=${task.id}`,
-            );
-            const submissionsResult = submissionsResponse.ok
-              ? await submissionsResponse.json()
-              : { data: [] };
-            const submissions = submissionsResult.data || [];
+            const submissionsResult = await adminFetch<{
+              data?: any[];
+            }>(`/api/admin/task-submissions?taskId=${task.id}`);
+            const submissions = submissionsResult.data?.data || [];
 
             const submission_count = submissions.length;
             const pending_count = submissions.filter(

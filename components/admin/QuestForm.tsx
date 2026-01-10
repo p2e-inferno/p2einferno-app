@@ -8,7 +8,7 @@ import ImageUpload from "@/components/ui/image-upload";
 import QuestTaskForm from "@/components/admin/QuestTaskForm";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
-import { PlusCircle, Coins, Save, X } from "lucide-react";
+import { PlusCircle, Coins, Save, X, Shield } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   formatErrorMessageForToast,
@@ -36,9 +36,13 @@ import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/loc
 import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
+  effectiveMaxKeysForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
+import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
+import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
+import type { Address } from "viem";
 
 const log = getLogger("admin:QuestForm");
 
@@ -63,6 +67,7 @@ export default function QuestForm({
   const { isAdmin } = useAdminAuthContext();
   const { deployAdminLock, isLoading: isDeployingFromHook } =
     useDeployAdminLock({ isAdmin });
+  const { checkIsLockManager } = useIsLockManager();
 
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
@@ -75,9 +80,28 @@ export default function QuestForm({
     grantFailureReason,
     setGrantFailureReason,
   } = useLockManagerState(isEditing, quest);
-  // Track the most recent grant outcome during submit to avoid async state races
+
+  const {
+    maxKeysSecured,
+    setMaxKeysSecured,
+    maxKeysFailureReason,
+    setMaxKeysFailureReason,
+  } = useMaxKeysSecurityState(isEditing, quest);
+  const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(
+    null,
+  );
+  const [activationManagerStatus, setActivationManagerStatus] = useState<
+    boolean | null
+  >(null);
+  const [activationManagerError, setActivationManagerError] = useState<
+    string | null
+  >(null);
+
+  // Track the most recent grant/config outcomes during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
+  let lastConfigFailed: boolean | undefined;
+  let lastConfigError: string | undefined;
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
@@ -93,7 +117,13 @@ export default function QuestForm({
     reward_type: quest?.reward_type || "xdg",
     activation_type: quest?.activation_type || "",
     activation_config: quest?.activation_config || null,
+    requires_gooddollar_verification:
+      quest?.requires_gooddollar_verification || false,
   });
+  const activationLockAddress = useMemo(
+    () => (formData.activation_config as any)?.lockAddress || "",
+    [formData.activation_config],
+  );
 
   // Load draft data on mount
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -183,6 +213,81 @@ export default function QuestForm({
       cancelled = true;
     };
   }, [isEditing, adminFetch, silentFetch, router]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchServerWallet = async () => {
+      if (serverWalletAddress) return;
+      try {
+        const result = await adminFetch<{ serverWalletAddress: string }>(
+          "/api/admin/server-wallet",
+        );
+        if (cancelled) return;
+        if (result.data?.serverWalletAddress) {
+          setServerWalletAddress(result.data.serverWalletAddress);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          log.error("Failed to fetch server wallet address:", err);
+        }
+      }
+    };
+
+    fetchServerWallet();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminFetch, serverWalletAddress]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkManagerStatus = async () => {
+      if (
+        formData.reward_type !== "activation" ||
+        formData.activation_type !== "dg_trial" ||
+        !activationLockAddress ||
+        !serverWalletAddress
+      ) {
+        setActivationManagerStatus(null);
+        setActivationManagerError(null);
+        return;
+      }
+
+      try {
+        const isManager = await checkIsLockManager(
+          serverWalletAddress as Address,
+          activationLockAddress as Address,
+        );
+        if (!cancelled) {
+          setActivationManagerStatus(isManager);
+          setActivationManagerError(null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          log.error("Failed to check activation lock manager status:", err);
+          setActivationManagerStatus(null);
+          setActivationManagerError(
+            err?.message || "Failed to check lock manager status",
+          );
+        }
+      }
+    };
+
+    checkManagerStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    formData.reward_type,
+    formData.activation_type,
+    activationLockAddress,
+    serverWalletAddress,
+    checkIsLockManager,
+  ]);
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
@@ -381,6 +486,8 @@ export default function QuestForm({
       const outcome = applyDeploymentOutcome(result);
       if (outcome.lastGrantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
+      } else if (result.configFailed) {
+        setDeploymentStep("Lock deployed but config update failed!");
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
       }
@@ -388,6 +495,13 @@ export default function QuestForm({
       setGrantFailureReason(outcome.reason);
       lastGrantFailed = outcome.lastGrantFailed;
       lastGrantError = outcome.lastGrantError;
+
+      // Set max keys security state based on config outcome
+      setMaxKeysSecured(!result.configFailed);
+      setMaxKeysFailureReason(result.configError);
+      lastConfigFailed = result.configFailed;
+      lastConfigError = result.configError;
+
       if (outcome.lastGrantFailed) {
         log.warn("Lock deployed but grant manager transaction failed", {
           lockAddress,
@@ -622,12 +736,21 @@ export default function QuestForm({
         currentReason: grantFailureReason,
       });
 
+      const effectiveMaxKeys = effectiveMaxKeysForSave({
+        outcome: { lastConfigFailed, lastConfigError },
+        lockAddress,
+        currentSecured: maxKeysSecured,
+        currentReason: maxKeysFailureReason,
+      });
+
       const questData = {
         ...cleanFormData,
         lock_address: lockAddress,
         total_reward: totalReward,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
+        max_keys_secured: effectiveMaxKeys.secured,
+        max_keys_failure_reason: effectiveMaxKeys.reason,
       };
 
       // Prepare tasks data
@@ -825,6 +948,38 @@ export default function QuestForm({
               Quest is Active
             </Label>
           </div>
+
+          {/* GoodDollar Verification Requirement */}
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="requires_gooddollar_verification"
+              role="switch"
+              aria-label="Requires Verification"
+              checked={formData.requires_gooddollar_verification}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  requires_gooddollar_verification: e.target.checked,
+                })
+              }
+              className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+              disabled={isSubmitting}
+            />
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-green-400" />
+              <Label
+                htmlFor="requires_gooddollar_verification"
+                className="text-white cursor-pointer"
+              >
+                Requires Verification
+              </Label>
+            </div>
+          </div>
+          <p className="text-sm text-gray-400 -mt-2 ml-6">
+            Users must complete GoodDollar face verification to participate in
+            this quest.
+          </p>
         </div>
       </div>
 
@@ -958,7 +1113,7 @@ export default function QuestForm({
                 xDG (Experience Points)
               </option>
               <option value="activation" className="bg-gray-900">
-                Activation (e.g., DG Trial)
+                Activation (e.g., Membership Trial)
               </option>
             </select>
           </div>
@@ -1021,6 +1176,45 @@ export default function QuestForm({
                       className="bg-transparent border-gray-700 text-gray-100"
                       disabled={isSubmitting}
                     />
+                    {activationLockAddress && (
+                      <div className="rounded border border-slate-700 bg-slate-900 p-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Server wallet</span>
+                          <span className="text-slate-200">
+                            {serverWalletAddress || "Loading..."}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Lock manager</span>
+                          <span
+                            className={`font-medium ${
+                              activationManagerStatus === null
+                                ? "text-yellow-400"
+                                : activationManagerStatus
+                                  ? "text-green-400"
+                                  : "text-red-400"
+                            }`}
+                          >
+                            {activationManagerStatus === null
+                              ? "Checking..."
+                              : activationManagerStatus
+                                ? "Is Manager"
+                                : "Not Manager"}
+                          </span>
+                        </div>
+                        {activationManagerError && (
+                          <p className="mt-2 text-xs text-amber-300">
+                            {activationManagerError}
+                          </p>
+                        )}
+                        {activationManagerStatus === false && (
+                          <p className="mt-2 text-xs text-amber-300">
+                            Granting trials will fail until the server wallet is
+                            added as a lock manager.
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">

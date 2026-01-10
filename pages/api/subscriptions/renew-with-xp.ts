@@ -25,6 +25,12 @@ import {
   calculateNewExpiration,
 } from "@/lib/helpers/xp-renewal-helpers";
 import { formatUnits, type Address } from "viem";
+import {
+  sendEmail,
+  getRenewalEmail,
+  sendEmailWithDedup,
+  normalizeEmail,
+} from "@/lib/email";
 
 const log = getLogger("api:subscriptions:renew-with-xp");
 
@@ -93,7 +99,7 @@ export default async function handler(
     // Get user profile
     const { data: userProfile, error: userError } = await supabase
       .from("user_profiles")
-      .select("id, experience_points")
+      .select("id, experience_points, email")
       .eq("privy_user_id", privy.id)
       .single();
 
@@ -558,6 +564,33 @@ export default async function handler(
       newExpiration: Number(verifiedExpiration),
       treasuryBalance,
     });
+
+    try {
+      const userEmail = normalizeEmail(userProfile?.email);
+      if (userEmail) {
+        const tpl = getRenewalEmail({
+          durationDays: body.duration,
+          newExpiration: new Date(
+            Number(verifiedExpiration) * 1000,
+          ).toISOString(),
+        });
+
+        await sendEmailWithDedup(
+          "subscription-renewal",
+          renewalAttemptId!,
+          userEmail as string,
+          `renewal:${renewalAttemptId}`,
+          () =>
+            sendEmail({
+              to: userEmail as string,
+              ...tpl,
+              tags: ["subscription-renewal", "xp"],
+            }),
+        );
+      }
+    } catch (emailErr) {
+      log.error("Failed to send renewal email", { renewalAttemptId, emailErr });
+    }
 
     return res.status(200).json({
       success: true,

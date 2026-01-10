@@ -3,8 +3,7 @@ import { Button } from "./button";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils/wallet-change";
 
-interface LoadingButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+interface LoadingButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
   loadingText?: string;
   variant?:

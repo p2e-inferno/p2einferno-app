@@ -17,6 +17,7 @@ import { getDefaultCheckinService } from "@/lib/checkin";
 import { useStreakData } from "./useStreakData";
 import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
+import { normalizeAddress } from "@/lib/utils/address";
 
 const log = getLogger("hooks:useDailyCheckin");
 
@@ -133,6 +134,8 @@ export const useDailyCheckin = (
       .toString(36)
       .slice(2, 8)}`;
   }
+  // Track inflight status fetches to avoid stale responses overwriting newer state
+  const fetchStatusIdRef = useRef(0);
 
   // Use streak data hook
   const handleStreakError = useCallback(
@@ -161,6 +164,7 @@ export const useDailyCheckin = (
       return;
     }
 
+    const fetchId = ++fetchStatusIdRef.current;
     try {
       setIsLoading(true);
       setError(null);
@@ -171,6 +175,10 @@ export const useDailyCheckin = (
         checkinService.getCheckinStatus(userAddress),
         checkinService.getCheckinPreview(userAddress),
       ]);
+
+      if (fetchId !== fetchStatusIdRef.current) {
+        return;
+      }
 
       setCheckinStatus(status);
       setCheckinPreview(preview);
@@ -184,9 +192,13 @@ export const useDailyCheckin = (
       const errorMessage =
         err instanceof Error ? err.message : "Failed to fetch checkin status";
       log.error("Error fetching checkin status", { userAddress, error: err });
-      setError(errorMessage);
+      if (fetchId === fetchStatusIdRef.current) {
+        setError(errorMessage);
+      }
     } finally {
-      setIsLoading(false);
+      if (fetchId === fetchStatusIdRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [userAddress, checkinService]);
 
@@ -451,9 +463,13 @@ export const useDailyCheckin = (
 
     const handleEvent = (event: Event) => {
       const customEvent = event as CustomEvent<CheckinEventDetail>;
+      const eventAddress = normalizeAddress(customEvent.detail?.userAddress);
+      const currentAddress = normalizeAddress(userAddress);
       // Only refresh if the event is for this user
       if (
-        customEvent.detail?.userAddress === userAddress &&
+        eventAddress &&
+        currentAddress &&
+        eventAddress === currentAddress &&
         customEvent.detail?.originId !== originRef.current
       ) {
         log.debug("Received check-in event, refreshing status", {

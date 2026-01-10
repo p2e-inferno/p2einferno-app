@@ -30,8 +30,10 @@ interface CohortWithEnrollment {
   updated_at: string;
 }
 
-interface BootcampWithCohortsEnrollment
-  extends Omit<BootcampWithCohorts, "cohorts"> {
+interface BootcampWithCohortsEnrollment extends Omit<
+  BootcampWithCohorts,
+  "cohorts"
+> {
   cohorts: CohortWithEnrollment[];
 }
 
@@ -90,7 +92,7 @@ export function BootcampCohortCard({
   // Determine enrollment at bootcamp level (fallback to cohort list if API omitted flag)
   const enrolledInBootcamp = Boolean(
     (bootcamp as any).enrolled_in_bootcamp ||
-      (bootcamp.cohorts || []).some((c) => c.is_enrolled),
+    (bootcamp.cohorts || []).some((c) => c.is_enrolled),
   );
 
   return (

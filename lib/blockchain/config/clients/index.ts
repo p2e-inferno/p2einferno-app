@@ -7,6 +7,7 @@
 export {
   createPublicClientUnified,
   createPublicClientForChain,
+  createPublicClientForNetwork,
 } from "./public-client";
 
 // Alchemy-only public client creation
@@ -19,7 +20,7 @@ export {
 export { createAlchemyEthersAdapterReadClient } from "./ethers-adapter-client";
 
 // Wallet client creation
-export { createWalletClientUnified } from "./wallet-client";
+export { createWalletClientUnified, createWalletClientForNetwork } from "./wallet-client";
 
 // Account creation
 export { createAccountUnified } from "./account";

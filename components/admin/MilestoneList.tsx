@@ -13,11 +13,10 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import MilestoneFormEnhanced from "./MilestoneFormEnhanced";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
 import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
+import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 
 const log = getLogger("admin:MilestoneList");
 
@@ -36,8 +35,6 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
   const [deletingMilestone, setDeletingMilestone] =
     useState<CohortMilestone | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { getAccessToken } = usePrivy();
-  const selectedWallet = useSmartWalletSelection() as any;
   const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   // Fetch milestones
@@ -99,41 +96,41 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
     const currentOrderIndex = milestone.order_index;
 
     try {
-      // Get access token for authorization
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
       // Update the target milestone order
-      await fetch("/api/admin/milestones", {
+      const targetResult = await adminFetch<{
+        success?: boolean;
+        error?: string;
+      }>("/api/admin/milestones", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
-        },
         body: JSON.stringify({
           id: targetMilestone.id,
           order_index: currentOrderIndex,
           cohort_id: cohortId,
         }),
       });
+      if (targetResult.error) {
+        throw new Error(
+          targetResult.error || "Failed to update milestone order",
+        );
+      }
 
       // Update the current milestone order
-      await fetch("/api/admin/milestones", {
+      const currentResult = await adminFetch<{
+        success?: boolean;
+        error?: string;
+      }>("/api/admin/milestones", {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
-        },
         body: JSON.stringify({
           id: milestone.id,
           order_index: targetMilestone.order_index,
           cohort_id: cohortId,
         }),
       });
+      if (currentResult.error) {
+        throw new Error(
+          currentResult.error || "Failed to update milestone order",
+        );
+      }
 
       // Refresh the milestone list
       fetchMilestones();
@@ -154,28 +151,16 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
     try {
       setIsDeleting(true);
 
-      // Get Privy access token for authorization
-      const token = await getAccessToken();
-      if (!token) {
-        throw new Error("Authentication required");
-      }
-
-      const response = await fetch(
+      const result = await adminFetch<{ success?: boolean; error?: string }>(
         `/api/admin/milestones?id=${deletingMilestone.id}`,
         {
           method: "DELETE",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            "X-Active-Wallet": selectedWallet?.address || "",
-          },
           body: JSON.stringify({ cohort_id: cohortId }),
         },
       );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to delete milestone");
+      if (result.error) {
+        throw new Error(result.error || "Failed to delete milestone");
       }
 
       // Refresh the milestone list
@@ -322,6 +307,11 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                                 milestone.lock_manager_granted
                               }
                               reason={milestone.grant_failure_reason}
+                            />
+                            <MaxKeysSecurityBadge
+                              lockAddress={milestone.lock_address}
+                              maxKeysSecured={milestone.max_keys_secured}
+                              reason={milestone.max_keys_failure_reason}
                             />
                           </div>
                           <p className="text-gray-400 text-xs mt-1 max-w-xs truncate">

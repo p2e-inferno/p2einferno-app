@@ -95,27 +95,27 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
       {/* Daily Check-in */}
       <div className={`group ${isDisabled ? "pointer-events-none" : ""}`}>
         <div
-          className={`bg-gradient-to-br rounded-xl p-6 border backdrop-blur-sm transition-all duration-300 ${cardBase} ${
+          className={`h-full bg-gradient-to-br rounded-xl p-6 border backdrop-blur-sm transition-all duration-300 ${cardBase} ${
             isDisabled ? "opacity-60" : "group-hover:scale-105"
           }`}
         >
-          <div className="flex items-center space-x-4 mb-4">
-            <FlameIcon
-              size={40}
-              className={
-                isDisabled
-                  ? "text-slate-400"
-                  : "text-green-400 group-hover:animate-pulse"
-              }
-            />
-            <div>
+          <div className="mb-4">
+            <div className="flex items-start space-x-3 mb-2">
+              <FlameIcon
+                size={40}
+                className={
+                  isDisabled
+                    ? "text-slate-400"
+                    : "text-green-400 group-hover:animate-pulse"
+                }
+              />
               <h3 className={`font-bold text-lg ${titleColor}`}>
                 Daily Check-in
               </h3>
-              <p className={`text-sm ${subtitleColor}`}>
-                Keep your streak and earn XP
-              </p>
             </div>
+            <p className={`text-sm ${subtitleColor}`}>
+              Keep your streak and earn XP
+            </p>
           </div>
           <button
             onClick={onCheckinClick}
@@ -126,7 +126,9 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
                 : "cursor-pointer"
             }`}
           >
-            <span className={`${ctaColor} font-medium`}>{checkinCtaText}</span>
+            <span className={`${ctaColor} font-medium text-left`}>
+              {checkinCtaText}
+            </span>
             <ArrowIcon
               size={20}
               className={`${ctaColor} ${
@@ -138,18 +140,18 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
       </div>
       {/* Apply to Bootcamp */}
       <Link href="/lobby/apply" className="group">
-        <div className="bg-gradient-to-br from-purple-800/30 to-purple-900/30 rounded-xl p-6 border border-purple-500/20 backdrop-blur-sm hover:border-purple-400/40 transition-all duration-300 group-hover:scale-105">
-          <div className="flex items-center space-x-4 mb-4">
-            <FlameIcon
-              size={40}
-              className="text-flame-yellow group-hover:animate-pulse"
-            />
-            <div>
+        <div className="h-full bg-gradient-to-br from-purple-800/30 to-purple-900/30 rounded-xl p-6 border border-purple-500/20 backdrop-blur-sm hover:border-purple-400/40 transition-all duration-300 group-hover:scale-105">
+          <div className="mb-4">
+            <div className="flex items-start space-x-3 mb-2">
+              <FlameIcon
+                size={40}
+                className="text-flame-yellow group-hover:animate-pulse"
+              />
               <h3 className="font-bold text-lg">Join Bootcamp</h3>
-              <p className="text-sm text-faded-grey">
-                Start your infernal journey
-              </p>
             </div>
+            <p className="text-sm text-faded-grey">
+              Start your infernal journey
+            </p>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-flame-yellow font-medium">Apply Now</span>
@@ -163,16 +165,16 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
 
       {/* Events */}
       <Link href="/lobby/events" className="group">
-        <div className="bg-gradient-to-br from-cyan-800/30 to-cyan-900/30 rounded-xl p-6 border border-cyan-500/20 backdrop-blur-sm hover:border-cyan-400/40 transition-all duration-300 group-hover:scale-105">
-          <div className="flex items-center space-x-4 mb-4">
-            <LightningIcon
-              size={40}
-              className="text-cyan-400 group-hover:animate-pulse"
-            />
-            <div>
+        <div className="h-full bg-gradient-to-br from-cyan-800/30 to-cyan-900/30 rounded-xl p-6 border border-cyan-500/20 backdrop-blur-sm hover:border-cyan-400/40 transition-all duration-300 group-hover:scale-105">
+          <div className="mb-4">
+            <div className="flex items-start space-x-3 mb-2">
+              <LightningIcon
+                size={40}
+                className="text-cyan-400 group-hover:animate-pulse"
+              />
               <h3 className="font-bold text-lg">Events</h3>
-              <p className="text-sm text-faded-grey">Join live events</p>
             </div>
+            <p className="text-sm text-faded-grey">Join live events</p>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-cyan-400 font-medium">Explore</span>
@@ -186,16 +188,16 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
 
       {/* Quests */}
       <Link href="/lobby/quests" className="group">
-        <div className="bg-gradient-to-br from-magenta-800/30 to-magenta-900/30 rounded-xl p-6 border border-magenta-500/20 backdrop-blur-sm hover:border-magenta-400/40 transition-all duration-300 group-hover:scale-105">
-          <div className="flex items-center space-x-4 mb-4">
-            <SwordIcon
-              size={40}
-              className="text-magenta-400 group-hover:animate-pulse"
-            />
-            <div>
+        <div className="h-full bg-gradient-to-br from-magenta-800/30 to-magenta-900/30 rounded-xl p-6 border border-magenta-500/20 backdrop-blur-sm hover:border-magenta-400/40 transition-all duration-300 group-hover:scale-105">
+          <div className="mb-4">
+            <div className="flex items-start space-x-3 mb-2">
+              <SwordIcon
+                size={40}
+                className="text-magenta-400 group-hover:animate-pulse"
+              />
               <h3 className="font-bold text-lg">Quests</h3>
-              <p className="text-sm text-faded-grey">Complete challenges</p>
             </div>
+            <p className="text-sm text-faded-grey">Complete challenges</p>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-magenta-400 font-medium">Begin</span>
@@ -209,16 +211,16 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
 
       {/* Profile */}
       <Link href="/lobby/profile" className="group">
-        <div className="bg-gradient-to-br from-purple-800/30 to-purple-900/30 rounded-xl p-6 border border-purple-500/20 backdrop-blur-sm hover:border-purple-400/40 transition-all duration-300 group-hover:scale-105">
-          <div className="flex items-center space-x-4 mb-4">
-            <ProfileIcon
-              size={40}
-              className="text-purple-400 group-hover:animate-pulse"
-            />
-            <div>
+        <div className="h-full bg-gradient-to-br from-purple-800/30 to-purple-900/30 rounded-xl p-6 border border-purple-500/20 backdrop-blur-sm hover:border-purple-400/40 transition-all duration-300 group-hover:scale-105">
+          <div className="mb-4">
+            <div className="flex items-start space-x-3 mb-2">
+              <ProfileIcon
+                size={40}
+                className="text-purple-400 group-hover:animate-pulse"
+              />
               <h3 className="font-bold text-lg">Profile</h3>
-              <p className="text-sm text-faded-grey">Manage identity</p>
             </div>
+            <p className="text-sm text-faded-grey">Manage identity</p>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-purple-400 font-medium">View</span>
@@ -247,7 +249,7 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
             isVerificationLoading ||
             verificationStatus?.isWhitelisted
           }
-          className={`group w-full text-left bg-gradient-to-br from-blue-800/30 to-blue-900/30 rounded-xl p-6 border border-blue-500/20 backdrop-blur-sm transition-all duration-300 ${
+          className={`group w-full text-left h-full bg-gradient-to-br from-blue-800/30 to-blue-900/30 rounded-xl p-6 border border-blue-500/20 backdrop-blur-sm transition-all duration-300 ${
             isVerificationDisabled ||
             isVerifying ||
             isVerificationLoading ||
@@ -257,15 +259,15 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
           }`}
           aria-busy={isVerifying || isVerificationLoading}
         >
-          <div className="flex items-center space-x-4 mb-4">
-            <Shield
-              size={40}
-              className="text-blue-400 group-hover:animate-pulse"
-            />
-            <div>
+          <div className="mb-4">
+            <div className="flex items-start space-x-3 mb-2">
+              <Shield
+                size={40}
+                className="text-blue-400 group-hover:animate-pulse"
+              />
               <h3 className="font-bold text-lg">Verify Identity</h3>
-              <p className="text-sm text-faded-grey">Face verification</p>
             </div>
+            <p className="text-sm text-faded-grey">Face verification</p>
           </div>
           <div className="flex items-center justify-between text-blue-400 font-medium">
             <span>

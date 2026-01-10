@@ -221,7 +221,7 @@ describe("attestation validator utils", () => {
 
       const result = validateWalletConnection(wallet);
       expect(result.valid).toBe(false);
-      expect(result.error).toBe("Wallet does not support Ethereum provider");
+      expect(result.error).toBe("Wallet does not expose an Ethereum provider");
     });
   });
 });

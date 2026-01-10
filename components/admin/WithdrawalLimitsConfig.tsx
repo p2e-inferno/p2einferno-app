@@ -9,6 +9,7 @@
 import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { getLogger } from "@/lib/utils/logger";
+import { useAdminApi } from "@/hooks/useAdminApi";
 
 const log = getLogger("components:admin:WithdrawalLimitsConfig");
 
@@ -31,6 +32,7 @@ interface AuditLog {
 }
 
 export function WithdrawalLimitsConfig() {
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
   const [limits, setLimits] = useState<Limits | null>(null);
   const [editedLimits, setEditedLimits] = useState({
     minAmount: 0,
@@ -53,17 +55,22 @@ export function WithdrawalLimitsConfig() {
       setIsLoading(true);
       setError(null);
 
-      const response = await fetch("/api/admin/config/withdrawal-limits");
-      const data = await response.json();
+      const result = await adminFetch<{
+        success: boolean;
+        limits: Limits;
+        error?: string;
+      }>("/api/admin/config/withdrawal-limits");
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to fetch limits");
+      if (result.error || !result.data?.success) {
+        throw new Error(
+          result.error || result.data?.error || "Failed to fetch limits",
+        );
       }
 
-      setLimits(data.limits);
+      setLimits(result.data.limits);
       setEditedLimits({
-        minAmount: data.limits.minAmount,
-        maxAmount: data.limits.maxAmount,
+        minAmount: result.data.limits.minAmount,
+        maxAmount: result.data.limits.maxAmount,
       });
     } catch (err) {
       log.error("Failed to fetch limits", { error: err });
@@ -75,13 +82,13 @@ export function WithdrawalLimitsConfig() {
 
   const fetchAuditLogs = async () => {
     try {
-      const response = await fetch(
-        "/api/admin/config/withdrawal-limits/audit?limit=10",
-      );
-      const data = await response.json();
+      const result = await adminFetch<{
+        success: boolean;
+        auditLogs?: AuditLog[];
+      }>("/api/admin/config/withdrawal-limits/audit?limit=10");
 
-      if (response.ok && data.success) {
-        setAuditLogs(data.auditLogs || []);
+      if (!result.error && result.data?.success) {
+        setAuditLogs(result.data.auditLogs || []);
         setAuditLoaded(true);
       }
     } catch (err) {
@@ -101,20 +108,23 @@ export function WithdrawalLimitsConfig() {
       setError(null);
       setSuccess(null);
 
-      const response = await fetch("/api/admin/config/withdrawal-limits", {
+      const result = await adminFetch<{
+        success: boolean;
+        limits: Limits;
+        error?: string;
+      }>("/api/admin/config/withdrawal-limits", {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editedLimits),
       });
 
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Failed to update limits");
+      if (result.error || !result.data?.success) {
+        throw new Error(
+          result.error || result.data?.error || "Failed to update limits",
+        );
       }
 
       setLimits({
-        ...data.limits,
+        ...result.data.limits,
         updatedAt: new Date().toISOString(),
         updatedBy: null,
       });

@@ -17,6 +17,10 @@ import {
   resolveRpcUrls,
   getRpcFallbackSettings,
 } from "../core/chain-resolution";
+import {
+  resolveChainById,
+  isRpcResolverSupportedChain,
+} from "../core/chain-map";
 import { blockchainLogger } from "../../shared/logging-utils";
 
 // Import transport functions (will be created in transport modules)
@@ -210,4 +214,34 @@ export const createPublicClientForChain = (
     chain: targetChain,
     transport: http(undefined as any, { timeout: timeoutMs }),
   }) as unknown as PublicClient;
+};
+
+export const createPublicClientForNetwork = (networkConfig: {
+  chainId: number;
+  rpcUrl?: string | null;
+}): PublicClient => {
+  const chain = resolveChainById(networkConfig.chainId);
+  if (!chain) {
+    throw new Error(`Unsupported chainId for public client: ${networkConfig.chainId}`);
+  }
+
+  if (networkConfig.rpcUrl) {
+    const { timeoutMs, stallMs, retryCount, retryDelay } =
+      getRpcFallbackSettings();
+    return createPublicClient({
+      chain,
+      transport: fallback(
+        [http(networkConfig.rpcUrl, { timeout: timeoutMs })],
+        { rank: { timeout: stallMs }, retryCount, retryDelay },
+      ),
+    }) as unknown as PublicClient;
+  }
+
+  if (!isRpcResolverSupportedChain(chain.id)) {
+    throw new Error(
+      `RPC URL required for chainId ${chain.id} (no env fallback configured)`,
+    );
+  }
+
+  return createPublicClientForChain(chain);
 };

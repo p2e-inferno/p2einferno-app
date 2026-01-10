@@ -12,6 +12,9 @@ import {
 } from "../core/types";
 import { supabase } from "@/lib/supabase";
 
+const getDefaultNetworkName = (): string =>
+  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
+
 // ================================
 // Default Streak Calculator Implementation
 // ================================
@@ -29,9 +32,14 @@ export class DefaultStreakCalculator implements StreakCalculatorStrategy {
    */
   async calculateStreak(userAddress: string): Promise<number> {
     try {
-      const { data, error } = await supabase.rpc("get_user_checkin_streak", {
-        user_address: userAddress,
-      });
+      const resolvedNetwork = getDefaultNetworkName();
+      const { data, error } = await supabase.rpc(
+        "get_user_checkin_streak_v2",
+        {
+          user_address: userAddress,
+          p_network: resolvedNetwork,
+        },
+      );
 
       if (error) {
         throw new StreakCalculationError(
@@ -340,9 +348,14 @@ export class TimezoneAwareStreakCalculator extends DefaultStreakCalculator {
   async hasCheckedInToday(userAddress: string): Promise<boolean> {
     try {
       // Query for checkins today
-      const { data, error } = await supabase.rpc("has_checked_in_today", {
-        user_address: userAddress,
-      });
+      const resolvedNetwork = getDefaultNetworkName();
+      const { data, error } = await supabase.rpc(
+        "has_checked_in_today_v2",
+        {
+          user_address: userAddress,
+          p_network: resolvedNetwork,
+        },
+      );
 
       if (error) {
         throw new Error(error.message);

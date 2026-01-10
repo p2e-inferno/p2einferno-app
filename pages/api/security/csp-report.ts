@@ -1,34 +1,45 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { getLogger } from "@/lib/utils/logger";
+import { createAdminClient } from "@/lib/supabase/server";
 
 const log = getLogger("security:csp");
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "32kb",
+    },
+  },
+};
+
 // Rate limiting config (5 reports per minute per IP)
 const RATE_LIMIT = {
-  windowMs: 60 * 1000, // 1 minute
+  windowSeconds: 60, // 1 minute
   max: 5,
 };
 
-// In-memory cache for rate limiting (consider Redis for production)
-const ipCache = new Map<string, { count: number; resetTime: number }>();
-
-// Helper function to check rate limit
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const record = ipCache.get(ip);
-
-  if (!record || now > record.resetTime) {
-    // Reset or create new record
-    ipCache.set(ip, { count: 1, resetTime: now + RATE_LIMIT.windowMs });
-    return true;
+function resolveClientIp(req: NextApiRequest): string | null {
+  const forwardedFor = (req.headers["x-forwarded-for"] as string) || "";
+  if (forwardedFor) {
+    const ip = forwardedFor.split(",")[0]?.trim();
+    if (ip) return ip;
   }
 
-  if (record.count >= RATE_LIMIT.max) {
+  const realIp = (req.headers["x-real-ip"] as string) || "";
+  if (realIp) return realIp;
+
+  return req.socket.remoteAddress || null;
+}
+
+function isDocumentUriAllowed(req: NextApiRequest, documentUri: string) {
+  const requestHost = req.headers.host?.split(":")[0];
+  if (!requestHost) return false;
+  try {
+    const host = new URL(documentUri).hostname;
+    return host === requestHost;
+  } catch (err) {
     return false;
   }
-
-  record.count++;
-  return true;
 }
 
 // Helper function to parse CSP report body
@@ -53,33 +64,44 @@ function parseCspReportBody(body: any, contentType: string): any {
   return null;
 }
 
-// Helper function to log to external services (placeholder for Sentry/other services)
-async function logToExternalService(level: string, data: any) {
-  try {
-    // TODO: Replace with your actual error tracking service
-    // Example: await logToSentry(level, data);
-    // Example: await logToDatadog(level, data);
-    log.info(`[External] ${level.toUpperCase()} log`, { data });
-  } catch (err) {
-    log.error("Failed to log to external service", { err });
-  }
-}
-
 export default async function cspReportHandler(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // 1. Rate limiting
-  const ip = (req.headers["x-forwarded-for"] ||
-    req.socket.remoteAddress) as string;
+  const supabase = createAdminClient();
 
-  if (!checkRateLimit(ip)) {
-    log.warn("CSP report rate limited", { ip });
-    return res.status(429).json({
-      status: "rate_limited",
-      message: "Too many requests",
-      retry_after: Math.ceil(RATE_LIMIT.windowMs / 1000),
-    });
+  // 1. Rate limiting
+  const ip = resolveClientIp(req);
+  if (!ip) {
+    log.warn("CSP report missing client IP; skipping rate limiting");
+  }
+
+  if (ip) {
+    const { data: rateAllowed, error: rateError } = await supabase.rpc(
+      "check_and_increment_csp_rate_limit",
+      {
+        p_ip: ip,
+        p_window_seconds: RATE_LIMIT.windowSeconds,
+        p_max: RATE_LIMIT.max,
+      },
+    );
+
+    if (rateError) {
+      log.error("CSP rate limit check failed", { error: rateError, ip });
+      return res.status(500).json({
+        status: "rate_limit_error",
+        message: "Failed to enforce rate limits",
+      });
+    }
+
+    if (!rateAllowed) {
+      log.warn("CSP report rate limited", { ip });
+      return res.status(429).json({
+        status: "rate_limited",
+        message: "Too many requests",
+        retry_after: RATE_LIMIT.windowSeconds,
+      });
+    }
   }
 
   // 2. Validate content type (accept both standard and JSON)
@@ -110,7 +132,6 @@ export default async function cspReportHandler(
           status: "parse_error",
           message: "Failed to parse request body",
           content_type: contentType,
-          raw_body: req.body,
         });
       }
 
@@ -160,6 +181,16 @@ export default async function cspReportHandler(
         });
       }
 
+      if (!isDocumentUriAllowed(req, sanitizedReport.documentUri)) {
+        log.warn("CSP report rejected for unexpected document URI", {
+          documentUri: sanitizedReport.documentUri,
+        });
+        return res.status(400).json({
+          status: "invalid_document_uri",
+          message: "Report document-uri is not allowed",
+        });
+      }
+
       // 6. Log to multiple outputs
       log.warn("CSP Violation", { report: sanitizedReport }); // Local dev
 
@@ -169,11 +200,33 @@ export default async function cspReportHandler(
         data: sanitizedReport,
       });
 
-      // External service logging
-      await logToExternalService("warning", {
-        type: "csp_violation",
-        ...sanitizedReport,
+      const { error: insertError } = await supabase.from("csp_reports").insert({
+        received_at: sanitizedReport.timestamp,
+        ip: sanitizedReport.ip,
+        user_agent: sanitizedReport.userAgent,
+        document_uri: sanitizedReport.documentUri,
+        violated_directive: sanitizedReport.violatedDirective,
+        blocked_uri: sanitizedReport.blockedUri,
+        source_file: sanitizedReport.sourceFile,
+        line_number: sanitizedReport.lineNumber
+          ? Number(sanitizedReport.lineNumber)
+          : null,
+        column_number: sanitizedReport.columnNumber
+          ? Number(sanitizedReport.columnNumber)
+          : null,
+        status_code: sanitizedReport.statusCode
+          ? Number(sanitizedReport.statusCode)
+          : null,
+        raw_report: sanitizedReport.originalReport,
       });
+
+      if (insertError) {
+        log.error("Failed to persist CSP report", { error: insertError });
+        return res.status(500).json({
+          status: "storage_error",
+          message: "Failed to store CSP report",
+        });
+      }
 
       // 7. Return success (202 Accepted - report received but not necessarily processed)
       return res.status(202).json({
@@ -200,13 +253,3 @@ export default async function cspReportHandler(
     allowed_methods: ["POST"],
   });
 }
-
-// Clean up expired rate limit entries periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [ip, record] of ipCache.entries()) {
-    if (now > record.resetTime) {
-      ipCache.delete(ip);
-    }
-  }
-}, RATE_LIMIT.windowMs);

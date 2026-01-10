@@ -28,6 +28,9 @@ const { POST } = require("@/app/api/admin/session/route");
 
 jest.mock("@/lib/auth/privy");
 jest.mock("@/lib/auth/admin-key-checker");
+jest.mock("@/lib/blockchain/config", () => ({
+  createInfuraEthersAdapterReadClient: jest.fn().mockReturnValue({}),
+}));
 
 function makeRequest(
   headers: Record<string, string> = {},

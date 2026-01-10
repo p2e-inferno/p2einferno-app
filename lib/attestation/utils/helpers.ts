@@ -110,6 +110,8 @@ export const getAttestationCategoryColor = (category: string): string => {
     verification: "text-purple-600 bg-purple-100",
     review: "text-orange-600 bg-orange-100",
     achievement: "text-yellow-600 bg-yellow-100",
+    payment: "text-emerald-600 bg-emerald-100",
+    reward: "text-pink-600 bg-pink-100",
   };
 
   return colors[category] || "text-gray-600 bg-gray-100";

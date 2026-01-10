@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import ApplicationPage from "@/pages/apply/[cohortId]";
 
 jest.mock("next/router", () => ({
@@ -49,7 +49,7 @@ jest.mock("@/hooks/useDashboardData", () => ({
 }));
 
 describe("Apply page guard when already enrolled in bootcamp", () => {
-  it("renders Already Enrolled guard and CTA", () => {
+  it("renders Already Enrolled guard and CTA", async () => {
     const props: any = {
       cohortId: "co-apply",
       cohort: {
@@ -77,7 +77,11 @@ describe("Apply page guard when already enrolled in bootcamp", () => {
 
     render(<ApplicationPage {...props} />);
 
-    expect(screen.getAllByText(/already enrolled/i).length).toBeGreaterThan(0);
+    await waitFor(() => {
+      expect(screen.getAllByText(/already enrolled/i).length).toBeGreaterThan(
+        0,
+      );
+    });
     expect(screen.getByText(/continue learning/i)).toBeInTheDocument();
   });
 });

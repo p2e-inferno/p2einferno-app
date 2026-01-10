@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:debug:admin-auth-user");
@@ -15,10 +16,14 @@ type DebugResponse = {
   error?: string;
 };
 
-export default async function handler(
+async function handler(
   req: NextApiRequest,
   res: NextApiResponse<DebugResponse>,
 ) {
+  if (process.env.NODE_ENV === "production") {
+    return res.status(404).json({ success: false, error: "Not found" });
+  }
+
   if (req.method !== "GET") {
     return res
       .status(405)
@@ -74,3 +79,5 @@ export default async function handler(
     });
   }
 }
+
+export default withAdminAuth(handler);

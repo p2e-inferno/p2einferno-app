@@ -113,6 +113,13 @@ export default async function handler(
     // Convert keyPrice from wei to DG units (assuming 18 decimals like most ERC20)
     const keyPriceDg = parseInt(formatUnits(keyPrice, 18));
 
+    // DEBUG: Log raw contract values
+    log.info("DEBUG: Contract key price", {
+      rawKeyPrice: keyPrice.toString(),
+      keyPriceDg,
+      lockAddress,
+    });
+
     // 6. Get service fee percent
     const serviceFeePct = await getServiceFeePercent(supabase);
 
@@ -126,11 +133,14 @@ export default async function handler(
       duration,
     );
 
-    log.info("Quote generated successfully", {
+    // DEBUG: Log full response data
+    log.info("DEBUG: Full quote response", {
       userId: privy.id,
       duration,
-      baseCost: keyPriceDg,
+      baseCost: costs.baseCost,
       serviceFee: costs.fee,
+      totalCost: costs.total,
+      serviceFeePct,
       userBalance: userXpBalance,
       canAfford: validation.valid,
     });

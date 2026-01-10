@@ -96,7 +96,7 @@ export const useDashboardData = (): UseDashboardDataResult => {
             ?.map((w) => w.address) || [],
       };
 
-      const response = await fetch("/api/user/profile-simple", {
+      const response = await fetch("/api/user/profile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

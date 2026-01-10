@@ -1,92 +1,145 @@
 /**
  * Component: CryptoRenewalModal
- * Modal for crypto-based subscription renewal
+ * Modal for crypto-based subscription purchase and renewal
  */
 
 "use client";
 
 import { useState } from "react";
 import { X, Loader, CheckCircle, AlertCircle } from "lucide-react";
+import { useKeyPurchase } from "@/hooks/unlock/useKeyPurchase";
+import { useExtendKey } from "@/hooks/unlock/useExtendKey";
+import { useDGNationKey } from "@/hooks/useDGNationKey";
+import { useLockInfo } from "@/hooks/unlock/useLockInfo";
 
 interface Props {
+  mode: "purchase" | "renewal";
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export const CryptoRenewalModal = ({ onClose, onSuccess }: Props) => {
-  const [selectedDuration, setSelectedDuration] = useState<30 | 90 | 365>(30);
-  const [isLoading, setIsLoading] = useState(false);
+export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
+  const lockAddress = process.env
+    .NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
+
   const [step, setStep] = useState<
-    "select" | "confirming" | "success" | "error"
-  >("select");
+    "confirm" | "confirming" | "success" | "error"
+  >("confirm");
   const [error, setError] = useState<string | null>(null);
   const [successData, setSuccessData] = useState<{
     newExpiration: string;
     txHash?: string;
   } | null>(null);
 
-  const durations = [
-    { value: 30 as const, label: "1 Month", cost: "0.05 ETH" },
-    { value: 90 as const, label: "3 Months", cost: "0.15 ETH" },
-    { value: 365 as const, label: "1 Year", cost: "0.50 ETH" },
-  ];
+  // Hooks for blockchain operations
+  const { purchaseKey, isLoading: isPurchasing } = useKeyPurchase();
+  const { extendKey, isLoading: isExtending } = useExtendKey();
+  const {
+    expirationTimestamp: currentExpiration,
+    hasValidKey,
+    tokenId,
+  } = useDGNationKey();
+  const lockInfo = useLockInfo(lockAddress);
 
-  const selectedOption = durations.find((d) => d.value === selectedDuration);
+  const isLoading = isPurchasing || isExtending;
 
-  const handleRenewNow = async () => {
-    setIsLoading(true);
+  const handleAction = async () => {
+    if (!lockAddress) {
+      setError("Lock address not configured");
+      setStep("error");
+      return;
+    }
+
     setStep("confirming");
     setError(null);
 
     try {
-      // TODO: Implement actual crypto renewal
-      // This would call useExtendKey hook
-      // For now, show success after a delay
+      let result;
+      let newExpiration: Date;
 
-      setTimeout(() => {
-        setSuccessData({
-          newExpiration: new Date(
-            Date.now() + selectedDuration * 24 * 60 * 60 * 1000,
-          ).toLocaleDateString(),
-          txHash:
-            "0x" +
-            Array(64)
-              .fill(0)
-              .map(() => Math.floor(Math.random() * 16).toString(16))
-              .join(""),
+      if (mode === "purchase") {
+        // Initial purchase - hook fetches price automatically
+        result = await purchaseKey({
+          lockAddress,
+          // Hook uses smart defaults: recipient=current user, keyManager=recipient
         });
-        setStep("success");
-        setIsLoading(false);
-      }, 2000);
+
+        if (!result.success) {
+          throw new Error(result.error || "Purchase failed");
+        }
+
+        // Calculate expiration (30 days from now)
+        newExpiration = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      } else {
+        // Renewal - extend existing key
+        if (!hasValidKey) {
+          throw new Error("No valid key found to extend");
+        }
+
+        if (!tokenId) {
+          throw new Error("Token ID not found");
+        }
+
+        if (!lockInfo.keyPriceRaw || lockInfo.keyPriceRaw === 0n) {
+          throw new Error("Failed to fetch key price");
+        }
+
+        result = await extendKey({
+          lockAddress,
+          tokenId,
+          value: lockInfo.keyPriceRaw,
+        });
+
+        if (!result.success) {
+          throw new Error(result.error || "Extension failed");
+        }
+
+        // Calculate new expiration from current + 30 days
+        const currentExp = currentExpiration
+          ? Number(currentExpiration)
+          : Math.floor(Date.now() / 1000);
+        newExpiration = new Date((currentExp + 30 * 24 * 60 * 60) * 1000);
+      }
+
+      setSuccessData({
+        newExpiration: newExpiration.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        txHash: result.transactionHash,
+      });
+      setStep("success");
     } catch (err: any) {
-      setError(err.message || "Failed to process renewal");
+      setError(
+        err.message ||
+          `Failed to ${mode === "purchase" ? "purchase" : "renew"} subscription`,
+      );
       setStep("error");
-      setIsLoading(false);
     }
   };
 
   const handleRetry = async () => {
-    handleRenewNow();
+    handleAction();
   };
 
   // Success state
   if (step === "success" && successData) {
     return (
-      <dialog className="modal modal-open" onClick={onClose}>
-        <div
-          className="modal-box max-w-md"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6">
           <div className="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full">
             <CheckCircle className="w-8 h-8 text-green-600" />
           </div>
 
-          <h3 className="font-bold text-lg text-center mt-4">
-            Subscription Renewed!
+          <h3 className="font-bold text-lg text-center mt-4 text-white">
+            {mode === "purchase"
+              ? "Membership Activated!"
+              : "Subscription Renewed!"}
           </h3>
 
-          <div className="mt-4 p-4 bg-green-50 rounded-lg border border-green-200">
-            <p className="text-sm text-green-800">
+          <div className="mt-4 p-4 bg-green-900/20 rounded-lg border border-green-500/30">
+            <p className="text-sm text-green-300">
               <span className="font-semibold">New Expiration:</span>
               <br />
               {successData.newExpiration}
@@ -94,16 +147,16 @@ export const CryptoRenewalModal = ({ onClose, onSuccess }: Props) => {
           </div>
 
           {successData.txHash && (
-            <div className="mt-3 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="text-xs text-blue-700 break-all font-mono">
+            <div className="mt-3 p-4 bg-blue-900/20 rounded-lg border border-blue-500/30">
+              <p className="text-xs text-blue-300 break-all font-mono">
                 {successData.txHash}
               </p>
             </div>
           )}
 
-          <div className="modal-action mt-6">
+          <div className="mt-6">
             <button
-              className="btn btn-primary w-full"
+              className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
               onClick={() => {
                 onSuccess();
                 onClose();
@@ -113,64 +166,68 @@ export const CryptoRenewalModal = ({ onClose, onSuccess }: Props) => {
             </button>
           </div>
         </div>
-      </dialog>
+      </div>
     );
   }
 
   // Confirming state
   if (step === "confirming" && isLoading) {
     return (
-      <dialog className="modal modal-open" onClick={onClose}>
-        <div
-          className="modal-box max-w-md"
-          onClick={(e) => e.stopPropagation()}
-        >
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6">
           <div className="flex justify-center">
-            <Loader className="animate-spin w-8 h-8" />
+            <Loader className="animate-spin w-8 h-8 text-blue-500" />
           </div>
-          <h3 className="font-bold text-lg text-center mt-4">
-            Processing Renewal...
+          <h3 className="font-bold text-lg text-center mt-4 text-white">
+            {mode === "purchase"
+              ? "Processing Purchase..."
+              : "Processing Renewal..."}
           </h3>
-          <p className="text-sm text-gray-600 text-center mt-2">
+          <p className="text-sm text-gray-400 text-center mt-2">
             Please confirm the transaction in your wallet and wait for
             confirmation.
           </p>
         </div>
-      </dialog>
+      </div>
     );
   }
 
   // Error state
   if (step === "error" && error) {
     return (
-      <dialog className="modal modal-open" onClick={onClose}>
-        <div
-          className="modal-box max-w-md"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <button
-            className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-            onClick={onClose}
-          >
-            <X size={20} />
-          </button>
-
-          <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full">
-            <AlertCircle className="w-8 h-8 text-red-600" />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[60vh] flex flex-col">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <h3 className="font-bold text-lg text-white">
+              {mode === "purchase" ? "Purchase Failed" : "Renewal Failed"}
+            </h3>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+            >
+              <X size={20} />
+            </button>
           </div>
 
-          <h3 className="font-bold text-lg text-center mt-4">Renewal Failed</h3>
+          <div className="flex-1 overflow-y-auto scrollbar-hide">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+              <AlertCircle className="w-8 h-8 text-red-600" />
+            </div>
 
-          <div className="mt-4 p-4 bg-red-50 rounded-lg border border-red-200">
-            <p className="text-sm text-red-800">{error}</p>
+            <div className="mt-4 p-4 bg-red-900/20 rounded-lg border border-red-500/30">
+              <p className="text-sm text-red-300 break-words">{error}</p>
+            </div>
           </div>
 
-          <div className="modal-action mt-6 gap-2">
-            <button className="btn btn-ghost flex-1" onClick={onClose}>
+          <div className="mt-6 flex gap-2 flex-shrink-0">
+            <button
+              className="flex-1 px-4 py-2 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+              onClick={onClose}
+            >
               Close
             </button>
             <button
-              className="btn btn-primary flex-1"
+              className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
               onClick={handleRetry}
               disabled={isLoading}
             >
@@ -178,72 +235,92 @@ export const CryptoRenewalModal = ({ onClose, onSuccess }: Props) => {
             </button>
           </div>
         </div>
-      </dialog>
+      </div>
     );
   }
 
-  // Main selection view
+  // Main confirmation view
   return (
-    <dialog className="modal modal-open" onClick={onClose}>
-      <div className="modal-box max-w-md" onClick={(e) => e.stopPropagation()}>
-        <button
-          className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2"
-          onClick={onClose}
-        >
-          <X size={20} />
-        </button>
-
-        <h3 className="font-bold text-lg">Renew with Crypto</h3>
-
-        {/* Duration selector */}
-        <div className="mt-4 space-y-3">
-          {durations.map((d) => (
-            <div
-              key={d.value}
-              onClick={() => setSelectedDuration(d.value)}
-              className={`p-4 rounded-lg border-2 cursor-pointer transition ${
-                selectedDuration === d.value
-                  ? "border-primary bg-primary/10"
-                  : "border-gray-200 hover:border-gray-300"
-              }`}
-            >
-              <div className="flex justify-between items-center">
-                <span className="font-semibold">{d.label}</span>
-                <span className="text-sm font-bold text-primary">{d.cost}</span>
-              </div>
-            </div>
-          ))}
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[60vh] flex flex-col">
+        <div className="flex items-center justify-between mb-4 flex-shrink-0">
+          <h3 className="font-bold text-lg text-white">
+            {mode === "purchase" ? "Purchase Membership" : "Renew Membership"}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <X size={20} />
+          </button>
         </div>
 
-        {/* Selected duration info */}
-        {selectedOption && (
-          <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm">
-              <span className="font-semibold text-blue-900">
-                You&apos;re about to renew
-              </span>
-              <br />
-              <span className="text-blue-700">
-                {selectedOption.label} for {selectedOption.cost}
-              </span>
-            </p>
-          </div>
-        )}
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
+          {/* Loading state */}
+          {lockInfo.isLoading && (
+            <div className="flex items-center justify-center py-8">
+              <Loader className="animate-spin w-6 h-6 text-blue-500" />
+              <span className="ml-2 text-gray-400">Loading price...</span>
+            </div>
+          )}
+
+          {/* Error state */}
+          {lockInfo.error && !lockInfo.isLoading && (
+            <div className="p-4 bg-red-900/20 rounded-lg border border-red-500/30 mb-4">
+              <p className="text-sm text-red-300">{lockInfo.error}</p>
+            </div>
+          )}
+
+          {/* Price info */}
+          {!lockInfo.isLoading && !lockInfo.error && (
+            <>
+              <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-400">Duration</span>
+                  <span className="text-white font-semibold">
+                    1 Month (30 days)
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-400">Price</span>
+                  <span className="text-white font-semibold text-lg">
+                    {lockInfo.keyPrice} {lockInfo.tokenSymbol}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-4 bg-blue-900/20 rounded-lg border border-blue-500/30 mb-4">
+                <p className="text-sm text-blue-300">
+                  {mode === "purchase"
+                    ? "You'll receive a 30-day DG Nation membership key. You can renew it anytime before expiration."
+                    : "Your membership will be extended by 30 days from the current expiration date."}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Action buttons */}
-        <div className="modal-action mt-6 gap-2">
-          <button className="btn btn-ghost flex-1" onClick={onClose}>
+        <div className="flex gap-2 mt-4 flex-shrink-0">
+          <button
+            className="flex-1 px-4 py-2 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button
-            className="btn btn-primary flex-1"
-            onClick={handleRenewNow}
-            disabled={isLoading}
+            className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleAction}
+            disabled={lockInfo.isLoading || !!lockInfo.error || isLoading}
           >
-            {isLoading ? "Processing..." : "Renew Now"}
+            {isLoading
+              ? "Processing..."
+              : mode === "purchase"
+                ? "Purchase Now"
+                : "Renew Now"}
           </button>
         </div>
       </div>
-    </dialog>
+    </div>
   );
 };

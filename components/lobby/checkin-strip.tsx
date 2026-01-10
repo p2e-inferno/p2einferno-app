@@ -24,6 +24,7 @@ type DailyCheckinProps = {
   streakDays?: number;
   multiplier?: number;
   checkedToday?: boolean;
+  canCheckin?: boolean;
   loading?: boolean;
   capForProgress?: number;
   onCheckIn?: () => Promise<void> | void;
@@ -66,6 +67,7 @@ function DailyCheckinStripUI({
   streakDays = 0,
   multiplier = 1.0,
   checkedToday = false,
+  canCheckin = true,
   loading = false,
   capForProgress = 30,
   onCheckIn,
@@ -88,8 +90,10 @@ function DailyCheckinStripUI({
     } catch {}
   }, [storageKey]);
 
+  // Update countdown timer every second when showing "Next in" message
+  const showCountdown = checkedToday || !canCheckin;
   useEffect(() => {
-    if (!checkedToday) return;
+    if (!showCountdown) return;
     intervalRef.current = window.setInterval(
       () => setNow(Date.now()),
       1000,
@@ -97,7 +101,7 @@ function DailyCheckinStripUI({
     return () => {
       if (intervalRef.current) window.clearInterval(intervalRef.current);
     };
-  }, [checkedToday]);
+  }, [showCountdown]);
 
   const pct = useMemo(() => {
     const cap = Math.max(1, capForProgress);
@@ -109,7 +113,10 @@ function DailyCheckinStripUI({
   const countdown = formatHMS(msUntilMidnight);
 
   async function handleClick() {
-    if (checkedToday || loading || busy) return;
+    if (checkedToday || !canCheckin || loading || busy) {
+      return;
+    }
+
     try {
       setBusy(true);
       await onCheckIn?.();
@@ -163,6 +170,14 @@ function DailyCheckinStripUI({
               <CheckCircle2 className="h-5 w-5 text-emerald-300" />
               <span className="font-medium">Checked in</span>
               <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/80">
+                Next in {countdown}
+              </span>
+            </div>
+          ) : !canCheckin ? (
+            <div className="inline-flex items-center gap-2 rounded-xl bg-white/5 px-4 py-3 text-white/60 ring-1 ring-white/10">
+              <CalendarDays className="h-5 w-5 text-white/40" />
+              <span className="font-medium">Come back later</span>
+              <span className="ml-2 rounded-full bg-white/10 px-2 py-0.5 text-xs text-white/50">
                 Next in {countdown}
               </span>
             </div>
@@ -262,6 +277,7 @@ export const LobbyCheckinStrip: React.FC<LobbyCheckinStripProps> = ({
     isPerformingCheckin,
     isLoading,
     hasCheckedInToday,
+    canCheckinToday,
     previewXP,
     refreshStatus,
   } = useDailyCheckin(userAddress, userProfileId, {
@@ -287,6 +303,7 @@ export const LobbyCheckinStrip: React.FC<LobbyCheckinStripProps> = ({
         streakDays={streakInfo?.currentStreak || 0}
         multiplier={multiplier || 1}
         checkedToday={!!hasCheckedInToday}
+        canCheckin={canCheckinToday}
         loading={isLoading || isPerformingCheckin}
         onCheckIn={async () => {
           await performCheckin();

@@ -3,10 +3,12 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/utils/privyUtils";
 import { getLogger } from "@/lib/utils/logger";
+import { getVerificationStrategy } from "@/lib/quests/verification/registry";
 import {
   checkQuestPrerequisites,
   getUserPrimaryWallet,
 } from "@/lib/quests/prerequisite-checker";
+import { registerQuestTransaction } from "@/lib/quests/verification/replay-prevention";
 
 const log = getLogger("api:quests:complete-task");
 
@@ -99,7 +101,9 @@ export default async function handler(
     // Get the task details to check type and review requirements
     const { data: task, error: taskError } = await supabase
       .from("quest_tasks")
-      .select("requires_admin_review, input_required, task_type")
+      .select(
+        "requires_admin_review, input_required, task_type, verification_method, task_config",
+      )
       .eq("id", taskId)
       .single();
 
@@ -108,11 +112,99 @@ export default async function handler(
       return res.status(500).json({ error: "Failed to fetch task details" });
     }
 
+    // Build verification data (server-authored only)
+    let verificationData: Record<string, unknown> | null = null;
+    const clientTxHash =
+      clientVerificationData && typeof clientVerificationData === "object"
+        ? (clientVerificationData as { transactionHash?: string })
+            .transactionHash
+        : undefined;
+
+    const strategy = task?.task_type
+      ? getVerificationStrategy(task.task_type)
+      : undefined;
+
+    if (task?.verification_method === "blockchain" && !strategy) {
+      return res.status(400).json({
+        error: "Unsupported verification method for task type",
+        code: "UNSUPPORTED_VERIFICATION",
+      });
+    }
+
+    if (task?.verification_method === "blockchain" && strategy) {
+      if (!userWallet) {
+        return res.status(400).json({ error: "Wallet not linked" });
+      }
+
+      const result = await strategy.verify(
+        task.task_type,
+        { transactionHash: clientTxHash },
+        effectiveUserId,
+        userWallet,
+        { taskConfig: task.task_config || null, taskId },
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          error: result.error || "Verification failed",
+          code: result.code || "VERIFICATION_FAILED",
+        });
+      }
+
+      verificationData = {
+        ...result.metadata,
+        txHash: clientTxHash || null,
+        verificationMethod: "blockchain",
+      };
+
+      const isTxBasedVendorTask = [
+        "vendor_buy",
+        "vendor_sell",
+        "vendor_light_up",
+      ].includes(task.task_type);
+      if (isTxBasedVendorTask && clientTxHash) {
+        const metadata = result.metadata || {};
+        const registerData = await registerQuestTransaction(supabase, {
+          txHash: clientTxHash,
+          userId: effectiveUserId,
+          taskId,
+          taskType: task.task_type,
+          metadata: {
+            amount:
+              typeof metadata.amount === "string" ? metadata.amount : null,
+            eventName:
+              typeof metadata.eventName === "string"
+                ? metadata.eventName
+                : null,
+            blockNumber:
+              typeof metadata.blockNumber === "string"
+                ? metadata.blockNumber
+                : null,
+            logIndex:
+              typeof metadata.logIndex === "number" ? metadata.logIndex : null,
+          },
+        });
+
+        if (!registerData.success) {
+          if (registerData.kind === "rpc_error") {
+            return res.status(500).json({
+              error: "Failed to register transaction",
+              code: "TX_REGISTER_FAILED",
+            });
+          }
+          return res.status(400).json({
+            error:
+              registerData.error ||
+              "This transaction has already been used to complete a quest task",
+            code: "TX_ALREADY_USED",
+          });
+        }
+      }
+    }
+
     // Determine initial status
     const initialStatus = task?.requires_admin_review ? "pending" : "completed";
 
-    // Build verification data
-    let verificationData = clientVerificationData;
     if (task?.task_type === "link_farcaster") {
       // Verify Farcaster linkage via Privy server SDK and use server-trusted data
       const privy = createPrivyClient();

@@ -1,19 +1,16 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser, getUserWalletAddresses } from "@/lib/auth/privy";
+import { withAdminAuth } from "@/lib/auth/admin-auth";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:admin:debug");
 
 /**
  * Debug endpoint to help diagnose admin setup issues
- * Only available in development mode
+ * Restricted to non-production and admin users
  */
-export default async function handler(
-  req: NextApiRequest,
-  res: NextApiResponse,
-) {
-  // Only allow in development
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (process.env.NODE_ENV === "production") {
     return res.status(404).json({ error: "Not found" });
   }
@@ -23,7 +20,7 @@ export default async function handler(
   }
 
   try {
-    // Authenticate via Privy
+    // Authenticate via Privy (for richer debug info)
     const user = await getPrivyUser(req);
     if (!user) {
       return res.status(200).json({
@@ -79,7 +76,6 @@ export default async function handler(
       ...(userProfile?.linked_wallets || []).map((w: any) => w.toLowerCase()),
     ].filter(Boolean);
 
-    // Remove duplicates
     const uniqueUserWallets = [...new Set(allUserWallets)];
 
     const isDevAdmin =
@@ -144,7 +140,10 @@ export default async function handler(
       );
     }
 
-    return res.status(200).json(debugInfo);
+    return res.status(200).json({
+      success: true,
+      data: debugInfo,
+    });
   } catch (error: any) {
     log.error("Debug API error:", error);
     return res.status(500).json({
@@ -159,3 +158,5 @@ export default async function handler(
     });
   }
 }
+
+export default withAdminAuth(handler);

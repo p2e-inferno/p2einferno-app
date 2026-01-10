@@ -61,6 +61,7 @@ export interface AdminLockDeploymentParams {
   tokenAddress: Address; // Use Address(0) for ETH
   keyPrice: bigint;
   maxNumberOfKeys: bigint;
+  maxKeysPerAddress?: bigint; // Set to 0 for grant-based locks (milestones, quests, bootcamps)
   lockVersion?: number; // defaults to latest
   isAdmin: boolean; // Must be true to proceed
 }
@@ -69,11 +70,14 @@ export interface AdminLockDeploymentResult {
   success: boolean;
   transactionHash?: string;
   grantTransactionHash?: string;
+  configTransactionHash?: string; // Transaction hash for updateLockConfig call
   lockAddress?: Address;
   serverWalletAddress?: string; // Server wallet added as manager
   error?: string;
   grantFailed?: boolean; // True if lock deployed but grant manager failed
   grantError?: string; // Error message from grant manager failure
+  configFailed?: boolean; // True if lock deployed but config update failed
+  configError?: string; // Error message from config update failure
 }
 
 // Key Grant Types

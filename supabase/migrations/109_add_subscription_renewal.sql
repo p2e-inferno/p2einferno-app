@@ -198,7 +198,8 @@ BEGIN
   -- Accumulate service fee to treasury
   UPDATE subscription_treasury SET
     xp_fees_accumulated = xp_fees_accumulated + p_service_fee_xp,
-    updated_at = NOW();
+    updated_at = NOW()
+  WHERE id = (SELECT id FROM subscription_treasury ORDER BY created_at LIMIT 1);
 
   -- Log renewal attempt as in-progress
   UPDATE subscription_renewal_attempts SET status = 'pending'
@@ -253,7 +254,8 @@ BEGIN
   -- Rollback treasury fee (atomic)
   UPDATE subscription_treasury SET
     xp_fees_accumulated = xp_fees_accumulated - COALESCE(v_fee_deducted, 0),
-    updated_at = NOW();
+    updated_at = NOW()
+  WHERE id = (SELECT id FROM subscription_treasury ORDER BY created_at LIMIT 1);
 
   -- Log rollback
   INSERT INTO subscription_xp_rollbacks (renewal_attempt_id, xp_deducted, reason)
@@ -304,7 +306,8 @@ BEGIN
   UPDATE subscription_treasury SET
     xp_fees_accumulated = xp_fees_accumulated - p_xp_amount,
     burned_xp = burned_xp + p_xp_amount,
-    updated_at = NOW();
+    updated_at = NOW()
+  WHERE id = (SELECT id FROM subscription_treasury ORDER BY created_at LIMIT 1);
 
   -- Log burn in audit trail
   INSERT INTO subscription_treasury_burns (xp_amount_burned, burned_by, reason, transaction_details)

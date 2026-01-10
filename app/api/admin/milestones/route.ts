@@ -10,8 +10,8 @@ const log = getLogger('api:milestones');
 function invalidateMilestone(milestone: any) {
   try {
     if (!milestone) return;
-    if (milestone.id) revalidateTag(ADMIN_CACHE_TAGS.milestone(String(milestone.id)));
-    if (milestone.cohort_id) revalidateTag(ADMIN_CACHE_TAGS.cohort(String(milestone.cohort_id)));
+    if (milestone.id) revalidateTag(ADMIN_CACHE_TAGS.milestone(String(milestone.id)), 'default');
+    if (milestone.cohort_id) revalidateTag(ADMIN_CACHE_TAGS.cohort(String(milestone.cohort_id)), 'default');
   } catch (err) {
     log.warn('revalidateTag failed', { err });
   }
@@ -91,7 +91,7 @@ export async function POST(req: NextRequest) {
           return NextResponse.json({ error: 'Cannot add milestones after certificates have been issued for this cohort' }, { status: 409 });
         }
       }
-    } catch {}
+    } catch { }
 
     // Harden grant flags when lock_address present
     const insertPayload: any = { ...payload };
@@ -101,6 +101,14 @@ export async function POST(req: NextRequest) {
       }
       if (insertPayload.lock_manager_granted === true) {
         insertPayload.grant_failure_reason = null;
+      }
+
+      // Harden max_keys_secured flag
+      if (typeof insertPayload.max_keys_secured === 'undefined' || insertPayload.max_keys_secured === null) {
+        insertPayload.max_keys_secured = false;
+      }
+      if (insertPayload.max_keys_secured === true) {
+        insertPayload.max_keys_failure_reason = null;
       }
     }
     const { data, error } = await supabase.from('cohort_milestones').insert(insertPayload).select('*').single();
@@ -123,7 +131,7 @@ export async function POST(req: NextRequest) {
         lockManagerGrantedType: typeof (data as any)?.lock_manager_granted,
         grantFailureReason: (data as any)?.grant_failure_reason ?? null,
       });
-    } catch {}
+    } catch { }
     invalidateMilestone(data);
     return NextResponse.json({ success: true, data }, { status: 201 });
   } catch (error: any) {
@@ -147,7 +155,7 @@ export async function PUT(req: NextRequest) {
         lockManagerGranted: update?.lock_manager_granted,
         grantFailureReason: update?.grant_failure_reason ?? null,
       });
-    } catch {}
+    } catch { }
     const hardened: any = { ...update, updated_at: new Date().toISOString() };
     if (hardened.lock_address) {
       if (typeof hardened.lock_manager_granted === 'undefined' || hardened.lock_manager_granted === null) {
@@ -155,6 +163,14 @@ export async function PUT(req: NextRequest) {
       }
       if (hardened.lock_manager_granted === true) {
         hardened.grant_failure_reason = null;
+      }
+
+      // Harden max_keys_secured flag
+      if (typeof hardened.max_keys_secured === 'undefined' || hardened.max_keys_secured === null) {
+        hardened.max_keys_secured = false;
+      }
+      if (hardened.max_keys_secured === true) {
+        hardened.max_keys_failure_reason = null;
       }
     }
     const { data, error } = await supabase.from('cohort_milestones').update(hardened).eq('id', id).select('*').single();
@@ -175,7 +191,7 @@ export async function PUT(req: NextRequest) {
         lockManagerGrantedType: typeof (data as any)?.lock_manager_granted,
         grantFailureReason: (data as any)?.grant_failure_reason ?? null,
       });
-    } catch {}
+    } catch { }
     invalidateMilestone(data);
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error: any) {

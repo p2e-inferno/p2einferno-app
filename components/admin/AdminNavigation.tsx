@@ -8,6 +8,7 @@ import {
   Award,
   FileText,
   CreditCard,
+  ShieldAlert,
 } from "lucide-react";
 
 interface AdminNavigationProps {
@@ -22,6 +23,7 @@ export const adminNavItems = [
   { name: "Applications", href: "/admin/applications", icon: FileText },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "Quests", href: "/admin/quests", icon: Award },
+  { name: "CSP Reports", href: "/admin/csp-reports", icon: ShieldAlert },
 ];
 
 export default function AdminNavigation({

@@ -92,7 +92,7 @@ export const AttestationList: React.FC<AttestationListProps> = ({
         </div>
         {showRefresh && (
           <div className="flex justify-center">
-            <Button onClick={refetch} variant="outline" size="sm">
+            <Button onClick={() => refetch()} variant="outline" size="sm">
               <RefreshCw className="w-4 h-4 mr-2" />
               Try Again
             </Button>
@@ -145,7 +145,7 @@ export const AttestationList: React.FC<AttestationListProps> = ({
 
           {/* Refresh Button */}
           {showRefresh && (
-            <Button onClick={refetch} variant="outline" size="sm">
+            <Button onClick={() => refetch()} variant="outline" size="sm">
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
