@@ -34,6 +34,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_action_nonces: {
+        Row: {
+          action_hash: string
+          created_at: string
+          expires_at: string
+          id: string
+          nonce: string
+          wallet_address: string
+        }
+        Insert: {
+          action_hash: string
+          created_at?: string
+          expires_at: string
+          id?: string
+          nonce: string
+          wallet_address: string
+        }
+        Update: {
+          action_hash?: string
+          created_at?: string
+          expires_at?: string
+          id?: string
+          nonce?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           application_status: string
@@ -133,8 +160,10 @@ export type Database = {
           description: string
           id: string
           name: string
+          network: string
           revocable: boolean
           schema_definition: string
+          schema_key: string | null
           schema_uid: string
           updated_at: string
         }
@@ -144,8 +173,10 @@ export type Database = {
           description: string
           id?: string
           name: string
+          network?: string
           revocable?: boolean
           schema_definition: string
+          schema_key?: string | null
           schema_uid: string
           updated_at?: string
         }
@@ -155,12 +186,22 @@ export type Database = {
           description?: string
           id?: string
           name?: string
+          network?: string
           revocable?: boolean
           schema_definition?: string
+          schema_key?: string | null
           schema_uid?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "attestation_schemas_schema_key_fkey"
+            columns: ["schema_key"]
+            isOneToOne: false
+            referencedRelation: "eas_schema_keys"
+            referencedColumns: ["key"]
+          },
+        ]
       }
       attestations: {
         Row: {
@@ -171,6 +212,7 @@ export type Database = {
           expiration_time: string | null
           id: string
           is_revoked: boolean
+          network: string
           recipient: string
           revocation_time: string | null
           schema_uid: string
@@ -184,6 +226,7 @@ export type Database = {
           expiration_time?: string | null
           id?: string
           is_revoked?: boolean
+          network?: string
           recipient: string
           revocation_time?: string | null
           schema_uid: string
@@ -197,6 +240,7 @@ export type Database = {
           expiration_time?: string | null
           id?: string
           is_revoked?: boolean
+          network?: string
           recipient?: string
           revocation_time?: string | null
           schema_uid?: string
@@ -209,6 +253,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "attestation_schemas"
             referencedColumns: ["schema_uid"]
+          },
+          {
+            foreignKeyName: "attestations_schema_uid_network_fkey"
+            columns: ["schema_uid", "network"]
+            isOneToOne: false
+            referencedRelation: "attestation_schemas"
+            referencedColumns: ["schema_uid", "network"]
           },
         ]
       }
@@ -380,6 +431,8 @@ export type Database = {
           image_url: string | null
           lock_address: string | null
           lock_manager_granted: boolean
+          max_keys_failure_reason: string | null
+          max_keys_secured: boolean | null
           max_reward_dgt: number
           name: string
           updated_at: string | null
@@ -393,6 +446,8 @@ export type Database = {
           image_url?: string | null
           lock_address?: string | null
           lock_manager_granted?: boolean
+          max_keys_failure_reason?: string | null
+          max_keys_secured?: boolean | null
           max_reward_dgt?: number
           name: string
           updated_at?: string | null
@@ -406,6 +461,8 @@ export type Database = {
           image_url?: string | null
           lock_address?: string | null
           lock_manager_granted?: boolean
+          max_keys_failure_reason?: string | null
+          max_keys_secured?: boolean | null
           max_reward_dgt?: number
           name?: string
           updated_at?: string | null
@@ -471,6 +528,8 @@ export type Database = {
           key_claimed_at: string | null
           lock_address: string
           lock_manager_granted: boolean
+          max_keys_failure_reason: string | null
+          max_keys_secured: boolean | null
           name: string
           old_id_text: string | null
           order_index: number
@@ -491,6 +550,8 @@ export type Database = {
           key_claimed_at?: string | null
           lock_address: string
           lock_manager_granted?: boolean
+          max_keys_failure_reason?: string | null
+          max_keys_secured?: boolean | null
           name: string
           old_id_text?: string | null
           order_index?: number
@@ -511,6 +572,8 @@ export type Database = {
           key_claimed_at?: string | null
           lock_address?: string
           lock_manager_granted?: boolean
+          max_keys_failure_reason?: string | null
+          max_keys_secured?: boolean | null
           name?: string
           old_id_text?: string | null
           order_index?: number
@@ -637,6 +700,69 @@ export type Database = {
         }
         Relationships: []
       }
+      csp_rate_limits: {
+        Row: {
+          count: number
+          ip: string
+          window_start: string
+        }
+        Insert: {
+          count: number
+          ip: string
+          window_start: string
+        }
+        Update: {
+          count?: number
+          ip?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      csp_reports: {
+        Row: {
+          blocked_uri: string | null
+          column_number: number | null
+          document_uri: string
+          id: string
+          ip: string | null
+          line_number: number | null
+          raw_report: Json | null
+          received_at: string
+          source_file: string | null
+          status_code: number | null
+          user_agent: string | null
+          violated_directive: string
+        }
+        Insert: {
+          blocked_uri?: string | null
+          column_number?: number | null
+          document_uri: string
+          id?: string
+          ip?: string | null
+          line_number?: number | null
+          raw_report?: Json | null
+          received_at?: string
+          source_file?: string | null
+          status_code?: number | null
+          user_agent?: string | null
+          violated_directive: string
+        }
+        Update: {
+          blocked_uri?: string | null
+          column_number?: number | null
+          document_uri?: string
+          id?: string
+          ip?: string | null
+          line_number?: number | null
+          raw_report?: Json | null
+          received_at?: string
+          source_file?: string | null
+          status_code?: number | null
+          user_agent?: string | null
+          violated_directive?: string
+        }
+        Relationships: []
+      }
       dg_token_withdrawals: {
         Row: {
           amount_dg: number
@@ -700,6 +826,171 @@ export type Database = {
           },
         ]
       }
+      eas_networks: {
+        Row: {
+          chain_id: number
+          created_at: string
+          display_name: string
+          eas_contract_address: string
+          eas_scan_base_url: string | null
+          eip712_proxy_address: string | null
+          enabled: boolean
+          explorer_base_url: string | null
+          is_testnet: boolean
+          name: string
+          rpc_url: string | null
+          schema_registry_address: string
+          source: string | null
+          source_commit: string | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: number
+          created_at?: string
+          display_name: string
+          eas_contract_address: string
+          eas_scan_base_url?: string | null
+          eip712_proxy_address?: string | null
+          enabled?: boolean
+          explorer_base_url?: string | null
+          is_testnet?: boolean
+          name: string
+          rpc_url?: string | null
+          schema_registry_address: string
+          source?: string | null
+          source_commit?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: number
+          created_at?: string
+          display_name?: string
+          eas_contract_address?: string
+          eas_scan_base_url?: string | null
+          eip712_proxy_address?: string | null
+          enabled?: boolean
+          explorer_base_url?: string | null
+          is_testnet?: boolean
+          name?: string
+          rpc_url?: string | null
+          schema_registry_address?: string
+          source?: string | null
+          source_commit?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      eas_schema_keys: {
+        Row: {
+          active: boolean
+          created_at: string
+          description: string | null
+          key: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          key: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          description?: string | null
+          key?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_events: {
+        Row: {
+          created_at: string | null
+          dedup_key: string
+          error_message: string | null
+          event_type: string
+          id: string
+          message_id: string | null
+          recipient_email: string
+          sent_at: string | null
+          status: string
+          target_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          dedup_key: string
+          error_message?: string | null
+          event_type: string
+          id?: string
+          message_id?: string | null
+          recipient_email: string
+          sent_at?: string | null
+          status?: string
+          target_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          dedup_key?: string
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          message_id?: string | null
+          recipient_email?: string
+          sent_at?: string | null
+          status?: string
+          target_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      email_send_queue: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          next_retry_at: string | null
+          processed_at: string | null
+          recipient_email: string
+          retry_count: number | null
+          target_id: string | null
+          template_data: Json
+          template_name: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          next_retry_at?: string | null
+          processed_at?: string | null
+          recipient_email: string
+          retry_count?: number | null
+          target_id?: string | null
+          template_data: Json
+          template_name: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          next_retry_at?: string | null
+          processed_at?: string | null
+          recipient_email?: string
+          retry_count?: number | null
+          target_id?: string | null
+          template_data?: Json
+          template_name?: string
+        }
+        Relationships: []
+      }
       lock_registry: {
         Row: {
           created_at: string | null
@@ -732,6 +1023,63 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      marketing_leads: {
+        Row: {
+          bootcamp_program_id: string | null
+          cohort_id: string | null
+          created_at: string
+          email: string
+          id: string
+          intent: string
+          metadata: Json | null
+          name: string | null
+          source: string | null
+          track_label: string | null
+          updated_at: string
+        }
+        Insert: {
+          bootcamp_program_id?: string | null
+          cohort_id?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          intent: string
+          metadata?: Json | null
+          name?: string | null
+          source?: string | null
+          track_label?: string | null
+          updated_at?: string
+        }
+        Update: {
+          bootcamp_program_id?: string | null
+          cohort_id?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          intent?: string
+          metadata?: Json | null
+          name?: string | null
+          source?: string | null
+          track_label?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "marketing_leads_bootcamp_program_id_fkey"
+            columns: ["bootcamp_program_id"]
+            isOneToOne: false
+            referencedRelation: "bootcamp_programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "marketing_leads_cohort_id_fkey"
+            columns: ["cohort_id"]
+            isOneToOne: false
+            referencedRelation: "cohorts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       milestone_tasks: {
         Row: {
@@ -1038,6 +1386,7 @@ export type Database = {
           quest_id: string
           requires_admin_review: boolean | null
           reward_amount: number
+          task_config: Json | null
           task_type: string
           title: string
           updated_at: string | null
@@ -1055,6 +1404,7 @@ export type Database = {
           quest_id: string
           requires_admin_review?: boolean | null
           reward_amount?: number
+          task_config?: Json | null
           task_type: string
           title: string
           updated_at?: string | null
@@ -1072,6 +1422,7 @@ export type Database = {
           quest_id?: string
           requires_admin_review?: boolean | null
           reward_amount?: number
+          task_config?: Json | null
           task_type?: string
           title?: string
           updated_at?: string | null
@@ -1094,8 +1445,60 @@ export type Database = {
           },
         ]
       }
+      quest_verified_transactions: {
+        Row: {
+          block_number: number | null
+          chain_id: number
+          created_at: string | null
+          event_name: string | null
+          id: string
+          log_index: number | null
+          task_id: string
+          task_type: string
+          transaction_hash: string
+          user_id: string
+          verified_amount: string | null
+        }
+        Insert: {
+          block_number?: number | null
+          chain_id?: number
+          created_at?: string | null
+          event_name?: string | null
+          id?: string
+          log_index?: number | null
+          task_id: string
+          task_type: string
+          transaction_hash: string
+          user_id: string
+          verified_amount?: string | null
+        }
+        Update: {
+          block_number?: number | null
+          chain_id?: number
+          created_at?: string | null
+          event_name?: string | null
+          id?: string
+          log_index?: number | null
+          task_id?: string
+          task_type?: string
+          transaction_hash?: string
+          user_id?: string
+          verified_amount?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quest_verified_transactions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "quest_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       quests: {
         Row: {
+          activation_config: Json | null
+          activation_type: string | null
           created_at: string | null
           description: string
           grant_failure_reason: string | null
@@ -1104,11 +1507,19 @@ export type Database = {
           is_active: boolean
           lock_address: string | null
           lock_manager_granted: boolean
+          max_keys_failure_reason: string | null
+          max_keys_secured: boolean | null
+          prerequisite_quest_id: string | null
+          prerequisite_quest_lock_address: string | null
+          requires_prerequisite_key: boolean
+          reward_type: string
           title: string
           total_reward: number
           updated_at: string | null
         }
         Insert: {
+          activation_config?: Json | null
+          activation_type?: string | null
           created_at?: string | null
           description: string
           grant_failure_reason?: string | null
@@ -1117,11 +1528,19 @@ export type Database = {
           is_active?: boolean
           lock_address?: string | null
           lock_manager_granted?: boolean
+          max_keys_failure_reason?: string | null
+          max_keys_secured?: boolean | null
+          prerequisite_quest_id?: string | null
+          prerequisite_quest_lock_address?: string | null
+          requires_prerequisite_key?: boolean
+          reward_type?: string
           title: string
           total_reward?: number
           updated_at?: string | null
         }
         Update: {
+          activation_config?: Json | null
+          activation_type?: string | null
           created_at?: string | null
           description?: string
           grant_failure_reason?: string | null
@@ -1130,11 +1549,216 @@ export type Database = {
           is_active?: boolean
           lock_address?: string | null
           lock_manager_granted?: boolean
+          max_keys_failure_reason?: string | null
+          max_keys_secured?: boolean | null
+          prerequisite_quest_id?: string | null
+          prerequisite_quest_lock_address?: string | null
+          requires_prerequisite_key?: boolean
+          reward_type?: string
           title?: string
           total_reward?: number
           updated_at?: string | null
         }
+        Relationships: [
+          {
+            foreignKeyName: "quests_prerequisite_quest_id_fkey"
+            columns: ["prerequisite_quest_id"]
+            isOneToOne: false
+            referencedRelation: "quest_statistics"
+            referencedColumns: ["quest_id"]
+          },
+          {
+            foreignKeyName: "quests_prerequisite_quest_id_fkey"
+            columns: ["prerequisite_quest_id"]
+            isOneToOne: false
+            referencedRelation: "quests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_renewal_attempts: {
+        Row: {
+          actual_new_expiration: string | null
+          amount_value: number | null
+          completed_at: string | null
+          created_at: string | null
+          duration_days: number | null
+          error_message: string | null
+          expected_new_expiration: string | null
+          id: string
+          last_retry_at: string | null
+          lock_address: string
+          paystack_reference: string | null
+          renewal_method: string
+          retry_count: number | null
+          service_fee_amount: number | null
+          service_fee_percent: number | null
+          status: string
+          token_id: number | null
+          transaction_hash: string | null
+          user_id: string
+          user_profile_id: string
+        }
+        Insert: {
+          actual_new_expiration?: string | null
+          amount_value?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          duration_days?: number | null
+          error_message?: string | null
+          expected_new_expiration?: string | null
+          id?: string
+          last_retry_at?: string | null
+          lock_address: string
+          paystack_reference?: string | null
+          renewal_method: string
+          retry_count?: number | null
+          service_fee_amount?: number | null
+          service_fee_percent?: number | null
+          status?: string
+          token_id?: number | null
+          transaction_hash?: string | null
+          user_id: string
+          user_profile_id: string
+        }
+        Update: {
+          actual_new_expiration?: string | null
+          amount_value?: number | null
+          completed_at?: string | null
+          created_at?: string | null
+          duration_days?: number | null
+          error_message?: string | null
+          expected_new_expiration?: string | null
+          id?: string
+          last_retry_at?: string | null
+          lock_address?: string
+          paystack_reference?: string | null
+          renewal_method?: string
+          retry_count?: number | null
+          service_fee_amount?: number | null
+          service_fee_percent?: number | null
+          status?: string
+          token_id?: number | null
+          transaction_hash?: string | null
+          user_id?: string
+          user_profile_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_renewal_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["privy_user_id"]
+          },
+          {
+            foreignKeyName: "subscription_renewal_attempts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["privy_user_id"]
+          },
+          {
+            foreignKeyName: "subscription_renewal_attempts_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "all_applications_view"
+            referencedColumns: ["profile_id"]
+          },
+          {
+            foreignKeyName: "subscription_renewal_attempts_user_profile_id_fkey"
+            columns: ["user_profile_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_treasury: {
+        Row: {
+          burned_xp: number | null
+          created_at: string | null
+          id: string
+          updated_at: string | null
+          xp_fees_accumulated: number | null
+        }
+        Insert: {
+          burned_xp?: number | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          xp_fees_accumulated?: number | null
+        }
+        Update: {
+          burned_xp?: number | null
+          created_at?: string | null
+          id?: string
+          updated_at?: string | null
+          xp_fees_accumulated?: number | null
+        }
         Relationships: []
+      }
+      subscription_treasury_burns: {
+        Row: {
+          burned_by: string
+          created_at: string | null
+          id: string
+          reason: string | null
+          transaction_details: Json | null
+          xp_amount_burned: number
+        }
+        Insert: {
+          burned_by: string
+          created_at?: string | null
+          id?: string
+          reason?: string | null
+          transaction_details?: Json | null
+          xp_amount_burned: number
+        }
+        Update: {
+          burned_by?: string
+          created_at?: string | null
+          id?: string
+          reason?: string | null
+          transaction_details?: Json | null
+          xp_amount_burned?: number
+        }
+        Relationships: []
+      }
+      subscription_xp_rollbacks: {
+        Row: {
+          id: string
+          original_xp_balance: number | null
+          reason: string | null
+          renewal_attempt_id: string
+          rolled_back_at: string | null
+          xp_deducted: number | null
+        }
+        Insert: {
+          id?: string
+          original_xp_balance?: number | null
+          reason?: string | null
+          renewal_attempt_id: string
+          rolled_back_at?: string | null
+          xp_deducted?: number | null
+        }
+        Update: {
+          id?: string
+          original_xp_balance?: number | null
+          reason?: string | null
+          renewal_attempt_id?: string
+          rolled_back_at?: string | null
+          xp_deducted?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_xp_rollbacks_renewal_attempt_id_fkey"
+            columns: ["renewal_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_renewal_attempts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       system_config: {
         Row: {
@@ -1252,10 +1876,75 @@ export type Database = {
         }
         Relationships: []
       }
+      user_activation_grants: {
+        Row: {
+          activation_type: string
+          expires_at: string | null
+          granted_at: string | null
+          id: string
+          lock_address: string | null
+          metadata: Json | null
+          original_grant_id: string | null
+          quest_id: string | null
+          renewal_attempt_id: string | null
+          renewed_at: string | null
+          user_id: string
+        }
+        Insert: {
+          activation_type: string
+          expires_at?: string | null
+          granted_at?: string | null
+          id?: string
+          lock_address?: string | null
+          metadata?: Json | null
+          original_grant_id?: string | null
+          quest_id?: string | null
+          renewal_attempt_id?: string | null
+          renewed_at?: string | null
+          user_id: string
+        }
+        Update: {
+          activation_type?: string
+          expires_at?: string | null
+          granted_at?: string | null
+          id?: string
+          lock_address?: string | null
+          metadata?: Json | null
+          original_grant_id?: string | null
+          quest_id?: string | null
+          renewal_attempt_id?: string | null
+          renewed_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_activation_grants_quest_id_fkey"
+            columns: ["quest_id"]
+            isOneToOne: false
+            referencedRelation: "quest_statistics"
+            referencedColumns: ["quest_id"]
+          },
+          {
+            foreignKeyName: "user_activation_grants_quest_id_fkey"
+            columns: ["quest_id"]
+            isOneToOne: false
+            referencedRelation: "quests"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_activation_grants_renewal_attempt_id_fkey"
+            columns: ["renewal_attempt_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_renewal_attempts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_activities: {
         Row: {
           activity_data: Json | null
           activity_type: string
+          checkin_day_utc: string
           created_at: string
           id: string
           points_earned: number | null
@@ -1264,6 +1953,7 @@ export type Database = {
         Insert: {
           activity_data?: Json | null
           activity_type: string
+          checkin_day_utc: string
           created_at?: string
           id?: string
           points_earned?: number | null
@@ -1272,6 +1962,7 @@ export type Database = {
         Update: {
           activity_data?: Json | null
           activity_type?: string
+          checkin_day_utc?: string
           created_at?: string
           id?: string
           points_earned?: number | null
@@ -1557,7 +2248,13 @@ export type Database = {
           display_name: string | null
           email: string | null
           experience_points: number | null
+          face_verification_expiry: string | null
+          face_verification_proof_hash: string | null
+          face_verification_session: string | null
+          face_verified_at: string | null
+          gooddollar_whitelist_checked_at: string | null
           id: string
+          is_face_verified: boolean | null
           level: number | null
           linked_wallets: Json | null
           metadata: Json | null
@@ -1574,7 +2271,13 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           experience_points?: number | null
+          face_verification_expiry?: string | null
+          face_verification_proof_hash?: string | null
+          face_verification_session?: string | null
+          face_verified_at?: string | null
+          gooddollar_whitelist_checked_at?: string | null
           id?: string
+          is_face_verified?: boolean | null
           level?: number | null
           linked_wallets?: Json | null
           metadata?: Json | null
@@ -1591,7 +2294,13 @@ export type Database = {
           display_name?: string | null
           email?: string | null
           experience_points?: number | null
+          face_verification_expiry?: string | null
+          face_verification_proof_hash?: string | null
+          face_verification_session?: string | null
+          face_verified_at?: string | null
+          gooddollar_whitelist_checked_at?: string | null
           id?: string
+          is_face_verified?: boolean | null
           level?: number | null
           linked_wallets?: Json | null
           metadata?: Json | null
@@ -2010,6 +2719,23 @@ export type Database = {
         Args: { p_cohort_id?: string }
         Returns: Json
       }
+      burn_subscription_treasury: {
+        Args: {
+          p_admin_id: string
+          p_reason: string
+          p_transaction_details: Json
+          p_xp_amount: number
+        }
+        Returns: {
+          error_message: string
+          remaining_treasury: number
+          success: boolean
+        }[]
+      }
+      check_and_increment_csp_rate_limit: {
+        Args: { p_ip: string; p_max: number; p_window_seconds: number }
+        Returns: boolean
+      }
       complete_withdrawal: {
         Args: { p_tx_hash: string; p_withdrawal_id: string }
         Returns: undefined
@@ -2042,7 +2768,19 @@ export type Database = {
         Returns: undefined
       }
       deactivate_milestone_key_completion: { Args: never; Returns: boolean }
-      exec_sql: { Args: { sql_query: string }; Returns: undefined }
+      deduct_xp_for_renewal: {
+        Args: {
+          p_renewal_attempt_id: string
+          p_service_fee_xp: number
+          p_user_id: string
+          p_xp_amount: number
+        }
+        Returns: {
+          error_message: string
+          new_xp_balance: number
+          success: boolean
+        }[]
+      }
       fix_completion_status: {
         Args: { p_enrollment_id: string }
         Returns: Json
@@ -2060,17 +2798,24 @@ export type Database = {
         Returns: Json
       }
       get_completion_trigger_status: { Args: never; Returns: Json }
-      get_config_int: {
-        Args: { p_default?: number; p_key: string }
-        Returns: number
-      }
+      get_config_int:
+        | { Args: { p_default?: number; p_key: string }; Returns: number }
+        | { Args: { p_key: string }; Returns: number }
       get_last_checkin_date: { Args: { user_address: string }; Returns: string }
+      get_schema_uid: {
+        Args: { p_network: string; p_schema_key: string }
+        Returns: string
+      }
       get_user_checkin_streak: {
         Args: { user_address: string }
         Returns: number
       }
       get_user_checkin_streak_from_activities: {
         Args: { profile_id: string }
+        Returns: number
+      }
+      get_user_checkin_streak_v2: {
+        Args: { p_network: string; user_address: string }
         Returns: number
       }
       get_user_profile_id_from_address: {
@@ -2092,6 +2837,10 @@ export type Database = {
         }[]
       }
       has_checked_in_today: { Args: { user_address: string }; Returns: boolean }
+      has_checked_in_today_v2: {
+        Args: { p_network: string; user_address: string }
+        Returns: boolean
+      }
       increment_certificate_retry_count: {
         Args: { p_enrollment_id: string }
         Returns: undefined
@@ -2107,6 +2856,19 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: { user_id: string }; Returns: boolean }
+      perform_daily_checkin: {
+        Args: {
+          p_activity_data?: Json
+          p_attestation?: Json
+          p_user_profile_id: string
+          p_xp_amount: number
+        }
+        Returns: {
+          conflict: boolean
+          new_xp: number
+          ok: boolean
+        }[]
+      }
       recalculate_quest_progress: {
         Args: { p_quest_id: string; p_user_id: string }
         Returns: undefined
@@ -2123,9 +2885,32 @@ export type Database = {
           user_profile_id: string
         }[]
       }
+      register_quest_transaction: {
+        Args: {
+          p_block_number?: number
+          p_chain_id: number
+          p_event_name?: string
+          p_log_index?: number
+          p_task_id: string
+          p_task_type: string
+          p_tx_hash: string
+          p_user_id: string
+          p_verified_amount?: string
+        }
+        Returns: Json
+      }
       rollback_withdrawal: {
         Args: { p_error_message?: string; p_withdrawal_id: string }
         Returns: undefined
+      }
+      rollback_xp_renewal: {
+        Args: { p_reason: string; p_renewal_attempt_id: string }
+        Returns: {
+          error_message: string
+          restored_fee_xp: number
+          restored_xp: number
+          success: boolean
+        }[]
       }
     }
     Enums: {
@@ -2182,21 +2967,48 @@ export type Database = {
       buckets_analytics: {
         Row: {
           created_at: string
+          deleted_at: string | null
           format: string
+          id: string
+          name: string
+          type: Database["storage"]["Enums"]["buckettype"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          deleted_at?: string | null
+          format?: string
+          id?: string
+          name: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          deleted_at?: string | null
+          format?: string
+          id?: string
+          name?: string
+          type?: Database["storage"]["Enums"]["buckettype"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      buckets_vectors: {
+        Row: {
+          created_at: string
           id: string
           type: Database["storage"]["Enums"]["buckettype"]
           updated_at: string
         }
         Insert: {
           created_at?: string
-          format?: string
           id: string
           type?: Database["storage"]["Enums"]["buckettype"]
           updated_at?: string
         }
         Update: {
           created_at?: string
-          format?: string
           id?: string
           type?: Database["storage"]["Enums"]["buckettype"]
           updated_at?: string
@@ -2205,30 +3017,36 @@ export type Database = {
       }
       iceberg_namespaces: {
         Row: {
-          bucket_id: string
+          bucket_name: string
+          catalog_id: string
           created_at: string
           id: string
+          metadata: Json
           name: string
           updated_at: string
         }
         Insert: {
-          bucket_id: string
+          bucket_name: string
+          catalog_id: string
           created_at?: string
           id?: string
+          metadata?: Json
           name: string
           updated_at?: string
         }
         Update: {
-          bucket_id?: string
+          bucket_name?: string
+          catalog_id?: string
           created_at?: string
           id?: string
+          metadata?: Json
           name?: string
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "iceberg_namespaces_bucket_id_fkey"
-            columns: ["bucket_id"]
+            foreignKeyName: "iceberg_namespaces_catalog_id_fkey"
+            columns: ["catalog_id"]
             isOneToOne: false
             referencedRelation: "buckets_analytics"
             referencedColumns: ["id"]
@@ -2237,36 +3055,48 @@ export type Database = {
       }
       iceberg_tables: {
         Row: {
-          bucket_id: string
+          bucket_name: string
+          catalog_id: string
           created_at: string
           id: string
           location: string
           name: string
           namespace_id: string
+          remote_table_id: string | null
+          shard_id: string | null
+          shard_key: string | null
           updated_at: string
         }
         Insert: {
-          bucket_id: string
+          bucket_name: string
+          catalog_id: string
           created_at?: string
           id?: string
           location: string
           name: string
           namespace_id: string
+          remote_table_id?: string | null
+          shard_id?: string | null
+          shard_key?: string | null
           updated_at?: string
         }
         Update: {
-          bucket_id?: string
+          bucket_name?: string
+          catalog_id?: string
           created_at?: string
           id?: string
           location?: string
           name?: string
           namespace_id?: string
+          remote_table_id?: string | null
+          shard_id?: string | null
+          shard_key?: string | null
           updated_at?: string
         }
         Relationships: [
           {
-            foreignKeyName: "iceberg_tables_bucket_id_fkey"
-            columns: ["bucket_id"]
+            foreignKeyName: "iceberg_tables_catalog_id_fkey"
+            columns: ["catalog_id"]
             isOneToOne: false
             referencedRelation: "buckets_analytics"
             referencedColumns: ["id"]
@@ -2487,6 +3317,50 @@ export type Database = {
           },
         ]
       }
+      vector_indexes: {
+        Row: {
+          bucket_id: string
+          created_at: string
+          data_type: string
+          dimension: number
+          distance_metric: string
+          id: string
+          metadata_configuration: Json | null
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          bucket_id: string
+          created_at?: string
+          data_type: string
+          dimension: number
+          distance_metric: string
+          id?: string
+          metadata_configuration?: Json | null
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          bucket_id?: string
+          created_at?: string
+          data_type?: string
+          dimension?: number
+          distance_metric?: string
+          id?: string
+          metadata_configuration?: Json | null
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vector_indexes_bucket_id_fkey"
+            columns: ["bucket_id"]
+            isOneToOne: false
+            referencedRelation: "buckets_vectors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -2640,7 +3514,7 @@ export type Database = {
       }
     }
     Enums: {
-      buckettype: "STANDARD" | "ANALYTICS"
+      buckettype: "STANDARD" | "ANALYTICS" | "VECTOR"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2774,7 +3648,7 @@ export const Constants = {
   },
   storage: {
     Enums: {
-      buckettype: ["STANDARD", "ANALYTICS"],
+      buckettype: ["STANDARD", "ANALYTICS", "VECTOR"],
     },
   },
 } as const
