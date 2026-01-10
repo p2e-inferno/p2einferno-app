@@ -1,6 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  checkQuestPrerequisites,
+  getUserPrimaryWallet,
+} from "@/lib/quests/prerequisite-checker";
 
 const log = getLogger("api:quests:[id]");
 
@@ -13,7 +18,6 @@ export default async function handler(
   }
 
   const { id } = req.query;
-  const userId = req.query.userId as string;
 
   if (!id) {
     return res.status(400).json({ error: "Quest ID is required" });
@@ -21,6 +25,11 @@ export default async function handler(
 
   try {
     const supabase = createAdminClient();
+    const authUser = await getPrivyUser(req);
+    const userId = authUser?.id || null;
+    const userWallet = userId
+      ? await getUserPrimaryWallet(supabase, userId)
+      : null;
 
     // Fetch quest with its tasks
     const { data: quest, error: questError } = await supabase
@@ -41,6 +50,7 @@ export default async function handler(
           input_placeholder,
           input_validation,
           requires_admin_review,
+          task_config,
           created_at
         )
       `,
@@ -62,7 +72,28 @@ export default async function handler(
     }
 
     let progress = null;
-    let completions = [];
+    let completions: any[] = [];
+
+    if (userId) {
+      const prereqCheck = await checkQuestPrerequisites(
+        supabase,
+        userId,
+        userWallet,
+        {
+          prerequisite_quest_id: quest.prerequisite_quest_id || null,
+          prerequisite_quest_lock_address:
+            quest.prerequisite_quest_lock_address || null,
+          requires_prerequisite_key: quest.requires_prerequisite_key ?? false,
+        },
+      );
+
+      (quest as any).can_start = prereqCheck.canProceed;
+      (quest as any).prerequisite_state =
+        prereqCheck.prerequisiteState ||
+        (quest.prerequisite_quest_id || quest.prerequisite_quest_lock_address
+          ? "missing_completion"
+          : "none");
+    }
 
     // If userId is provided, fetch user progress and completions
     if (userId) {

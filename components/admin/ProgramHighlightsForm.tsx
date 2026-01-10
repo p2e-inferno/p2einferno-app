@@ -4,8 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
 import type { ProgramHighlight } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:ProgramHighlightsForm");
@@ -34,8 +33,7 @@ export default function ProgramHighlightsForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { getAccessToken } = usePrivy();
-  const selectedWallet = useSmartWalletSelection() as any;
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   useEffect(() => {
     fetchExistingHighlights();
@@ -44,24 +42,25 @@ export default function ProgramHighlightsForm({
   const fetchExistingHighlights = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(
+      const result = await adminFetch<{ data?: ProgramHighlight[] }>(
         `/api/admin/program-highlights?cohortId=${cohortId}`,
       );
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.data && result.data.length > 0) {
-          setExistingHighlights(result.data);
-          // Populate form with existing highlights
-          const formHighlights = result.data.map(
-            (highlight: ProgramHighlight) => ({
-              id: highlight.id,
-              content: highlight.content,
-              order_index: highlight.order_index,
-            }),
-          );
-          setHighlights(formHighlights);
-        }
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      if (result.data?.data && result.data.data.length > 0) {
+        setExistingHighlights(result.data.data);
+        // Populate form with existing highlights
+        const formHighlights = result.data.data.map(
+          (highlight: ProgramHighlight) => ({
+            id: highlight.id,
+            content: highlight.content,
+            order_index: highlight.order_index,
+          }),
+        );
+        setHighlights(formHighlights);
       }
     } catch (err: any) {
       log.error("Error fetching highlights:", err);
@@ -110,10 +109,6 @@ export default function ProgramHighlightsForm({
         throw new Error("At least one highlight is required");
       }
 
-      // Get Privy access token for authorization header
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
       const now = new Date().toISOString();
 
       // Prepare highlights data
@@ -128,19 +123,16 @@ export default function ProgramHighlightsForm({
         updated_at: now,
       }));
 
-      const response = await fetch("/api/admin/program-highlights", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
+      const result = await adminFetch<{ success?: boolean; error?: string }>(
+        "/api/admin/program-highlights",
+        {
+          method: "POST",
+          body: JSON.stringify({ highlights: highlightsData, cohortId }),
         },
-        body: JSON.stringify({ highlights: highlightsData, cohortId }),
-      });
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to save highlights");
+      if (result.error) {
+        throw new Error(result.error || "Failed to save highlights");
       }
 
       // Call success handler

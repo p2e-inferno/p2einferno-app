@@ -9,7 +9,7 @@ const log = getLogger("api:cohorts:detail");
 
 function invalidateCohort(id: string) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.cohort(id));
+    revalidateTag(ADMIN_CACHE_TAGS.cohort(id), 'default');
   } catch (error) {
     log.warn("cohort revalidation failed", { error, id });
   }

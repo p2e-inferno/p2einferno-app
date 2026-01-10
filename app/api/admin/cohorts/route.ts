@@ -9,9 +9,9 @@ const log = getLogger('api:cohorts');
 
 function invalidateCohortCache(cohort?: { id?: string | null }) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.cohortList);
+    revalidateTag(ADMIN_CACHE_TAGS.cohortList, 'default');
     if (cohort?.id) {
-      revalidateTag(ADMIN_CACHE_TAGS.cohort(String(cohort.id)));
+      revalidateTag(ADMIN_CACHE_TAGS.cohort(String(cohort.id)), 'default');
     }
   } catch (error) {
     log.warn('cohort cache revalidation failed', { error });

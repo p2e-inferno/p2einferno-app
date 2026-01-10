@@ -26,6 +26,12 @@ import {
 } from '@/lib/token-withdrawal/functions/dg-transfer-service';
 import { getWithdrawalDomain, WITHDRAWAL_TYPES, DG_CONTRACTS_BY_CHAIN } from '@/lib/token-withdrawal/eip712/types';
 import { getLogger } from '@/lib/utils/logger';
+import {
+  sendEmail,
+  getWithdrawalEmail,
+  getUserEmailContext,
+  sendEmailWithDedup,
+} from '@/lib/email';
 
 const log = getLogger('api:token:withdraw');
 
@@ -207,6 +213,35 @@ export async function POST(req: NextRequest) {
           txHash: transferResult.transactionHash,
           amountDG
         });
+
+        try {
+          const emailCtx = await getUserEmailContext(supabase, user.id);
+          if (emailCtx?.email) {
+            const tpl = getWithdrawalEmail({
+              amount: Number(amountDG),
+              txHash: transferResult.transactionHash,
+              chainId,
+            });
+
+            await sendEmailWithDedup(
+              'withdrawal-complete',
+              withdrawalId,
+              emailCtx.email,
+              `withdrawal:${withdrawalId}`,
+              () =>
+                sendEmail({
+                  to: emailCtx.email,
+                  ...tpl,
+                  tags: ['withdrawal'],
+                }),
+            );
+          }
+        } catch (emailErr) {
+          log.error('Failed to send withdrawal email', {
+            withdrawalId,
+            emailErr,
+          });
+        }
 
         return NextResponse.json({
           success: true,

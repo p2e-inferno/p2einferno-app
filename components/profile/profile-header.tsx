@@ -86,7 +86,7 @@ export const ProfileHeader = ({
         <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4 text-center">
           <Coins className="w-7 h-7 sm:w-8 sm:h-8 text-yellow-400 mx-auto mb-2" />
           <p className="text-xl sm:text-2xl font-bold text-white">{dgEarned}</p>
-          <p className="text-sm text-gray-400">DG Earned</p>
+          <p className="text-sm text-gray-400">xDG Earned</p>
         </div>
         <div className="bg-gray-800/50 rounded-lg p-3 sm:p-4 text-center">
           <Target className="w-7 h-7 sm:w-8 sm:h-8 text-orange-400 mx-auto mb-2" />

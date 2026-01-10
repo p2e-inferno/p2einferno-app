@@ -26,6 +26,7 @@ export interface Attestation {
   id: string;
   attestation_uid: string;
   schema_uid: string;
+  network?: string;
   attester: string;
   recipient: string;
   data: any;
@@ -39,10 +40,19 @@ export interface Attestation {
 export interface AttestationSchema {
   id: string;
   schema_uid: string;
+  network?: string;
+  schema_key?: string | null;
   name: string;
   description: string;
   schema_definition: string;
-  category: "attendance" | "social" | "verification" | "review" | "achievement";
+  category:
+    | "attendance"
+    | "social"
+    | "verification"
+    | "review"
+    | "achievement"
+    | "payment"
+    | "reward";
   revocable: boolean;
   created_at: string;
   updated_at: string;

@@ -628,8 +628,8 @@
 - **`[id].ts`** - Individual quest operations
 - **`[id]/start.ts`** - Quest start operations
 - **`check-tos.ts`** - Terms of service checking
-- **`claim-rewards.ts`** - Quest reward claiming
-- **`claim-task-reward.ts`** - Task reward claiming
+- **`complete-quest.ts`** - Quest completion + key claim
+- **`claim-task-reward.ts`** - Task reward claiming (XP)
 - **`complete-task.ts`** - Task completion
 - **`sign-tos.ts`** - Terms of service signing
 - **`user-progress.ts`** - User quest progress tracking

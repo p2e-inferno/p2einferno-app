@@ -50,7 +50,7 @@ export default function MilestoneTaskClaimButton({
         return;
       }
       setClaimed(true);
-      toast.success(`Claimed ${reward} DGT`);
+      toast.success(`Claimed ${reward} xDG`);
       onClaimed();
     } catch (e: any) {
       toast.error(e.message || "Claim failed");

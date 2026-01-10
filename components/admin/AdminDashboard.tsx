@@ -10,6 +10,7 @@ import {
   Key,
   Play,
   Coins,
+  Zap,
 } from "lucide-react";
 
 const adminModules = [
@@ -77,6 +78,14 @@ const adminModules = [
     href: "/admin/dg-pullouts",
     color: "from-teal-600 to-teal-700",
     buttonText: "Manage Pullouts",
+  },
+  {
+    title: "Subscription Configuration",
+    description: "Manage XP service fees and treasury operations",
+    icon: Zap,
+    href: "/admin/subscriptions/config",
+    color: "from-rose-600 to-rose-700",
+    buttonText: "Configure Subscriptions",
   },
 ];
 

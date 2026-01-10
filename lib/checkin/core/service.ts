@@ -26,6 +26,9 @@ import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("checkin:service");
 
+const getDefaultNetworkName = (): string =>
+  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
+
 let supabaseClient = supabase;
 
 export const __setSupabaseClientForTests = (client: typeof supabase) => {
@@ -57,9 +60,14 @@ export class DailyCheckinService {
       log.debug("Checking if user can checkin today", { userAddress });
 
       // Use existing database function
-      const { data, error } = await supabaseClient.rpc("has_checked_in_today", {
-        user_address: userAddress,
-      });
+      const resolvedNetwork = getDefaultNetworkName();
+      const { data, error } = await supabaseClient.rpc(
+        "has_checked_in_today_v2",
+        {
+          user_address: userAddress,
+          p_network: resolvedNetwork,
+        },
+      );
 
       if (error) {
         log.error("Error checking checkin status", { userAddress, error });

@@ -22,10 +22,6 @@ export function WithdrawalHistoryTable() {
 
   const limit = 10;
 
-  useEffect(() => {
-    fetchHistory();
-  }, [page]);
-
   const fetchHistory = async () => {
     try {
       setIsLoading(true);
@@ -49,6 +45,11 @@ export function WithdrawalHistoryTable() {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
 
   const getStatusBadge = (status: string) => {
     const classes = "px-2 py-1 text-xs font-medium rounded-full";

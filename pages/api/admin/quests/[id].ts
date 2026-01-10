@@ -4,6 +4,7 @@ import { withAdminAuth } from "@/lib/auth/admin-auth";
 import type { QuestTask } from "@/lib/supabase/types";
 import { randomUUID } from "crypto";
 import { getLogger } from "@/lib/utils/logger";
+import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 
 const log = getLogger("api:admin:quests:[id]");
 
@@ -148,6 +149,22 @@ async function updateQuest(
       if ((questFields as any).lock_manager_granted === true) {
         (questFields as any).grant_failure_reason = null;
       }
+
+      // Harden max_keys_secured flag
+      const hasMaxKeysSecured = Object.prototype.hasOwnProperty.call(
+        questFields,
+        "max_keys_secured",
+      );
+      if (
+        !hasMaxKeysSecured ||
+        (questFields as any).max_keys_secured === undefined ||
+        (questFields as any).max_keys_secured === null
+      ) {
+        (questFields as any).max_keys_secured = false;
+      }
+      if ((questFields as any).max_keys_secured === true) {
+        (questFields as any).max_keys_failure_reason = null;
+      }
     }
 
     // Prepare update data - map xp_reward to total_reward if provided
@@ -173,6 +190,11 @@ async function updateQuest(
 
     // Handle tasks update if provided
     if (tasks && Array.isArray(tasks)) {
+      const validation = await validateVendorTaskConfig(tasks);
+      if (!validation.ok) {
+        return res.status(400).json({ error: validation.error });
+      }
+
       // Step 1: Get existing tasks from database
       const { data: existingTasks, error: fetchError } = await supabase
         .from("quest_tasks")
@@ -241,6 +263,7 @@ async function updateQuest(
               id: randomUUID(),
               quest_id: questId,
               ...taskData,
+              task_config: task.task_config || {},
               order_index: task.order_index ?? tasksToUpdate.length + index,
               created_at: now,
               updated_at: now,
@@ -322,6 +345,18 @@ async function patchQuest(
       }
       if (updates.lock_manager_granted === true) {
         updates.grant_failure_reason = null;
+      }
+
+      // Harden max_keys_secured flag
+      if (
+        !Object.prototype.hasOwnProperty.call(updates, "max_keys_secured") ||
+        updates.max_keys_secured === undefined ||
+        updates.max_keys_secured === null
+      ) {
+        updates.max_keys_secured = false;
+      }
+      if (updates.max_keys_secured === true) {
+        updates.max_keys_failure_reason = null;
       }
     }
 

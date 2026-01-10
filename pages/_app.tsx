@@ -4,7 +4,6 @@ import Head from "next/head";
 import React from "react";
 import dynamic from "next/dynamic";
 import { Toaster } from "react-hot-toast";
-import { useRouter } from "next/router";
 import type { ClientSideWrapperProps } from "../components/ClientSideWrapper";
 
 const DynamicClientSideWrapper = dynamic<ClientSideWrapperProps>(
@@ -23,9 +22,6 @@ const DynamicClientSideWrapper = dynamic<ClientSideWrapperProps>(
 );
 
 function MyApp({ Component, pageProps }: AppProps) {
-  const router = useRouter();
-  const isAdminRoute = router.pathname.startsWith("/admin");
-
   return (
     <>
       <Head>
@@ -38,7 +34,7 @@ function MyApp({ Component, pageProps }: AppProps) {
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
         <link rel="apple-touch-icon" sizes="180x180" href="/favicon.svg" />
       </Head>
-      <DynamicClientSideWrapper isAdminRoute={isAdminRoute}>
+      <DynamicClientSideWrapper>
         <Toaster
           position="top-right"
           toastOptions={{

@@ -14,8 +14,9 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:e2e": "playwright test",
     "format": "npx prettier --write \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\"",
-    "lint": "next lint && npx prettier --check \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\" && npx tsc --noEmit",
+    "lint": "npx eslint . && node scripts/check-admin-guards.js && npx prettier --check \"{__tests__,components,pages,styles}/**/*.{ts,tsx,js,jsx}\" && npx tsc --noEmit",
     "db:migrate": "node supabase/apply-migrations.js",
     "db:types": "npx supabase gen types typescript --local > lib/supabase/types-gen.ts",
     "db:types:remote": "npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > lib/supabase/types-gen.ts",
@@ -30,6 +31,8 @@
   "dependencies": {
     "@ensdomains/ensjs": "^4.0.2",
     "@ethereum-attestation-service/eas-sdk": "^2.7.0",
+    "@goodsdks/citizen-sdk": "^1.2.3",
+    "@goodsdks/react-hooks": "^1.0.3",
     "@headlessui/react": "^1.7.3",
     "@heroicons/react": "^2.0.12",
     "@privy-io/react-auth": "^2.12.0",
@@ -45,9 +48,11 @@
     "@radix-ui/react-tabs": "^1.1.12",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
+    "@synthetixio/synpress": "^4.1.1",
     "@tabler/icons-react": "^3.34.0",
     "@tailwindcss/forms": "^0.5.3",
-    "axios": "^1.12.0",
+    "@tanstack/react-query": "^5.90.10",
+    "axios": "^1.7.9",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -60,7 +65,7 @@
     "lucide-react": "^0.513.0",
     "micro": "^10.0.1",
     "motion": "^12.16.0",
-    "next": "latest",
+    "next": "16.0.10",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-hot-toast": "^2.5.2",
@@ -68,10 +73,12 @@
     "react-phone-number-input": "^3.4.12",
     "tailwind-merge": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
-    "viem": "^2.31.3"
+    "viem": "^2.38.0",
+    "wagmi": "^3.0.1"
   },
   "devDependencies": {
     "@jest/globals": "^30.0.4",
+    "@playwright/test": "^1.51.1",
     "@testing-library/jest-dom": "^6.6.4",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^14.6.1",
@@ -88,11 +95,19 @@
     "eslint-config-next": "12.2.5",
     "jest": "^30.0.4",
     "jest-environment-jsdom": "^30.0.4",
+    "node-fetch": "^2.7.0",
     "node-mocks-http": "^1.17.2",
     "postcss": "^8.4.14",
     "supabase": "^2.33.9",
     "tailwindcss": "^3.1.2",
     "ts-node": "^10.9.1",
     "typescript": "^5.1.6"
+  },
+  "overrides": {
+    "axios": "^1.7.9",
+    "ws": "^8.18.0",
+    "elliptic": "^6.6.1",
+    "glob": "^10.5.0",
+    "playwright-core": "1.57.0"
   }
 }

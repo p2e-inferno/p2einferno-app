@@ -3,7 +3,7 @@
  * Ensures consistency across all application-related status fields
  */
 
-import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import {
   PaymentStatus,
@@ -16,10 +16,7 @@ import {
 
 const log = getLogger("services:status-sync-service");
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_SUPABASE_SERVICE_ROLE_KEY!,
-);
+const supabase = createAdminClient();
 
 export interface ApplicationStatusSync {
   applicationId: string;
@@ -51,7 +48,7 @@ export class StatusSyncService {
       // Get current status from all tables
       const currentStatus = await this.getCurrentStatus(
         applicationId,
-        userProfileId,
+        userProfileId
       );
       if (!currentStatus.success) {
         return { success: false, error: currentStatus.error };
@@ -80,7 +77,7 @@ export class StatusSyncService {
       const userApplicationStatus = computeUserApplicationStatus(
         newPaymentStatus,
         newApplicationStatus,
-        newEnrollmentStatus,
+        newEnrollmentStatus
       );
 
       // Begin transaction
@@ -97,7 +94,7 @@ export class StatusSyncService {
           supabase
             .from("applications")
             .update(applicationUpdate)
-            .eq("id", applicationId),
+            .eq("id", applicationId)
         );
       }
 
@@ -112,7 +109,7 @@ export class StatusSyncService {
           .from("user_application_status")
           .update(userStatusUpdate)
           .eq("application_id", applicationId)
-          .eq("user_profile_id", userProfileId),
+          .eq("user_profile_id", userProfileId)
       );
 
       // Update enrollment if status provided
@@ -124,7 +121,7 @@ export class StatusSyncService {
               enrollment_status: enrollmentStatus,
               updated_at: new Date(),
             })
-            .eq("id", current.enrollmentId),
+            .eq("id", current.enrollmentId)
         );
       }
 
@@ -181,7 +178,7 @@ export class StatusSyncService {
    */
   private static async getCurrentStatus(
     applicationId: string,
-    userProfileId: string,
+    userProfileId: string
   ) {
     try {
       // Get application status
@@ -244,7 +241,7 @@ export class StatusSyncService {
       paymentStatus: PaymentStatus;
       applicationStatus: ApplicationStatus;
       enrollmentStatus?: EnrollmentStatus;
-    },
+    }
   ): { valid: boolean; error?: string } {
     // Validate payment status transition
     if (current.paymentStatus !== proposed.paymentStatus) {
@@ -264,7 +261,7 @@ export class StatusSyncService {
         !canTransition(
           "application",
           current.applicationStatus,
-          proposed.applicationStatus,
+          proposed.applicationStatus
         )
       ) {
         return {
@@ -283,7 +280,7 @@ export class StatusSyncService {
         !canTransition(
           "enrollment",
           current.enrollmentStatus,
-          proposed.enrollmentStatus,
+          proposed.enrollmentStatus
         )
       ) {
         return {
@@ -330,12 +327,12 @@ export class StatusSyncService {
    */
   static async reconcileApplicationStatus(
     applicationId: string,
-    userProfileId: string,
+    userProfileId: string
   ) {
     try {
       const currentStatus = await this.getCurrentStatus(
         applicationId,
-        userProfileId,
+        userProfileId
       );
       if (!currentStatus.success) {
         return { success: false, error: currentStatus.error };
@@ -347,7 +344,7 @@ export class StatusSyncService {
       const correctUserStatus = computeUserApplicationStatus(
         current.paymentStatus,
         current.applicationStatus,
-        current.enrollmentStatus,
+        current.enrollmentStatus
       );
 
       // If it doesn't match current, sync it
@@ -380,7 +377,7 @@ export class StatusSyncService {
 
         if (enrollmentError) {
           throw new Error(
-            `Failed to create enrollment: ${enrollmentError.message}`,
+            `Failed to create enrollment: ${enrollmentError.message}`
           );
         }
 

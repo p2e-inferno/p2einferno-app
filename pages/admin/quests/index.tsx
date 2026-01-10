@@ -10,9 +10,8 @@ import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
+import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 
 const log = getLogger("admin:quests:index");
 
@@ -40,8 +39,9 @@ export default function AdminQuestsPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [checkingDelete, setCheckingDelete] = useState<string | null>(null);
   const { adminFetch, loading } = useAdminApi({ suppressToasts: true });
-  const { getAccessToken } = usePrivy();
-  const selectedWallet = useSmartWalletSelection();
+  const { adminFetch: adminFetchSilent } = useAdminApi({
+    suppressToasts: true,
+  });
   const [isRetrying, setIsRetrying] = useState(false);
 
   const fetchQuests = useCallback(async () => {
@@ -103,33 +103,20 @@ export default function AdminQuestsPage() {
   const openDeleteConfirmation = async (quest: Quest) => {
     setCheckingDelete(quest.id);
     try {
-      // Get auth token for direct fetch (avoids triggering global loading state)
-      const accessToken = await getAccessToken();
+      const result = await adminFetchSilent<{
+        canDelete?: boolean;
+        message?: string;
+        error?: string;
+      }>(`/api/admin/quests/${quest.id}/can-delete`);
 
-      if (!accessToken) {
-        toast.error("Authentication required");
+      if (result.error) {
+        toast.error(result.error || "Failed to verify delete status");
         return;
       }
 
-      // Direct fetch - doesn't trigger global loading state
-      const response = await fetch(`/api/admin/quests/${quest.id}/can-delete`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
-        },
-        credentials: "include",
-      });
-
-      if (!response.ok) {
-        toast.error("Failed to verify delete status");
-        return;
-      }
-
-      const result = await response.json();
-
-      if (!result.canDelete) {
+      if (!result.data?.canDelete) {
         // Show error toast instead of modal
-        toast.error(result.message || "Cannot delete this quest", {
+        toast.error(result.data?.message || "Cannot delete this quest", {
           duration: 5000,
         });
         return;
@@ -253,6 +240,11 @@ export default function AdminQuestsPage() {
                       lockAddress={quest.lock_address}
                       lockManagerGranted={quest.lock_manager_granted}
                       reason={quest.grant_failure_reason}
+                    />
+                    <MaxKeysSecurityBadge
+                      lockAddress={quest.lock_address}
+                      maxKeysSecured={quest.max_keys_secured}
+                      reason={quest.max_keys_failure_reason}
                     />
                     {quest.stats && quest.stats.pending_submissions > 0 && (
                       <Badge className="bg-orange-600 text-xs">
@@ -410,6 +402,11 @@ export default function AdminQuestsPage() {
                         lockAddress={quest.lock_address}
                         lockManagerGranted={quest.lock_manager_granted}
                         reason={quest.grant_failure_reason}
+                      />
+                      <MaxKeysSecurityBadge
+                        lockAddress={quest.lock_address}
+                        maxKeysSecured={quest.max_keys_secured}
+                        reason={quest.max_keys_failure_reason}
                       />
                       {quest.stats && quest.stats.pending_submissions > 0 && (
                         <Badge className="bg-orange-600">

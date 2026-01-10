@@ -9,12 +9,17 @@ npm run dev -- --turbo      # Turbopack (faster HMR)
 npm run build && npm start  # Production build/run
 npm run lint                # ESLint + Prettier check + tsc --noEmit
 npm run test:coverage       # Jest + coverage (jsdom)
+npm run test:e2e            # Synpress/Playwright E2E tests
 
 # Database commands
 npm run db:migrate          # Apply Supabase migrations
 npm run db:types            # Generate TypeScript types from local schema
 npm run db:types:remote     # Generate types from remote schema
 npm run db:seed             # Reset DB with migrations + seed data
+
+# E2E Testing (first-time setup)
+npx synpress ./tests/wallet-setup  # Build MetaMask wallet cache
+# Note: If cache hash mismatch error, rename folder in .cache-synpress/ to match expected hash
 ```
 
 ## Project Structure
@@ -103,6 +108,31 @@ npm run db:seed             # Reset DB with migrations + seed data
 - Pages API under `pages/api/...`. Admin endpoints protected by middleware when `ADMIN_SESSION_ENABLED=true`.
 - Use `lib/api.ts` axios instance for client requests; it already logs via the standard logger.
 - **Admin API Flow**: Client calls → middleware checks cookie → auto-refresh on 401 → retry with valid session.
+
+## EAS Schema Manager (Admin)
+- **Admin UI**: `/admin/eas-schemas` with tabs for list, deploy, sync, config; network selector uses `eas_networks` (enabled only).
+- **Admin APIs (App Routes)**:
+  - `GET /api/admin/eas-networks` (enabled networks)
+  - `GET /api/admin/eas-schemas?network=...`
+  - `POST /api/admin/eas-schemas` (deploy + save)
+  - `GET /api/admin/eas-schemas/[uid]?network=...`
+  - `PATCH /api/admin/eas-schemas/[uid]?network=...` (metadata only)
+  - `POST /api/admin/eas-schemas/sync`
+  - `POST /api/admin/eas-schemas/reconcile`
+  - `POST /api/admin/eas-schemas/[uid]/redeploy` (deploy missing schema + update UID)
+- **Auth**:
+  - Schema mutations require admin session + `X-Active-Wallet` + signed admin action (EIP-712); cancellations should not surface as errors.
+  - **EAS Config tab** mutations are DB-only (no on-chain activity); require admin session + `X-Active-Wallet` but **do not** require signed actions.
+- **Network config**: `public.eas_networks` (migrations `118`, `121`) is DB‑backed with fallback in `lib/attestation/core/network-config.ts`. Only enabled networks appear in UI/API.
+- **Schema IDs**: `schema_uid` may be non‑bytes32 placeholders; UI flags invalid UIDs as "Not on-chain" without RPC calls.
+- **Schema UID resolution**: Use `resolveSchemaUID(schemaKey, network)` (DB → env fallback) and avoid hardcoded placeholder UIDs in app code; add network filters only after data consistency is verified.
+- **EAS Scan**: Only show when UID is valid; use `eas_scan_base_url` from `eas_networks`.
+- **Network updates**: Admin config changes invalidate `eas_networks` cache so the dropdown updates immediately.
+
+### EAS Migration Verification (Ops)
+- Confirm existing `attestation_schemas.network` values were backfilled correctly.
+- Confirm `attestations.network` is populated and matches schema network.
+- Validate composite FK `(schema_uid, network)` after backfill; only then drop the legacy FK if still present.
 
 ## Key Manager Patterns (Server-Side Grant Keys)
 When granting keys server-side, use `getKeyManagersForContext()` from `lib/helpers/key-manager-utils.ts` to determine the correct key managers array. **Never pass an empty array** - this causes "Array index out of bounds" contract errors.

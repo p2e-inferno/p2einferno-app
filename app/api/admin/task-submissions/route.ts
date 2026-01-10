@@ -9,7 +9,7 @@ const log = getLogger('api:task-submissions');
 
 function invalidate(taskId: string | number | null | undefined) {
   if (!taskId && taskId !== 0) return;
-  try { revalidateTag(ADMIN_CACHE_TAGS.submissions(String(taskId))); } catch {}
+  try { revalidateTag(ADMIN_CACHE_TAGS.submissions(String(taskId)), 'default'); } catch { }
 }
 
 export async function GET(req: NextRequest) {

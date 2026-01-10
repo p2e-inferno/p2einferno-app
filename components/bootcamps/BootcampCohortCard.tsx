@@ -30,8 +30,10 @@ interface CohortWithEnrollment {
   updated_at: string;
 }
 
-interface BootcampWithCohortsEnrollment
-  extends Omit<BootcampWithCohorts, "cohorts"> {
+interface BootcampWithCohortsEnrollment extends Omit<
+  BootcampWithCohorts,
+  "cohorts"
+> {
   cohorts: CohortWithEnrollment[];
 }
 
@@ -90,7 +92,7 @@ export function BootcampCohortCard({
   // Determine enrollment at bootcamp level (fallback to cohort list if API omitted flag)
   const enrolledInBootcamp = Boolean(
     (bootcamp as any).enrolled_in_bootcamp ||
-      (bootcamp.cohorts || []).some((c) => c.is_enrolled),
+    (bootcamp.cohorts || []).some((c) => c.is_enrolled),
   );
 
   return (
@@ -127,7 +129,7 @@ export function BootcampCohortCard({
           <div className="bg-background/30 rounded-xl p-4 text-center">
             <CrystalIcon size={24} className="text-cyan-400 mx-auto mb-2" />
             <div className="font-bold">
-              {bootcamp.max_reward_dgt.toLocaleString()} DGT
+              {bootcamp.max_reward_dgt.toLocaleString()} DG
             </div>
             <div className="text-xs text-faded-grey">Max Rewards</div>
           </div>

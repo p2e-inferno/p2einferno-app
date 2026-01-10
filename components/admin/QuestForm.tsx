@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import ImageUpload from "@/components/ui/image-upload";
 import QuestTaskForm from "@/components/admin/QuestTaskForm";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
-import { PlusCircle, Coins, Save, X } from "lucide-react";
+import { PlusCircle, Coins, Save, X, Shield } from "lucide-react";
 import { toast } from "react-hot-toast";
 import {
   formatErrorMessageForToast,
@@ -36,9 +36,13 @@ import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/loc
 import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
+  effectiveMaxKeysForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
+import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
+import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
+import type { Address } from "viem";
 
 const log = getLogger("admin:QuestForm");
 
@@ -63,6 +67,7 @@ export default function QuestForm({
   const { isAdmin } = useAdminAuthContext();
   const { deployAdminLock, isLoading: isDeployingFromHook } =
     useDeployAdminLock({ isAdmin });
+  const { checkIsLockManager } = useIsLockManager();
 
   // Lock deployment state
   const [isDeployingLock, setIsDeployingLock] = useState(false);
@@ -75,9 +80,28 @@ export default function QuestForm({
     grantFailureReason,
     setGrantFailureReason,
   } = useLockManagerState(isEditing, quest);
-  // Track the most recent grant outcome during submit to avoid async state races
+
+  const {
+    maxKeysSecured,
+    setMaxKeysSecured,
+    maxKeysFailureReason,
+    setMaxKeysFailureReason,
+  } = useMaxKeysSecurityState(isEditing, quest);
+  const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(
+    null,
+  );
+  const [activationManagerStatus, setActivationManagerStatus] = useState<
+    boolean | null
+  >(null);
+  const [activationManagerError, setActivationManagerError] = useState<
+    string | null
+  >(null);
+
+  // Track the most recent grant/config outcomes during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
+  let lastConfigFailed: boolean | undefined;
+  let lastConfigError: string | undefined;
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
@@ -85,9 +109,24 @@ export default function QuestForm({
     image_url: quest?.image_url || "",
     is_active: quest?.is_active ?? true,
     lock_address: quest?.lock_address || "",
+    // New fields for prerequisites and activation
+    prerequisite_quest_id: quest?.prerequisite_quest_id || "",
+    prerequisite_quest_lock_address:
+      quest?.prerequisite_quest_lock_address || "",
+    requires_prerequisite_key: quest?.requires_prerequisite_key || false,
+    reward_type: quest?.reward_type || "xdg",
+    activation_type: quest?.activation_type || "",
+    activation_config: quest?.activation_config || null,
+    requires_gooddollar_verification:
+      quest?.requires_gooddollar_verification || false,
   });
+  const activationLockAddress = useMemo(
+    () => (formData.activation_config as any)?.lockAddress || "",
+    [formData.activation_config],
+  );
 
   // Load draft data on mount
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isEditing) return;
 
@@ -173,7 +212,82 @@ export default function QuestForm({
     return () => {
       cancelled = true;
     };
-  }, [isEditing, adminFetch, silentFetch, router]);
+  }, [isEditing, adminFetch, silentFetch, router]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchServerWallet = async () => {
+      if (serverWalletAddress) return;
+      try {
+        const result = await adminFetch<{ serverWalletAddress: string }>(
+          "/api/admin/server-wallet",
+        );
+        if (cancelled) return;
+        if (result.data?.serverWalletAddress) {
+          setServerWalletAddress(result.data.serverWalletAddress);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          log.error("Failed to fetch server wallet address:", err);
+        }
+      }
+    };
+
+    fetchServerWallet();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [adminFetch, serverWalletAddress]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const checkManagerStatus = async () => {
+      if (
+        formData.reward_type !== "activation" ||
+        formData.activation_type !== "dg_trial" ||
+        !activationLockAddress ||
+        !serverWalletAddress
+      ) {
+        setActivationManagerStatus(null);
+        setActivationManagerError(null);
+        return;
+      }
+
+      try {
+        const isManager = await checkIsLockManager(
+          serverWalletAddress as Address,
+          activationLockAddress as Address,
+        );
+        if (!cancelled) {
+          setActivationManagerStatus(isManager);
+          setActivationManagerError(null);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          log.error("Failed to check activation lock manager status:", err);
+          setActivationManagerStatus(null);
+          setActivationManagerError(
+            err?.message || "Failed to check lock manager status",
+          );
+        }
+      }
+    };
+
+    checkManagerStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    formData.reward_type,
+    formData.activation_type,
+    activationLockAddress,
+    serverWalletAddress,
+    checkIsLockManager,
+  ]);
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
@@ -185,6 +299,73 @@ export default function QuestForm({
     }
     return [];
   });
+
+  const [prerequisiteOptions, setPrerequisiteOptions] = useState<Quest[]>([]);
+  const [loadingPrerequisites, setLoadingPrerequisites] = useState(false);
+  const [prerequisiteOptionsError, setPrerequisiteOptionsError] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchPrerequisiteOptions = async () => {
+      setLoadingPrerequisites(true);
+      setPrerequisiteOptionsError(null);
+
+      const response = await silentFetch<{
+        data?: Quest[];
+        success?: boolean;
+      }>("/api/admin/quests-v2");
+
+      if (cancelled) {
+        return;
+      }
+
+      setLoadingPrerequisites(false);
+
+      if (response.error) {
+        setPrerequisiteOptionsError("Failed to load prerequisite quests");
+        return;
+      }
+
+      const result = response.data;
+      const questsList = Array.isArray(result?.data) ? result?.data : [];
+      const filtered = questsList.filter((item: any) => item?.id !== quest?.id);
+      setPrerequisiteOptions(filtered as Quest[]);
+    };
+
+    fetchPrerequisiteOptions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [silentFetch, quest?.id]);
+
+  const selectedPrerequisiteQuest = useMemo(() => {
+    if (!formData.prerequisite_quest_id) {
+      return undefined;
+    }
+    return prerequisiteOptions.find(
+      (option) => option.id === formData.prerequisite_quest_id,
+    );
+  }, [formData.prerequisite_quest_id, prerequisiteOptions]);
+
+  const isPrerequisiteSelectionInvalid = Boolean(
+    selectedPrerequisiteQuest && !selectedPrerequisiteQuest.lock_address,
+  );
+
+  const handlePrerequisiteQuestChange = (value: string) => {
+    const selected = prerequisiteOptions.find((option) => option.id === value);
+    setFormData((prev) => ({
+      ...prev,
+      prerequisite_quest_id: value,
+      prerequisite_quest_lock_address:
+        value === ""
+          ? prev.prerequisite_quest_lock_address
+          : selected?.lock_address || "",
+    }));
+  };
 
   const totalReward = tasks.reduce(
     (sum, task) => sum + (task.reward_amount || 0),
@@ -305,6 +486,8 @@ export default function QuestForm({
       const outcome = applyDeploymentOutcome(result);
       if (outcome.lastGrantFailed) {
         setDeploymentStep("Lock deployed but grant manager failed!");
+      } else if (result.configFailed) {
+        setDeploymentStep("Lock deployed but config update failed!");
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
       }
@@ -312,6 +495,13 @@ export default function QuestForm({
       setGrantFailureReason(outcome.reason);
       lastGrantFailed = outcome.lastGrantFailed;
       lastGrantError = outcome.lastGrantError;
+
+      // Set max keys security state based on config outcome
+      setMaxKeysSecured(!result.configFailed);
+      setMaxKeysFailureReason(result.configError);
+      lastConfigFailed = result.configFailed;
+      lastConfigError = result.configError;
+
       if (outcome.lastGrantFailed) {
         log.warn("Lock deployed but grant manager transaction failed", {
           lockAddress,
@@ -463,6 +653,11 @@ export default function QuestForm({
       }
     }
 
+    if (isPrerequisiteSelectionInvalid) {
+      setError("Prerequisite quest must have a completion lock configured.");
+      return false;
+    }
+
     return true;
   };
 
@@ -541,12 +736,21 @@ export default function QuestForm({
         currentReason: grantFailureReason,
       });
 
+      const effectiveMaxKeys = effectiveMaxKeysForSave({
+        outcome: { lastConfigFailed, lastConfigError },
+        lockAddress,
+        currentSecured: maxKeysSecured,
+        currentReason: maxKeysFailureReason,
+      });
+
       const questData = {
         ...cleanFormData,
         lock_address: lockAddress,
         total_reward: totalReward,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
+        max_keys_secured: effectiveMaxKeys.secured,
+        max_keys_failure_reason: effectiveMaxKeys.reason,
       };
 
       // Prepare tasks data
@@ -744,6 +948,312 @@ export default function QuestForm({
               Quest is Active
             </Label>
           </div>
+
+          {/* GoodDollar Verification Requirement */}
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="requires_gooddollar_verification"
+              role="switch"
+              aria-label="Requires Verification"
+              checked={formData.requires_gooddollar_verification}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  requires_gooddollar_verification: e.target.checked,
+                })
+              }
+              className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+              disabled={isSubmitting}
+            />
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-green-400" />
+              <Label
+                htmlFor="requires_gooddollar_verification"
+                className="text-white cursor-pointer"
+              >
+                Requires Verification
+              </Label>
+            </div>
+          </div>
+          <p className="text-sm text-gray-400 -mt-2 ml-6">
+            Users must complete GoodDollar face verification to participate in
+            this quest.
+          </p>
+        </div>
+      </div>
+
+      {/* Quest Prerequisites */}
+      <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 space-y-6">
+        <h2 className="text-xl font-bold text-white mb-4">
+          Quest Prerequisites (Optional)
+        </h2>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="prerequisite_quest_id" className="text-white">
+              Prerequisite Quest
+            </Label>
+            <select
+              id="prerequisite_quest_id"
+              value={formData.prerequisite_quest_id}
+              onChange={(e) => handlePrerequisiteQuestChange(e.target.value)}
+              className="w-full bg-transparent border border-gray-700 text-gray-100 rounded-md px-3 py-2"
+              disabled={isSubmitting || loadingPrerequisites}
+            >
+              <option value="" className="bg-gray-900 text-gray-300">
+                No prerequisite quest
+              </option>
+              {prerequisiteOptions.map((option) => (
+                <option
+                  key={option.id}
+                  value={option.id}
+                  className="bg-gray-900"
+                >
+                  {option.title}
+                  {!option.lock_address ? " (missing lock)" : ""}
+                </option>
+              ))}
+            </select>
+            <p className="text-sm text-gray-400">
+              Select an existing quest that must be completed before this quest.
+            </p>
+            {loadingPrerequisites && (
+              <p className="text-sm text-gray-500">Loading quests...</p>
+            )}
+            {prerequisiteOptionsError && (
+              <p className="text-sm text-red-400">{prerequisiteOptionsError}</p>
+            )}
+            {isPrerequisiteSelectionInvalid && (
+              <p className="text-sm text-red-400">
+                Selected quest is missing a lock address. Update that quest or
+                choose a different prerequisite.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label
+              htmlFor="prerequisite_quest_lock_address"
+              className="text-white"
+            >
+              Prerequisite Lock Address
+            </Label>
+            <Input
+              id="prerequisite_quest_lock_address"
+              value={formData.prerequisite_quest_lock_address}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  prerequisite_quest_lock_address: e.target.value,
+                })
+              }
+              placeholder="0x..."
+              className="bg-transparent border-gray-700 text-gray-100"
+              disabled={isSubmitting}
+            />
+            <p className="text-sm text-gray-400">
+              Lock address users must have completed (first-class on-chain
+              reference)
+            </p>
+          </div>
+
+          <div className="flex items-center space-x-3">
+            <input
+              type="checkbox"
+              id="requires_prerequisite_key"
+              checked={formData.requires_prerequisite_key}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  requires_prerequisite_key: e.target.checked,
+                })
+              }
+              className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+              disabled={isSubmitting}
+            />
+            <Label
+              htmlFor="requires_prerequisite_key"
+              className="text-white cursor-pointer"
+            >
+              Require Active Key (not just completion)
+            </Label>
+          </div>
+          <p className="text-sm text-gray-400 ml-7">
+            If checked, users must currently hold a valid key for the
+            prerequisite lock
+          </p>
+        </div>
+      </div>
+
+      {/* Reward Type & Activation Config */}
+      <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 space-y-6">
+        <h2 className="text-xl font-bold text-white mb-4">
+          Reward Configuration
+        </h2>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="reward_type" className="text-white">
+              Reward Type
+            </Label>
+            <select
+              id="reward_type"
+              value={formData.reward_type}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  reward_type: e.target.value as "xdg" | "activation",
+                })
+              }
+              className="w-full bg-transparent border border-gray-700 text-gray-100 rounded-md px-3 py-2"
+              disabled={isSubmitting}
+            >
+              <option value="xdg" className="bg-gray-900">
+                xDG (Experience Points)
+              </option>
+              <option value="activation" className="bg-gray-900">
+                Activation (e.g., Membership Trial)
+              </option>
+            </select>
+          </div>
+
+          {formData.reward_type === "activation" && (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="activation_type" className="text-white">
+                  Activation Type
+                </Label>
+                <select
+                  id="activation_type"
+                  value={formData.activation_type}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      activation_type: e.target.value,
+                    })
+                  }
+                  className="w-full bg-transparent border border-gray-700 text-gray-100 rounded-md px-3 py-2"
+                  disabled={isSubmitting}
+                >
+                  <option value="" className="bg-gray-900">
+                    Select activation type...
+                  </option>
+                  <option value="dg_trial" className="bg-gray-900">
+                    DG Nation Trial
+                  </option>
+                </select>
+              </div>
+
+              {formData.activation_type === "dg_trial" && (
+                <div className="space-y-4 p-4 bg-blue-900/10 border border-blue-700/30 rounded">
+                  <p className="text-sm text-blue-300">
+                    Configure DG Nation trial settings:
+                  </p>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="activation_lock_address"
+                      className="text-white"
+                    >
+                      DG Nation Lock Address *
+                    </Label>
+                    <Input
+                      id="activation_lock_address"
+                      value={
+                        (formData.activation_config as any)?.lockAddress || ""
+                      }
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          activation_config: {
+                            ...(formData.activation_config || {}),
+                            lockAddress: e.target.value,
+                          },
+                        })
+                      }
+                      placeholder="0x..."
+                      className="bg-transparent border-gray-700 text-gray-100"
+                      disabled={isSubmitting}
+                    />
+                    {activationLockAddress && (
+                      <div className="rounded border border-slate-700 bg-slate-900 p-3 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Server wallet</span>
+                          <span className="text-slate-200">
+                            {serverWalletAddress || "Loading..."}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Lock manager</span>
+                          <span
+                            className={`font-medium ${
+                              activationManagerStatus === null
+                                ? "text-yellow-400"
+                                : activationManagerStatus
+                                  ? "text-green-400"
+                                  : "text-red-400"
+                            }`}
+                          >
+                            {activationManagerStatus === null
+                              ? "Checking..."
+                              : activationManagerStatus
+                                ? "Is Manager"
+                                : "Not Manager"}
+                          </span>
+                        </div>
+                        {activationManagerError && (
+                          <p className="mt-2 text-xs text-amber-300">
+                            {activationManagerError}
+                          </p>
+                        )}
+                        {activationManagerStatus === false && (
+                          <p className="mt-2 text-xs text-amber-300">
+                            Granting trials will fail until the server wallet is
+                            added as a lock manager.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label
+                      htmlFor="activation_trial_duration"
+                      className="text-white"
+                    >
+                      Trial Duration (days) *
+                    </Label>
+                    <Input
+                      id="activation_trial_duration"
+                      type="number"
+                      value={
+                        ((formData.activation_config as any)
+                          ?.trialDurationSeconds || 604800) / 86400
+                      }
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          activation_config: {
+                            ...(formData.activation_config || {}),
+                            trialDurationSeconds:
+                              parseInt(e.target.value) * 86400,
+                          },
+                        })
+                      }
+                      placeholder="7"
+                      min="1"
+                      className="bg-transparent border-gray-700 text-gray-100"
+                      disabled={isSubmitting}
+                    />
+                    <p className="text-sm text-gray-400">
+                      Default: 7 days. Trial is one-time per user.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -819,7 +1329,11 @@ export default function QuestForm({
         </Button>
         <Button
           type="submit"
-          disabled={isSubmitting || isDeployingFromHook}
+          disabled={
+            isSubmitting ||
+            isDeployingFromHook ||
+            isPrerequisiteSelectionInvalid
+          }
           className="bg-steel-red hover:bg-steel-red/90 text-white"
         >
           {isSubmitting || isDeployingFromHook ? (

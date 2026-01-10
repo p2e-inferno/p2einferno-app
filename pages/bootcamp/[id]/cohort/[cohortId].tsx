@@ -1,8 +1,10 @@
 import { GetServerSideProps } from "next";
 import Head from "next/head";
 import { useRouter } from "next/router";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { LeadMagnetModal } from "@/components/marketing/LeadMagnetModal";
 import { MainLayout } from "@/components/layouts/MainLayout";
 
 import {
@@ -44,6 +46,7 @@ export const getServerSideProps: GetServerSideProps = async ({ params }) => {
 
 export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
   const router = useRouter();
+  const [leadOpen, setLeadOpen] = useState(false);
   const { data, loading, error } = useCohortDetails(cohortId);
 
   // Extract data from the hook response
@@ -254,7 +257,7 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
               </div>
             )}
 
-            {/* CTA Button */}
+            {/* CTA Button + Lead capture */}
             {isEnrolledInBootcamp ? (
               <Button
                 onClick={() =>
@@ -274,14 +277,23 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
                 <ChevronRight className="ml-2 h-5 w-5 transition-transform group-hover:translate-x-1" />
               </Button>
             ) : (
-              <div className="bg-faded-grey/20 text-faded-grey font-bold py-4 px-8 rounded-full text-lg cursor-not-allowed inline-flex items-center gap-2">
-                {spotsRemaining <= 0
-                  ? "Cohort Full"
-                  : timeRemaining === "Registration Closed"
-                    ? "Registration Closed"
-                    : cohort.status === "upcoming"
-                      ? "Registration Opens Soon"
-                      : "Not Available"}
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <div className="bg-faded-grey/20 text-faded-grey font-bold py-4 px-8 rounded-full text-lg inline-flex items-center gap-2">
+                  {spotsRemaining <= 0
+                    ? "Cohort Full"
+                    : timeRemaining === "Registration Closed"
+                      ? "Registration Closed"
+                      : cohort.status === "upcoming"
+                        ? "Registration Opens Soon"
+                        : "Not Available"}
+                </div>
+                <Button
+                  variant="outline"
+                  className="border-flame-yellow/60 text-flame-yellow hover:bg-flame-yellow/10"
+                  onClick={() => setLeadOpen(true)}
+                >
+                  Join Waitlist
+                </Button>
               </div>
             )}
 
@@ -446,14 +458,23 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
                       <Flame className="ml-2 h-5 w-5 transition-transform group-hover:rotate-12" />
                     </Button>
                   ) : (
-                    <div className="bg-faded-grey/20 text-faded-grey font-bold py-4 px-8 rounded-full text-lg cursor-not-allowed w-full text-center">
-                      {spotsRemaining <= 0
-                        ? "Cohort Full"
-                        : timeRemaining === "Registration Closed"
-                          ? "Registration Closed"
-                          : cohort.status === "upcoming"
-                            ? "Registration Opens Soon"
-                            : "Not Available"}
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                      <div className="bg-faded-grey/20 text-faded-grey font-bold py-4 px-8 rounded-full text-lg cursor-not-allowed w-full text-center">
+                        {spotsRemaining <= 0
+                          ? "Cohort Full"
+                          : timeRemaining === "Registration Closed"
+                            ? "Registration Closed"
+                            : cohort.status === "upcoming"
+                              ? "Registration Opens Soon"
+                              : "Not Available"}
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="border-flame-yellow/60 text-flame-yellow hover:bg-flame-yellow/10 w-full"
+                        onClick={() => setLeadOpen(true)}
+                      >
+                        Join Waitlist
+                      </Button>
                     </div>
                   )}
                   <p className="mt-4 text-sm text-faded-grey">
@@ -465,6 +486,17 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
             </div>
           </div>
         </section>
+
+        <LeadMagnetModal
+          open={leadOpen}
+          onOpenChange={setLeadOpen}
+          defaultIntent="bootcamp_waitlist"
+          defaultSource="cohort_page_waitlist"
+          bootcampProgramId={bootcamp.id}
+          cohortId={cohort.id}
+          title="Join the Bootcamp Waitlist"
+          description="Enter your email to get notified about openings and new cohorts."
+        />
       </MainLayout>
     </>
   );

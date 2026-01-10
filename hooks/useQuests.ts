@@ -2,51 +2,18 @@ import { useState, useEffect, useCallback } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { getLogger } from "@/lib/utils/logger";
+import {
+  claimActivationRewardRequest,
+  completeQuestRequest,
+  completeQuestTaskRequest,
+} from "@/lib/quests/client";
+import type {
+  Quest,
+  UserQuestProgress,
+  UserTaskCompletion,
+} from "@/lib/supabase/types";
 
 const log = getLogger("hooks:useQuests");
-
-// Types
-export interface Quest {
-  id: string;
-  title: string;
-  description: string;
-  total_reward: number;
-  is_active: boolean;
-  created_at: string;
-  quest_tasks: QuestTask[];
-}
-
-export interface QuestTask {
-  id: string;
-  quest_id: string;
-  title: string;
-  description: string;
-  task_type: "link_email" | "link_wallet" | "link_farcaster" | "sign_tos";
-  verification_method: string;
-  reward_amount: number;
-  order_index: number;
-}
-
-export interface UserQuestProgress {
-  id: string;
-  user_id: string;
-  quest_id: string;
-  tasks_completed: number;
-  is_completed: boolean;
-  reward_claimed: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface UserTaskCompletion {
-  id: string;
-  user_id: string;
-  quest_id: string;
-  task_id: string;
-  verification_data: any;
-  reward_claimed: boolean;
-  completed_at: string;
-}
 
 export const useQuests = () => {
   const { user, ready, authenticated } = usePrivy();
@@ -80,9 +47,7 @@ export const useQuests = () => {
     if (!user?.id || !authenticated) return;
 
     try {
-      const response = await fetch(
-        `/api/quests/user-progress?userId=${user.id}`,
-      );
+      const response = await fetch(`/api/quests/user-progress`);
       const data = await response.json();
 
       if (!response.ok) {
@@ -112,31 +77,24 @@ export const useQuests = () => {
 
   // Complete a task
   const completeTask = useCallback(
-    async (questId: string, taskId: string, verificationData?: any) => {
+    async (
+      questId: string,
+      taskId: string,
+      verificationData?: any,
+      inputData?: any,
+    ) => {
       if (!user?.id || !authenticated) {
         toast.error("Please connect your wallet first");
         return false;
       }
 
       try {
-        const response = await fetch("/api/quests/complete-task", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            questId,
-            taskId,
-            verificationData,
-          }),
+        await completeQuestTaskRequest({
+          questId,
+          taskId,
+          verificationData,
+          inputData,
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to complete task");
-        }
 
         // Refresh user progress
         await fetchUserProgress();
@@ -152,8 +110,8 @@ export const useQuests = () => {
     [user?.id, authenticated, fetchUserProgress],
   );
 
-  // Claim quest rewards
-  const claimQuestRewards = useCallback(
+  // Complete quest (quest-level key claim)
+  const completeQuest = useCallback(
     async (questId: string) => {
       if (!user?.id || !authenticated) {
         toast.error("Please connect your wallet first");
@@ -161,34 +119,46 @@ export const useQuests = () => {
       }
 
       try {
-        const response = await fetch("/api/quests/claim-rewards", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            userId: user.id,
-            questId,
-          }),
-        });
+        const data = await completeQuestRequest<{
+          message?: string;
+        }>(questId);
 
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Failed to claim rewards");
-        }
-
-        toast.success(
-          `Rewards claimed! You earned ${data.totalReward} DG tokens`,
-        );
+        toast.success(data.message || "Quest completed successfully");
 
         // Refresh user progress
         await fetchUserProgress();
         return true;
       } catch (err) {
-        log.error("Error claiming rewards:", err);
+        log.error("Error completing quest:", err);
+        toast.error(err instanceof Error ? err.message : "Failed to complete quest");
+        return false;
+      }
+    },
+    [user?.id, authenticated, fetchUserProgress],
+  );
+
+  // Claim activation reward (e.g., DG trial)
+  const claimActivationReward = useCallback(
+    async (questId: string) => {
+      if (!user?.id || !authenticated) {
+        toast.error("Please connect your wallet first");
+        return false;
+      }
+
+      try {
+        const data = await claimActivationRewardRequest<{
+          message?: string;
+        }>(questId);
+
+        toast.success(data.message || "Trial claimed successfully!");
+
+        // Refresh user progress
+        await fetchUserProgress();
+        return true;
+      } catch (err) {
+        log.error("Error claiming activation reward:", err);
         toast.error(
-          err instanceof Error ? err.message : "Failed to claim rewards",
+          err instanceof Error ? err.message : "Failed to claim trial",
         );
         return false;
       }
@@ -278,7 +248,8 @@ export const useQuests = () => {
     loading,
     error,
     completeTask,
-    claimQuestRewards,
+    completeQuest,
+    claimActivationReward,
     isTaskCompleted,
     getQuestProgress,
     getQuestCompletionPercentage,

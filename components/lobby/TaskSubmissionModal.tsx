@@ -611,7 +611,7 @@ export default function TaskSubmissionModal({
               </div>
               <div className="flex items-center space-x-1">
                 <CrystalIcon size={16} className="text-cyan-400" />
-                <span className="font-bold">{task.reward_amount} DGT</span>
+                <span className="font-bold">{task.reward_amount} xDG</span>
               </div>
             </div>
           </div>
@@ -625,7 +625,7 @@ export default function TaskSubmissionModal({
               </div>
               <div className="text-sm text-faded-grey">
                 The reward period for this milestone has ended. You can still
-                complete the task for progress, but no DGT rewards will be
+                complete the task for progress, but no xDG rewards will be
                 granted.
               </div>
             </div>

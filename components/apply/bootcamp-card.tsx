@@ -89,7 +89,7 @@ export const BootcampCard: React.FC<BootcampCardProps> = ({
           <div className="bg-background/30 rounded-xl p-4 text-center">
             <CrystalIcon size={24} className="text-cyan-400 mx-auto mb-2" />
             <div className="font-bold">
-              {program.max_reward_dgt.toLocaleString()} DGT
+              {program.max_reward_dgt.toLocaleString()} DG
             </div>
             <div className="text-xs text-faded-grey">Max Rewards</div>
           </div>
@@ -150,7 +150,7 @@ export const BootcampCard: React.FC<BootcampCardProps> = ({
               <div>
                 <div className="font-medium">Earn While Learning</div>
                 <div className="text-sm text-faded-grey">
-                  Up to 24,000 DGT tokens in rewards
+                  Up to 24,000 DG tokens in rewards
                 </div>
               </div>
             </div>

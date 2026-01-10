@@ -30,7 +30,7 @@ export function BootcampsComingSoon({ bootcamps }: BootcampsComingSoonProps) {
       description:
         "Deep dive into advanced DeFi protocols, yield farming, and complex trading strategies.",
       icon: Trophy,
-      releaseDate: "Q2 2025",
+      releaseDate: "Q2 2026",
     },
     {
       id: "community-leadership",
@@ -38,7 +38,7 @@ export function BootcampsComingSoon({ bootcamps }: BootcampsComingSoonProps) {
       description:
         "Learn to build and manage thriving Web3 communities and DAOs.",
       icon: Users,
-      releaseDate: "Q3 2025",
+      releaseDate: "Q3 2026",
     },
   ];
 
@@ -65,10 +65,10 @@ export function BootcampsComingSoon({ bootcamps }: BootcampsComingSoonProps) {
             >
               <CardHeader>
                 <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-faded-grey/20 rounded-full">
+                  <div className="p-2 bg-faded-grey/20 rounded-full flex-shrink-0">
                     <IconComponent className="w-6 h-6 text-faded-grey" />
                   </div>
-                  <CardTitle className="text-lg text-faded-grey">
+                  <CardTitle className="text-lg text-faded-grey text-center flex-1">
                     {bootcamp.name}
                   </CardTitle>
                 </div>

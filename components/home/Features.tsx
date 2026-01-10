@@ -9,44 +9,44 @@ import {
 
 const features = [
   {
-    title: "The Onchain Economy as a Game",
+    title: "Real Onchain Actions",
     description:
-      "Every DeFi trade, NFT mint, and DAO vote is a quest. Every transaction is an achievement unlocked. The blockchain is your open-world game.",
-    icon: Gamepad2,
-    color: "text-flame-yellow",
-  },
-  {
-    title: "True Digital Ownership",
-    description:
-      "Your in-game assets are NFTs that you truly own. Trade, sell, or use them across the ever-expanding onchain world.",
-    icon: Shield,
-    color: "text-steel-red",
-  },
-  {
-    title: "Community-Driven Adventure",
-    description:
-      "Join the Infernals—a passionate community of players. Shape the future of the game through DAO governance and collaborative quests.",
-    icon: Users,
-    color: "text-faded-grey",
-  },
-  {
-    title: "Gamified Learning & Onboarding",
-    description:
-      "From your first wallet setup to mastering complex DeFi strategies, our guided pathways make learning frictionless and rewarding.",
+      "Execute real swaps, mints, and governance votes from day one. No simulations, no theory-only lessons—just actual onchain transactions that build your muscle memory and confidence.",
     icon: Zap,
     color: "text-flame-yellow",
   },
   {
-    title: "Compete and Earn",
+    title: "Deploy Real Smart Contracts",
     description:
-      "Rise through the ranks on our leaderboards, complete dynamic challenges, and earn meaningful rewards for your onchain skill.",
+      "Write, test, and deploy your own smart contracts to live networks. Learn Solidity through building, not just reading—and walk away with deployed code you can show the world.",
+    icon: Shield,
+    color: "text-steel-red",
+  },
+  {
+    title: "Active Community Participation",
+    description:
+      "Join other Infernals and participate in shaping future of P2E INFERNO through DAO governance, collaborative quests, and community projects. Learn Web3 social dynamics by living them, not just studying them.",
+    icon: Users,
+    color: "text-faded-grey",
+  },
+  {
+    title: "Build Your Onchain Reputation",
+    description:
+      "Engage in onchain social activity and earn verifiable attestations for every skill you master. Build a permanent, portable reputation that proves your Web3 expertise to the world.",
     icon: Trophy,
     color: "text-steel-red",
   },
   {
-    title: "Endless Exploration",
+    title: "Quests Over Lectures",
     description:
-      "The onchain world is always expanding. New protocols, new narratives, and new quests are always on the horizon. The game never ends.",
+      "Every lesson is a quest with real objectives and outcomes. Progress through structured challenges that turn complex blockchain concepts into achievable missions with clear rewards.",
+    icon: Gamepad2,
+    color: "text-flame-yellow",
+  },
+  {
+    title: "Rewards Over Passive Learning",
+    description:
+      "Earn $DG and other rewards for completing milestones. Your education becomes an investment that pays back immediately—making Web3 learning both practical and profitable.",
     icon: Coins,
     color: "text-faded-grey",
   },
@@ -54,18 +54,18 @@ const features = [
 
 export function Features() {
   return (
-    <section id="features" className="py-20 md:py-32 bg-background">
+    <section id="features" className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold font-heading">
+        <div className="text-center mb-12">
+          <h2 className="text-2xl md:text-3xl lg:text-4xl font-bold font-heading mb-4">
             Why P2E INFERNO is Different
           </h2>
-          <p className="mt-4 text-lg text-faded-grey max-w-3xl mx-auto">
-            We don&apos;t just play games—we make the entire onchain experience
-            feel like one. Here, participation is the ultimate adventure.
+          <p className="text-base md:text-lg text-faded-grey max-w-3xl mx-auto">
+            We don&apos;t just teach Web3—we make you use it. Most people learn
+            crypto by watching videos. Our learners go straight to doing.
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8">
           {features.map((feature, index) => (
             <Card
               key={index}
@@ -86,6 +86,12 @@ export function Features() {
               </CardHeader>
             </Card>
           ))}
+        </div>
+
+        <div className="text-center mt-12">
+          <p className="text-lg md:text-xl font-semibold text-flame-yellow">
+            This is Web3 education that sticks.
+          </p>
         </div>
       </div>
     </section>

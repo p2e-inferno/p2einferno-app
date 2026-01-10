@@ -4,13 +4,14 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_CACHE_TAGS } from '@/lib/app-config/admin';
+import { validateVendorTaskConfig } from '@/lib/quests/vendor-task-config';
 
 const log = getLogger('api:quests');
 
 function invalidateQuestCache(quest?: { id?: string | null }) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.questList);
-    if (quest?.id) revalidateTag(ADMIN_CACHE_TAGS.quest(String(quest.id)));
+    revalidateTag(ADMIN_CACHE_TAGS.questList, 'default');
+    if (quest?.id) revalidateTag(ADMIN_CACHE_TAGS.quest(String(quest.id)), 'default');
   } catch (error) {
     log.warn('quest cache revalidation failed', { error });
   }
@@ -40,11 +41,11 @@ export async function GET(req: NextRequest) {
         ...quest,
         stats: stats
           ? {
-              total_users: stats.total_users || 0,
-              completed_users: stats.completed_users || 0,
-              pending_submissions: stats.pending_submissions || 0,
-              completion_rate: stats.completion_rate || 0,
-            }
+            total_users: stats.total_users || 0,
+            completed_users: stats.completed_users || 0,
+            pending_submissions: stats.pending_submissions || 0,
+            completion_rate: stats.completion_rate || 0,
+          }
           : undefined,
       };
     });
@@ -72,9 +73,31 @@ export async function POST(req: NextRequest) {
       lock_address,
       lock_manager_granted,
       grant_failure_reason,
+      // New fields for prerequisites and activation
+      prerequisite_quest_id,
+      prerequisite_quest_lock_address,
+      requires_prerequisite_key,
+      reward_type,
+      activation_type,
+      activation_config,
     } = body || {};
 
     if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+
+    // Validate activation quest configuration
+    if (reward_type === 'activation') {
+      if (!activation_type) {
+        return NextResponse.json({ error: 'activation_type is required for activation quests' }, { status: 400 });
+      }
+      if (activation_type === 'dg_trial') {
+        if (!activation_config?.lockAddress) {
+          return NextResponse.json({ error: 'activation_config.lockAddress is required for DG trial quests' }, { status: 400 });
+        }
+        if (!activation_config?.trialDurationSeconds || activation_config.trialDurationSeconds <= 0) {
+          return NextResponse.json({ error: 'activation_config.trialDurationSeconds must be a positive number' }, { status: 400 });
+        }
+      }
+    }
 
     // Harden grant flags
     const grantGrantedFinal =
@@ -93,6 +116,13 @@ export async function POST(req: NextRequest) {
         lock_address,
         lock_manager_granted: grantGrantedFinal,
         grant_failure_reason: grantReasonFinal,
+        // New fields
+        prerequisite_quest_id: prerequisite_quest_id || null,
+        prerequisite_quest_lock_address: prerequisite_quest_lock_address || null,
+        requires_prerequisite_key: requires_prerequisite_key || false,
+        reward_type: reward_type || 'xdg',
+        activation_type: activation_type || null,
+        activation_config: activation_config || null,
       })
       .select('*')
       .single();
@@ -100,6 +130,11 @@ export async function POST(req: NextRequest) {
 
     // Insert tasks if provided
     if (Array.isArray(tasks) && tasks.length > 0) {
+      const validation = await validateVendorTaskConfig(tasks);
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+
       const questTasks = tasks.map((task: any, index: number) => ({
         quest_id: quest.id,
         title: task.title,
@@ -108,6 +143,7 @@ export async function POST(req: NextRequest) {
         verification_method: task.verification_method,
         reward_amount: task.reward_amount || 0,
         order_index: task.order_index ?? index,
+        task_config: task.task_config || {},
         input_required: task.input_required,
         input_label: task.input_label,
         input_placeholder: task.input_placeholder,

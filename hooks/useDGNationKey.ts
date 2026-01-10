@@ -15,6 +15,7 @@ const log = getLogger('hooks:useDGNationKey');
 
 export interface DGNationKeyInfo {
   hasValidKey: boolean;
+  tokenId: bigint | null;
   expirationTimestamp: bigint | null;
   expiresAt: Date | null;
   isLoading: boolean;
@@ -29,6 +30,7 @@ export function useDGNationKey() {
   const { wallets } = useWallets();
   const [keyInfo, setKeyInfo] = useState<DGNationKeyInfo>({
     hasValidKey: false,
+    tokenId: null,
     expirationTimestamp: null,
     expiresAt: null,
     isLoading: true,
@@ -64,6 +66,7 @@ export function useDGNationKey() {
         if (!hasKey) {
           setKeyInfo({
             hasValidKey: false,
+            tokenId: null,
             expirationTimestamp: null,
             expiresAt: null,
             isLoading: false,
@@ -93,6 +96,7 @@ export function useDGNationKey() {
 
         setKeyInfo({
           hasValidKey: true,
+          tokenId: tokenId as bigint,
           expirationTimestamp,
           expiresAt,
           isLoading: false,
@@ -103,6 +107,7 @@ export function useDGNationKey() {
         log.error('Failed to check DG Nation key status', { error, wallet: activeWallet });
         setKeyInfo({
           hasValidKey: false,
+          tokenId: null,
           expirationTimestamp: null,
           expiresAt: null,
           isLoading: false,

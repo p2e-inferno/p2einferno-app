@@ -7,6 +7,7 @@ import {
   UNLOCK_FACTORY_ABI,
   UNLOCK_FACTORY_ADDRESSES,
   ADDITIONAL_LOCK_ABI,
+  LOCK_CONFIG_ABI,
 } from "@/lib/blockchain/shared/abi-definitions";
 import { extractLockAddressFromReceipt } from "@/lib/blockchain/shared/transaction-utils";
 import { getLogger } from "@/lib/utils/logger";
@@ -177,22 +178,116 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           grantFailed = true;
           grantError = truncateErrorMessage(
             grantErr.message || "Failed to grant lock manager role",
-            150
+            150,
           );
-          log.error("Grant lock manager failed - lock deployed but grant failed", {
-            error: grantErr,
-            lockAddress,
-            serverWalletAddress: normalizedServerWallet,
-          });
+          log.error(
+            "Grant lock manager failed - lock deployed but grant failed",
+            {
+              error: grantErr,
+              lockAddress,
+              serverWalletAddress: normalizedServerWallet,
+            },
+          );
           // Extra diagnostic logging for common user-decline and gas issues
           try {
-            const message: string = String(grantErr?.message || '');
-            log.warn('Grant failure diagnostics', {
-              includesUserRejected: /user rejected|User rejected|denied/i.test(message),
-              includesGas: /gas|fee|EIP-1559|intrinsic|underpriced/i.test(message),
+            const message: string = String(grantErr?.message || "");
+            log.warn("Grant failure diagnostics", {
+              includesUserRejected: /user rejected|User rejected|denied/i.test(
+                message,
+              ),
+              includesGas: /gas|fee|EIP-1559|intrinsic|underpriced/i.test(
+                message,
+              ),
               short: grantError,
             });
           } catch {}
+        }
+
+        // Update lock configuration if maxKeysPerAddress is specified
+        let configTx: `0x${string}` | undefined;
+        let configFailed = false;
+        let configError: string | undefined;
+
+        if (params.maxKeysPerAddress !== undefined) {
+          try {
+            log.info("Updating lock config to set maxKeysPerAddress", {
+              lockAddress,
+              maxKeysPerAddress: params.maxKeysPerAddress.toString(),
+              expirationDuration: params.expirationDuration.toString(),
+              maxNumberOfKeys: params.maxNumberOfKeys.toString(),
+            });
+
+            // Estimate gas for updateLockConfig transaction
+            const configEstimatedGas = await publicClient.estimateContractGas({
+              address: lockAddress as Address,
+              abi: LOCK_CONFIG_ABI,
+              functionName: "updateLockConfig",
+              args: [
+                params.expirationDuration,
+                params.maxNumberOfKeys,
+                params.maxKeysPerAddress,
+              ],
+              account: walletAccount,
+            });
+
+            // Add 20% padding to estimated gas
+            const configGasWithPadding = (configEstimatedGas * 120n) / 100n;
+
+            log.info("Gas estimation for updateLockConfig", {
+              estimatedGas: configEstimatedGas.toString(),
+              gasWithPadding: configGasWithPadding.toString(),
+            });
+
+            configTx = await walletClient.writeContract({
+              address: lockAddress as Address,
+              abi: LOCK_CONFIG_ABI,
+              functionName: "updateLockConfig",
+              args: [
+                params.expirationDuration,
+                params.maxNumberOfKeys,
+                params.maxKeysPerAddress,
+              ],
+              account: walletAccount,
+              chain: walletChain,
+              gas: configGasWithPadding,
+            });
+
+            await publicClient.waitForTransactionReceipt({
+              hash: configTx,
+            });
+
+            log.info("Lock configuration updated successfully", {
+              configTransactionHash: configTx,
+              lockAddress,
+              maxKeysPerAddress: params.maxKeysPerAddress.toString(),
+            });
+          } catch (configErr: any) {
+            configFailed = true;
+            configError = truncateErrorMessage(
+              configErr.message || "Failed to update lock configuration",
+              150,
+            );
+            log.error(
+              "Update lock config failed - lock deployed but config update failed",
+              {
+                error: configErr,
+                lockAddress,
+                maxKeysPerAddress: params.maxKeysPerAddress?.toString(),
+              },
+            );
+            // Extra diagnostic logging
+            try {
+              const message: string = String(configErr?.message || "");
+              log.warn("Config update failure diagnostics", {
+                includesUserRejected:
+                  /user rejected|User rejected|denied/i.test(message),
+                includesGas: /gas|fee|EIP-1559|intrinsic|underpriced/i.test(
+                  message,
+                ),
+                short: configError,
+              });
+            } catch {}
+          }
         }
 
         setState({ isLoading: false, error: null, isSuccess: true });
@@ -201,10 +296,13 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           success: true,
           transactionHash: deployTx,
           grantTransactionHash: grantTx,
+          configTransactionHash: configTx,
           lockAddress: lockAddress as Address,
           serverWalletAddress: normalizedServerWallet,
           grantFailed,
           grantError,
+          configFailed,
+          configError,
         };
       } catch (error: any) {
         const errorMsg = error.message || "Admin lock deployment failed";

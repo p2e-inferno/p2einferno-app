@@ -13,6 +13,7 @@ import {
 import { getDefaultCheckinService } from "@/lib/checkin";
 import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
+import { normalizeAddress } from "@/lib/utils/address";
 
 const log = getLogger("hooks:useStreakData");
 
@@ -175,6 +176,39 @@ export const useStreakData = (
       enabled: autoRefresh && !!userAddress,
     }
   );
+
+  // Listen for check-in events from other components to keep streak data in sync
+  useEffect(() => {
+    if (!userAddress) return;
+
+    const handleCheckinEvent = (event: Event) => {
+      const customEvent = event as CustomEvent<{
+        userAddress: string;
+        userProfileId?: string;
+        originId?: string;
+      }>;
+      const eventAddress = normalizeAddress(customEvent.detail?.userAddress);
+      const currentAddress = normalizeAddress(userAddress);
+
+      // Only refresh if the event is for this user
+      if (eventAddress && currentAddress && eventAddress === currentAddress) {
+        log.debug("Received check-in event, refreshing streak data", {
+          userAddress,
+          eventType: event.type,
+        });
+        fetchStreakData();
+      }
+    };
+
+    // Listen to both success and status-refresh events
+    window.addEventListener("checkin-success", handleCheckinEvent);
+    window.addEventListener("checkin-status-refresh", handleCheckinEvent);
+
+    return () => {
+      window.removeEventListener("checkin-success", handleCheckinEvent);
+      window.removeEventListener("checkin-status-refresh", handleCheckinEvent);
+    };
+  }, [userAddress, fetchStreakData]);
 
   return {
     streakInfo,

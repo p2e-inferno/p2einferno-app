@@ -2,6 +2,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
+import {
+  sendEmail,
+  getWelcomeEmail,
+  sendEmailWithDedup,
+  normalizeEmail,
+} from "@/lib/email";
 
 const log = getLogger("api:user:profile");
 
@@ -33,6 +39,7 @@ interface UserDashboardData {
   stats: {
     totalApplications: number;
     completedBootcamps: number;
+    enrolledBootcamps: number;
     totalPoints: number;
     pendingPayments: number;
     questsCompleted: number;
@@ -65,82 +72,132 @@ async function createOrUpdateUserProfile(
         ? `Wallet${walletAddress.slice(-6)}`
         : `Infernal${privyUserId.slice(-6)}`),
   };
+  const maxRetries = 3;
 
-  const { data: existingProfile, error: profileError } = await supabase
-    .from("user_profiles")
-    .select("*")
-    .eq("privy_user_id", privyUserId)
-    .single();
+  const executeWithRetry = async (
+    operation: () => Promise<any>,
+    operationName: string,
+  ) => {
+    let retryCount = 0;
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        return await operation();
+      } catch (error: any) {
+        retryCount += 1;
+        log.error(`${operationName} attempt ${retryCount} failed`, {
+          message: error instanceof Error ? error.message : "Unknown error",
+          isNetworkError:
+            error instanceof Error &&
+            typeof error.message === "string" &&
+            error.message.includes("fetch failed"),
+        });
 
-  if (profileError && profileError.code !== "PGRST116") {
-    // PGRST116 is "not found", which is expected for new users
-    log.error("Error checking existing profile:", profileError);
-    throw new Error(`Database error: ${profileError.message}`);
+        if (retryCount >= maxRetries) {
+          throw new Error(
+            `${operationName} failed after ${maxRetries} attempts: ${
+              error instanceof Error ? error.message : "Unknown error"
+            }`,
+          );
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 1000 * retryCount));
+      }
+    }
+  };
+
+  log.info("Starting profile upsert operation", {
+    privyUserId,
+    walletAddress: profileData.wallet_address,
+    operation: "upsert",
+  });
+
+  const { data, error } = await executeWithRetry(
+    async () =>
+      await supabase
+        .from("user_profiles")
+        .upsert(profileData, {
+          onConflict: "privy_user_id",
+          ignoreDuplicates: false,
+        })
+        .select()
+        .single(),
+    "Profile upsert",
+  );
+
+  if (error) {
+    log.error("Error upserting profile:", error);
+
+    if (error?.code === "23505") {
+      const constraintNameMatch = error.message?.match(/constraint "([^"]+)"/);
+      const constraintName = constraintNameMatch?.[1] || "";
+
+      if (constraintName === "user_profiles_email_unique") {
+        throw new Error("This email address is already registered");
+      } else if (constraintName === "user_profiles_wallet_address_unique") {
+        throw new Error("This wallet address is already registered");
+      } else {
+        // Fallback for other unique constraint violations
+        throw new Error("A profile with this information already exists");
+      }
+    }
+
+    throw new Error(
+      `Failed to upsert profile: ${error?.message || "Unknown error"}`,
+    );
   }
 
-  if (existingProfile) {
-    // Update existing profile
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .update(profileData)
-      .eq("privy_user_id", privyUserId)
-      .select()
-      .single();
+  const isNewProfile = data.created_at === data.updated_at;
 
-    if (error) {
-      log.error("Error updating profile:", error);
-      throw new Error(`Failed to update profile: ${error.message}`);
-    }
-    return data;
-  } else {
-    // Create new profile
-    const { data, error } = await supabase
-      .from("user_profiles")
-      .insert([profileData])
-      .select()
-      .single();
+  log.info("Profile upsert completed successfully", {
+    privyUserId,
+    userId: data.id,
+    isNewProfile,
+    operation: isNewProfile ? "created" : "updated",
+    createdAt: data.created_at,
+    updatedAt: data.updated_at,
+  });
 
-    if (error) {
-      log.error("Error creating profile:", error);
-
-      // Check for unique constraint violation (email or wallet already exists)
-      if (error?.code === "23505") {
-        const constraintNameMatch =
-          error.message?.match(/constraint "([^"]+)"/);
-        const constraintName = constraintNameMatch?.[1] || "";
-
-        if (constraintName === "user_profiles_email_unique") {
-          throw new Error("This email address is already registered");
-        } else if (constraintName === "user_profiles_wallet_address_unique") {
-          throw new Error("This wallet address is already registered");
-        } else {
-          // Fallback for other unique constraint violations
-          throw new Error("A profile with this information already exists");
-        }
-      }
-
-      throw new Error(
-        `Failed to create profile: ${error?.message || "Unknown error"}`,
+  const normalizedEmail = normalizeEmail(data.email);
+  if (normalizedEmail) {
+    try {
+      const { sent } = await sendEmailWithDedup(
+        "welcome",
+        data.id,
+        normalizedEmail,
+        `profile:${data.id}`,
+        () => {
+          const tpl = getWelcomeEmail({
+            displayName: data.display_name || "there",
+          });
+          return sendEmail({ to: normalizedEmail, ...tpl, tags: ["welcome"] });
+        },
       );
-    }
 
-    // Log user registration activity (non-blocking)
+      if (sent) {
+        log.info("Welcome email sent to new user", { userId: data.id });
+      }
+    } catch (emailErr) {
+      log.error("Failed to send welcome email", { userId: data.id, emailErr });
+    }
+  }
+
+  if (isNewProfile) {
     try {
       await supabase.from("user_activities").insert([
         {
           user_profile_id: data.id,
           activity_type: "user_registered",
-          points_earned: 100, // Welcome bonus
+          points_earned: 100,
           activity_data: { welcome_bonus: true },
         },
       ]);
     } catch (activityError) {
       log.error("Error logging registration activity:", activityError);
-      // Don't fail the entire operation for logging errors
     }
-
-    return data;
   }
+
+  return data;
 }
 
 async function getUserDashboardData(
@@ -173,7 +230,16 @@ async function getUserDashboardData(
         experience_level,
         payment_status,
         application_status,
-        created_at
+        created_at,
+        cohorts (
+          id,
+          name,
+          bootcamp_program_id,
+          bootcamp_programs (
+            id,
+            name
+          )
+        )
       )
     `,
     )
@@ -223,16 +289,49 @@ async function getUserDashboardData(
     });
   }
 
-  // Get bootcamp enrollments (non-blocking)
+  // Get bootcamp enrollments with cohort details
   const { data: enrollments, error: enrollmentsError } = await supabase
     .from("bootcamp_enrollments")
-    .select("*")
+    .select(
+      `
+      *,
+      cohorts (
+        id,
+        name,
+        bootcamp_program:bootcamp_program_id (
+          name
+        )
+      )
+    `,
+    )
     .eq("user_profile_id", userProfileId)
     .order("created_at", { ascending: false });
 
   if (enrollmentsError) {
     log.error("Error fetching enrollments:", enrollmentsError);
   }
+
+  // Get user journey preferences and merge into enrollments
+  const { data: preferences, error: preferencesError } = await supabase
+    .from("user_journey_preferences")
+    .select("enrollment_id, is_hidden")
+    .eq("user_profile_id", userProfileId);
+
+  if (preferencesError) {
+    log.error("Error fetching journey preferences:", preferencesError);
+  }
+
+  const enrollmentsWithPreferences = (enrollments || []).map(
+    (enrollment: any) => {
+      const preference = preferences?.find(
+        (p: any) => p.enrollment_id === enrollment.id,
+      );
+      return {
+        ...enrollment,
+        user_journey_preferences: preference ? [preference] : [],
+      };
+    },
+  );
 
   // Get recent activities (non-blocking)
   const { data: recentActivities, error: activitiesError } = await supabase
@@ -261,8 +360,15 @@ async function getUserDashboardData(
   const stats = {
     totalApplications: applications?.length || 0,
     completedBootcamps:
-      enrollments?.filter((_e: any) => _e.enrollment_status === "completed")
-        .length || 0,
+      enrollmentsWithPreferences?.filter(
+        (_e: any) => _e.enrollment_status === "completed",
+      ).length || 0,
+    enrolledBootcamps:
+      enrollmentsWithPreferences?.filter(
+        (_e: any) =>
+          _e.enrollment_status === "enrolled" ||
+          _e.enrollment_status === "active",
+      ).length || 0,
     totalPoints: profile.experience_points || 0,
     pendingPayments:
       applications?.filter((_a: any) => {
@@ -277,7 +383,7 @@ async function getUserDashboardData(
   return {
     profile,
     applications: applications || [],
-    enrollments: enrollments || [],
+    enrollments: enrollmentsWithPreferences || [],
     recentActivities: recentActivities || [],
     stats,
   };
@@ -299,8 +405,13 @@ export default async function handler(
     }
 
     if (req.method === "GET" || req.method === "POST") {
-      // Choose the richest source of user data we have
-      const userDataForProfile = privyUser || req.body;
+      // Merge request body data (which has wallet/email info) with privyUser
+      // Prefer req.body for wallet/email data as it comes from the client with full context
+      const userDataForProfile = {
+        ...privyUser,
+        ...req.body,
+        privyUserId, // Ensure we use the verified Privy user ID
+      };
 
       const profile = await createOrUpdateUserProfile(
         privyUserId,

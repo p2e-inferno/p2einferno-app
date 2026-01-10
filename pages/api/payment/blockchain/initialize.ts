@@ -11,6 +11,9 @@ import {
   validatePaymentAmount,
   type Currency,
 } from "../../../../lib/utils/payment-utils";
+import { hasValidKey } from "@/lib/services/user-key-service";
+import { createPublicClientUnified } from "@/lib/blockchain/config";
+import { type Address } from "viem";
 
 const log = getLogger("api:payment:blockchain:initialize");
 
@@ -161,6 +164,36 @@ export default async function handler(
             "You are already enrolled in this bootcamp. No additional payment is required.",
         });
       }
+    }
+
+    // Shortcut: Check if user already has a valid key on-chain
+    try {
+      const publicClient = createPublicClientUnified();
+      const userHasKey = await hasValidKey(
+        publicClient,
+        walletAddress as Address,
+        cohort.lock_address as Address,
+      );
+
+      if (userHasKey) {
+        const reference = generatePaymentReference();
+        return res.status(200).json({
+          success: true,
+          data: {
+            reference,
+            lockAddress: cohort.lock_address,
+            cohortTitle: cohort.name,
+            shortcut: "already_has_key",
+          },
+        });
+      }
+    } catch (error) {
+      log.warn("Failed to check existing key ownership", {
+        error,
+        walletAddress,
+        lockAddress: cohort.lock_address,
+      });
+      // Continue with normal flow on error
     }
 
     // Generate payment reference

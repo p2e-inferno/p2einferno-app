@@ -16,6 +16,9 @@ import {
   ChevronLeft,
   ChevronRight,
   DollarSign,
+  Zap,
+  ShieldAlert,
+  FileCode2,
 } from "lucide-react";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -33,8 +36,15 @@ const adminNavItems = [
   { name: "Quests", href: "/admin/quests", icon: Award },
   { name: "Payments", href: "/admin/payments", icon: CreditCard },
   { name: "DG Pullouts", href: "/admin/dg-pullouts", icon: DollarSign },
+  {
+    name: "Subscription Config",
+    href: "/admin/subscriptions/config",
+    icon: Zap,
+  },
+  { name: "CSP Reports", href: "/admin/csp-reports", icon: ShieldAlert },
   { name: "Applications", href: "/admin/applications", icon: FileText },
   { name: "Draft Recovery", href: "/admin/draft-recovery", icon: FileText },
+  { name: "EAS Schemas", href: "/admin/eas-schemas", icon: FileCode2 },
 ];
 
 export default function AdminLayout({

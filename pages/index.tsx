@@ -6,7 +6,11 @@ import { HowItWorks } from "@/components/home/HowItWorks";
 import { Features } from "@/components/home/Features";
 import { About } from "@/components/home/About";
 import { Services } from "@/components/home/Services";
+import { Personas } from "@/components/home/Personas";
+import { StarterKitSection } from "@/components/home/StarterKitSection";
 import { Bootcamps } from "@/components/home/Bootcamps";
+import { FAQ } from "@/components/home/FAQ";
+import { FlagshipInfernalSparks } from "@/components/home/FlagshipInfernalSparks";
 import { MainLayout } from "@/components/layouts/MainLayout";
 
 export const getServerSideProps: GetServerSideProps = async ({ req }) => {
@@ -45,10 +49,14 @@ export default function Home() {
         <div className="bg-background">
           <Hero />
           <About />
-          <Bootcamps />
-          <Features />
           <HowItWorks />
+          <Personas />
+          <FlagshipInfernalSparks />
+          <Features />
+          <StarterKitSection />
+          <Bootcamps />
           <Services />
+          <FAQ />
         </div>
       </MainLayout>
     </>

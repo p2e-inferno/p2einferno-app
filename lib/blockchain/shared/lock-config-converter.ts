@@ -26,6 +26,10 @@ export const convertLockConfigToDeploymentParams = (
     tokenAddress: getTokenAddressForCurrency(lockConfig.currency),
     keyPrice: keyPriceInWei,
     maxNumberOfKeys: BigInt(lockConfig.maxNumberOfKeys),
+    maxKeysPerAddress:
+      lockConfig.maxKeysPerAddress !== undefined
+        ? BigInt(lockConfig.maxKeysPerAddress)
+        : undefined,
     lockVersion: 14,
     isAdmin,
   };

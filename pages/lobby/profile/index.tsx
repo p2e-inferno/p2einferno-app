@@ -17,6 +17,8 @@ import { WithdrawDGButton } from "@/components/token-withdrawal/WithdrawDGButton
 import { WithdrawalHistoryTable } from "@/components/token-withdrawal/WithdrawalHistoryTable";
 import { SubscriptionBadge } from "@/components/token-withdrawal/SubscriptionBadge";
 import { AccessRequirementCard } from "@/components/token-withdrawal/AccessRequirementCard";
+import { SubscriptionStatusCard } from "@/components/subscription";
+import { useWithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 
 const log = getLogger("lobby:profile:index");
 
@@ -32,6 +34,9 @@ const ProfilePage = () => {
     loading: dashboardLoading,
     refetch,
   } = useDashboardData();
+
+  // Fetch withdrawal limits once at the page level (React Query will cache and deduplicate)
+  const withdrawalLimits = useWithdrawalLimits();
 
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [linking, setLinking] = useState<string | null>(null);
@@ -192,11 +197,24 @@ const ProfilePage = () => {
 
           <CompletionCallToAction completionPercentage={completionPercentage} />
 
+          {/* DG Nation Subscription Management Section */}
+          <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl border border-gray-700 p-6 sm:p-8 mt-6">
+            <h2 className="text-xl sm:text-2xl font-bold text-white mb-4">
+              Subscription Management
+            </h2>
+            <SubscriptionStatusCard
+              onRenewalComplete={() => refetch()}
+              className="mt-0"
+            />
+          </div>
+
           {/* DG Token Withdrawal Section */}
-          <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 mt-6">
+          <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl border border-gray-700 p-6 sm:p-8 mt-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
               <div>
-                <h2 className="text-xl font-bold text-white mb-2">DG Nation</h2>
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">
+                  Withdraw DG Tokens
+                </h2>
                 <p className="text-gray-400 text-sm">
                   Pull out your earned DG tokens to your wallet
                 </p>
@@ -210,7 +228,7 @@ const ProfilePage = () => {
             <AccessRequirementCard />
 
             <div className="mb-4">
-              <WithdrawDGButton />
+              <WithdrawDGButton limits={withdrawalLimits} />
             </div>
 
             <div className="mt-6">

@@ -1,27 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import { Flame, Coins, Sparkles } from "lucide-react"; // Icons used in the header
-
-// Define types for the props expected by QuestHeader
-// These might need to be aligned/imported from a shared types file if one exists for quests
-interface QuestData {
-  title: string;
-  description: string;
-  image_url?: string | null;
-  total_reward: number;
-  // Add any other quest-specific fields needed for the header
-}
-
-interface QuestHeaderProps {
-  quest: QuestData;
-  progressPercentage: number; // Calculated progress (0-100)
-  isQuestCompleted: boolean;
-  isQuestStarted: boolean; // To control the "Start Quest" button visibility or state
-  tasksCompletedCount: number;
-  totalTasksCount: number;
-  onStartQuest?: () => void; // Optional: if the start button is part of this header
-  isLoadingStartQuest?: boolean; // Optional: for loading state of start button
-}
+import type { QuestHeaderProps } from "./types";
 
 const QuestHeader: React.FC<QuestHeaderProps> = ({
   quest,
@@ -32,7 +12,28 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
   totalTasksCount,
   onStartQuest,
   isLoadingStartQuest,
+  canStartQuest = true,
+  canClaimReward,
+  hasClaimedReward,
+  onClaimReward,
+  isClaimingReward,
 }) => {
+  const rewardLabel =
+    quest.reward_type === "activation"
+      ? hasClaimedReward
+        ? "Trial Claimed"
+        : "Claim Trial Access"
+      : hasClaimedReward
+        ? "Quest Completed"
+        : "Complete Quest";
+  const startDisabled =
+    !isQuestStarted && (!canStartQuest || Boolean(isLoadingStartQuest));
+  const startButtonLabel = !canStartQuest
+    ? "Prerequisites Required"
+    : isLoadingStartQuest
+      ? "Starting..."
+      : "Start Quest";
+
   return (
     <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl p-6 sm:p-8 border border-gray-700 mb-8">
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-6 mb-6">
@@ -103,10 +104,27 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
       {onStartQuest && !isQuestStarted && (
         <button
           onClick={onStartQuest}
-          disabled={isLoadingStartQuest}
+          disabled={startDisabled}
           className="mt-6 w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3 sm:py-4 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed"
         >
-          {isLoadingStartQuest ? "Starting..." : "Start Quest"}
+          {startButtonLabel}
+        </button>
+      )}
+      {onStartQuest && !isQuestStarted && !canStartQuest && (
+        <p className="mt-2 text-sm text-yellow-400">
+          Complete the prerequisite quest before starting.
+        </p>
+      )}
+
+      {onClaimReward && isQuestCompleted && (
+        <button
+          onClick={onClaimReward}
+          disabled={Boolean(
+            isClaimingReward || hasClaimedReward || !canClaimReward,
+          )}
+          className="mt-4 w-full border border-green-500 text-green-300 font-semibold py-3 sm:py-4 px-6 rounded-lg hover:bg-green-500/10 transition-all duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+        >
+          {isClaimingReward ? "Claiming..." : rewardLabel}
         </button>
       )}
     </div>

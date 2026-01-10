@@ -2,7 +2,8 @@ import React from "react";
 import { render, screen, waitFor, act } from "@testing-library/react";
 import { usePrivy, useUser, useWallets } from "@privy-io/react-auth";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
-import { useLockManagerClient } from "@/hooks/useLockManagerClient";
+import { useHasValidKey } from "@/hooks/unlock";
+import { useAdminSession } from "@/hooks/useAdminSession";
 import {
   AdminAuthProvider,
   useAdminAuthContext,
@@ -20,8 +21,12 @@ jest.mock("@/hooks/useDetectConnectedWalletAddress", () => ({
   useDetectConnectedWalletAddress: jest.fn(),
 }));
 
-jest.mock("@/hooks/useLockManagerClient", () => ({
-  useLockManagerClient: jest.fn(),
+jest.mock("@/hooks/unlock", () => ({
+  useHasValidKey: jest.fn(),
+}));
+
+jest.mock("@/hooks/useAdminSession", () => ({
+  useAdminSession: jest.fn(),
 }));
 
 // Override the global Privy mock to be more controllable
@@ -54,13 +59,13 @@ const mockUseDetectConnectedWalletAddress =
   useDetectConnectedWalletAddress as jest.MockedFunction<
     typeof useDetectConnectedWalletAddress
   >;
-const mockUseLockManagerClient = useLockManagerClient as jest.MockedFunction<
-  typeof useLockManagerClient
+const mockUseHasValidKey = useHasValidKey as jest.MockedFunction<
+  typeof useHasValidKey
 >;
 const mockUseWallets = useWallets as jest.MockedFunction<typeof useWallets>;
-const mockLockManager = {
-  checkUserHasValidKey: jest.fn(),
-};
+const mockUseAdminSession = useAdminSession as jest.MockedFunction<
+  typeof useAdminSession
+>;
 
 // ================================
 // MOCK FACTORIES
@@ -145,7 +150,8 @@ const setupMocks = (
     user?: Partial<ReturnType<typeof useUser>>;
     wallet?: Partial<ReturnType<typeof useDetectConnectedWalletAddress>>;
     wallets?: Partial<ReturnType<typeof useWallets>>;
-    lockManager?: Partial<typeof mockLockManager>;
+    checkHasValidKey?: jest.Mock;
+    session?: Partial<ReturnType<typeof useAdminSession>>;
     fetch?: jest.Mock;
   } = {},
 ) => {
@@ -164,6 +170,17 @@ const setupMocks = (
 
   const defaultWallet = {
     walletAddress: null,
+  };
+
+  const defaultSession = {
+    hasValidSession: false,
+    isCheckingSession: false,
+    sessionExpiry: null,
+    sessionError: null,
+    checkSession: jest.fn().mockResolvedValue(false),
+    createAdminSession: jest.fn().mockResolvedValue(false),
+    refreshSession: jest.fn().mockResolvedValue(false),
+    clearSession: jest.fn(),
   };
 
   // Set up mocks
@@ -200,12 +217,16 @@ const setupMocks = (
     derivedWallets as ReturnType<typeof useWallets>,
   );
 
-  mockLockManager.checkUserHasValidKey = jest.fn();
-  mockUseLockManagerClient.mockReturnValue(mockLockManager as any);
+  mockUseAdminSession.mockReturnValue({
+    ...defaultSession,
+    ...overrides.session,
+  });
 
-  if (overrides.lockManager) {
-    Object.assign(mockLockManager, overrides.lockManager);
-  }
+  const mockCheckHasValidKey = overrides.checkHasValidKey || jest.fn();
+  mockUseHasValidKey.mockReturnValue({
+    checkHasValidKey: mockCheckHasValidKey,
+    error: null,
+  } as any);
 
   const defaultFetch = jest.fn(async (input: RequestInfo) => {
     const url = typeof input === "string" ? input : input.url;
@@ -227,6 +248,8 @@ const setupMocks = (
   (global.fetch as jest.Mock).mockImplementation(
     overrides.fetch ?? defaultFetch,
   );
+
+  return { mockCheckHasValidKey };
 };
 
 const renderWithProvider = (component: React.ReactNode) => {
@@ -305,9 +328,7 @@ describe("AdminAuthContext", () => {
           }),
         },
         wallet: { walletAddress: "0xuser123" },
-        lockManager: {
-          checkUserHasValidKey: jest.fn().mockResolvedValue({ isValid: false }),
-        },
+        checkHasValidKey: jest.fn().mockResolvedValue({ isValid: false }),
       });
 
       renderWithProvider(<TestConsumer />);
@@ -333,12 +354,10 @@ describe("AdminAuthContext", () => {
           }),
         },
         wallet: { walletAddress: "0xadmin123" },
-        lockManager: {
-          checkUserHasValidKey: jest.fn().mockResolvedValue({
-            isValid: true,
-            expirationTimestamp: BigInt(Number.MAX_SAFE_INTEGER),
-          }),
-        },
+        checkHasValidKey: jest.fn().mockResolvedValue({
+          isValid: true,
+          expirationTimestamp: BigInt(Number.MAX_SAFE_INTEGER),
+        }),
         fetch: jest.fn(async (input: RequestInfo) => {
           const url = typeof input === "string" ? input : input.url;
           if (url.includes("/api/admin/session/verify")) {
@@ -375,11 +394,7 @@ describe("AdminAuthContext", () => {
           }),
         },
         wallet: { walletAddress: "0xuser123" },
-        lockManager: {
-          checkUserHasValidKey: jest
-            .fn()
-            .mockRejectedValue(new Error("RPC Error")),
-        },
+        checkHasValidKey: jest.fn().mockRejectedValue(new Error("RPC Error")),
       });
 
       renderWithProvider(<TestConsumer />);
@@ -476,9 +491,8 @@ describe("AdminAuthContext", () => {
     });
 
     test("provides working action methods", async () => {
-      const mockCheckUserHasValidKey = jest
-        .fn()
-        .mockResolvedValue({ isValid: true });
+      const mockCheck = jest.fn().mockResolvedValue({ isValid: true });
+      const mockRefresh = jest.fn();
 
       setupMocks({
         privy: { ready: true, authenticated: true },
@@ -489,9 +503,29 @@ describe("AdminAuthContext", () => {
           }),
         },
         wallet: { walletAddress: "0xadmin123" },
-        lockManager: {
-          checkUserHasValidKey: mockCheckUserHasValidKey,
-        },
+        checkHasValidKey: mockCheck,
+      });
+
+      // Override session mock to be stateful/reactive using real hooks
+      mockUseAdminSession.mockImplementation(() => {
+        const [isValid, setIsValid] = React.useState(false);
+        const createSession = jest.fn().mockImplementation(async () => {
+          await act(async () => {
+            setIsValid(true);
+          });
+          return true;
+        });
+
+        return {
+          hasValidSession: isValid,
+          isCheckingSession: false,
+          sessionExpiry: null,
+          sessionError: null,
+          checkSession: jest.fn().mockResolvedValue(isValid),
+          createAdminSession: createSession,
+          refreshSession: mockRefresh,
+          clearSession: jest.fn(),
+        } as any;
       });
 
       renderWithProvider(<TestConsumer />);
@@ -507,7 +541,7 @@ describe("AdminAuthContext", () => {
       });
 
       await waitFor(() => {
-        expect(mockCheckUserHasValidKey).toHaveBeenCalledTimes(2); // Initial + refresh
+        expect(mockCheck).toHaveBeenCalledTimes(2); // Initial + refresh
       });
 
       // Test session creation (mock implementation)
@@ -526,9 +560,7 @@ describe("AdminAuthContext", () => {
 
   describe("Performance and Caching", () => {
     test("caches auth results and avoids duplicate calls", async () => {
-      const mockCheckUserHasValidKey = jest
-        .fn()
-        .mockResolvedValue({ isValid: true });
+      const mockCheck = jest.fn().mockResolvedValue({ isValid: true });
 
       setupMocks({
         privy: { ready: true, authenticated: true },
@@ -539,16 +571,14 @@ describe("AdminAuthContext", () => {
           }),
         },
         wallet: { walletAddress: "0xadmin123" },
-        lockManager: {
-          checkUserHasValidKey: mockCheckUserHasValidKey,
-        },
+        checkHasValidKey: mockCheck,
       });
 
       const { rerender } = renderWithProvider(<TestConsumer />);
 
       // Wait for initial call
       await waitFor(() => {
-        expect(mockCheckUserHasValidKey).toHaveBeenCalledTimes(1);
+        expect(mockCheck).toHaveBeenCalledTimes(1);
       });
 
       // Re-render should not trigger new call due to caching
@@ -559,13 +589,11 @@ describe("AdminAuthContext", () => {
       );
 
       // Should still be just 1 call due to cache (within 10 second window)
-      expect(mockCheckUserHasValidKey).toHaveBeenCalledTimes(1);
+      expect(mockCheck).toHaveBeenCalledTimes(1);
     });
 
     test("forces refresh bypasses cache", async () => {
-      const mockCheckUserHasValidKey = jest
-        .fn()
-        .mockResolvedValue({ isValid: true });
+      const mockCheck = jest.fn().mockResolvedValue({ isValid: true });
 
       setupMocks({
         privy: { ready: true, authenticated: true },
@@ -576,16 +604,14 @@ describe("AdminAuthContext", () => {
           }),
         },
         wallet: { walletAddress: "0xadmin123" },
-        lockManager: {
-          checkUserHasValidKey: mockCheckUserHasValidKey,
-        },
+        checkHasValidKey: mockCheck,
       });
 
       renderWithProvider(<TestConsumer />);
 
       // Wait for initial call
       await waitFor(() => {
-        expect(mockCheckUserHasValidKey).toHaveBeenCalledTimes(1);
+        expect(mockCheck).toHaveBeenCalledTimes(1);
       });
 
       // Force refresh should trigger new call
@@ -594,7 +620,7 @@ describe("AdminAuthContext", () => {
       });
 
       await waitFor(() => {
-        expect(mockCheckUserHasValidKey).toHaveBeenCalledTimes(2);
+        expect(mockCheck).toHaveBeenCalledTimes(2);
       });
     });
   });
@@ -648,11 +674,9 @@ describe("AdminAuthContext", () => {
           }),
         },
         wallet: { walletAddress: "0xuser123" },
-        lockManager: {
-          checkUserHasValidKey: jest
-            .fn()
-            .mockRejectedValue(new Error("Network error")),
-        },
+        checkHasValidKey: jest
+          .fn()
+          .mockRejectedValue(new Error("Network error")),
       });
 
       renderWithProvider(<TestConsumer />);
@@ -664,16 +688,16 @@ describe("AdminAuthContext", () => {
         expect(screen.getByTestId("is-admin")).toHaveTextContent("false");
       });
     });
+  });
 
-    test("handles component unmount without memory leaks", () => {
-      setupMocks({
-        privy: { ready: true, authenticated: true },
-      });
-
-      const { unmount } = renderWithProvider(<TestConsumer />);
-
-      // Should unmount without errors
-      expect(() => unmount()).not.toThrow();
+  test("handles component unmount without memory leaks", () => {
+    setupMocks({
+      privy: { ready: true, authenticated: true },
     });
+
+    const { unmount } = renderWithProvider(<TestConsumer />);
+
+    // Should unmount without errors
+    expect(() => unmount()).not.toThrow();
   });
 });

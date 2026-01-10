@@ -4,6 +4,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Mail,
   Wallet,
   Share2,
@@ -15,7 +22,12 @@ import {
   Sparkles,
   GripVertical,
   Trash2,
+  Coins,
+  Flame,
+  ArrowUpCircle,
 } from "lucide-react";
+import { useDGMarket } from "@/hooks/vendor/useDGMarket";
+import { getStageOptions } from "@/lib/blockchain/shared/vendor-constants";
 import type {
   QuestTask,
   TaskType,
@@ -93,6 +105,31 @@ const taskTypeOptions: {
     icon: <Sparkles className="w-4 h-4" />,
     description: "Custom verification logic",
   },
+  // Vendor Task Types
+  {
+    value: "vendor_buy",
+    label: "Buy DG Tokens",
+    icon: <Coins className="w-4 h-4" />,
+    description: "User must buy DG tokens from vendor",
+  },
+  {
+    value: "vendor_sell",
+    label: "Sell DG Tokens",
+    icon: <Coins className="w-4 h-4" />,
+    description: "User must sell DG tokens to vendor",
+  },
+  {
+    value: "vendor_light_up",
+    label: "Light Up",
+    icon: <Flame className="w-4 h-4" />,
+    description: "User must execute Light Up action",
+  },
+  {
+    value: "vendor_level_up",
+    label: "Level Up / Upgrade Stage",
+    icon: <ArrowUpCircle className="w-4 h-4" />,
+    description: "User must reach a specific vendor stage",
+  },
 ];
 
 const validationOptions: { value: InputValidationType; label: string }[] = [
@@ -115,6 +152,7 @@ export default function QuestTaskForm({
 }: QuestTaskFormProps) {
   const [localTask, setLocalTask] = useState(task);
   const [showInputConfig, setShowInputConfig] = useState(false);
+  const { minBuyAmount, minSellAmount } = useDGMarket();
 
   useEffect(() => {
     // Show input config for task types that typically require input
@@ -144,14 +182,26 @@ export default function QuestTaskForm({
       "complete_external",
       "custom",
     ];
+    const vendorTaskTypes: TaskType[] = [
+      "vendor_buy",
+      "vendor_sell",
+      "vendor_light_up",
+      "vendor_level_up",
+    ];
+
     const requiresInput = inputTaskTypes.includes(taskType);
+    const isVendorTask = vendorTaskTypes.includes(taskType);
 
     const updated = {
       ...localTask,
       task_type: taskType,
       input_required: requiresInput,
-      requires_admin_review: requiresInput,
-      verification_method: requiresInput ? "manual_review" : "automatic",
+      requires_admin_review: requiresInput && !isVendorTask,
+      verification_method: isVendorTask
+        ? "blockchain"
+        : requiresInput
+          ? "manual_review"
+          : "automatic",
     };
 
     // Set default input config based on task type
@@ -172,6 +222,15 @@ export default function QuestTaskForm({
   const selectedTaskType = taskTypeOptions.find(
     (t) => t.value === localTask.task_type,
   );
+
+  const isVendorBuy = localTask.task_type === "vendor_buy";
+  const isVendorSell = localTask.task_type === "vendor_sell";
+  const isVendorLevelUp = localTask.task_type === "vendor_level_up";
+  const vendorConfig = (localTask.task_config as Record<string, unknown>) || {};
+
+  const updateTaskConfig = (updates: Record<string, unknown>) => {
+    handleChange("task_config", { ...vendorConfig, ...updates });
+  };
 
   return (
     <div className="bg-gray-900/50 border border-gray-700 rounded-lg p-6 space-y-4">
@@ -302,6 +361,129 @@ export default function QuestTaskForm({
           rows={3}
         />
       </div>
+
+      {(isVendorBuy || isVendorSell || isVendorLevelUp) && (
+        <div className="border border-gray-700 rounded-lg p-4 space-y-4 bg-gray-800/50">
+          <h4 className="font-semibold text-white flex items-center gap-2">
+            <Coins className="w-4 h-4" />
+            Vendor Task Config
+          </h4>
+
+          {(isVendorBuy || isVendorSell) && (
+            <>
+              <div className="space-y-2">
+                <Label
+                  htmlFor={`required-amount-${index}`}
+                  className="text-white"
+                >
+                  Minimum Required Amount ({isVendorBuy ? "UP" : "DG"})
+                </Label>
+                <Input
+                  id={`required-amount-${index}`}
+                  type="number"
+                  min={0}
+                  step="0.000000000000000001"
+                  value={
+                    vendorConfig.required_amount &&
+                    typeof vendorConfig.required_amount === "string"
+                      ? (
+                          BigInt(vendorConfig.required_amount) /
+                          BigInt(10 ** 18)
+                        ).toString() +
+                        (BigInt(vendorConfig.required_amount) %
+                          BigInt(10 ** 18) >
+                        0
+                          ? "." +
+                            (
+                              BigInt(vendorConfig.required_amount) %
+                              BigInt(10 ** 18)
+                            )
+                              .toString()
+                              .padStart(18, "0")
+                              .replace(/0+$/, "")
+                          : "")
+                      : ""
+                  }
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === "" || value === "0") {
+                      // 0 or empty means any amount
+                      updateTaskConfig({
+                        required_amount: "0",
+                        required_token: isVendorSell ? "swap" : "base",
+                      });
+                    } else {
+                      // Convert to wei (multiply by 10^18)
+                      const [whole, decimal] = value.split(".");
+                      const wholeBigInt =
+                        BigInt(whole || "0") * BigInt(10 ** 18);
+                      const decimalBigInt = decimal
+                        ? BigInt(decimal.padEnd(18, "0").slice(0, 18))
+                        : BigInt(0);
+                      const weiAmount = (
+                        wholeBigInt + decimalBigInt
+                      ).toString();
+                      updateTaskConfig({
+                        required_amount: weiAmount,
+                        required_token: isVendorSell ? "swap" : "base",
+                      });
+                    }
+                  }}
+                  placeholder="0 for any amount"
+                  className="bg-transparent border-gray-700 text-gray-100"
+                />
+                <p className="text-xs text-gray-400">
+                  {isVendorBuy
+                    ? `Contract minimum: ${minBuyAmount ? (BigInt(minBuyAmount.toString()) / BigInt(10 ** 18)).toString() : "unavailable"} UP`
+                    : `Contract minimum: ${minSellAmount ? (BigInt(minSellAmount.toString()) / BigInt(10 ** 18)).toString() : "unavailable"} DG`}
+                </p>
+                <p className="text-xs text-gray-400">
+                  Enter 0 or leave blank for any amount. User must{" "}
+                  {isVendorBuy ? "spend" : "sell"} at least this amount to
+                  complete the task.
+                </p>
+              </div>
+            </>
+          )}
+
+          {isVendorLevelUp && (
+            <div className="space-y-2">
+              <Label htmlFor={`target-stage-${index}`} className="text-white">
+                Target Stage
+              </Label>
+              <Select
+                value={
+                  typeof vendorConfig.target_stage === "number"
+                    ? vendorConfig.target_stage.toString()
+                    : "1"
+                }
+                onValueChange={(value) =>
+                  updateTaskConfig({
+                    target_stage: parseInt(value, 10),
+                  })
+                }
+              >
+                <SelectTrigger className="bg-transparent border-gray-700 text-gray-100">
+                  <SelectValue placeholder="Select stage" />
+                </SelectTrigger>
+                <SelectContent>
+                  {getStageOptions().map((option) => (
+                    <SelectItem
+                      key={option.value}
+                      value={option.value.toString()}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400">
+                User must reach this vendor stage to complete the task.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Input Configuration */}
       {showInputConfig && (

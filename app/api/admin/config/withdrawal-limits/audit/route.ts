@@ -7,21 +7,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
-import { getPrivyUserFromNextRequest } from '@/lib/auth/privy';
+import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('api:admin:config:withdrawal-limits:audit');
 
 export async function GET(req: NextRequest) {
   try {
-    // Authenticate admin user
-    const user = await getPrivyUserFromNextRequest(req);
-    if (!user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
+    const guard = await ensureAdminOrRespond(req);
+    if (guard) return guard;
 
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '20');

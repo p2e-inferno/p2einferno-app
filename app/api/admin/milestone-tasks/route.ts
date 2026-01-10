@@ -11,9 +11,9 @@ const log = getLogger('api:milestone-tasks');
 function invalidateForTask(task: any) {
   try {
     if (!task) return;
-    if (task.id) revalidateTag(ADMIN_CACHE_TAGS.task(String(task.id)));
-    if (task.milestone_id) revalidateTag(ADMIN_CACHE_TAGS.milestone(String(task.milestone_id)));
-    if (task.id) revalidateTag(ADMIN_CACHE_TAGS.submissions(String(task.id)));
+    if (task.id) revalidateTag(ADMIN_CACHE_TAGS.task(String(task.id)), 'default');
+    if (task.milestone_id) revalidateTag(ADMIN_CACHE_TAGS.milestone(String(task.milestone_id)), 'default');
+    if (task.id) revalidateTag(ADMIN_CACHE_TAGS.submissions(String(task.id)), 'default');
   } catch (err) {
     // revalidateTag is best-effort; log and continue
     log.warn('revalidateTag failed', { err });
@@ -33,16 +33,16 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from('milestone_tasks').insert(items).select('*');
     if (error) {
       log.error('insert milestone_tasks failed', { error });
-      
+
       // Provide more specific error messages
       if (error.code === '23505') {
-        return NextResponse.json({ 
-          error: 'Duplicate task ID detected. Please refresh and try again.' 
+        return NextResponse.json({
+          error: 'Duplicate task ID detected. Please refresh and try again.'
         }, { status: 400 });
       }
-      
-      return NextResponse.json({ 
-        error: 'Failed to create tasks: ' + error.message 
+
+      return NextResponse.json({
+        error: 'Failed to create tasks: ' + error.message
       }, { status: 400 });
     }
     (data || []).forEach(invalidateForTask);

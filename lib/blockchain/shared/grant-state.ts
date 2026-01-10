@@ -5,6 +5,8 @@ const log = getLogger("grant-state");
 export interface DeploymentResultLike {
   grantFailed?: boolean;
   grantError?: string;
+  configFailed?: boolean;
+  configError?: string;
 }
 
 export interface EffectiveGrantInput {
@@ -28,21 +30,33 @@ export function applyDeploymentOutcome(result: DeploymentResultLike): {
   lastGrantFailed: boolean;
   lastGrantError?: string;
 } {
-  const failed = result.grantFailed === true;
-  const reason = failed
-    ? result.grantError || "Grant manager transaction failed"
-    : undefined;
-  const granted = !failed;
+  const grantFailed = result.grantFailed === true;
+  const configFailed = result.configFailed === true;
+
+  // Build comprehensive reason if either failed
+  let reason: string | undefined;
+  if (grantFailed && configFailed) {
+    reason = `Grant manager failed: ${result.grantError || "unknown"}. Config update failed: ${result.configError || "unknown"}`;
+  } else if (grantFailed) {
+    reason = result.grantError || "Grant manager transaction failed";
+  } else if (configFailed) {
+    reason = `Lock deployed but config update failed: ${result.configError || "unknown"}. Please manually set maxKeysPerAddress to 0.`;
+  }
+
+  const granted = !grantFailed;
+
   try {
     log.debug("applyDeploymentOutcome", {
-      failed,
+      grantFailed,
+      configFailed,
       reasonPresent: Boolean(reason),
     });
   } catch {}
+
   return {
     granted,
     reason,
-    lastGrantFailed: failed,
+    lastGrantFailed: grantFailed,
     lastGrantError: result.grantError,
   };
 }
@@ -72,4 +86,43 @@ export function effectiveGrantForSave(input: EffectiveGrantInput): {
   }
   // No lock => default to false
   return { granted: false, reason: undefined };
+}
+
+export interface EffectiveMaxKeysInput {
+  outcome?: { lastConfigFailed?: boolean; lastConfigError?: string };
+  lockAddress?: string | null;
+  currentSecured?: boolean;
+  currentReason?: string | undefined | null;
+}
+
+/**
+ * Determine effective max_keys_secured state based on deployment outcome
+ * Follows same pattern as effectiveGrantForSave for lock_manager_granted
+ */
+export function effectiveMaxKeysForSave(input: EffectiveMaxKeysInput): {
+  secured: boolean;
+  reason?: string;
+} {
+  const hasOutcome = typeof input.outcome?.lastConfigFailed === "boolean";
+  if (hasOutcome) {
+    const secured = !input.outcome!.lastConfigFailed!;
+    return {
+      secured,
+      reason: secured
+        ? undefined
+        : input.outcome!.lastConfigError ||
+          "Lock config update failed - maxKeysPerAddress not set to 0",
+    };
+  }
+  // Fall back to current state if we have a lock address
+  if (input.lockAddress) {
+    return {
+      secured: Boolean(input.currentSecured),
+      reason: input.currentSecured
+        ? undefined
+        : input.currentReason || undefined,
+    };
+  }
+  // No lock => default to false
+  return { secured: false, reason: undefined };
 }

@@ -6,16 +6,20 @@
  * for withdrawals and gas fees.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createPublicClientUnified } from '@/lib/blockchain/config/clients/public-client';
 import { getTokenBalance } from '@/lib/token-withdrawal/functions/dg-transfer-service';
 import { privateKeyToAccount } from 'viem/accounts';
+import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('api:admin:wallet-balance');
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const guard = await ensureAdminOrRespond(req);
+    if (guard) return guard;
+
     const publicClient = createPublicClientUnified();
     const tokenAddress = process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET as `0x${string}`;
     const privateKey = process.env.LOCK_MANAGER_PRIVATE_KEY as `0x${string}`;

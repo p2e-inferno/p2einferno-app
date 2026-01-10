@@ -61,6 +61,7 @@ export interface AdminLockDeploymentParams {
   tokenAddress: Address; // Use Address(0) for ETH
   keyPrice: bigint;
   maxNumberOfKeys: bigint;
+  maxKeysPerAddress?: bigint; // Set to 0 for grant-based locks (milestones, quests, bootcamps)
   lockVersion?: number; // defaults to latest
   isAdmin: boolean; // Must be true to proceed
 }
@@ -69,11 +70,14 @@ export interface AdminLockDeploymentResult {
   success: boolean;
   transactionHash?: string;
   grantTransactionHash?: string;
+  configTransactionHash?: string; // Transaction hash for updateLockConfig call
   lockAddress?: Address;
   serverWalletAddress?: string; // Server wallet added as manager
   error?: string;
   grantFailed?: boolean; // True if lock deployed but grant manager failed
   grantError?: string; // Error message from grant manager failure
+  configFailed?: boolean; // True if lock deployed but config update failed
+  configError?: string; // Error message from config update failure
 }
 
 // Key Grant Types
@@ -95,4 +99,75 @@ export interface OperationState {
   isLoading: boolean;
   error: string | null;
   isSuccess: boolean;
+}
+
+// ============================================================================
+// RENEWAL & REFUND TYPES
+// ============================================================================
+
+// Paid key extension
+export interface ExtendKeyParams {
+  lockAddress: Address;
+  value: bigint;
+  tokenId: bigint;
+  referrer?: Address;
+  data?: `0x${string}`;
+}
+
+export interface ExtendKeyResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+}
+
+// Free key extension (lock manager only)
+export interface GrantKeyExtensionParams {
+  lockAddress: Address;
+  tokenId: bigint;
+  duration: bigint;
+}
+
+export interface GrantKeyExtensionResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+}
+
+// Membership renewal
+export interface RenewMembershipParams {
+  lockAddress: Address;
+  tokenId: bigint;
+  referrer?: Address;
+}
+
+export interface RenewMembershipResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+}
+
+// Refund policy configuration (lock manager only)
+export interface UpdateRefundPenaltyParams {
+  lockAddress: Address;
+  freeTrialLength: bigint;
+  refundPenaltyBasisPoints: bigint;
+}
+
+export interface UpdateRefundPenaltyResult {
+  success: boolean;
+  transactionHash?: string;
+  error?: string;
+}
+
+// Key cancellation with refund
+export interface CancelAndRefundParams {
+  lockAddress: Address;
+  tokenId: bigint;
+}
+
+export interface CancelAndRefundResult {
+  success: boolean;
+  transactionHash?: string;
+  refundAmount?: bigint;
+  error?: string;
 }

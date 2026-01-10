@@ -1,49 +1,18 @@
-export interface UserTaskCompletion {
-  id: string;
-  user_id: string;
-  quest_id: string;
-  task_id: string;
-  verification_data: any;
-  reward_claimed: boolean;
-  completed_at: string;
-}
+import type {
+  Quest as SupabaseQuest,
+  QuestTask as SupabaseQuestTask,
+  UserQuestProgress as SupabaseUserQuestProgress,
+  UserTaskCompletion as SupabaseUserTaskCompletion,
+} from "@/lib/supabase/types";
 
-export interface Quest {
-  id: string;
-  title: string;
-  description: string;
-  image_url?: string;
-  total_reward: number;
-  is_active: boolean;
-  created_at: string;
-  quest_tasks: QuestTask[];
-}
-
-export interface QuestTask {
-  id: string;
-  quest_id: string;
-  title: string;
-  description: string;
-  task_type: "link_email" | "link_wallet" | "link_farcaster" | "sign_tos";
-  verification_method: string;
-  reward_amount: number;
-  order_index: number;
-}
-
-export interface UserQuestProgress {
-  id: string;
-  user_id: string;
-  quest_id: string;
-  tasks_completed: number;
-  is_completed: boolean;
-  reward_claimed: boolean;
-  created_at: string;
-  updated_at: string;
-}
+export type Quest = SupabaseQuest;
+export type QuestTask = SupabaseQuestTask;
+export type UserQuestProgress = SupabaseUserQuestProgress;
+export type UserTaskCompletion = SupabaseUserTaskCompletion;
 
 export interface TaskWithCompletion {
   task: QuestTask;
-  completion: any;
+  completion?: UserTaskCompletion;
   isCompleted: boolean;
   canClaim: boolean;
 }
@@ -57,11 +26,16 @@ export interface QuestCardProps {
 
 export interface QuestHeaderProps {
   quest: Quest;
-  progress: number;
-  isCompleted: boolean;
-  tasksCompleted: number;
-  totalTasks: number;
+  progressPercentage: number;
+  isQuestCompleted: boolean;
+  isQuestStarted: boolean;
+  tasksCompletedCount: number;
+  totalTasksCount: number;
+  onStartQuest?: () => void;
+  isLoadingStartQuest?: boolean;
+  canStartQuest?: boolean;
   canClaimReward?: boolean;
+  hasClaimedReward?: boolean;
   onClaimReward?: () => void;
   isClaimingReward?: boolean;
 }

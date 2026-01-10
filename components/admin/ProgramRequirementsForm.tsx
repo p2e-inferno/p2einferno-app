@@ -4,8 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Plus, Trash2 } from "lucide-react";
 import type { ProgramRequirement } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
-import { usePrivy } from "@privy-io/react-auth";
-import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { useAdminApi } from "@/hooks/useAdminApi";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:ProgramRequirementsForm");
@@ -34,8 +33,7 @@ export default function ProgramRequirementsForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { getAccessToken } = usePrivy();
-  const selectedWallet = useSmartWalletSelection() as any;
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
 
   useEffect(() => {
     fetchExistingRequirements();
@@ -44,24 +42,25 @@ export default function ProgramRequirementsForm({
   const fetchExistingRequirements = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(
+      const result = await adminFetch<{ data?: ProgramRequirement[] }>(
         `/api/admin/program-requirements?cohortId=${cohortId}`,
       );
 
-      if (response.ok) {
-        const result = await response.json();
-        if (result.data && result.data.length > 0) {
-          setExistingRequirements(result.data);
-          // Populate form with existing requirements
-          const formRequirements = result.data.map(
-            (requirement: ProgramRequirement) => ({
-              id: requirement.id,
-              content: requirement.content,
-              order_index: requirement.order_index,
-            }),
-          );
-          setRequirements(formRequirements);
-        }
+      if (result.error) {
+        throw new Error(result.error);
+      }
+
+      if (result.data?.data && result.data.data.length > 0) {
+        setExistingRequirements(result.data.data);
+        // Populate form with existing requirements
+        const formRequirements = result.data.data.map(
+          (requirement: ProgramRequirement) => ({
+            id: requirement.id,
+            content: requirement.content,
+            order_index: requirement.order_index,
+          }),
+        );
+        setRequirements(formRequirements);
       }
     } catch (err: any) {
       log.error("Error fetching requirements:", err);
@@ -112,10 +111,6 @@ export default function ProgramRequirementsForm({
         throw new Error("At least one requirement is required");
       }
 
-      // Get Privy access token for authorization header
-      const token = await getAccessToken();
-      if (!token) throw new Error("Authentication required");
-
       const now = new Date().toISOString();
 
       // Prepare requirements data
@@ -130,19 +125,16 @@ export default function ProgramRequirementsForm({
         updated_at: now,
       }));
 
-      const response = await fetch("/api/admin/program-requirements", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-          "X-Active-Wallet": selectedWallet?.address || "",
+      const result = await adminFetch<{ success?: boolean; error?: string }>(
+        "/api/admin/program-requirements",
+        {
+          method: "POST",
+          body: JSON.stringify({ requirements: requirementsData, cohortId }),
         },
-        body: JSON.stringify({ requirements: requirementsData, cohortId }),
-      });
+      );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || "Failed to save requirements");
+      if (result.error) {
+        throw new Error(result.error || "Failed to save requirements");
       }
 
       // Call success handler

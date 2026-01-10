@@ -8,7 +8,6 @@
 
 import { useState, useEffect } from 'react';
 import { useDGNationKey } from './useDGNationKey';
-import { useWithdrawalLimits } from './useWithdrawalLimits';
 
 export interface WithdrawalAccessInfo {
   canWithdraw: boolean;
@@ -17,13 +16,20 @@ export interface WithdrawalAccessInfo {
   isLoading: boolean;
 }
 
+export interface WithdrawalAccessOptions {
+  minAmount?: number;
+  isLoadingLimits?: boolean;
+}
+
 /**
  * Hook to determine if user can withdraw DG tokens
  * Combines DG Nation NFT check + XP balance check
+ * @param options.minAmount - Minimum withdrawal amount (defaults to 3000)
+ * @param options.isLoadingLimits - Whether limits are still loading
  */
-export function useWithdrawalAccess() {
+export function useWithdrawalAccess(options: WithdrawalAccessOptions = {}) {
+  const { minAmount = 3000, isLoadingLimits = false } = options;
   const { hasValidKey, isLoading: isLoadingKey, error: keyError } = useDGNationKey();
-  const { minAmount, isLoading: isLoadingLimits } = useWithdrawalLimits();
   const [accessInfo, setAccessInfo] = useState<WithdrawalAccessInfo>({
     canWithdraw: false,
     reason: null,

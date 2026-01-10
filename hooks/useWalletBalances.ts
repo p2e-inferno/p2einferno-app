@@ -7,9 +7,37 @@ import {
   ERC20_ABI,
 } from "@/lib/blockchain/legacy/frontend-config";
 import { createPublicClientUnified } from "@/lib/blockchain/config";
+import { createPublicClient, http } from "viem";
+import { base } from "viem/chains";
 import type { Address } from "viem";
 
 const log = getLogger("hooks:useWalletBalances");
+
+// Smart number formatting for token balances
+function formatTokenBalance(balance: string, decimals: number): string {
+  const num = parseFloat(ethers.formatUnits(balance, decimals));
+
+  // Small numbers (< 10,000): Show full precision with thousand separators
+  if (num < 10000) {
+    return num.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
+  // Large numbers: Abbreviate with K/M/B
+  if (num >= 1_000_000_000) {
+    return (num / 1_000_000_000).toFixed(2) + "B";
+  }
+  if (num >= 1_000_000) {
+    return (num / 1_000_000).toFixed(2) + "M";
+  }
+  if (num >= 10_000) {
+    return (num / 1_000).toFixed(2) + "K";
+  }
+
+  return num.toFixed(2);
+}
 
 export interface WalletBalance {
   eth: {
@@ -20,6 +48,20 @@ export interface WalletBalance {
   usdc: {
     balance: string;
     formatted: string;
+    loading: boolean;
+    symbol: string;
+  };
+  dg: {
+    balance: string;
+    formatted: string;
+    fullFormatted: string; // For tooltip
+    loading: boolean;
+    symbol: string;
+  };
+  up: {
+    balance: string;
+    formatted: string;
+    fullFormatted: string; // For tooltip
     loading: boolean;
     symbol: string;
   };
@@ -36,6 +78,8 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
   const [balances, setBalances] = useState<WalletBalance>({
     eth: { balance: "0", formatted: "0.0000", loading: true },
     usdc: { balance: "0", formatted: "0.00", loading: true, symbol: "USDC" },
+    dg: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: true, symbol: "DG" },
+    up: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: true, symbol: "UP" },
   });
   const [error, setError] = useState<string | null>(null);
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
@@ -47,12 +91,9 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
       setConnectedAddress(null);
       setBalances({
         eth: { balance: "0", formatted: "0.0000", loading: false },
-        usdc: {
-          balance: "0",
-          formatted: "0.00",
-          loading: false,
-          symbol: "USDC",
-        },
+        usdc: { balance: "0", formatted: "0.00", loading: false, symbol: "USDC" },
+        dg: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: false, symbol: "DG" },
+        up: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: false, symbol: "UP" },
       });
       return;
     }
@@ -109,12 +150,9 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
     if (!enabled || !walletAddress) {
       setBalances({
         eth: { balance: "0", formatted: "0.0000", loading: false },
-        usdc: {
-          balance: "0",
-          formatted: "0.00",
-          loading: false,
-          symbol: "USDC",
-        },
+        usdc: { balance: "0", formatted: "0.00", loading: false, symbol: "USDC" },
+        dg: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: false, symbol: "DG" },
+        up: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: false, symbol: "UP" },
       });
       return;
     }
@@ -123,41 +161,101 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
       try {
         setError(null);
 
-        // Use the unified read-only provider singleton
+        // Use the unified read-only provider singleton for current network
         const client = createPublicClientUnified();
 
-        const ethBalance = await client.getBalance({
-          address: walletAddress as Address,
+        // Create dedicated Base mainnet client for DG and UP tokens
+        const baseClient = createPublicClient({
+          chain: base,
+          transport: http(),
         });
 
-        let usdcBalance = 0n;
-        let usdcSymbol = "USDC";
+        const dgTokenAddress = process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET as Address;
+        const upTokenAddress = process.env.NEXT_PUBLIC_UP_TOKEN_ADDRESS_BASE_MAINNET as Address;
 
-        // Fetch USDC balance
-        try {
-          usdcBalance = (await client.readContract({
-            address: CURRENT_NETWORK.usdcAddress as Address,
-            abi: ERC20_ABI,
-            functionName: "balanceOf",
-            args: [walletAddress as Address],
-          })) as bigint;
+        // Fetch all balances in parallel
+        const [ethBalance, usdcData, dgData, upData] = await Promise.all([
+          client.getBalance({ address: walletAddress as Address }),
 
-          const symbol = await client.readContract({
-            address: CURRENT_NETWORK.usdcAddress as Address,
-            abi: ERC20_ABI,
-            functionName: "symbol",
-          });
+          // USDC on current network
+          (async () => {
+            try {
+              const [balance, symbol] = await Promise.all([
+                client.readContract({
+                  address: CURRENT_NETWORK.usdcAddress as Address,
+                  abi: ERC20_ABI,
+                  functionName: "balanceOf",
+                  args: [walletAddress as Address],
+                }) as Promise<bigint>,
+                client.readContract({
+                  address: CURRENT_NETWORK.usdcAddress as Address,
+                  abi: ERC20_ABI,
+                  functionName: "symbol",
+                }) as Promise<string>,
+              ]);
+              return { balance, symbol: typeof symbol === "string" ? symbol : "USDC" };
+            } catch (error) {
+              log.warn("Error fetching USDC balance:", { error });
+              return { balance: 0n, symbol: "USDC" };
+            }
+          })(),
 
-          if (typeof symbol === "string") {
-            usdcSymbol = symbol;
-          }
-        } catch (usdcError) {
-          log.warn("Error fetching USDC balance:", { error: usdcError });
-        }
+          // DG on Base mainnet
+          (async () => {
+            if (!dgTokenAddress) {
+              return { balance: 0n, symbol: "DG" };
+            }
+            try {
+              const [balance, symbol] = await Promise.all([
+                baseClient.readContract({
+                  address: dgTokenAddress,
+                  abi: ERC20_ABI,
+                  functionName: "balanceOf",
+                  args: [walletAddress as Address],
+                }) as Promise<bigint>,
+                baseClient.readContract({
+                  address: dgTokenAddress,
+                  abi: ERC20_ABI,
+                  functionName: "symbol",
+                }) as Promise<string>,
+              ]);
+              return { balance, symbol: typeof symbol === "string" ? symbol : "DG" };
+            } catch (error) {
+              log.warn("Error fetching DG balance:", { error });
+              return { balance: 0n, symbol: "DG" };
+            }
+          })(),
 
-        // Format balances using ethers
+          // UP on Base mainnet
+          (async () => {
+            if (!upTokenAddress) {
+              return { balance: 0n, symbol: "UP" };
+            }
+            try {
+              const [balance, symbol] = await Promise.all([
+                baseClient.readContract({
+                  address: upTokenAddress,
+                  abi: ERC20_ABI,
+                  functionName: "balanceOf",
+                  args: [walletAddress as Address],
+                }) as Promise<bigint>,
+                baseClient.readContract({
+                  address: upTokenAddress,
+                  abi: ERC20_ABI,
+                  functionName: "symbol",
+                }) as Promise<string>,
+              ]);
+              return { balance, symbol: typeof symbol === "string" ? symbol : "UP" };
+            } catch (error) {
+              log.warn("Error fetching UP balance:", { error });
+              return { balance: 0n, symbol: "UP" };
+            }
+          })(),
+        ]);
+
+        // Format balances
         const ethFormatted = ethers.formatEther(ethBalance);
-        const usdcFormatted = ethers.formatUnits(usdcBalance, 6); // USDC has 6 decimals
+        const usdcFormatted = ethers.formatUnits(usdcData.balance, 6); // USDC has 6 decimals
 
         setBalances({
           eth: {
@@ -166,10 +264,30 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
             loading: false,
           },
           usdc: {
-            balance: usdcBalance.toString(),
+            balance: usdcData.balance.toString(),
             formatted: parseFloat(usdcFormatted).toFixed(2),
             loading: false,
-            symbol: usdcSymbol,
+            symbol: usdcData.symbol,
+          },
+          dg: {
+            balance: dgData.balance.toString(),
+            formatted: formatTokenBalance(dgData.balance.toString(), 18),
+            fullFormatted: parseFloat(ethers.formatUnits(dgData.balance, 18)).toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+            loading: false,
+            symbol: dgData.symbol,
+          },
+          up: {
+            balance: upData.balance.toString(),
+            formatted: formatTokenBalance(upData.balance.toString(), 18),
+            fullFormatted: parseFloat(ethers.formatUnits(upData.balance, 18)).toLocaleString("en-US", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            }),
+            loading: false,
+            symbol: upData.symbol,
           },
         });
       } catch (err) {
@@ -177,12 +295,9 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
         setError("Failed to fetch balances");
         setBalances({
           eth: { balance: "0", formatted: "0.0000", loading: false },
-          usdc: {
-            balance: "0",
-            formatted: "0.00",
-            loading: false,
-            symbol: "USDC",
-          },
+          usdc: { balance: "0", formatted: "0.00", loading: false, symbol: "USDC" },
+          dg: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: false, symbol: "DG" },
+          up: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: false, symbol: "UP" },
         });
       }
     };
@@ -200,42 +315,95 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
     setBalances((prev) => ({
       eth: { ...prev.eth, loading: true },
       usdc: { ...prev.usdc, loading: true },
+      dg: { ...prev.dg, loading: true },
+      up: { ...prev.up, loading: true },
     }));
 
-    // Trigger a fresh balance fetch
+    // Trigger a fresh balance fetch (reuse the same logic as fetchBalances)
     try {
       const client = createPublicClientUnified();
-
-      const ethBalance = await client.getBalance({
-        address: walletAddress as Address,
+      const baseClient = createPublicClient({
+        chain: base,
+        transport: http(),
       });
-      let usdcBalance = 0n;
-      let usdcSymbol = "USDC";
 
-      try {
-        const [balance, symbol] = await Promise.all([
-          client.readContract({
-            address: CURRENT_NETWORK.usdcAddress as Address,
-            abi: ERC20_ABI,
-            functionName: "balanceOf",
-            args: [walletAddress as Address],
-          }) as Promise<bigint>,
-          client.readContract({
-            address: CURRENT_NETWORK.usdcAddress as Address,
-            abi: ERC20_ABI,
-            functionName: "symbol",
-          }) as Promise<string>,
-        ]);
-        usdcBalance = balance;
-        usdcSymbol = symbol;
-      } catch (usdcError) {
-        log.warn("Error fetching USDC balance during refresh:", {
-          error: usdcError,
-        });
-      }
+      const dgTokenAddress = process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET as Address;
+      const upTokenAddress = process.env.NEXT_PUBLIC_UP_TOKEN_ADDRESS_BASE_MAINNET as Address;
+
+      const [ethBalance, usdcData, dgData, upData] = await Promise.all([
+        client.getBalance({ address: walletAddress as Address }),
+
+        (async () => {
+          try {
+            const [balance, symbol] = await Promise.all([
+              client.readContract({
+                address: CURRENT_NETWORK.usdcAddress as Address,
+                abi: ERC20_ABI,
+                functionName: "balanceOf",
+                args: [walletAddress as Address],
+              }) as Promise<bigint>,
+              client.readContract({
+                address: CURRENT_NETWORK.usdcAddress as Address,
+                abi: ERC20_ABI,
+                functionName: "symbol",
+              }) as Promise<string>,
+            ]);
+            return { balance, symbol: typeof symbol === "string" ? symbol : "USDC" };
+          } catch (error) {
+            log.warn("Error fetching USDC balance during refresh:", { error });
+            return { balance: 0n, symbol: "USDC" };
+          }
+        })(),
+
+        (async () => {
+          if (!dgTokenAddress) return { balance: 0n, symbol: "DG" };
+          try {
+            const [balance, symbol] = await Promise.all([
+              baseClient.readContract({
+                address: dgTokenAddress,
+                abi: ERC20_ABI,
+                functionName: "balanceOf",
+                args: [walletAddress as Address],
+              }) as Promise<bigint>,
+              baseClient.readContract({
+                address: dgTokenAddress,
+                abi: ERC20_ABI,
+                functionName: "symbol",
+              }) as Promise<string>,
+            ]);
+            return { balance, symbol: typeof symbol === "string" ? symbol : "DG" };
+          } catch (error) {
+            log.warn("Error fetching DG balance during refresh:", { error });
+            return { balance: 0n, symbol: "DG" };
+          }
+        })(),
+
+        (async () => {
+          if (!upTokenAddress) return { balance: 0n, symbol: "UP" };
+          try {
+            const [balance, symbol] = await Promise.all([
+              baseClient.readContract({
+                address: upTokenAddress,
+                abi: ERC20_ABI,
+                functionName: "balanceOf",
+                args: [walletAddress as Address],
+              }) as Promise<bigint>,
+              baseClient.readContract({
+                address: upTokenAddress,
+                abi: ERC20_ABI,
+                functionName: "symbol",
+              }) as Promise<string>,
+            ]);
+            return { balance, symbol: typeof symbol === "string" ? symbol : "UP" };
+          } catch (error) {
+            log.warn("Error fetching UP balance during refresh:", { error });
+            return { balance: 0n, symbol: "UP" };
+          }
+        })(),
+      ]);
 
       const ethFormatted = ethers.formatEther(ethBalance);
-      const usdcFormatted = ethers.formatUnits(usdcBalance, 6);
+      const usdcFormatted = ethers.formatUnits(usdcData.balance, 6);
 
       setBalances({
         eth: {
@@ -244,10 +412,30 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
           loading: false,
         },
         usdc: {
-          balance: usdcBalance.toString(),
+          balance: usdcData.balance.toString(),
           formatted: parseFloat(usdcFormatted).toFixed(2),
           loading: false,
-          symbol: usdcSymbol,
+          symbol: usdcData.symbol,
+        },
+        dg: {
+          balance: dgData.balance.toString(),
+          formatted: formatTokenBalance(dgData.balance.toString(), 18),
+          fullFormatted: parseFloat(ethers.formatUnits(dgData.balance, 18)).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+          loading: false,
+          symbol: dgData.symbol,
+        },
+        up: {
+          balance: upData.balance.toString(),
+          formatted: formatTokenBalance(upData.balance.toString(), 18),
+          fullFormatted: parseFloat(ethers.formatUnits(upData.balance, 18)).toLocaleString("en-US", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          }),
+          loading: false,
+          symbol: upData.symbol,
         },
       });
     } catch (err) {
@@ -256,6 +444,8 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
       setBalances((prev) => ({
         eth: { ...prev.eth, loading: false },
         usdc: { ...prev.usdc, loading: false },
+        dg: { ...prev.dg, loading: false },
+        up: { ...prev.up, loading: false },
       }));
     }
   };

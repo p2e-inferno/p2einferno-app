@@ -1,23 +1,27 @@
 /**
  * Withdrawal Limits Configuration API
  *
- * GET: Returns current withdrawal limits (public, no auth)
+ * GET: Returns current withdrawal limits (admin-only; use /api/config/withdrawal-limits for public reads)
  * PUT: Updates withdrawal limits (requires admin session)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getPrivyUserFromNextRequest } from '@/lib/auth/privy';
+import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('api:admin:config:withdrawal-limits');
 
 /**
  * GET - Fetch current withdrawal limits
- * Public endpoint (no auth required) for client-side validation
+ * Admin endpoint; public reads should use /api/config/withdrawal-limits
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
+    const guard = await ensureAdminOrRespond(req);
+    if (guard) return guard;
+
     const supabase = createAdminClient();
 
     // Fetch withdrawal limit config values
@@ -75,6 +79,9 @@ export async function GET() {
  */
 export async function PUT(req: NextRequest) {
   try {
+    const guard = await ensureAdminOrRespond(req);
+    if (guard) return guard;
+
     // Authenticate admin user
     const user = await getPrivyUserFromNextRequest(req);
     if (!user) {

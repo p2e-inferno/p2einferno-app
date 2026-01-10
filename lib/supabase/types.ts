@@ -14,6 +14,8 @@ export interface BootcampProgram {
   lock_address?: string;
   lock_manager_granted?: boolean;
   grant_failure_reason?: string;
+  max_keys_secured?: boolean | null;
+  max_keys_failure_reason?: string | null;
   image_url?: string;
   created_at: string;
   updated_at: string;
@@ -50,6 +52,8 @@ export interface CohortMilestone {
   lock_address: string;
   lock_manager_granted?: boolean;
   grant_failure_reason?: string;
+  max_keys_secured?: boolean | null;
+  max_keys_failure_reason?: string | null;
   prerequisite_milestone_id?: string;
   duration_hours?: number;
   total_reward?: number;
@@ -86,9 +90,24 @@ export interface Quest {
   lock_address?: string;
   lock_manager_granted?: boolean;
   grant_failure_reason?: string;
+  max_keys_secured?: boolean | null;
+  max_keys_failure_reason?: string | null;
+  prerequisite_quest_id?: string | null;
+  prerequisite_quest_lock_address?: string | null;
+  requires_prerequisite_key?: boolean;
+  reward_type: "xdg" | "activation";
+  activation_type?: "dg_trial" | null;
+  activation_config?: {
+    lockAddress?: string;
+    trialDurationSeconds?: number;
+    keyManager?: string;
+  } | null;
   created_at: string;
   updated_at: string;
   quest_tasks: QuestTask[];
+  can_start?: boolean;
+  prerequisite_state?: "none" | "missing_completion" | "missing_key" | "ok";
+  requires_gooddollar_verification?: boolean;
 }
 
 export type TaskType =
@@ -100,7 +119,11 @@ export type TaskType =
   | "submit_text"
   | "submit_proof"
   | "complete_external"
-  | "custom";
+  | "custom"
+  | "vendor_buy"
+  | "vendor_sell"
+  | "vendor_light_up"
+  | "vendor_level_up";
 
 export type InputValidationType =
   | "url"
@@ -118,6 +141,7 @@ export interface QuestTask {
   verification_method: string;
   reward_amount: number;
   order_index: number;
+  task_config?: Record<string, unknown> | null;
   input_required?: boolean;
   input_label?: string;
   input_placeholder?: string;
@@ -229,11 +253,11 @@ export interface UserTaskProgress {
 
 export interface EnhancedMilestoneTask extends MilestoneTask {
   task_type:
-    | "file_upload"
-    | "url_submission"
-    | "contract_interaction"
-    | "text_submission"
-    | "external_verification";
+  | "file_upload"
+  | "url_submission"
+  | "contract_interaction"
+  | "text_submission"
+  | "external_verification";
   submission_requirements?: any;
   validation_criteria?: any;
   requires_admin_review: boolean;
