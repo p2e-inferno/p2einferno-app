@@ -13,6 +13,7 @@ import {
 import { getDefaultCheckinService } from "@/lib/checkin";
 import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
+import { normalizeAddress } from "@/lib/utils/address";
 
 const log = getLogger("hooks:useStreakData");
 
@@ -186,9 +187,11 @@ export const useStreakData = (
         userProfileId?: string;
         originId?: string;
       }>;
+      const eventAddress = normalizeAddress(customEvent.detail?.userAddress);
+      const currentAddress = normalizeAddress(userAddress);
 
       // Only refresh if the event is for this user
-      if (customEvent.detail?.userAddress === userAddress) {
+      if (eventAddress && currentAddress && eventAddress === currentAddress) {
         log.debug("Received check-in event, refreshing streak data", {
           userAddress,
           eventType: event.type,
