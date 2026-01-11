@@ -187,7 +187,7 @@ export interface WelcomeParams {
 
 export function getWelcomeEmail(params: WelcomeParams) {
   const { displayName } = params;
-  const dashboardUrl = `${getBaseUrl()}/dashboard`;
+  const lobbyUrl = `${getBaseUrl()}/lobby`;
 
   const body = `
     <h1 style="margin:0 0 8px;font-size:24px;color:${BRAND_DARK};">Welcome to P2E Inferno</h1>
@@ -199,14 +199,14 @@ export function getWelcomeEmail(params: WelcomeParams) {
         💡 Pro tip: Complete your profile and daily check-ins to unlock early perks.
       </p>
     </div>
-    <a href="${dashboardUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">
-      Go to Dashboard
+    <a href="${lobbyUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">
+      Go to Lobby
     </a>
   `;
 
   return {
     subject: "Welcome to P2E Inferno",
-    text: `Hi ${displayName}, welcome to P2E Inferno. Visit your dashboard: ${dashboardUrl}`,
+    text: `Hi ${displayName}, welcome to P2E Inferno. Visit your lobby: ${lobbyUrl}`,
     html: wrapHtml("Welcome", body),
   };
 }
