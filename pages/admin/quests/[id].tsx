@@ -742,7 +742,15 @@ export default function QuestDetailsPage() {
   );
 }
 
-// Local helper to display NetworkError with retry
+/**
+ * Render an error UI that shows a network error with a retry action and a "Back to Quests" button.
+ *
+ * Displays NetworkError with an internal retry spinner while `onRetry` is executing.
+ *
+ * @param error - The error message to display in the NetworkError component
+ * @param onRetry - Callback invoked when the user triggers a retry; the component displays a retry state until the promise resolves
+ * @returns The wrapped error UI element containing the NetworkError and a navigation button back to the quests list
+ */
 function QuestErrorWrapper({
   error,
   onRetry,

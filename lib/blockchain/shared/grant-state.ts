@@ -16,6 +16,15 @@ export interface EffectiveGrantInput {
   currentReason?: string | undefined | null;
 }
 
+/**
+ * Compute the initial grant state for an editing or creation flow.
+ *
+ * Defaults to `false` unless editing and an explicit `existing` value is provided.
+ *
+ * @param isEditing - Whether the flow is editing an existing record
+ * @param existing - The stored granted value for the existing record, if any
+ * @returns `true` if `isEditing` is `true` and `existing` is `true`, `false` otherwise
+ */
 export function initialGrantState(
   isEditing: boolean,
   existing?: boolean,

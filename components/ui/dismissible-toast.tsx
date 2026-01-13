@@ -40,7 +40,7 @@ export function DismissibleToastContent({ t, message }: DismissibleToastProps) {
 }
 
 /**
- * Display a dismissible error toast with a visible close button containing the provided message.
+ * Displays an error toast with a dismiss button showing the provided message.
  *
  * @returns The id of the created toast.
  */

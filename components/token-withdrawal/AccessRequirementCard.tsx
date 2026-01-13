@@ -12,6 +12,15 @@ import { useKeyPurchase } from "@/hooks/unlock/useKeyPurchase";
 import { LockPriceDisplay } from "@/components/subscription/LockPriceDisplay";
 import { useLockInfo } from "@/hooks/unlock/useLockInfo";
 
+/**
+ * Displays a card prompting the user to obtain a DG Nation membership when membership is required for access.
+ *
+ * The card opens a purchase confirmation modal where pricing is shown and the user can initiate a membership purchase.
+ * The modal surfaces lock info, errors, and success feedback. On a successful purchase the component will trigger a page
+ * reload after a short delay to refresh access state.
+ *
+ * @returns The card and optional purchase modal UI, or `null` when the component is not rendered (e.g., while access status is loading, the user already has a valid key, or a recent purchase succeeded).
+ */
 export function AccessRequirementCard() {
   const lockAddress = process.env
     .NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;

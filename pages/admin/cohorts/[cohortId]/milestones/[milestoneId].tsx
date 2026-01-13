@@ -24,11 +24,11 @@ interface MilestoneWithCohort extends CohortMilestone {
 }
 
 /**
- * Display an admin page showing a milestone's details, its cohort, and controls to inspect and reconcile on-chain lock state and purchase security.
+ * Render the admin milestone details page with controls to inspect and reconcile on-chain lock state and purchase security.
  *
- * Fetches and surfaces milestone and cohort data, retrieves the server wallet and blockchain-derived lock manager and max-number-of-keys statuses, and exposes UI actions to retry or synchronize database and on-chain state.
+ * Fetches milestone and cohort data, retrieves the server wallet address, checks on-chain lock manager and maxNumberOfKeys values, and exposes UI actions to retry or synchronize database and on-chain state.
  *
- * @returns The React component rendering the milestone details page with status indicators and management actions.
+ * @returns A React element displaying milestone and cohort data with status indicators and management actions.
  */
 export default function MilestoneDetailsPage() {
   const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();

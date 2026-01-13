@@ -91,13 +91,13 @@ interface MilestoneFormEnhancedProps {
 }
 
 /**
- * Render a form for creating or editing a cohort milestone, with task management and optional automatic Unlock Protocol lock deployment.
+ * Render a form to create or edit a cohort milestone with task management and optional automatic Unlock Protocol lock deployment.
  *
- * The component manages form state, restores new-milestone drafts, validates input, supports adding/updating/deleting tasks, optionally deploys and records an access lock for the milestone, and persists the milestone and its tasks via admin API calls. It also saves a pending deployment record when a lock is deployed to enable recovery if database persistence fails.
+ * Manages form state and draft restoration, validates input, supports adding/updating/deleting tasks, optionally deploys and records an access lock for the milestone, and persists the milestone and its tasks via the admin API. When a lock is deployed the component records a pending deployment (including parent cohort lock address and sanitized tasks) to enable recovery if database persistence fails.
  *
- * @param cohortId - The parent cohort's ID.
- * @param milestone - When present, the existing milestone to edit; when omitted, the form creates a new milestone.
- * @param existingMilestones - Array of milestones in the cohort used to compute ordering and prerequisite options.
+ * @param cohortId - ID of the parent cohort.
+ * @param milestone - Existing milestone to edit; omit to create a new milestone.
+ * @param existingMilestones - Milestones in the cohort used to compute ordering and prerequisite options.
  * @param onSubmitSuccess - Optional callback invoked after a successful save.
  * @param onCancel - Optional callback invoked when the user cancels the form.
  * @returns The milestone form React element.
