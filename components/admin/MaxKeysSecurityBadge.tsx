@@ -24,7 +24,7 @@ export function MaxKeysSecurityBadge({
       title={
         reason
           ? `Security Risk: ${reason}`
-          : "maxKeysPerAddress not set to 0 - users can bypass requirements"
+          : "Purchases still enabled (maxNumberOfKeys > 0)"
       }
     >
       Security Risk

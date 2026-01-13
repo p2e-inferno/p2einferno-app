@@ -482,11 +482,35 @@ export default function MilestoneFormEnhanced({
         grantError: result.grantError,
       });
 
+      // Fetch parent cohort to store its lock address for Web3-native recovery
+      let parentCohortLockAddress: string | null = null;
+      try {
+        const cohortResponse = await adminFetch<{
+          success: boolean;
+          data?: any;
+        }>(`/api/admin/cohorts?id=${cohortId}`);
+        if (cohortResponse.data?.data?.lock_address) {
+          parentCohortLockAddress = cohortResponse.data.data.lock_address;
+        }
+      } catch (error) {
+        log.warn("Failed to fetch parent cohort lock address", {
+          cohortId,
+          error,
+        });
+      }
+
+      // Enhance entityData with parent cohort's lock address and tasks for reliable recovery
+      const enhancedEntityData = {
+        ...formData,
+        parent_cohort_lock_address: parentCohortLockAddress,
+        tasks: tasks.filter((task) => task.title && task.title.trim()), // Include valid tasks
+      };
+
       // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "milestone",
-        entityData: formData,
+        entityData: enhancedEntityData,
         transactionHash: result.transactionHash,
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,
@@ -760,7 +784,24 @@ export default function MilestoneFormEnhanced({
         currentReason: maxKeysFailureReason,
       });
 
-      const milestoneData = {
+      // Only include max_keys fields when editing if there's a deployment outcome
+      // Otherwise, omit them to preserve existing DB values (prevents overwriting synced state)
+      const hasDeploymentOutcome = typeof lastConfigFailed === "boolean";
+      const shouldIncludeMaxKeysFields = !isEditing || hasDeploymentOutcome;
+
+      log.info("Preparing milestone data for save", {
+        lockAddress,
+        lockManagerGranted,
+        grantFailureReason,
+        hasLockAddress: !!lockAddress,
+        isEditing,
+        hasDeploymentOutcome,
+        shouldIncludeMaxKeysFields,
+        effectiveMaxKeysSecured: effectiveMaxKeys.secured,
+        effectiveMaxKeysReason: effectiveMaxKeys.reason,
+      });
+
+      const milestoneData: any = {
         ...formDataWithoutTasks,
         name: formDataWithoutTasks.name || "",
         description: formDataWithoutTasks.description || "",
@@ -773,17 +814,25 @@ export default function MilestoneFormEnhanced({
         total_reward: totalTaskReward,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
-        max_keys_secured: effectiveMaxKeys.secured,
-        max_keys_failure_reason: effectiveMaxKeys.reason,
         updated_at: now,
       };
 
-      log.info("Preparing milestone data for save", {
-        lockAddress,
-        lockManagerGranted,
-        grantFailureReason,
-        hasLockAddress: !!lockAddress,
-      });
+      // Only include max_keys fields if creating new milestone or if there was a deployment
+      if (shouldIncludeMaxKeysFields) {
+        milestoneData.max_keys_secured = effectiveMaxKeys.secured;
+        milestoneData.max_keys_failure_reason = effectiveMaxKeys.reason;
+      } else {
+        log.debug(
+          "Omitting max_keys fields from edit payload to preserve DB state",
+          {
+            milestoneId: milestone?.id,
+            currentHookState: {
+              maxKeysSecured,
+              maxKeysFailureReason,
+            },
+          },
+        );
+      }
 
       // Include created_at when creating new milestone
       if (!isEditing) {
@@ -804,6 +853,8 @@ export default function MilestoneFormEnhanced({
         "total_reward",
         "lock_manager_granted",
         "grant_failure_reason",
+        "max_keys_secured",
+        "max_keys_failure_reason",
         "created_at",
         "updated_at",
         "old_id_text",

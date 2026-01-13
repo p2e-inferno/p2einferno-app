@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
+import SyncLockStateButton from "@/components/admin/SyncLockStateButton";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
@@ -172,10 +173,22 @@ export default function EditCohortPage() {
             {actualManagerStatus !== null &&
               cohort.lock_manager_granted !== actualManagerStatus && (
                 <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
-                  <p className="text-amber-300 text-xs font-medium">
-                    ⚠️ Status Mismatch: Database and blockchain states
-                    don&apos;t match!
-                  </p>
+                  <div className="flex flex-col gap-2">
+                    <p className="text-amber-300 text-xs font-medium">
+                      ⚠️ Status Mismatch: Database and blockchain states
+                      don&apos;t match!
+                    </p>
+                    <SyncLockStateButton
+                      mode="manager"
+                      entityType="cohort"
+                      entityId={cohort.id}
+                      lockAddress={cohort.lock_address}
+                      onSuccess={() => {
+                        fetchCohort();
+                        checkActualManagerStatus();
+                      }}
+                    />
+                  </div>
                 </div>
               )}
           </div>

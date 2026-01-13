@@ -516,11 +516,15 @@ export default function QuestForm({
         grantError: result.grantError,
       });
 
-      // Save deployment state before database operation with both transaction hashes
+      // Save deployment state before database operation with both transaction hashes and tasks
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "quest",
-        entityData: { ...formData, total_reward: totalReward },
+        entityData: {
+          ...formData,
+          total_reward: totalReward,
+          tasks: tasks.filter((task) => task.title && task.title.trim()), // Include valid tasks
+        },
         transactionHash: result.transactionHash,
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,
@@ -743,15 +747,24 @@ export default function QuestForm({
         currentReason: maxKeysFailureReason,
       });
 
-      const questData = {
+      // Only include max_keys fields when editing if there's a deployment outcome
+      // Otherwise, omit them to preserve existing DB values (prevents overwriting synced state)
+      const hasDeploymentOutcome = typeof lastConfigFailed === "boolean";
+      const shouldIncludeMaxKeysFields = !isEditing || hasDeploymentOutcome;
+
+      const questData: any = {
         ...cleanFormData,
         lock_address: lockAddress,
         total_reward: totalReward,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
-        max_keys_secured: effectiveMaxKeys.secured,
-        max_keys_failure_reason: effectiveMaxKeys.reason,
       };
+
+      // Only include max_keys fields if creating new quest or if there was a deployment
+      if (shouldIncludeMaxKeysFields) {
+        questData.max_keys_secured = effectiveMaxKeys.secured;
+        questData.max_keys_failure_reason = effectiveMaxKeys.reason;
+      }
 
       // Prepare tasks data
       const tasksData = tasks.map((task) => {

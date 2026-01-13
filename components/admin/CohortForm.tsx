@@ -386,11 +386,22 @@ export default function CohortForm({
         grantError: result.grantError,
       });
 
+      // Find the parent bootcamp to store its lock address for Web3-native recovery
+      const parentBootcamp = bootcampPrograms.find(
+        (b) => b.id === formData.bootcamp_program_id,
+      );
+
+      // Enhance entityData with parent bootcamp's lock address for reliable recovery
+      const enhancedEntityData = {
+        ...formData,
+        parent_bootcamp_lock_address: parentBootcamp?.lock_address || null,
+      };
+
       // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "cohort",
-        entityData: formData,
+        entityData: enhancedEntityData,
         transactionHash: result.transactionHash,
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,

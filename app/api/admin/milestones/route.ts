@@ -157,6 +157,10 @@ export async function PUT(req: NextRequest) {
       });
     } catch { }
     const hardened: any = { ...update, updated_at: new Date().toISOString() };
+    const hasMaxKeysSecured = Object.prototype.hasOwnProperty.call(
+      update ?? {},
+      'max_keys_secured',
+    );
     if (hardened.lock_address) {
       if (typeof hardened.lock_manager_granted === 'undefined' || hardened.lock_manager_granted === null) {
         hardened.lock_manager_granted = false;
@@ -166,10 +170,10 @@ export async function PUT(req: NextRequest) {
       }
 
       // Harden max_keys_secured flag
-      if (typeof hardened.max_keys_secured === 'undefined' || hardened.max_keys_secured === null) {
+      if (hasMaxKeysSecured && (typeof hardened.max_keys_secured === 'undefined' || hardened.max_keys_secured === null)) {
         hardened.max_keys_secured = false;
       }
-      if (hardened.max_keys_secured === true) {
+      if (hasMaxKeysSecured && hardened.max_keys_secured === true) {
         hardened.max_keys_failure_reason = null;
       }
     }

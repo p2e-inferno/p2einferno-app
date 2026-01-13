@@ -4,12 +4,13 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
+import SyncLockStateButton from "@/components/admin/SyncLockStateButton";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
-import { useMaxKeysPerAddress } from "@/hooks/unlock/useMaxKeysPerAddress";
+import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 import type { Address } from "viem";
@@ -37,7 +38,7 @@ export default function EditBootcampPage() {
   );
 
   const { checkIsLockManager } = useIsLockManager();
-  const { checkMaxKeysPerAddress } = useMaxKeysPerAddress();
+  const { checkMaxNumberOfKeys } = useMaxNumberOfKeys();
 
   const fetchBootcamp = useCallback(async () => {
     if (!id) return;
@@ -106,19 +107,19 @@ export default function EditBootcampPage() {
     }
   }, [bootcamp?.lock_address, serverWalletAddress, checkIsLockManager]);
 
-  // Check actual maxKeysPerAddress value on blockchain
+  // Check actual maxNumberOfKeys value on blockchain
   const checkActualMaxKeysValue = useCallback(async () => {
     if (!bootcamp?.lock_address) return;
 
     try {
-      const maxKeys = await checkMaxKeysPerAddress(
+      const maxKeys = await checkMaxNumberOfKeys(
         bootcamp.lock_address as Address,
       );
       setActualMaxKeysValue(maxKeys);
     } catch (err) {
-      log.error("Failed to check maxKeysPerAddress:", err);
+      log.error("Failed to check maxNumberOfKeys:", err);
     }
-  }, [bootcamp?.lock_address, checkMaxKeysPerAddress]);
+  }, [bootcamp?.lock_address, checkMaxNumberOfKeys]);
 
   useEffect(() => {
     fetchServerWallet();
@@ -198,10 +199,23 @@ export default function EditBootcampPage() {
             {actualManagerStatus !== null &&
               bootcamp.lock_manager_granted !== actualManagerStatus && (
                 <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
-                  <p className="text-amber-300 text-xs font-medium">
-                    ⚠️ Status Mismatch: Database and blockchain states
-                    don&apos;t match!
-                  </p>
+                  <div className="flex flex-col gap-2">
+                    <p className="text-amber-300 text-xs font-medium">
+                      ⚠️ Status Mismatch: Database and blockchain states
+                      don&apos;t match!
+                    </p>
+                    <SyncLockStateButton
+                      entityType="bootcamp"
+                      entityId={bootcamp.id}
+                      lockAddress={bootcamp.lock_address}
+                      mode="manager"
+                      onSuccess={() => {
+                        fetchBootcamp();
+                        checkActualManagerStatus();
+                        checkActualMaxKeysValue();
+                      }}
+                    />
+                  </div>
                 </div>
               )}
           </div>
@@ -228,11 +242,11 @@ export default function EditBootcampPage() {
         </div>
       )}
 
-      {/* MaxKeysPerAddress Security Status Display */}
+      {/* Purchase Security Status Display */}
       {bootcamp?.lock_address && (
         <div className="mb-6 p-3 rounded-lg border border-slate-700 bg-slate-900">
           <h4 className="text-sm font-medium text-slate-300 mb-3">
-            MaxKeysPerAddress Security Status
+            Purchase Security Status
           </h4>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
@@ -244,7 +258,9 @@ export default function EditBootcampPage() {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-slate-400">Blockchain Value:</span>
+              <span className="text-slate-400">
+                Blockchain maxNumberOfKeys:
+              </span>
               <span
                 className={`font-medium ${
                   actualMaxKeysValue === null
@@ -257,8 +273,8 @@ export default function EditBootcampPage() {
                 {actualMaxKeysValue === null
                   ? "⏳ Checking..."
                   : actualMaxKeysValue === 0n
-                    ? "✅ Secured (0)"
-                    : `❌ Insecure (${actualMaxKeysValue.toString()})`}
+                    ? "✅ Purchases disabled (0)"
+                    : `❌ Purchases enabled (${actualMaxKeysValue.toString()})`}
               </span>
             </div>
             {actualMaxKeysValue !== null &&
@@ -275,7 +291,7 @@ export default function EditBootcampPage() {
         </div>
       )}
 
-      {/* MaxKeysPerAddress Security Button */}
+      {/* Purchase Security Button */}
       {bootcamp?.lock_address && actualMaxKeysValue !== 0n && (
         <div className="mb-6">
           <MaxKeysSecurityButton
@@ -284,7 +300,7 @@ export default function EditBootcampPage() {
             lockAddress={bootcamp.lock_address}
             maxKeysFailureReason={bootcamp.max_keys_failure_reason}
             onSuccess={() => {
-              toast.success("Lock secured successfully");
+              toast.success("Lock purchases disabled successfully");
               fetchBootcamp(); // Refresh bootcamp data
               checkActualMaxKeysValue(); // Refresh blockchain status
             }}

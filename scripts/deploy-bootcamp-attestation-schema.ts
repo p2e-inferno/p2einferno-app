@@ -22,16 +22,12 @@ async function deploySchema() {
   const schema =
     "string cohortId,string cohortName,string bootcampId,string bootcampTitle,address userAddress,uint256 completionDate,uint256 totalXpEarned,string certificateTxHash";
 
-  console.log("Deploying BOOTCAMP_COMPLETION_SCHEMA...");
-  const tx = await registry.register({ schema, resolverAddress: ethers.ZeroAddress, revocable: false });
-  const receipt = await tx.wait();
-
-  // @ts-ignore EAS typings may vary
-  const uid = (receipt as any)?.uid || (receipt as any)?.transactionHash || "";
-  console.log("✅ Schema deployed!");
-  console.log("Transaction:", (receipt as any)?.transactionHash);
-  console.log("Schema UID:", uid);
-  console.log("\nAdd to .env:\nBOOTCAMP_COMPLETION_SCHEMA_UID=" + uid);
+  const tx = await registry.register({
+    schema,
+    resolverAddress: ethers.ZeroAddress,
+    revocable: false,
+  });
+  await tx.wait();
 }
 
 deploySchema().catch((err) => {

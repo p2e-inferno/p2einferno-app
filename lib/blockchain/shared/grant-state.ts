@@ -40,7 +40,7 @@ export function applyDeploymentOutcome(result: DeploymentResultLike): {
   } else if (grantFailed) {
     reason = result.grantError || "Grant manager transaction failed";
   } else if (configFailed) {
-    reason = `Lock deployed but config update failed: ${result.configError || "unknown"}. Please manually set maxKeysPerAddress to 0.`;
+    reason = `Lock deployed but config update failed: ${result.configError || "unknown"}. Please manually set maxNumberOfKeys to 0.`;
   }
 
   const granted = !grantFailed;
@@ -111,7 +111,7 @@ export function effectiveMaxKeysForSave(input: EffectiveMaxKeysInput): {
       reason: secured
         ? undefined
         : input.outcome!.lastConfigError ||
-          "Lock config update failed - maxKeysPerAddress not set to 0",
+          "Lock config update failed - maxNumberOfKeys not set to 0",
     };
   }
   // Fall back to current state if we have a lock address

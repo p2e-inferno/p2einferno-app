@@ -52,7 +52,7 @@ describe("useUpdateMaxKeysPerAddress", () => {
     const {
       getLockConfigForUpdate,
     } = require("@/lib/blockchain/helpers/max-keys-security");
-    getLockConfigForUpdate.mockResolvedValue([1000n, 100n, 0n]);
+    getLockConfigForUpdate.mockResolvedValue([1000n, 0n, 1n]);
   });
 
   describe("wallet validation", () => {
@@ -79,7 +79,7 @@ describe("useUpdateMaxKeysPerAddress", () => {
   });
 
   describe("successful update", () => {
-    it("successfully updates maxKeysPerAddress to 0", async () => {
+    it("successfully disables purchases with maxNumberOfKeys = 0", async () => {
       mockWalletClient.writeContract.mockResolvedValue("0xtxhash");
       mockPublicClient.estimateContractGas.mockResolvedValue(100000n);
       mockPublicClient.waitForTransactionReceipt.mockResolvedValue({
@@ -104,7 +104,7 @@ describe("useUpdateMaxKeysPerAddress", () => {
         address: mockLockAddress,
         abi: expect.any(Array),
         functionName: "updateLockConfig",
-        args: [1000n, 100n, 0n],
+        args: [1000n, 0n, 1n],
         gas: 120000n, // 20% padding
       });
     });

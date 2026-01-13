@@ -79,7 +79,7 @@ export const generateCohortLockConfig = (cohort: Cohort): LockConfig => {
  * Generate lock configuration for bootcamp program certification
  * - 1 year expiration
  * - Free or paid based on program settings
- * - SECURITY: maxKeysPerAddress set to 0 to prevent unauthorized purchases
+ * - SECURITY: maxNumberOfKeys set to 0 to disable purchases
  *   Certificates are granted server-side only after bootcamp completion
  */
 export const generateBootcampLockConfig = (
@@ -89,11 +89,11 @@ export const generateBootcampLockConfig = (
     name: `${bootcamp.name} Certificate`,
     symbol: "BOOTCAMP",
     keyPrice: "0", // Free certification
-    maxNumberOfKeys: 10000, // High limit for certificates
+    maxNumberOfKeys: 0, // Disable purchases (grant-based only)
     expirationDuration: EXPIRATION_DURATIONS.ONE_YEAR,
     currency: "FREE",
     price: 0,
-    maxKeysPerAddress: 0, // Prevent direct purchases - grant-based only
+    maxKeysPerAddress: 1, // Non-zero to avoid NULL_VALUE() revert
     transferable: true, // Certificates can be transferred
     requiresApproval: false,
   };
@@ -103,7 +103,7 @@ export const generateBootcampLockConfig = (
  * Generate lock configuration for quest completion badge
  * - 1 year expiration
  * - Free completion badge
- * - SECURITY: maxKeysPerAddress set to 0 to prevent unauthorized purchases
+ * - SECURITY: maxNumberOfKeys set to 0 to disable purchases
  *   Badges are granted server-side only after quest completion
  */
 export const generateQuestLockConfig = (quest: Quest): LockConfig => {
@@ -111,11 +111,11 @@ export const generateQuestLockConfig = (quest: Quest): LockConfig => {
     name: `${quest.title} Badge`,
     symbol: "QUEST",
     keyPrice: "0", // Free badge
-    maxNumberOfKeys: 50000, // High limit for badges
+    maxNumberOfKeys: 0, // Disable purchases (grant-based only)
     expirationDuration: EXPIRATION_DURATIONS.ONE_YEAR,
     currency: "FREE",
     price: 0,
-    maxKeysPerAddress: 0, // Prevent direct purchases - grant-based only
+    maxKeysPerAddress: 1, // Non-zero to avoid NULL_VALUE() revert
     transferable: true, // Badges can be transferred
     requiresApproval: false,
   };
@@ -125,7 +125,7 @@ export const generateQuestLockConfig = (quest: Quest): LockConfig => {
  * Generate lock configuration for milestone completion NFT badge
  * - 1 year expiration
  * - Free completion badge based on total reward amount
- * - SECURITY: maxKeysPerAddress set to 0 to prevent unauthorized purchases
+ * - SECURITY: maxNumberOfKeys set to 0 to disable purchases
  *   Badges are granted server-side only after milestone completion
  */
 export const generateMilestoneLockConfig = (
@@ -136,11 +136,11 @@ export const generateMilestoneLockConfig = (
     name: `${milestone.name} NFT Badge`,
     symbol: "MILESTONE",
     keyPrice: "0", // Free badge - rewards distributed manually
-    maxNumberOfKeys: 10000, // High limit for milestone badges
+    maxNumberOfKeys: 0, // Disable purchases (grant-based only)
     expirationDuration: EXPIRATION_DURATIONS.ONE_YEAR,
     currency: "FREE",
     price: 0,
-    maxKeysPerAddress: 0, // Prevent direct purchases - grant-based only
+    maxKeysPerAddress: 1, // Non-zero to avoid NULL_VALUE() revert
     transferable: true, // Milestone badges can be transferred
     requiresApproval: false, // Automatic approval for completed milestones
   };

@@ -503,26 +503,26 @@ export const isZeroAddress = (address: string): boolean => {
 
 /**
  * Helper to create updateLockConfig parameters for securing grant-based locks
- * Sets maxKeysPerAddress to 0 to prevent unauthorized purchases
+ * Sets maxNumberOfKeys to 0 to disable purchases
  *
  * @param expirationDuration - Current or new expiration duration in seconds
  * @param maxNumberOfKeys - Current or new max total keys
- * @param maxKeysPerAddress - Set to 0 for grant-based locks (milestones, quests, bootcamps)
+ * @param maxKeysPerAddress - Per-address cap (must be >= 1 for some lock versions)
  * @returns Parameters ready for updateLockConfig contract call
  *
  * @example
  * // Secure an existing milestone lock
  * const params = createSecureLockConfigParams(
  *   365 * 24 * 60 * 60, // 1 year
- *   10000,              // max total keys
- *   0                   // prevent purchases
+ *   0,                  // disable purchases
+ *   1                   // per-address cap
  * );
  * await lockContract.updateLockConfig(...params);
  */
 export const createSecureLockConfigParams = (
   expirationDuration: number | bigint,
   maxNumberOfKeys: number | bigint,
-  maxKeysPerAddress: number | bigint = 0,
+  maxKeysPerAddress: number | bigint = 1,
 ): [bigint, bigint, bigint] => {
   return [
     BigInt(expirationDuration),

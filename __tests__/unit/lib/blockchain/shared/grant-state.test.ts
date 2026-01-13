@@ -185,7 +185,7 @@ describe("grant-state", () => {
         });
         expect(result).toEqual({
           secured: false,
-          reason: "Lock config update failed - maxKeysPerAddress not set to 0",
+          reason: "Lock config update failed - maxNumberOfKeys not set to 0",
         });
       });
     });

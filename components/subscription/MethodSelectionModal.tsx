@@ -38,7 +38,7 @@ export const MethodSelectionModal = ({
       id: "xp" as const,
       icon: "⚡",
       name: "Experience Points",
-      description: "Use your earned XP to renew",
+      description: "Use your earned xDG to renew",
       available: true,
       showInPurchase: false, // XP only for renewals
       showInRenewal: true,

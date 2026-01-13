@@ -134,3 +134,6 @@ __inspector_reports__/
 .cache-synpress/
 .cache-synpress/.wallet-setup-dist/
 playwright-report/
+
+AGENTS.md
+CLAUDE.md

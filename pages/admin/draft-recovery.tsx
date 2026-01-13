@@ -24,6 +24,7 @@ import {
 } from "@/lib/utils/lock-deployment-state";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { getLogger } from "@/lib/utils/logger";
+import { showDismissibleError } from "@/components/ui/dismissible-toast";
 
 const log = getLogger("admin:draft-recovery");
 
@@ -38,6 +39,7 @@ export default function DraftRecoveryPage() {
   const adminApi = useAdminApi({
     redirectOnAuthError: false,
     showAuthErrorModal: true,
+    suppressToasts: true, // We'll handle error toasts manually with dismissible versions
   });
 
   // Load data on mount and set up refresh interval
@@ -88,7 +90,7 @@ export default function DraftRecoveryPage() {
     try {
       // Generate new UUID for the entity if needed
       const entityData = { ...deployment.entityData };
-      if (deployment.entityType === "bootcamp" && !entityData.id) {
+      if (!entityData.id) {
         entityData.id = crypto.randomUUID();
       }
 
@@ -100,10 +102,23 @@ export default function DraftRecoveryPage() {
         created_at: entityData.created_at || new Date().toISOString(),
       };
 
+      // Sanitize: Convert empty strings to null for optional UUID fields
+      // PostgreSQL rejects empty strings for UUID columns
+      const uuidFields = [
+        "prerequisite_milestone_id",
+        "cohort_id",
+        "bootcamp_program_id",
+      ];
+      uuidFields.forEach((field) => {
+        if (apiData[field] === "") {
+          apiData[field] = null;
+        }
+      });
+
       const endpoints = {
         bootcamp: "/api/admin/bootcamps",
         cohort: "/api/admin/cohorts",
-        quest: "/api/admin/quests",
+        quest: "/api/admin/quests-v2", // v2 API handles tasks in POST body
         milestone: "/api/admin/milestones",
       };
 
@@ -112,11 +127,140 @@ export default function DraftRecoveryPage() {
         throw new Error(`Unknown entity type: ${deployment.entityType}`);
       }
 
+      // Validate and resolve cohort-specific requirements using lock addresses
+      if (deployment.entityType === "cohort") {
+        const cohortData = apiData as any;
+
+        // Fetch all bootcamps to resolve parent relationship
+        const bootcampsResponse = await adminApi.adminFetch<{
+          success: boolean;
+          data?: any[];
+        }>("/api/admin/bootcamps");
+
+        if (!bootcampsResponse.data?.data) {
+          throw new Error("Failed to fetch bootcamps for validation");
+        }
+
+        const bootcamps = bootcampsResponse.data.data;
+
+        // Try to find the parent bootcamp by UUID first
+        let parentBootcamp = bootcamps.find(
+          (b: any) => b.id === cohortData.bootcamp_program_id,
+        );
+
+        // If not found by UUID, try to match by lock address from a parent bootcamp property
+        // (This would require storing parent lock address in entityData - future enhancement)
+        if (!parentBootcamp && cohortData.parent_bootcamp_lock_address) {
+          parentBootcamp = bootcamps.find(
+            (b: any) =>
+              b.lock_address === cohortData.parent_bootcamp_lock_address,
+          );
+        }
+
+        // If still not found, throw helpful error with available bootcamps
+        if (!parentBootcamp) {
+          const availableBootcamps = bootcamps
+            .map((b: any) => `- ${b.name} (Lock: ${b.lock_address})`)
+            .join("\n");
+
+          throw new Error(
+            `Cannot recover cohort: Parent bootcamp not found.\n\n` +
+              `Stored bootcamp_program_id: ${cohortData.bootcamp_program_id}\n\n` +
+              `Available bootcamps:\n${availableBootcamps}\n\n` +
+              `This cohort needs to be manually linked to one of the above bootcamps. ` +
+              `To fix: Expand the entity data below, note the bootcamp lock address you want, ` +
+              `find that bootcamp's current ID above, then manually edit the JSON and change ` +
+              `"bootcamp_program_id" to the correct ID, then retry recovery.`,
+          );
+        }
+
+        // Update the bootcamp_program_id to the current UUID (lock address-based lookup)
+        apiData.bootcamp_program_id = parentBootcamp.id;
+
+        log.info("Resolved cohort parent bootcamp:", {
+          originalId: cohortData.bootcamp_program_id,
+          resolvedId: parentBootcamp.id,
+          bootcampName: parentBootcamp.name,
+          bootcampLockAddress: parentBootcamp.lock_address,
+        });
+      }
+
+      // Validate and resolve milestone-specific requirements using lock addresses
+      if (deployment.entityType === "milestone") {
+        const milestoneData = apiData as any;
+
+        // Milestones reference cohorts, which can also have UUID mismatches after DB reset
+        if (milestoneData.cohort_id) {
+          // Fetch cohorts to resolve parent relationship
+          const cohortsResponse = await adminApi.adminFetch<{
+            success: boolean;
+            data?: any[];
+          }>("/api/admin/cohorts");
+
+          if (cohortsResponse.data?.data) {
+            const cohorts = cohortsResponse.data.data;
+
+            // Try to find parent cohort by UUID first
+            let parentCohort = cohorts.find(
+              (c: any) => c.id === milestoneData.cohort_id,
+            );
+
+            // If not found by UUID, try by lock address
+            if (!parentCohort && milestoneData.parent_cohort_lock_address) {
+              parentCohort = cohorts.find(
+                (c: any) =>
+                  c.lock_address === milestoneData.parent_cohort_lock_address,
+              );
+            }
+
+            if (!parentCohort) {
+              const availableCohorts = cohorts
+                .map((c: any) => `- ${c.name} (Lock: ${c.lock_address})`)
+                .join("\n");
+
+              throw new Error(
+                `Cannot recover milestone: Parent cohort not found.\n\n` +
+                  `Stored cohort_id: ${milestoneData.cohort_id}\n\n` +
+                  `Available cohorts:\n${availableCohorts}\n\n` +
+                  `Delete this pending deployment or manually update the cohort_id.`,
+              );
+            }
+
+            // Update cohort_id to current UUID
+            apiData.cohort_id = parentCohort.id;
+
+            log.info("Resolved milestone parent cohort:", {
+              originalId: milestoneData.cohort_id,
+              resolvedId: parentCohort.id,
+              cohortName: parentCohort.name,
+              cohortLockAddress: parentCohort.lock_address,
+            });
+          }
+        }
+      }
+
       log.info(`Attempting to recover ${deployment.entityType}:`, {
         deploymentId: deployment.id,
         lockAddress: deployment.lockAddress,
-        apiData,
+        hasId: !!apiData.id,
+        hasName: !!apiData.name,
+        hasBootcampProgramId: !!(apiData as any).bootcamp_program_id,
+        hasCohortId: !!(apiData as any).cohort_id,
+        apiDataKeys: Object.keys(apiData),
       });
+
+      // Extract milestone tasks (they need to be created separately via milestone-tasks API)
+      // Quest tasks are kept in apiData - the quests-v2 API handles them automatically
+      const milestoneTasks =
+        deployment.entityType === "milestone" && (apiData as any).tasks
+          ? (apiData as any).tasks
+          : null;
+
+      // Remove tasks from milestone apiData before sending to POST
+      // (milestone API doesn't accept tasks field, but quests-v2 does)
+      if (deployment.entityType === "milestone") {
+        delete (apiData as any).tasks;
+      }
 
       const response = await adminApi.adminFetch<{
         success: boolean;
@@ -139,6 +283,71 @@ export default function DraftRecoveryPage() {
       }
 
       if (response.data) {
+        // For milestones, also create tasks if they exist
+        if (
+          deployment.entityType === "milestone" &&
+          milestoneTasks &&
+          milestoneTasks.length > 0
+        ) {
+          const createdMilestoneId = response.data.data?.id;
+          if (createdMilestoneId) {
+            log.info("Creating milestone tasks during recovery", {
+              milestoneId: createdMilestoneId,
+              taskCount: milestoneTasks.length,
+            });
+
+            // Prepare tasks with the new milestone_id
+            const tasksToCreate = milestoneTasks.map((task: any) => ({
+              ...task,
+              milestone_id: createdMilestoneId,
+              // Remove any old IDs to avoid conflicts
+              id: undefined,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }));
+
+            try {
+              const tasksResponse = await adminApi.adminFetch<{
+                success: boolean;
+                data?: any;
+                error?: string;
+              }>("/api/admin/milestone-tasks", {
+                method: "POST",
+                body: JSON.stringify(tasksToCreate),
+              });
+
+              if (tasksResponse.error || !tasksResponse.data?.success) {
+                log.warn("Failed to create milestone tasks during recovery", {
+                  error: tasksResponse.error,
+                  milestoneId: createdMilestoneId,
+                });
+                toast(
+                  "Milestone recovered but tasks failed to create. You can add them manually.",
+                  {
+                    icon: "⚠️",
+                  },
+                );
+              } else {
+                log.info("Successfully created milestone tasks", {
+                  milestoneId: createdMilestoneId,
+                  createdCount: tasksResponse.data.data?.length || 0,
+                });
+              }
+            } catch (taskError: any) {
+              log.error("Error creating milestone tasks", {
+                error: taskError,
+                milestoneId: createdMilestoneId,
+              });
+              toast(
+                "Milestone recovered but tasks failed to create. You can add them manually.",
+                {
+                  icon: "⚠️",
+                },
+              );
+            }
+          }
+        }
+
         // Success! Remove pending deployment
         removePendingDeployment(deployment.id);
         toast.success(`Successfully recovered ${deployment.entityType}!`);
@@ -148,7 +357,7 @@ export default function DraftRecoveryPage() {
       }
     } catch (error: any) {
       log.error("Recovery failed:", error);
-      toast.error(`Recovery failed: ${error.message}`);
+      showDismissibleError(`Recovery failed: ${error.message}`);
 
       // Refresh data to update retry count
       loadData();

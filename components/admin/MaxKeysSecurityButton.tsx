@@ -38,13 +38,13 @@ export default function MaxKeysSecurityButton({
     setIsSecuring(true);
 
     try {
-      log.info("Starting maxKeysPerAddress security update", {
+      log.info("Starting purchase-disable security update", {
         entityType,
         entityId,
         lockAddress,
       });
 
-      // Execute blockchain transaction to update maxKeysPerAddress to 0
+      // Execute blockchain transaction to disable purchases (maxNumberOfKeys = 0)
       toast.loading("Updating lock configuration...", {
         id: "secure-max-keys",
       });
@@ -63,7 +63,9 @@ export default function MaxKeysSecurityButton({
         transactionHash: result.transactionHash,
       });
 
-      toast.success("Lock secured successfully!", { id: "secure-max-keys" });
+      toast.success("Lock purchases disabled successfully!", {
+        id: "secure-max-keys",
+      });
 
       // Update database to mark security as successful
       let updateResult;
@@ -118,8 +120,8 @@ export default function MaxKeysSecurityButton({
 
       onSuccess?.();
     } catch (error: any) {
-      const errorMsg = error.message || "Failed to secure lock";
-      log.error("Max keys security update failed", {
+      const errorMsg = error.message || "Failed to disable purchases";
+      log.error("Purchase-disable security update failed", {
         entityType,
         entityId,
         error: errorMsg,
@@ -143,12 +145,12 @@ export default function MaxKeysSecurityButton({
         {isSecuring || isLoading ? (
           <>
             <div className="w-3 h-3 border border-orange-300/20 border-t-orange-300 rounded-full animate-spin mr-2" />
-            Securing...
+            Disabling...
           </>
         ) : (
           <>
             <Shield className="w-3 h-3 mr-2" />
-            Secure Lock
+            Disable Purchases
           </>
         )}
       </Button>
@@ -164,9 +166,8 @@ export default function MaxKeysSecurityButton({
             <h4 className="text-red-300 font-semibold">Security Risk</h4>
           </div>
           <p className="text-red-300 text-sm mb-2">
-            This lock is vulnerable to unauthorized access. Users can bypass
-            server-side validation by directly purchasing keys if they know the
-            lock address.
+            This lock allows purchases. Users can bypass server-side validation
+            by directly purchasing keys if they know the lock address.
           </p>
           {maxKeysFailureReason && (
             <div className="bg-red-950/50 border border-red-800 rounded p-2 mb-3">
@@ -176,7 +177,7 @@ export default function MaxKeysSecurityButton({
             </div>
           )}
           <p className="text-gray-400 text-xs">
-            Click the button to set maxKeysPerAddress to 0 and secure this lock.
+            Click the button to set maxNumberOfKeys to 0 and disable purchases.
           </p>
         </div>
 
@@ -189,12 +190,12 @@ export default function MaxKeysSecurityButton({
           {isSecuring || isLoading ? (
             <>
               <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
-              Securing...
+              Disabling...
             </>
           ) : (
             <>
               <Shield className="w-4 h-4 mr-2" />
-              Secure Lock
+              Disable Purchases
             </>
           )}
         </Button>

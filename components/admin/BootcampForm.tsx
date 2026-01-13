@@ -502,6 +502,11 @@ export default function BootcampForm({
         currentReason: maxKeysFailureReason,
       });
 
+      // Only include max_keys fields when editing if there's a deployment outcome
+      // Otherwise, omit them to preserve existing DB values (prevents overwriting synced state)
+      const hasDeploymentOutcome = typeof lastConfigFailed === "boolean";
+      const shouldIncludeMaxKeysFields = !isEditing || hasDeploymentOutcome;
+
       const apiData: any = {
         id: bootcampId, // Always include ID
         name: formData.name,
@@ -512,10 +517,14 @@ export default function BootcampForm({
         image_url: formData.image_url || null,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
-        max_keys_secured: effectiveMaxKeys.secured,
-        max_keys_failure_reason: effectiveMaxKeys.reason,
         updated_at: new Date().toISOString(),
       };
+
+      // Only include max_keys fields if creating new bootcamp or if there was a deployment
+      if (shouldIncludeMaxKeysFields) {
+        apiData.max_keys_secured = effectiveMaxKeys.secured;
+        apiData.max_keys_failure_reason = effectiveMaxKeys.reason;
+      }
 
       // Add created_at for new bootcamps
       if (!isEditing) {
