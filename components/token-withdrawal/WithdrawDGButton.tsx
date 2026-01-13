@@ -21,7 +21,7 @@ export function WithdrawDGButton({
   variant = "primary",
   limits,
 }: WithdrawDGButtonProps) {
-  const { canWithdraw, reason, isLoading } = useWithdrawalAccess({
+  const { canWithdraw, reason, isLoading, xpBalance } = useWithdrawalAccess({
     minAmount: limits.minAmount,
     isLoadingLimits: limits.isLoading,
   });
@@ -36,7 +36,7 @@ export function WithdrawDGButton({
       : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-indigo-500";
 
   return (
-    <>
+    <div>
       <button
         onClick={() => setIsModalOpen(true)}
         disabled={isLoading || !canWithdraw}
@@ -59,6 +59,29 @@ export function WithdrawDGButton({
         {isLoading ? "Checking Access..." : "Pullout DG"}
       </button>
 
+      {/* Balance Info - Always visible */}
+      {!isLoading && (
+        <div className="mt-2 text-sm text-gray-400">
+          <span className="inline-flex items-center gap-1">
+            <span>Balance:</span>
+            <span
+              className={
+                xpBalance >= limits.minAmount
+                  ? "text-green-400 font-medium"
+                  : "text-yellow-400 font-medium"
+              }
+            >
+              {xpBalance.toLocaleString()} xDG
+            </span>
+            <span className="text-gray-500">•</span>
+            <span>Required:</span>
+            <span className="text-gray-300 font-medium">
+              {limits.minAmount.toLocaleString()} xDG
+            </span>
+          </span>
+        </div>
+      )}
+
       {isModalOpen && (
         <WithdrawDGModal
           isOpen={isModalOpen}
@@ -66,6 +89,6 @@ export function WithdrawDGButton({
           limits={limits}
         />
       )}
-    </>
+    </div>
   );
 }

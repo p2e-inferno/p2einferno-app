@@ -6,13 +6,21 @@
  */
 
 import React, { useState } from "react";
-import { X } from "lucide-react";
+import { X, Loader, CheckCircle, AlertCircle } from "lucide-react";
 import { useDGNationKey } from "@/hooks/useDGNationKey";
 import { useKeyPurchase } from "@/hooks/unlock/useKeyPurchase";
+import { LockPriceDisplay } from "@/components/subscription/LockPriceDisplay";
+import { useLockInfo } from "@/hooks/unlock/useLockInfo";
 
 export function AccessRequirementCard() {
+  const lockAddress = process.env
+    .NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
+
   const { hasValidKey, isLoading: isLoadingKey } = useDGNationKey();
   const { purchaseKey, isLoading: isPurchasing } = useKeyPurchase();
+  const lockInfo = useLockInfo(lockAddress);
+
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -20,13 +28,28 @@ export function AccessRequirementCard() {
     return null; // Don't show if loading, user already has access, or purchase was successful
   }
 
-  const handlePurchase = async () => {
+  const handleOpenPurchaseModal = () => {
+    setShowPurchaseModal(true);
+  };
+
+  const handleConfirmPurchase = async () => {
     try {
       setError(null);
-      const lockAddress = process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS;
 
       if (!lockAddress) {
         setError("Lock address not configured");
+        return;
+      }
+
+      // Guard: Ensure React Query has loaded the lock info
+      // Once loaded, any price (including 0n for free locks) is legitimate
+      if (lockInfo.isLoading) {
+        setError("Loading lock information, please wait...");
+        return;
+      }
+
+      if (lockInfo.error) {
+        setError(lockInfo.error);
         return;
       }
 
@@ -38,6 +61,7 @@ export function AccessRequirementCard() {
 
       if (result.success) {
         setIsSuccess(true);
+        setShowPurchaseModal(false);
         // Optionally trigger a refresh of the key status
         setTimeout(() => window.location.reload(), 3000);
       } else {
@@ -49,86 +73,119 @@ export function AccessRequirementCard() {
   };
 
   return (
-    <div className="mb-6 p-4 bg-gray-800 border border-gray-700 rounded-lg">
-      <h3 className="font-medium text-blue-400">
-        DG Nation Membership Required
-      </h3>
-      <p className="mt-1 text-sm text-gray-300">
-        You need an active DG Nation membership NFT to pull out DG tokens. This
-        is a recurring subscription NFT that provides access to exclusive
-        features.
-      </p>
+    <>
+      <div className="mb-6 p-4 bg-gray-800 border border-gray-700 rounded-lg">
+        <h3 className="font-medium text-blue-400">
+          DG Nation Membership Required
+        </h3>
+        <p className="mt-1 text-sm text-gray-300">
+          You need an active DG Nation membership NFT to pull out DG tokens.
+          This is a recurring subscription NFT that provides access to exclusive
+          features.
+        </p>
 
-      {error && (
-        <div className="mt-2 p-2 bg-red-900/20 border border-red-500/30 rounded-md flex justify-between items-start gap-2">
-          <p className="text-xs text-red-400 break-words overflow-hidden">
-            {error}
-          </p>
+        <div className="mt-3 flex flex-wrap gap-2">
           <button
-            onClick={() => setError(null)}
-            className="text-red-400 hover:text-red-300 transition-colors flex-shrink-0"
-            aria-label="Dismiss error"
+            onClick={handleOpenPurchaseModal}
+            className="inline-flex items-center px-3 py-1.5 border border-blue-500 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <X size={14} />
+            View Pricing & Purchase
           </button>
         </div>
-      )}
-
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button
-          onClick={handlePurchase}
-          disabled={isPurchasing}
-          className={`inline-flex items-center px-3 py-1.5 border border-blue-500 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed`}
-        >
-          {isPurchasing ? (
-            <>
-              <svg
-                className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
-                xmlns="http://www.w3.org/2000/svg"
-                fill="none"
-                viewBox="0 0 24 24"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                ></circle>
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                ></path>
-              </svg>
-              Purchasing...
-            </>
-          ) : (
-            "Purchase Membership"
-          )}
-        </button>
-
-        {/* <a
-          href="https://vendor.dreadgang.gg"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center px-3 py-1.5 border border-blue-500 text-sm font-medium rounded-md text-blue-700 bg-white hover:bg-blue-50"
-        >
-          Learn More
-          <svg
-            className="ml-1 -mr-0.5 h-4 w-4"
-            fill="currentColor"
-            viewBox="0 0 20 20"
-          >
-            <path
-              fillRule="evenodd"
-              d="M10.293 5.293a1 1 0 011.414 0l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414-1.414L12.586 11H5a1 1 0 110-2h7.586l-2.293-2.293a1 1 0 010-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
-        </a> */}
       </div>
-    </div>
+
+      {/* Purchase Confirmation Modal */}
+      {showPurchaseModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[60vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4 flex-shrink-0">
+              <h3 className="font-bold text-lg text-white">
+                Purchase Membership
+              </h3>
+              <button
+                onClick={() => {
+                  setShowPurchaseModal(false);
+                  setError(null);
+                }}
+                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
+                disabled={isPurchasing}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto scrollbar-hide">
+              {/* Price Display */}
+              <LockPriceDisplay lockAddress={lockAddress} className="mb-4" />
+
+              {/* Info message */}
+              {!lockInfo.isLoading && !lockInfo.error && (
+                <div className="p-4 bg-blue-900/20 rounded-lg border border-blue-500/30 mb-4">
+                  <p className="text-sm text-blue-300">
+                    You&apos;ll receive a {lockInfo.durationFormatted} DG Nation
+                    membership key. You can renew it anytime before expiration.
+                  </p>
+                </div>
+              )}
+
+              {/* Error Display */}
+              {error && (
+                <div className="p-4 bg-red-900/20 rounded-lg border border-red-500/30 mb-4">
+                  <div className="flex items-center justify-center w-12 h-12 mx-auto bg-red-100 rounded-full mb-4">
+                    <AlertCircle className="w-8 h-8 text-red-600" />
+                  </div>
+                  <p className="text-sm text-red-300 break-words">{error}</p>
+                </div>
+              )}
+
+              {/* Success Display */}
+              {isSuccess && (
+                <div className="p-4 bg-green-900/20 rounded-lg border border-green-500/30 mb-4">
+                  <div className="flex items-center justify-center w-12 h-12 mx-auto bg-green-100 rounded-full mb-4">
+                    <CheckCircle className="w-8 h-8 text-green-600" />
+                  </div>
+                  <p className="text-sm text-green-300 text-center">
+                    Purchase successful! Page will reload shortly...
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2 mt-4 flex-shrink-0">
+              <button
+                className="flex-1 px-4 py-2 border border-gray-600 text-gray-300 hover:bg-gray-800 rounded-lg transition-colors"
+                onClick={() => {
+                  setShowPurchaseModal(false);
+                  setError(null);
+                }}
+                disabled={isPurchasing}
+              >
+                Cancel
+              </button>
+              <button
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleConfirmPurchase}
+                disabled={
+                  lockInfo.isLoading ||
+                  !!lockInfo.error ||
+                  isPurchasing ||
+                  isSuccess
+                }
+              >
+                {isPurchasing ? (
+                  <>
+                    <Loader className="inline-block animate-spin w-4 h-4 mr-2" />
+                    Processing...
+                  </>
+                ) : (
+                  "Purchase Now"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

@@ -11,6 +11,7 @@ import { useKeyPurchase } from "@/hooks/unlock/useKeyPurchase";
 import { useExtendKey } from "@/hooks/unlock/useExtendKey";
 import { useDGNationKey } from "@/hooks/useDGNationKey";
 import { useLockInfo } from "@/hooks/unlock/useLockInfo";
+import { LockPriceDisplay } from "./LockPriceDisplay";
 
 interface Props {
   mode: "purchase" | "renewal";
@@ -50,6 +51,20 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
       return;
     }
 
+    // Guard: Ensure React Query has loaded the lock info
+    // Once loaded, any price (including 0n for free locks) is legitimate
+    if (lockInfo.isLoading) {
+      setError("Loading lock information, please wait...");
+      setStep("error");
+      return;
+    }
+
+    if (lockInfo.error) {
+      setError(lockInfo.error);
+      setStep("error");
+      return;
+    }
+
     setStep("confirming");
     setError(null);
 
@@ -68,8 +83,9 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
           throw new Error(result.error || "Purchase failed");
         }
 
-        // Calculate expiration (30 days from now)
-        newExpiration = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        // Calculate expiration using actual contract duration
+        const durationSeconds = Number(lockInfo.expirationDuration);
+        newExpiration = new Date(Date.now() + durationSeconds * 1000);
       } else {
         // Renewal - extend existing key
         if (!hasValidKey) {
@@ -80,10 +96,7 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
           throw new Error("Token ID not found");
         }
 
-        if (!lockInfo.keyPriceRaw || lockInfo.keyPriceRaw === 0n) {
-          throw new Error("Failed to fetch key price");
-        }
-
+        // Use the loaded price value (can be 0n for free locks)
         result = await extendKey({
           lockAddress,
           tokenId,
@@ -94,11 +107,12 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
           throw new Error(result.error || "Extension failed");
         }
 
-        // Calculate new expiration from current + 30 days
+        // Calculate new expiration from current + actual contract duration
         const currentExp = currentExpiration
           ? Number(currentExpiration)
           : Math.floor(Date.now() / 1000);
-        newExpiration = new Date((currentExp + 30 * 24 * 60 * 60) * 1000);
+        const durationSeconds = Number(lockInfo.expirationDuration);
+        newExpiration = new Date((currentExp + durationSeconds) * 1000);
       }
 
       setSuccessData({
@@ -256,47 +270,18 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
         </div>
 
         <div className="flex-1 overflow-y-auto scrollbar-hide">
-          {/* Loading state */}
-          {lockInfo.isLoading && (
-            <div className="flex items-center justify-center py-8">
-              <Loader className="animate-spin w-6 h-6 text-blue-500" />
-              <span className="ml-2 text-gray-400">Loading price...</span>
-            </div>
-          )}
+          {/* Price Display */}
+          <LockPriceDisplay lockAddress={lockAddress} className="mb-4" />
 
-          {/* Error state */}
-          {lockInfo.error && !lockInfo.isLoading && (
-            <div className="p-4 bg-red-900/20 rounded-lg border border-red-500/30 mb-4">
-              <p className="text-sm text-red-300">{lockInfo.error}</p>
-            </div>
-          )}
-
-          {/* Price info */}
+          {/* Info message */}
           {!lockInfo.isLoading && !lockInfo.error && (
-            <>
-              <div className="p-4 bg-gray-800 rounded-lg border border-gray-700 mb-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="text-gray-400">Duration</span>
-                  <span className="text-white font-semibold">
-                    1 Month (30 days)
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-400">Price</span>
-                  <span className="text-white font-semibold text-lg">
-                    {lockInfo.keyPrice} {lockInfo.tokenSymbol}
-                  </span>
-                </div>
-              </div>
-
-              <div className="p-4 bg-blue-900/20 rounded-lg border border-blue-500/30 mb-4">
-                <p className="text-sm text-blue-300">
-                  {mode === "purchase"
-                    ? "You'll receive a 30-day DG Nation membership key. You can renew it anytime before expiration."
-                    : "Your membership will be extended by 30 days from the current expiration date."}
-                </p>
-              </div>
-            </>
+            <div className="p-4 bg-blue-900/20 rounded-lg border border-blue-500/30 mb-4">
+              <p className="text-sm text-blue-300">
+                {mode === "purchase"
+                  ? `You'll receive a ${lockInfo.durationFormatted} DG Nation membership key. You can renew it anytime before expiration.`
+                  : `Your membership will be extended by ${lockInfo.durationFormatted} from the current expiration date.`}
+              </p>
+            </div>
           )}
         </div>
 
