@@ -28,6 +28,21 @@ interface SyncLockStateButtonProps {
   mode?: SyncMode;
 }
 
+/**
+ * Renders a button that triggers synchronizing a lock's state using either the security-state or manager sync path.
+ *
+ * The button shows a spinner and disables itself while a sync is in progress, displays success or error toasts,
+ * and invokes optional callbacks on completion or failure.
+ *
+ * @param entityType - The type of entity to synchronize (security or manager entity type).
+ * @param entityId - The identifier of the entity to synchronize.
+ * @param lockAddress - The lock address used for the synchronization.
+ * @param onSuccess - Optional callback invoked after a successful sync.
+ * @param onError - Optional callback invoked with an error message when sync fails.
+ * @param compact - If true, render a smaller button; defaults to `true`.
+ * @param mode - Sync mode to use: `"maxKeys"` for security-state sync or `"manager"` for manager-based sync; defaults to `"maxKeys"`.
+ * @returns The sync button element that initiates the synchronization and reflects its progress.
+ */
 export default function SyncLockStateButton({
   entityType,
   entityId,

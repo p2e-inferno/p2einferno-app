@@ -3,6 +3,12 @@
  */
 import { createAdminClient } from "@/lib/supabase/server";
 
+/**
+ * Performs a pre-flight check for already-issued certificates and blocks deployment if any are found.
+ *
+ * Queries the "bootcamp_enrollments" table for rows where `certificate_issued` is true; if the query fails
+ * or if at least one issued certificate is detected, logs an error and terminates the process with exit code 1.
+ */
 async function checkCertificates() {
   const supabase = createAdminClient();
   const { data, error } = await supabase

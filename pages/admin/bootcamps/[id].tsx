@@ -17,6 +17,11 @@ import type { Address } from "viem";
 
 const log = getLogger("admin:bootcamps:[id]");
 
+/**
+ * Admin page component for viewing and editing a bootcamp, including fetching bootcamp data, checking blockchain lock manager and purchase-security (maxNumberOfKeys) status, and providing controls to reconcile database and on-chain state.
+ *
+ * @returns The React element for the Edit Bootcamp admin page.
+ */
 export default function EditBootcampPage() {
   const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();

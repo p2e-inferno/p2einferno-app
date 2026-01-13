@@ -55,6 +55,22 @@ interface BootcampFormProps {
   onSuccess?: () => void;
 }
 
+/**
+ * Form component for creating or editing a Bootcamp program in the admin UI.
+ *
+ * The form manages bootcamp fields, client-side validation, draft persistence and
+ * restoration, optional automatic deployment of a certificate lock (using the
+ * connected wallet), and submission to the admin API (POST for create, PUT for update).
+ * When creating, the form saves a draft and may auto-deploy a lock; when editing, it preserves
+ * existing lock and max_keys values unless a new deployment outcome is present (in which case
+ * max_keys fields are included in the payload). On successful save it either invokes the
+ * optional `onSuccess` callback (edit mode) or navigates back to the bootcamps list (create mode).
+ *
+ * @param bootcamp - Optional existing BootcampProgram used to populate the form for editing.
+ * @param isEditing - When true, the form operates in edit mode and issues a PUT request to update.
+ * @param onSuccess - Optional callback invoked after a successful update when in edit mode.
+ * @returns The rendered Bootcamp form JSX element.
+ */
 export default function BootcampForm({
   bootcamp,
   isEditing = false,
