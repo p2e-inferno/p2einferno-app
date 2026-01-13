@@ -7,17 +7,11 @@ import type { Address, PublicClient } from "viem";
 import { LOCK_CONFIG_VIEW_ABI } from "../shared/abi-definitions";
 
 /**
- * Verify if a lock has maxNumberOfKeys set to 0 (purchases disabled for grant-based locks)
+ * Determine whether a lock's `maxNumberOfKeys` is zero (disables purchases for grant-based locks).
  *
  * @param lockAddress - The address of the lock contract to check
- * @param publicClient - Viem public client for blockchain reads
- * @returns Object with security status and current maxNumberOfKeys value
- *
- * @example
- * const { isSecure, currentValue } = await verifyMaxKeysSecurity(lockAddress, publicClient);
- * if (!isSecure) {
- *   console.log(`Lock is insecure! maxNumberOfKeys is ${currentValue}, should be 0`);
- * }
+ * @param publicClient - Viem public client used to read contract state
+ * @returns `isSecure` is `true` if `currentValue` equals `0n`, `false` otherwise. `currentValue` is the lock's `maxNumberOfKeys` as a `bigint`.
  */
 export async function verifyMaxKeysSecurity(
   lockAddress: Address,
@@ -36,16 +30,13 @@ export async function verifyMaxKeysSecurity(
 }
 
 /**
- * Read current lock configuration and return parameters for updateLockConfig
- * Sets maxNumberOfKeys to 0 while preserving expiration and maxKeysPerAddress
+ * Prepare arguments for updateLockConfig that disable purchases by forcing maxNumberOfKeys to 0 while preserving expiration and per-address limits.
+ *
+ * Reads `expirationDuration` and `maxKeysPerAddress` from the lock contract. If `maxKeysPerAddress` is `0n`, it is replaced with `1n` to avoid a zero-per-address value.
  *
  * @param lockAddress - The address of the lock contract
  * @param publicClient - Viem public client for blockchain reads
- * @returns Tuple of [expirationDuration, 0n, maxKeysPerAddress] for updateLockConfig
- *
- * @example
- * const params = await getLockConfigForUpdate(lockAddress, publicClient);
- * await lockContract.write.updateLockConfig(params);
+ * @returns A tuple `[expirationDuration, 0n, maxKeysPerAddress]` where the second element is forced to `0n` and the third is clamped to `1n` if the contract returned `0n`
  */
 export async function getLockConfigForUpdate(
   lockAddress: Address,

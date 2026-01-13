@@ -5,6 +5,11 @@
 import { SchemaRegistry } from "@ethereum-attestation-service/eas-sdk";
 import { ethers } from "ethers";
 
+/**
+ * Deploys the canonical Bootcamp Completion schema to the configured EAS registry.
+ *
+ * Reads `RPC_URL`, `DEPLOYER_PRIVATE_KEY`, and `EAS_CONTRACT_ADDRESS` from the environment; if any are missing the process logs an error and exits with code 1. Connects a signer to the provided RPC and EAS contract, registers the Bootcamp Completion schema, and waits for the registration transaction to be mined.
+ */
 async function deploySchema() {
   const rpcUrl = process.env.RPC_URL;
   const pk = process.env.DEPLOYER_PRIVATE_KEY;

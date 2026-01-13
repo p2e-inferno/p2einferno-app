@@ -44,6 +44,14 @@ interface QuestDetails extends Quest {
   pending_submissions?: any[];
 }
 
+/**
+ * Admin page that displays and manages detailed information for a single quest.
+ *
+ * Shows quest metadata, statistics, tasks, submissions, and controls for synchronizing
+ * lock manager and purchase-security state between the database and the blockchain.
+ *
+ * @returns The React element rendering the admin UI for viewing and managing a quest's details, status, tasks, and submissions.
+ */
 export default function QuestDetailsPage() {
   const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();

@@ -1,5 +1,14 @@
 import { createAdminClient } from "@/lib/supabase/server";
 
+/**
+ * Performs database queries to collect recent certificate-related records for metrics within the past `hours` hours.
+ *
+ * This function creates an admin Supabase client and executes queries that select recent certificate issuance fields,
+ * identify certificate claims that may be stale, and retrieve recent certificate errors. Query results are not returned
+ * or persisted by this function.
+ *
+ * @param hours - Lookback window in hours to query for recent records (default: 24)
+ */
 async function getCertificateMetrics(hours: number = 24) {
   const supabase = createAdminClient();
   const since = new Date(Date.now() - hours * 3600_000).toISOString();

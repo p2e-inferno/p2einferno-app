@@ -140,6 +140,16 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Update an existing cohort milestone and refresh related admin caches.
+ *
+ * Parses the request body for `id` and update fields, applies hardened defaults for lock-manager
+ * and max-keys flags when a `lock_address` is present, updates the `cohort_milestones` row,
+ * invalidates related cache tags, and returns the updated row.
+ *
+ * @returns `{ success: true, data }` with the updated milestone on success (HTTP 200), or
+ *          `{ error: string }` with an appropriate HTTP status on failure.
+ */
 export async function PUT(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;

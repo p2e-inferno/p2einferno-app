@@ -15,6 +15,14 @@ import type { Address } from "viem";
 
 const log = getLogger("admin:cohorts:[cohortId]:index");
 
+/**
+ * Renders the admin edit page for a cohort, including fetching cohort data,
+ * server wallet address, and blockchain lock-manager status, and exposes UI
+ * for retrying grants and synchronizing lock state.
+ *
+ * @returns A React element rendering the cohort edit layout, lock manager status,
+ * and editing form (or a not-found message when the cohort is absent).
+ */
 export default function EditCohortPage() {
   const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();

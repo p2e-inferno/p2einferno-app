@@ -24,6 +24,16 @@ export function initialGrantState(
   return isEditing ? (existing ?? false) : false;
 }
 
+/**
+ * Derives the effective grant state and associated failure information from a deployment outcome.
+ *
+ * @param result - Deployment outcome containing optional `grantFailed`, `grantError`, `configFailed`, and `configError` fields
+ * @returns An object with:
+ *   - `granted`: `true` if the grant did not fail, `false` otherwise
+ *   - `reason`: a human-readable failure message when either grant or config update failed, or `undefined` when there is no failure
+ *   - `lastGrantFailed`: `true` if the grant step failed, `false` otherwise
+ *   - `lastGrantError`: the raw grant error message from the deployment outcome, if any
+ */
 export function applyDeploymentOutcome(result: DeploymentResultLike): {
   granted: boolean;
   reason?: string;
@@ -96,8 +106,22 @@ export interface EffectiveMaxKeysInput {
 }
 
 /**
- * Determine effective max_keys_secured state based on deployment outcome
- * Follows same pattern as effectiveGrantForSave for lock_manager_granted
+ * Compute the effective "maxNumberOfKeys" secured state and an optional reason for saving.
+ *
+ * If a deployment outcome is present (outcome.lastConfigFailed defined), the result is derived from that outcome:
+ * - secured is true when the last config update did not fail; otherwise false.
+ * - reason is the outcome error message when the update failed, or the default "Lock config update failed - maxNumberOfKeys not set to 0".
+ *
+ * If no outcome is present and a lockAddress exists, the currentSecured/currentReason values are used unchanged.
+ * If no outcome and no lockAddress, the function returns secured: false with no reason.
+ *
+ * @param input - Inputs influencing the effective secured state:
+ *   - outcome?.lastConfigFailed / outcome?.lastConfigError: optional deployment outcome to override current state
+ *   - lockAddress: presence indicates an existing lock whose current state should be respected when no outcome exists
+ *   - currentSecured / currentReason: current stored state and its reason to fall back to when no outcome exists
+ * @returns An object with:
+ *   - secured: `true` if the lock should be considered secured (maxNumberOfKeys set to 0), `false` otherwise
+ *   - reason: optional human-readable explanation when `secured` is `false`
  */
 export function effectiveMaxKeysForSave(input: EffectiveMaxKeysInput): {
   secured: boolean;

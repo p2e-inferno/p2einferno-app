@@ -7,7 +7,10 @@ interface DismissibleToastProps {
 }
 
 /**
- * Toast content component with a visible close button
+ * Renders toast content showing the provided message with a visible close button that dismisses the associated toast.
+ *
+ * @param t - The toast instance whose id is used to dismiss this toast when the close button is clicked.
+ * @param message - The text message displayed inside the toast.
  */
 export function DismissibleToastContent({ t, message }: DismissibleToastProps) {
   return (
@@ -37,7 +40,9 @@ export function DismissibleToastContent({ t, message }: DismissibleToastProps) {
 }
 
 /**
- * Shows a dismissible error toast with a visible close button
+ * Display a dismissible error toast with a visible close button containing the provided message.
+ *
+ * @returns The id of the created toast.
  */
 export function showDismissibleError(message: string) {
   return toast.error((t) => (
@@ -46,7 +51,10 @@ export function showDismissibleError(message: string) {
 }
 
 /**
- * Shows a dismissible success toast with a visible close button
+ * Display a dismissible success toast with a visible close button.
+ *
+ * @param message - The message text to display inside the toast
+ * @returns The id of the created toast
  */
 export function showDismissibleSuccess(message: string) {
   return toast.success((t) => (
@@ -55,7 +63,10 @@ export function showDismissibleSuccess(message: string) {
 }
 
 /**
- * Shows a dismissible info toast with a visible close button
+ * Display an informational toast that includes a visible dismiss button.
+ *
+ * @param message - The text to display inside the toast
+ * @returns The id of the shown toast
  */
 export function showDismissibleInfo(message: string) {
   return toast((t) => <DismissibleToastContent t={t} message={message} />, {

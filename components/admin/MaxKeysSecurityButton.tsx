@@ -21,6 +21,20 @@ interface MaxKeysSecurityButtonProps {
   compact?: boolean; // Optional compact mode for smaller spaces
 }
 
+/**
+ * Renders a button (compact or full panel) that disables purchases for a lock by setting its maxNumberOfKeys to 0 and updates the corresponding backend entity to mark the change.
+ *
+ * When triggered, the component performs a blockchain update to set maxNumberOfKeys = 0, shows progress and result toasts, updates the database record for the given entity, and invokes optional callbacks on success or error.
+ *
+ * @param entityType - The type of entity to update in the backend: `"milestone"`, `"quest"`, or `"bootcamp"`.
+ * @param entityId - The identifier of the backend entity to mark as secured after the blockchain update.
+ * @param lockAddress - The lock address to update on-chain.
+ * @param maxKeysFailureReason - Optional backend-provided diagnostic message explaining why max-keys enforcement previously failed; displayed in the full panel.
+ * @param onSuccess - Optional callback invoked after both the blockchain and database updates succeed.
+ * @param onError - Optional callback invoked with an error message if the operation fails at any step.
+ * @param compact - If true, render a compact inline button; otherwise render the full warning panel with explanatory text.
+ * @returns The component's JSX element.
+ */
 export default function MaxKeysSecurityButton({
   entityType,
   entityId,
