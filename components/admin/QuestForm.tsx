@@ -54,13 +54,11 @@ interface QuestFormProps {
 type TaskWithTempId = Partial<QuestTask> & { tempId?: string };
 
 /**
- * Render a form for creating or editing a Quest, including task management, prerequisite selection,
- * reward/activation configuration, draft restoration, optional automatic lock deployment, validation,
- * and submission to the admin API.
+ * Display and manage a form for creating or editing a Quest, handling tasks, prerequisites, reward/activation configuration, optional automatic lock deployment, draft restoration, validation, and saving to the admin API.
  *
  * @param props.quest - Optional existing quest used to populate the form when editing.
- * @param props.isEditing - When true, the form operates in edit mode (default: false).
- * @returns A JSX form element that manages quest state, deployment, and saving. 
+ * @param props.isEditing - Whether the form is in edit mode (default: false).
+ * @returns A JSX form element that manages quest state, optional lock deployment, and persistence to the admin API.
  */
 export default function QuestForm({
   quest,

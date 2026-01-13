@@ -29,15 +29,11 @@ import { showDismissibleError } from "@/components/ui/dismissible-toast";
 const log = getLogger("admin:draft-recovery");
 
 /**
- * Page UI for managing and recovering pending deployments and draft entities.
+ * Render the Draft Recovery admin interface for managing and recovering pending deployments and saved drafts.
  *
- * Provides a dashboard that loads and displays pending deployments, saved drafts,
- * and basic statistics; supports recovering pending deployments into the database
- * (with type-specific validation and task creation), deleting individual pending
- * deployments or drafts, and clearing all deployment state. Data is loaded on mount
- * and refreshed every 30 seconds.
+ * Loads pending deployments, drafts, and basic statistics (initial load and periodic refresh), and provides actions to recover pending deployments with type-specific validations, delete individual pending deployments or drafts, and clear all deployment state.
  *
- * @returns The React element rendering the Draft Recovery admin interface
+ * @returns The React element for the Draft Recovery admin page
  */
 export default function DraftRecoveryPage() {
   const [pendingDeployments, setPendingDeployments] = useState<

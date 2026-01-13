@@ -60,6 +60,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * Creates a new cohort milestone, persists it to the database, invalidates related caches, and returns the created milestone.
+ *
+ * Performs a cohort certificate check (when BOOTCAMP_CERTIFICATES_ENABLED = 'true') to prevent adding milestones after certificates have been issued. When the payload includes a `lock_address`, boolean lock-related flags are normalized and associated failure-reason fields are cleared as appropriate. Requires an admin caller.
+ *
+ * @returns JSON response containing the created milestone record on success; `201` on success, `409` if certificates have already been issued for the cohort, `400` for validation/insert errors, or `500` for server errors.
 export async function POST(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
@@ -141,14 +147,12 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * Update an existing cohort milestone and refresh related admin caches.
+ * Update an existing cohort milestone and invalidate related admin caches.
  *
- * Parses the request body for `id` and update fields, applies hardened defaults for lock-manager
- * and max-keys flags when a `lock_address` is present, updates the `cohort_milestones` row,
- * invalidates related cache tags, and returns the updated row.
+ * Applies hardened defaults for lock-manager and max-keys flags when a `lock_address` is present,
+ * updates the milestone row, and triggers cache revalidation for the affected milestone and cohort.
  *
- * @returns `{ success: true, data }` with the updated milestone on success (HTTP 200), or
- *          `{ error: string }` with an appropriate HTTP status on failure.
+ * @returns `{ success: true, data }` with the updated milestone on success, or `{ error: string }` describing the failure.
  */
 export async function PUT(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
@@ -214,6 +218,13 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+/**
+ * Delete a cohort milestone identified by the `id` query parameter and invalidate its related caches.
+ *
+ * Requires admin privileges; if the caller is not an admin, the guard response is returned. If the milestone is found and deleted, related cache tags are invalidated via `invalidateMilestone`.
+ *
+ * @returns `success: true` on successful deletion; otherwise an object with an `error` message describing the failure (status codes convey the error type, e.g., 400 for bad requests or 500 for server errors).
+ */
 export async function DELETE(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;

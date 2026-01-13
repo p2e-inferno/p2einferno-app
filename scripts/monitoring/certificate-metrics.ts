@@ -1,11 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/server";
 
 /**
- * Performs database queries to collect recent certificate-related records for metrics within the past `hours` hours.
+ * Collects recent certificate-related records for metrics within the past `hours` hours.
  *
- * This function creates an admin Supabase client and executes queries that select recent certificate issuance fields,
- * identify certificate claims that may be stale, and retrieve recent certificate errors. Query results are not returned
- * or persisted by this function.
+ * Executes queries against the `bootcamp_enrollments` table to retrieve recent certificate issuance fields,
+ * potentially stale in-progress claims, and recent certificate errors. Query results are not returned or persisted.
  *
  * @param hours - Lookback window in hours to query for recent records (default: 24)
  */

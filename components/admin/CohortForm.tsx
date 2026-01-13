@@ -47,12 +47,12 @@ interface CohortFormProps {
 }
 
 /**
- * Render a form for creating or editing a cohort, including validation, draft handling, optional automatic lock deployment, and saving to the admin API.
+ * Render a form for creating or editing a cohort with validation, draft persistence, optional automatic lock deployment, and saving to the admin API.
  *
- * This component manages local form state, input validation, draft hydration/saving, bootcamp program loading, optional web3 lock deployment (with grant state tracking and pending-deployment persistence), and submission (create or update) via the admin API. It provides user feedback via toasts and in-form error messages.
+ * The component manages local form state, input validation, draft hydration/saving, bootcamp program loading, optional web3 lock deployment with grant-state tracking and pending-deployment persistence, and submits create/update requests to the admin API. It also provides in-form error messaging and user feedback.
  *
- * @param cohort - Optional existing cohort data to prefill the form when editing.
- * @param isEditing - When true, the form behaves as an editor (disables certain fields and performs an update instead of create). Defaults to false.
+ * @param cohort - Optional existing cohort used to prefill the form when editing.
+ * @param isEditing - When true, the form operates in edit mode (disables immutable fields and performs an update). Defaults to false.
  * @param onSuccess - Optional callback invoked after a successful update when editing.
  * @returns The cohort form React element.
  */
