@@ -46,7 +46,7 @@ export function WithdrawDGButton({
       : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-indigo-500";
 
   return (
-    <div>
+    <>
       <button
         onClick={() => setIsModalOpen(true)}
         disabled={isLoading || !canWithdraw}
@@ -99,6 +99,6 @@ export function WithdrawDGButton({
           limits={limits}
         />
       )}
-    </div>
+    </>
   );
 }

@@ -10,6 +10,7 @@
 "use client";
 
 import { Loader } from "lucide-react";
+import { zeroAddress } from "viem";
 import { useLockInfo } from "@/hooks/unlock/useLockInfo";
 
 interface LockPriceDisplayProps {
@@ -69,8 +70,7 @@ export const LockPriceDisplay = ({
             <div className="text-white font-bold text-lg">
               {lockInfo.keyPrice} {lockInfo.tokenSymbol}
             </div>
-            {lockInfo.tokenAddress !==
-              "0x0000000000000000000000000000000000000000" && (
+            {lockInfo.tokenAddress !== zeroAddress && (
               <div className="text-xs text-gray-500 mt-0.5">ERC20 Token</div>
             )}
           </div>

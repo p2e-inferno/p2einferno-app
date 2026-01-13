@@ -581,10 +581,24 @@ export default function QuestDetailsPage() {
                       (!quest.max_keys_secured &&
                         actualMaxKeysValue === 0n)) && (
                       <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
-                        <p className="text-amber-300 text-xs font-medium">
-                          ⚠️ Status Mismatch: Database and blockchain states
-                          don&apos;t match!
-                        </p>
+                        <div className="flex flex-col gap-2">
+                          <p className="text-amber-300 text-xs font-medium">
+                            ⚠️ Status Mismatch: Database and blockchain states
+                            don&apos;t match!
+                          </p>
+                          <SyncLockStateButton
+                            entityType="quest"
+                            entityId={quest.id}
+                            lockAddress={quest.lock_address}
+                            mode="maxKeys"
+                            onSuccess={() => {
+                              if (id && typeof id === "string") {
+                                fetchQuestDetails(id);
+                                checkActualMaxKeysValue();
+                              }
+                            }}
+                          />
+                        </div>
                       </div>
                     )}
                 </div>

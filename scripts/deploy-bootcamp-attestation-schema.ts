@@ -32,7 +32,18 @@ async function deploySchema() {
     resolverAddress: ethers.ZeroAddress,
     revocable: false,
   });
-  await tx.wait();
+  const schemaUid = await tx.wait();
+  const isValidUid = typeof schemaUid === "string" && ethers.isHexString(schemaUid, 32);
+
+  if (!isValidUid) {
+    console.error("Failed to obtain schema UID from registration", { schema });
+    return;
+  }
+
+  console.log("Schema deployed", {
+    schemaUid,
+    schema,
+  });
 }
 
 deploySchema().catch((err) => {

@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createPublicClientUnified } from "@/lib/blockchain/config";
 import { COMPLETE_LOCK_ABI, ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { getLogger } from "@/lib/utils/logger";
-import { formatUnits, type Address } from "viem";
+import { formatUnits, zeroAddress, type Address } from "viem";
 
 const log = getLogger("hooks:unlock:lock-info");
 
@@ -81,7 +81,7 @@ const fetchLockInfo = async (lockAddress: string): Promise<Omit<LockInfo, "isLoa
   let tokenSymbol = "ETH";
   let decimals = 18;
 
-  if (tokenAddress !== "0x0000000000000000000000000000000000000000") {
+  if (tokenAddress !== zeroAddress) {
     try {
       [tokenSymbol, decimals] = await Promise.all([
         publicClient.readContract({
@@ -96,8 +96,15 @@ const fetchLockInfo = async (lockAddress: string): Promise<Omit<LockInfo, "isLoa
         }) as Promise<number>,
       ]);
     } catch (err) {
-      log.warn("Failed to fetch token details, using defaults", err);
+      // Fallback to safe defaults when token details cannot be fetched
       tokenSymbol = tokenAddress.slice(0, 8) + "...";
+      decimals = 18; // Safe default for most tokens
+      log.warn("Failed to fetch token details, using fallback defaults", {
+        tokenAddress,
+        fallbackSymbol: tokenSymbol,
+        fallbackDecimals: decimals,
+        error: err,
+      });
     }
   }
 
@@ -124,10 +131,8 @@ export const useLockInfo = (lockAddress: string | undefined) => {
   const { data, isLoading, error } = useQuery({
     queryKey: ["lockInfo", lockAddress],
     queryFn: () => {
-      if (!lockAddress) {
-        throw new Error("Lock address not configured");
-      }
-      return fetchLockInfo(lockAddress);
+      // `enabled` guard ensures lockAddress is defined
+      return fetchLockInfo(lockAddress!);
     },
     enabled: !!lockAddress,
     staleTime: 5 * 60 * 1000, // 5 minutes

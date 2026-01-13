@@ -386,6 +386,7 @@ describeDb("schema UID resolution (DB)", () => {
     if (streakV1 == null || streakV2 == null) return;
     expect(streakV1).toBe(2);
     expect(streakV2).toBe(2);
+    expect(streakV1).toEqual(streakV2);
   });
 
   it("keeps v1/v2 parity for attestations (today + yesterday)", async () => {

@@ -14,19 +14,25 @@ import {
   type LockManagerEntityType,
 } from "@/hooks/unlock/useSyncLockManagerState";
 
-type SyncMode = "maxKeys" | "manager";
-
-type EntityType = LockSecurityEntityType | LockManagerEntityType;
-
-interface SyncLockStateButtonProps {
-  entityType: EntityType;
-  entityId: string;
-  lockAddress: string;
-  onSuccess?: () => void;
-  onError?: (error: string) => void;
-  compact?: boolean;
-  mode?: SyncMode;
-}
+type SyncLockStateButtonProps =
+  | {
+      mode?: "maxKeys";
+      entityType: LockSecurityEntityType;
+      entityId: string;
+      lockAddress: string;
+      onSuccess?: () => void;
+      onError?: (error: string) => void;
+      compact?: boolean;
+    }
+  | {
+      mode: "manager";
+      entityType: LockManagerEntityType;
+      entityId: string;
+      lockAddress: string;
+      onSuccess?: () => void;
+      onError?: (error: string) => void;
+      compact?: boolean;
+    };
 
 /**
  * Renders a button that triggers synchronizing a lock's state using either the security-state or manager sync path.

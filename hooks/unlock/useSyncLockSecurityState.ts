@@ -49,7 +49,7 @@ export const useSyncLockSecurityState = () => {
           maxKeysSecured: isSecured,
         });
 
-        let result;
+        let result: Awaited<ReturnType<typeof adminFetch>> | undefined;
         switch (params.entityType) {
           case "milestone":
             result = await adminFetch("/api/admin/milestones", {
@@ -88,6 +88,10 @@ export const useSyncLockSecurityState = () => {
               }),
             });
             break;
+          default: {
+            const _exhaustiveCheck: never = params.entityType;
+            throw new Error(`Unsupported entity type: ${_exhaustiveCheck}`);
+          }
         }
 
         if (result?.error) {

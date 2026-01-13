@@ -45,9 +45,10 @@ export function DismissibleToastContent({ t, message }: DismissibleToastProps) {
  * @returns The id of the created toast.
  */
 export function showDismissibleError(message: string) {
-  return toast.error((t) => (
-    <DismissibleToastContent t={t} message={message} />
-  ));
+  return toast.error(
+    (t) => <DismissibleToastContent t={t} message={message} />,
+    { duration: 6000 },
+  );
 }
 
 /**

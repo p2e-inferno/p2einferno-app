@@ -170,14 +170,13 @@ export default function DraftRecoveryPage() {
             .map((b: any) => `- ${b.name} (Lock: ${b.lock_address})`)
             .join("\n");
 
+          log.error("Cannot recover cohort: Parent bootcamp not found", {
+            storedId: cohortData.bootcamp_program_id,
+            availableBootcamps,
+          });
+
           throw new Error(
-            `Cannot recover cohort: Parent bootcamp not found.\n\n` +
-              `Stored bootcamp_program_id: ${cohortData.bootcamp_program_id}\n\n` +
-              `Available bootcamps:\n${availableBootcamps}\n\n` +
-              `This cohort needs to be manually linked to one of the above bootcamps. ` +
-              `To fix: Expand the entity data below, note the bootcamp lock address you want, ` +
-              `find that bootcamp's current ID above, then manually edit the JSON and change ` +
-              `"bootcamp_program_id" to the correct ID, then retry recovery.`,
+            "Cannot recover cohort: Parent bootcamp not found. Check console for details and available bootcamps.",
           );
         }
 
@@ -204,6 +203,23 @@ export default function DraftRecoveryPage() {
             data?: any[];
           }>("/api/admin/cohorts");
 
+          if (
+            !cohortsResponse.data ||
+            cohortsResponse.data?.data === undefined
+          ) {
+            const errorMessage =
+              "Failed to fetch cohorts for milestone recovery.";
+
+            log.error(errorMessage, {
+              cohortId: milestoneData.cohort_id,
+              responseData: cohortsResponse.data ?? null,
+            });
+
+            throw new Error(
+              `${errorMessage} Check console for response details.`,
+            );
+          }
+
           if (cohortsResponse.data?.data) {
             const cohorts = cohortsResponse.data.data;
 
@@ -225,11 +241,13 @@ export default function DraftRecoveryPage() {
                 .map((c: any) => `- ${c.name} (Lock: ${c.lock_address})`)
                 .join("\n");
 
+              log.error("Cannot recover milestone: Parent cohort not found", {
+                storedId: milestoneData.cohort_id,
+                availableCohorts,
+              });
+
               throw new Error(
-                `Cannot recover milestone: Parent cohort not found.\n\n` +
-                  `Stored cohort_id: ${milestoneData.cohort_id}\n\n` +
-                  `Available cohorts:\n${availableCohorts}\n\n` +
-                  `Delete this pending deployment or manually update the cohort_id.`,
+                "Cannot recover milestone: Parent cohort not found. Check console for details and available cohorts.",
               );
             }
 
@@ -298,6 +316,8 @@ export default function DraftRecoveryPage() {
         ) {
           const createdMilestoneId = response.data.data?.id;
           if (createdMilestoneId) {
+            const taskWarningMessage =
+              "⚠️ Milestone recovered but tasks failed to create. You can add them manually.";
             log.info("Creating milestone tasks during recovery", {
               milestoneId: createdMilestoneId,
               taskCount: milestoneTasks.length,
@@ -328,12 +348,7 @@ export default function DraftRecoveryPage() {
                   error: tasksResponse.error,
                   milestoneId: createdMilestoneId,
                 });
-                toast(
-                  "Milestone recovered but tasks failed to create. You can add them manually.",
-                  {
-                    icon: "⚠️",
-                  },
-                );
+                showDismissibleError(taskWarningMessage);
               } else {
                 log.info("Successfully created milestone tasks", {
                   milestoneId: createdMilestoneId,
@@ -345,12 +360,7 @@ export default function DraftRecoveryPage() {
                 error: taskError,
                 milestoneId: createdMilestoneId,
               });
-              toast(
-                "Milestone recovered but tasks failed to create. You can add them manually.",
-                {
-                  icon: "⚠️",
-                },
-              );
+              showDismissibleError(taskWarningMessage);
             }
           }
         }

@@ -1,4 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const logger = getLogger("certificate-metrics");
 
 /**
  * Collects recent certificate-related records for metrics within the past `hours` hours.
@@ -33,6 +36,6 @@ async function getCertificateMetrics(hours: number = 24) {
 }
 
 getCertificateMetrics().catch((err) => {
-  console.error('Metrics script failed:', err);
+  logger.error("Metrics script failed:", err);
   process.exit(1);
 });

@@ -497,7 +497,7 @@ export default function MilestoneFormEnhanced({
       // Fetch parent cohort to store its lock address for Web3-native recovery
       let parentCohortLockAddress: string | null = null;
       try {
-        const cohortResponse = await adminFetch<{
+        const cohortResponse = await silentFetch<{
           success: boolean;
           data?: any;
         }>(`/api/admin/cohorts?id=${cohortId}`);

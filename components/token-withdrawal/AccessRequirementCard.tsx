@@ -5,7 +5,8 @@
  * Shows purchase button if user doesn't have access.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { X, Loader, CheckCircle, AlertCircle } from "lucide-react";
 import { useDGNationKey } from "@/hooks/useDGNationKey";
 import { useKeyPurchase } from "@/hooks/unlock/useKeyPurchase";
@@ -22,6 +23,7 @@ import { useLockInfo } from "@/hooks/unlock/useLockInfo";
  * @returns The card and optional purchase modal UI, or `null` when the component is not rendered (e.g., while access status is loading, the user already has a valid key, or a recent purchase succeeded).
  */
 export function AccessRequirementCard() {
+  const router = useRouter();
   const lockAddress = process.env
     .NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
 
@@ -32,6 +34,16 @@ export function AccessRequirementCard() {
   const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+        refreshTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   if (isLoadingKey || hasValidKey || isSuccess) {
     return null; // Don't show if loading, user already has access, or purchase was successful
@@ -70,9 +82,16 @@ export function AccessRequirementCard() {
 
       if (result.success) {
         setIsSuccess(true);
-        setShowPurchaseModal(false);
-        // Optionally trigger a refresh of the key status
-        setTimeout(() => window.location.reload(), 3000);
+        // Delay closing modal so success UI is visible
+        if (refreshTimeoutRef.current) {
+          clearTimeout(refreshTimeoutRef.current);
+        }
+        refreshTimeoutRef.current = setTimeout(() => {
+          setShowPurchaseModal(false);
+          // Trigger Next.js data refresh without full page reload
+          router.refresh();
+          refreshTimeoutRef.current = null;
+        }, 2000);
       } else {
         setError(result.error || "Purchase failed");
       }

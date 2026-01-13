@@ -6,9 +6,9 @@ import { LOCK_CONFIG_VIEW_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { getLogger } from "@/lib/utils/logger";
 import type { Address } from "viem";
 
-const log = getLogger("hooks:unlock:max-keys-per-address");
+const log = getLogger("hooks:unlock:max-number-of-keys");
 
-interface UseMaxKeysPerAddressOptions {
+interface UseMaxNumberOfKeysOptions {
   enabled?: boolean; // Gate RPC usage
 }
 
@@ -20,7 +20,7 @@ interface UseMaxKeysPerAddressOptions {
  * @returns Function to check maxNumberOfKeys and error state
  */
 export const useMaxNumberOfKeys = (
-  options: UseMaxKeysPerAddressOptions = {},
+  options: UseMaxNumberOfKeysOptions = {},
 ) => {
   const { enabled = true } = options;
   const [error, setError] = useState<string | null>(null);
