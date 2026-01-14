@@ -24,7 +24,7 @@ interface SyncResult {
 
 export const useSyncLockSecurityState = () => {
   const { checkMaxNumberOfKeys } = useMaxNumberOfKeys();
-  const { adminFetch } = useAdminApi();
+  const { adminFetch } = useAdminApi({ suppressToasts: true });
   const [isSyncing, setIsSyncing] = useState(false);
 
   const syncState = useCallback(

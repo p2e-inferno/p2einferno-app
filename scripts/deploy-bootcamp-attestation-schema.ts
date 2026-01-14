@@ -4,6 +4,9 @@
  */
 import { SchemaRegistry } from "@ethereum-attestation-service/eas-sdk";
 import { ethers } from "ethers";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("scripts:deploy-bootcamp-attestation-schema");
 
 /**
  * Deploys the canonical Bootcamp Completion schema to the configured EAS registry.
@@ -15,7 +18,7 @@ async function deploySchema() {
   const pk = process.env.DEPLOYER_PRIVATE_KEY;
   const easAddress = process.env.EAS_CONTRACT_ADDRESS;
   if (!rpcUrl || !pk || !easAddress) {
-    console.error("Missing RPC_URL, DEPLOYER_PRIVATE_KEY or EAS_CONTRACT_ADDRESS");
+    log.error("Missing RPC_URL, DEPLOYER_PRIVATE_KEY or EAS_CONTRACT_ADDRESS");
     process.exit(1);
   }
 
@@ -33,20 +36,21 @@ async function deploySchema() {
     revocable: false,
   });
   const schemaUid = await tx.wait();
-  const isValidUid = typeof schemaUid === "string" && ethers.isHexString(schemaUid, 32);
+  const isValidUid =
+    typeof schemaUid === "string" && ethers.isHexString(schemaUid, 32);
 
   if (!isValidUid) {
-    console.error("Failed to obtain schema UID from registration", { schema });
-    return;
+    log.error("Failed to obtain schema UID from registration", { schema });
+    process.exit(1);
   }
 
-  console.log("Schema deployed", {
+  log.info("Schema deployed", {
     schemaUid,
     schema,
   });
 }
 
 deploySchema().catch((err) => {
-  console.error("Deployment failed:", err);
+  log.error("Deployment failed:", err);
   process.exit(1);
 });

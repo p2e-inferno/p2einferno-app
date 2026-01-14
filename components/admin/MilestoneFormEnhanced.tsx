@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,10 +132,12 @@ export default function MilestoneFormEnhanced({
   } = useMaxKeysSecurityState(isEditing, milestone);
 
   // Track the most recent grant/config outcomes during submit to avoid async state races
-  let lastGrantFailed: boolean | undefined;
-  let lastGrantError: string | undefined;
-  let lastConfigFailed: boolean | undefined;
-  let lastConfigError: string | undefined;
+  const deploymentOutcomeRef = useRef<{
+    grantFailed?: boolean;
+    grantError?: string;
+    configFailed?: boolean;
+    configError?: string;
+  }>({});
   const { adminFetch } = useAdminApi();
   const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
@@ -632,6 +634,7 @@ export default function MilestoneFormEnhanced({
     e.preventDefault();
     setIsSubmitting(true);
     setError(null);
+    deploymentOutcomeRef.current = {};
 
     try {
       // Validate required fields
@@ -733,8 +736,8 @@ export default function MilestoneFormEnhanced({
           const outcome = applyDeploymentOutcome(deploymentResult);
           setLockManagerGranted(outcome.granted);
           setGrantFailureReason(outcome.reason);
-          lastGrantFailed = outcome.lastGrantFailed;
-          lastGrantError = outcome.lastGrantError;
+          deploymentOutcomeRef.current.grantFailed = outcome.lastGrantFailed;
+          deploymentOutcomeRef.current.grantError = outcome.lastGrantError;
           if (outcome.lastGrantFailed) {
             log.warn("Milestone will be created with grant failure flag", {
               lockAddress,
@@ -745,8 +748,10 @@ export default function MilestoneFormEnhanced({
           // Set max keys security state based on config outcome
           setMaxKeysSecured(!deploymentResult.configFailed);
           setMaxKeysFailureReason(deploymentResult.configError);
-          lastConfigFailed = deploymentResult.configFailed;
-          lastConfigError = deploymentResult.configError;
+          deploymentOutcomeRef.current.configFailed =
+            deploymentResult.configFailed;
+          deploymentOutcomeRef.current.configError =
+            deploymentResult.configError;
           if (deploymentResult.configFailed) {
             log.warn("Milestone will be created with config failure flag", {
               lockAddress,
@@ -783,14 +788,20 @@ export default function MilestoneFormEnhanced({
 
       // Use effective values for this submit to avoid relying on async state updates
       const effective = effectiveGrantForSave({
-        outcome: { lastGrantFailed, lastGrantError },
+        outcome: {
+          lastGrantFailed: deploymentOutcomeRef.current.grantFailed,
+          lastGrantError: deploymentOutcomeRef.current.grantError,
+        },
         lockAddress,
         currentGranted: lockManagerGranted,
         currentReason: grantFailureReason,
       });
 
       const effectiveMaxKeys = effectiveMaxKeysForSave({
-        outcome: { lastConfigFailed, lastConfigError },
+        outcome: {
+          lastConfigFailed: deploymentOutcomeRef.current.configFailed,
+          lastConfigError: deploymentOutcomeRef.current.configError,
+        },
         lockAddress,
         currentSecured: maxKeysSecured,
         currentReason: maxKeysFailureReason,
@@ -798,7 +809,8 @@ export default function MilestoneFormEnhanced({
 
       // Only include max_keys fields when editing if there's a deployment outcome
       // Otherwise, omit them to preserve existing DB values (prevents overwriting synced state)
-      const hasDeploymentOutcome = typeof lastConfigFailed === "boolean";
+      const hasDeploymentOutcome =
+        typeof deploymentOutcomeRef.current.configFailed === "boolean";
       const shouldIncludeMaxKeysFields = !isEditing || hasDeploymentOutcome;
 
       log.info("Preparing milestone data for save", {
@@ -994,9 +1006,6 @@ export default function MilestoneFormEnhanced({
           throw new Error(`Failed to create tasks: ${createResult.error}`);
         }
       }
-
-      // Wait a moment for database to commit
-      await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Clean up drafts on success (for new milestones)
       if (!isEditing) {

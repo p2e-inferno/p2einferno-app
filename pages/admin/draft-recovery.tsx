@@ -203,10 +203,7 @@ export default function DraftRecoveryPage() {
             data?: any[];
           }>("/api/admin/cohorts");
 
-          if (
-            !cohortsResponse.data ||
-            cohortsResponse.data?.data === undefined
-          ) {
+          if (!cohortsResponse.data || !cohortsResponse.data.data) {
             const errorMessage =
               "Failed to fetch cohorts for milestone recovery.";
 
@@ -220,47 +217,45 @@ export default function DraftRecoveryPage() {
             );
           }
 
-          if (cohortsResponse.data?.data) {
-            const cohorts = cohortsResponse.data.data;
+          const cohorts = cohortsResponse.data.data;
 
-            // Try to find parent cohort by UUID first
-            let parentCohort = cohorts.find(
-              (c: any) => c.id === milestoneData.cohort_id,
+          // Try to find parent cohort by UUID first
+          let parentCohort = cohorts.find(
+            (c: any) => c.id === milestoneData.cohort_id,
+          );
+
+          // If not found by UUID, try by lock address
+          if (!parentCohort && milestoneData.parent_cohort_lock_address) {
+            parentCohort = cohorts.find(
+              (c: any) =>
+                c.lock_address === milestoneData.parent_cohort_lock_address,
             );
-
-            // If not found by UUID, try by lock address
-            if (!parentCohort && milestoneData.parent_cohort_lock_address) {
-              parentCohort = cohorts.find(
-                (c: any) =>
-                  c.lock_address === milestoneData.parent_cohort_lock_address,
-              );
-            }
-
-            if (!parentCohort) {
-              const availableCohorts = cohorts
-                .map((c: any) => `- ${c.name} (Lock: ${c.lock_address})`)
-                .join("\n");
-
-              log.error("Cannot recover milestone: Parent cohort not found", {
-                storedId: milestoneData.cohort_id,
-                availableCohorts,
-              });
-
-              throw new Error(
-                "Cannot recover milestone: Parent cohort not found. Check console for details and available cohorts.",
-              );
-            }
-
-            // Update cohort_id to current UUID
-            apiData.cohort_id = parentCohort.id;
-
-            log.info("Resolved milestone parent cohort:", {
-              originalId: milestoneData.cohort_id,
-              resolvedId: parentCohort.id,
-              cohortName: parentCohort.name,
-              cohortLockAddress: parentCohort.lock_address,
-            });
           }
+
+          if (!parentCohort) {
+            const availableCohorts = cohorts
+              .map((c: any) => `- ${c.name} (Lock: ${c.lock_address})`)
+              .join("\n");
+
+            log.error("Cannot recover milestone: Parent cohort not found", {
+              storedId: milestoneData.cohort_id,
+              availableCohorts,
+            });
+
+            throw new Error(
+              "Cannot recover milestone: Parent cohort not found. Check console for details and available cohorts.",
+            );
+          }
+
+          // Update cohort_id to current UUID
+          apiData.cohort_id = parentCohort.id;
+
+          log.info("Resolved milestone parent cohort:", {
+            originalId: milestoneData.cohort_id,
+            resolvedId: parentCohort.id,
+            cohortName: parentCohort.name,
+            cohortLockAddress: parentCohort.lock_address,
+          });
         }
       }
 

@@ -45,6 +45,20 @@ export function AccessRequirementCard() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!showPurchaseModal) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isPurchasing) {
+        setShowPurchaseModal(false);
+        setError(null);
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [showPurchaseModal, isPurchasing]);
+
   if (isLoadingKey || hasValidKey || isSuccess) {
     return null; // Don't show if loading, user already has access, or purchase was successful
   }
@@ -95,8 +109,12 @@ export function AccessRequirementCard() {
       } else {
         setError(result.error || "Purchase failed");
       }
-    } catch (err: any) {
-      setError(err.message || "An error occurred during purchase");
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "An error occurred during purchase";
+      setError(message);
     }
   };
 
@@ -125,9 +143,17 @@ export function AccessRequirementCard() {
       {/* Purchase Confirmation Modal */}
       {showPurchaseModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[60vh] flex flex-col">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="purchase-modal-title"
+            className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-md p-6 max-h-[60vh] flex flex-col"
+          >
             <div className="flex items-center justify-between mb-4 flex-shrink-0">
-              <h3 className="font-bold text-lg text-white">
+              <h3
+                id="purchase-modal-title"
+                className="font-bold text-lg text-white"
+              >
                 Purchase Membership
               </h3>
               <button

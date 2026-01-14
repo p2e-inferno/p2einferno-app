@@ -58,9 +58,10 @@ export function showDismissibleError(message: string) {
  * @returns The id of the created toast
  */
 export function showDismissibleSuccess(message: string) {
-  return toast.success((t) => (
-    <DismissibleToastContent t={t} message={message} />
-  ));
+  return toast.success(
+    (t) => <DismissibleToastContent t={t} message={message} />,
+    { duration: 4000 },
+  );
 }
 
 /**
@@ -72,5 +73,6 @@ export function showDismissibleSuccess(message: string) {
 export function showDismissibleInfo(message: string) {
   return toast((t) => <DismissibleToastContent t={t} message={message} />, {
     icon: "ℹ️",
+    duration: 5000,
   });
 }
