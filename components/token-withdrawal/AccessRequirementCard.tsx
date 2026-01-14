@@ -59,7 +59,7 @@ export function AccessRequirementCard() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [showPurchaseModal, isPurchasing]);
 
-  if (isLoadingKey || hasValidKey || isSuccess) {
+  if (isLoadingKey || hasValidKey || (isSuccess && !showPurchaseModal)) {
     return null; // Don't show if loading, user already has access, or purchase was successful
   }
 
