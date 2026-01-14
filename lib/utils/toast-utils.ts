@@ -76,7 +76,10 @@ export function formatErrorMessageForToast(
 }
 
 /**
- * Displays a blue informational toast with consistent styling
+ * Show an informational (blue) toast notification with consistent default styling.
+ *
+ * @param message - The text content to display in the toast
+ * @param options - Optional react-hot-toast options; any provided fields override the default toast settings
  */
 export function showInfoToast(message: string, options?: ToastOptions) {
   toast(message, {

@@ -60,6 +60,12 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/**
+ * Creates a new cohort milestone, persists it to the database, invalidates related caches, and returns the created milestone.
+ *
+ * Performs a cohort certificate check (when BOOTCAMP_CERTIFICATES_ENABLED = 'true') to prevent adding milestones after certificates have been issued. When the payload includes a `lock_address`, boolean lock-related flags are normalized and associated failure-reason fields are cleared as appropriate. Requires an admin caller.
+ *
+ * @returns JSON response containing the created milestone record on success; `201` on success, `409` if certificates have already been issued for the cohort, `400` for validation/insert errors, or `500` for server errors.
 export async function POST(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
@@ -140,6 +146,14 @@ export async function POST(req: NextRequest) {
   }
 }
 
+/**
+ * Update an existing cohort milestone and invalidate related admin caches.
+ *
+ * Applies hardened defaults for lock-manager and max-keys flags when a `lock_address` is present,
+ * updates the milestone row, and triggers cache revalidation for the affected milestone and cohort.
+ *
+ * @returns `{ success: true, data }` with the updated milestone on success, or `{ error: string }` describing the failure.
+ */
 export async function PUT(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
@@ -157,6 +171,10 @@ export async function PUT(req: NextRequest) {
       });
     } catch { }
     const hardened: any = { ...update, updated_at: new Date().toISOString() };
+    const hasMaxKeysSecured = Object.prototype.hasOwnProperty.call(
+      update ?? {},
+      'max_keys_secured',
+    );
     if (hardened.lock_address) {
       if (typeof hardened.lock_manager_granted === 'undefined' || hardened.lock_manager_granted === null) {
         hardened.lock_manager_granted = false;
@@ -166,10 +184,10 @@ export async function PUT(req: NextRequest) {
       }
 
       // Harden max_keys_secured flag
-      if (typeof hardened.max_keys_secured === 'undefined' || hardened.max_keys_secured === null) {
+      if (hasMaxKeysSecured && (typeof hardened.max_keys_secured === 'undefined' || hardened.max_keys_secured === null)) {
         hardened.max_keys_secured = false;
       }
-      if (hardened.max_keys_secured === true) {
+      if (hasMaxKeysSecured && hardened.max_keys_secured === true) {
         hardened.max_keys_failure_reason = null;
       }
     }
@@ -200,6 +218,13 @@ export async function PUT(req: NextRequest) {
   }
 }
 
+/**
+ * Delete a cohort milestone identified by the `id` query parameter and invalidate its related caches.
+ *
+ * Requires admin privileges; if the caller is not an admin, the guard response is returned. If the milestone is found and deleted, related cache tags are invalidated via `invalidateMilestone`.
+ *
+ * @returns `success: true` on successful deletion; otherwise an object with an `error` message describing the failure (status codes convey the error type, e.g., 400 for bad requests or 500 for server errors).
+ */
 export async function DELETE(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;

@@ -25,8 +25,8 @@ export interface UpdateMaxKeysPerAddressResult {
 }
 
 /**
- * Hook to update maxKeysPerAddress to 0 for grant-based locks
- * Used to secure locks that weren't properly configured during deployment
+ * Hook to disable purchases by setting maxNumberOfKeys to 0 for grant-based locks
+ * Uses a non-zero maxKeysPerAddress to avoid NULL_VALUE() reverts on some versions
  * Requires the connected wallet to be a lock manager
  */
 export const useUpdateMaxKeysPerAddress = () => {
@@ -85,11 +85,11 @@ export const useUpdateMaxKeysPerAddress = () => {
         const [expirationDuration, maxNumberOfKeys, maxKeysPerAddress] =
           await getLockConfigForUpdate(lockAddress, publicClient);
 
-        log.info("Updating lock config to secure maxKeysPerAddress", {
+        log.info("Updating lock config to disable purchases", {
           lockAddress,
           expirationDuration: expirationDuration.toString(),
-          maxNumberOfKeys: maxNumberOfKeys.toString(),
-          maxKeysPerAddress: maxKeysPerAddress.toString(), // Will be 0
+          maxNumberOfKeys: maxNumberOfKeys.toString(), // Will be 0
+          maxKeysPerAddress: maxKeysPerAddress.toString(),
         });
 
         // Estimate gas for updateLockConfig transaction
@@ -145,7 +145,7 @@ export const useUpdateMaxKeysPerAddress = () => {
       } catch (error: any) {
         const errorMsg =
           error.message || "Failed to update lock configuration";
-        log.error("Update maxKeysPerAddress error", { error, params });
+        log.error("Update lock config error", { error, params });
         setState({ isLoading: false, error: errorMsg, isSuccess: false });
         return { success: false, error: errorMsg };
       }

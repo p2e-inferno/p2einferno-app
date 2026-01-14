@@ -1,5 +1,5 @@
 /**
- * Custom hook for managing maxKeysPerAddress security state consistently across all admin forms
+ * Custom hook for managing lock purchase security state consistently across all admin forms
  *
  * Handles initialization, draft restoration, and state updates for max_keys_secured
  * and max_keys_failure_reason fields.
@@ -24,7 +24,7 @@ interface MaxKeysSecurityStateReturn {
 }
 
 /**
- * Hook for managing maxKeysPerAddress security state
+ * Hook for managing purchase security state (maxNumberOfKeys)
  *
  * @param isEditing - Whether we're editing an existing entity
  * @param entity - The entity data (bootcamp, quest, milestone)

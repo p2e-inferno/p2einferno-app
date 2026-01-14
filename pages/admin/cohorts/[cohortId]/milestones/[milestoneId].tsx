@@ -4,6 +4,7 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import TaskList from "@/components/admin/TaskList";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
+import SyncLockStateButton from "@/components/admin/SyncLockStateButton";
 import { Calendar, Clock, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CohortMilestone, Cohort } from "@/lib/supabase/types";
@@ -11,7 +12,7 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
-import { useMaxKeysPerAddress } from "@/hooks/unlock/useMaxKeysPerAddress";
+import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 import type { Address } from "viem";
@@ -22,6 +23,13 @@ interface MilestoneWithCohort extends CohortMilestone {
   cohort: Cohort;
 }
 
+/**
+ * Render the admin milestone details page with controls to inspect and reconcile on-chain lock state and purchase security.
+ *
+ * Fetches milestone and cohort data, retrieves the server wallet address, checks on-chain lock manager and maxNumberOfKeys values, and exposes UI actions to retry or synchronize database and on-chain state.
+ *
+ * @returns A React element displaying milestone and cohort data with status indicators and management actions.
+ */
 export default function MilestoneDetailsPage() {
   const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
@@ -52,7 +60,7 @@ export default function MilestoneDetailsPage() {
   );
 
   const { checkIsLockManager } = useIsLockManager();
-  const { checkMaxKeysPerAddress } = useMaxKeysPerAddress();
+  const { checkMaxNumberOfKeys } = useMaxNumberOfKeys();
 
   const fetchMilestone = useCallback(async () => {
     if (!milestoneId) return;
@@ -169,19 +177,19 @@ export default function MilestoneDetailsPage() {
     }
   }, [milestone?.lock_address, serverWalletAddress, checkIsLockManager]);
 
-  // Check actual maxKeysPerAddress value on blockchain
+  // Check actual maxNumberOfKeys value on blockchain
   const checkActualMaxKeysValue = useCallback(async () => {
     if (!milestone?.lock_address) return;
 
     try {
-      const maxKeys = await checkMaxKeysPerAddress(
+      const maxKeys = await checkMaxNumberOfKeys(
         milestone.lock_address as Address,
       );
       setActualMaxKeysValue(maxKeys);
     } catch (err) {
-      log.error("Failed to check maxKeysPerAddress:", err);
+      log.error("Failed to check maxNumberOfKeys:", err);
     }
-  }, [milestone?.lock_address, checkMaxKeysPerAddress]);
+  }, [milestone?.lock_address, checkMaxNumberOfKeys]);
 
   useEffect(() => {
     fetchServerWallet();
@@ -277,10 +285,22 @@ export default function MilestoneDetailsPage() {
                 {actualManagerStatus !== null &&
                   milestone.lock_manager_granted !== actualManagerStatus && (
                     <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
-                      <p className="text-amber-300 text-xs font-medium">
-                        ⚠️ Status Mismatch: Database and blockchain states
-                        don&apos;t match!
-                      </p>
+                      <div className="flex flex-col gap-2">
+                        <p className="text-amber-300 text-xs font-medium">
+                          ⚠️ Status Mismatch: Database and blockchain states
+                          don&apos;t match!
+                        </p>
+                        <SyncLockStateButton
+                          mode="manager"
+                          entityType="milestone"
+                          entityId={milestone.id}
+                          lockAddress={milestone.lock_address}
+                          onSuccess={() => {
+                            fetchMilestone();
+                            checkActualManagerStatus();
+                          }}
+                        />
+                      </div>
                     </div>
                   )}
               </div>
@@ -378,11 +398,11 @@ export default function MilestoneDetailsPage() {
                 />
               )}
 
-              {/* MaxKeysPerAddress Security Status Display */}
+              {/* Purchase Security Status Display */}
               {milestone.lock_address && (
                 <div className="p-3 rounded-lg border border-slate-700 bg-slate-900">
                   <h4 className="text-sm font-medium text-slate-300 mb-3">
-                    MaxKeysPerAddress Security Status
+                    Purchase Security Status
                   </h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
@@ -396,7 +416,9 @@ export default function MilestoneDetailsPage() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-slate-400">Blockchain Value:</span>
+                      <span className="text-slate-400">
+                        Blockchain maxNumberOfKeys:
+                      </span>
                       <span
                         className={`font-medium ${
                           actualMaxKeysValue === null
@@ -409,8 +431,8 @@ export default function MilestoneDetailsPage() {
                         {actualMaxKeysValue === null
                           ? "⏳ Checking..."
                           : actualMaxKeysValue === 0n
-                            ? "✅ Secured (0)"
-                            : `❌ Insecure (${actualMaxKeysValue.toString()})`}
+                            ? "✅ Purchases disabled (0)"
+                            : `❌ Purchases enabled (${actualMaxKeysValue.toString()})`}
                       </span>
                     </div>
                     {actualMaxKeysValue !== null &&
@@ -419,17 +441,28 @@ export default function MilestoneDetailsPage() {
                         (!milestone.max_keys_secured &&
                           actualMaxKeysValue === 0n)) && (
                         <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
-                          <p className="text-amber-300 text-xs font-medium">
-                            ⚠️ Status Mismatch: Database and blockchain states
-                            don&apos;t match!
-                          </p>
+                          <div className="flex flex-col gap-2">
+                            <p className="text-amber-300 text-xs font-medium">
+                              ⚠️ Status Mismatch: Database and blockchain states
+                              don&apos;t match!
+                            </p>
+                            <SyncLockStateButton
+                              entityType="milestone"
+                              entityId={milestone.id}
+                              lockAddress={milestone.lock_address}
+                              onSuccess={() => {
+                                fetchMilestone();
+                                checkActualMaxKeysValue();
+                              }}
+                            />
+                          </div>
                         </div>
                       )}
                   </div>
                 </div>
               )}
 
-              {/* MaxKeysPerAddress Security Button */}
+              {/* Purchase Security Button */}
               {milestone.lock_address && actualMaxKeysValue !== 0n && (
                 <MaxKeysSecurityButton
                   entityType="milestone"
@@ -437,7 +470,7 @@ export default function MilestoneDetailsPage() {
                   lockAddress={milestone.lock_address}
                   maxKeysFailureReason={milestone.max_keys_failure_reason}
                   onSuccess={() => {
-                    toast.success("Lock secured successfully");
+                    toast.success("Lock purchases disabled successfully");
                     fetchMilestone(); // Refresh milestone data
                     checkActualMaxKeysValue(); // Refresh blockchain status
                   }}

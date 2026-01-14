@@ -16,12 +16,22 @@ interface WithdrawDGButtonProps {
   limits: WithdrawalLimits;
 }
 
+/**
+ * Renders an action button that opens the withdraw modal and displays the user's xDG balance and required minimum.
+ *
+ * The button is disabled while access is being checked or when withdrawal is not allowed; when disabled it exposes the denial reason as the title. When not loading, the component shows the current `xpBalance` and the `limits.minAmount` with color indicating whether the balance meets the requirement. Opening the button displays the WithdrawDGModal.
+ *
+ * @param variant - Visual variant of the button; affects styling ("primary" | "secondary").
+ * @param limits - Withdrawal limits and loading state used to determine access and to display the required minimum.
+ * @param className - Optional additional CSS classes to apply to the button wrapper.
+ * @returns A JSX element containing the action button, balance info, and conditionally rendered WithdrawDGModal.
+ */
 export function WithdrawDGButton({
   className = "",
   variant = "primary",
   limits,
 }: WithdrawDGButtonProps) {
-  const { canWithdraw, reason, isLoading } = useWithdrawalAccess({
+  const { canWithdraw, reason, isLoading, xpBalance } = useWithdrawalAccess({
     minAmount: limits.minAmount,
     isLoadingLimits: limits.isLoading,
   });
@@ -58,6 +68,29 @@ export function WithdrawDGButton({
         </svg>
         {isLoading ? "Checking Access..." : "Pullout DG"}
       </button>
+
+      {/* Balance Info - Always visible */}
+      {!isLoading && (
+        <div className="mt-2 text-sm text-gray-400">
+          <span className="inline-flex items-center gap-1">
+            <span>Balance:</span>
+            <span
+              className={
+                xpBalance >= limits.minAmount
+                  ? "text-green-400 font-medium"
+                  : "text-yellow-400 font-medium"
+              }
+            >
+              {xpBalance.toLocaleString()} xDG
+            </span>
+            <span className="text-gray-500">•</span>
+            <span>Required:</span>
+            <span className="text-gray-300 font-medium">
+              {limits.minAmount.toLocaleString()} xDG
+            </span>
+          </span>
+        </div>
+      )}
 
       {isModalOpen && (
         <WithdrawDGModal

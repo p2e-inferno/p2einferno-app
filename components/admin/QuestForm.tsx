@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +53,13 @@ interface QuestFormProps {
 
 type TaskWithTempId = Partial<QuestTask> & { tempId?: string };
 
+/**
+ * Display and manage a form for creating or editing a Quest, handling tasks, prerequisites, reward/activation configuration, optional automatic lock deployment, draft restoration, validation, and saving to the admin API.
+ *
+ * @param props.quest - Optional existing quest used to populate the form when editing.
+ * @param props.isEditing - Whether the form is in edit mode (default: false).
+ * @returns A JSX form element that manages quest state, optional lock deployment, and persistence to the admin API.
+ */
 export default function QuestForm({
   quest,
   isEditing = false,
@@ -98,10 +105,12 @@ export default function QuestForm({
   >(null);
 
   // Track the most recent grant/config outcomes during submit to avoid async state races
-  let lastGrantFailed: boolean | undefined;
-  let lastGrantError: string | undefined;
-  let lastConfigFailed: boolean | undefined;
-  let lastConfigError: string | undefined;
+  const deploymentOutcomeRef = useRef<{
+    grantFailed?: boolean;
+    grantError?: string;
+    configFailed?: boolean;
+    configError?: string;
+  }>({});
 
   const [formData, setFormData] = useState({
     title: quest?.title || "",
@@ -493,14 +502,14 @@ export default function QuestForm({
       }
       setLockManagerGranted(outcome.granted);
       setGrantFailureReason(outcome.reason);
-      lastGrantFailed = outcome.lastGrantFailed;
-      lastGrantError = outcome.lastGrantError;
+      deploymentOutcomeRef.current.grantFailed = outcome.lastGrantFailed;
+      deploymentOutcomeRef.current.grantError = outcome.lastGrantError;
 
       // Set max keys security state based on config outcome
       setMaxKeysSecured(!result.configFailed);
       setMaxKeysFailureReason(result.configError);
-      lastConfigFailed = result.configFailed;
-      lastConfigError = result.configError;
+      deploymentOutcomeRef.current.configFailed = result.configFailed;
+      deploymentOutcomeRef.current.configError = result.configError;
 
       if (outcome.lastGrantFailed) {
         log.warn("Lock deployed but grant manager transaction failed", {
@@ -516,11 +525,15 @@ export default function QuestForm({
         grantError: result.grantError,
       });
 
-      // Save deployment state before database operation with both transaction hashes
+      // Save deployment state before database operation with both transaction hashes and tasks
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "quest",
-        entityData: { ...formData, total_reward: totalReward },
+        entityData: {
+          ...formData,
+          total_reward: totalReward,
+          tasks: tasks.filter((task) => task.title && task.title.trim()), // Include valid tasks
+        },
         transactionHash: result.transactionHash,
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,
@@ -664,6 +677,7 @@ export default function QuestForm({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    deploymentOutcomeRef.current = {};
 
     if (!validateForm()) {
       return;
@@ -730,28 +744,44 @@ export default function QuestForm({
 
       // Prepare quest data using shared grant-state util
       const effective = effectiveGrantForSave({
-        outcome: { lastGrantFailed, lastGrantError },
+        outcome: {
+          lastGrantFailed: deploymentOutcomeRef.current.grantFailed,
+          lastGrantError: deploymentOutcomeRef.current.grantError,
+        },
         lockAddress,
         currentGranted: lockManagerGranted,
         currentReason: grantFailureReason,
       });
 
       const effectiveMaxKeys = effectiveMaxKeysForSave({
-        outcome: { lastConfigFailed, lastConfigError },
+        outcome: {
+          lastConfigFailed: deploymentOutcomeRef.current.configFailed,
+          lastConfigError: deploymentOutcomeRef.current.configError,
+        },
         lockAddress,
         currentSecured: maxKeysSecured,
         currentReason: maxKeysFailureReason,
       });
 
-      const questData = {
+      // Only include max_keys fields when editing if there's a deployment outcome
+      // Otherwise, omit them to preserve existing DB values (prevents overwriting synced state)
+      const hasDeploymentOutcome =
+        typeof deploymentOutcomeRef.current.configFailed === "boolean";
+      const shouldIncludeMaxKeysFields = !isEditing || hasDeploymentOutcome;
+
+      const questData: any = {
         ...cleanFormData,
         lock_address: lockAddress,
         total_reward: totalReward,
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
-        max_keys_secured: effectiveMaxKeys.secured,
-        max_keys_failure_reason: effectiveMaxKeys.reason,
       };
+
+      // Only include max_keys fields if creating new quest or if there was a deployment
+      if (shouldIncludeMaxKeysFields) {
+        questData.max_keys_secured = effectiveMaxKeys.secured;
+        questData.max_keys_failure_reason = effectiveMaxKeys.reason;
+      }
 
       // Prepare tasks data
       const tasksData = tasks.map((task) => {

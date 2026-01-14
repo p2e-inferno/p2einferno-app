@@ -63,7 +63,7 @@ describe("MaxKeysSecurityBadge", () => {
       const badge = screen.getByText("Security Risk");
       expect(badge).toHaveAttribute(
         "title",
-        expect.stringContaining("maxKeysPerAddress not set to 0"),
+        expect.stringContaining("Purchases still enabled"),
       );
     });
 
@@ -78,7 +78,7 @@ describe("MaxKeysSecurityBadge", () => {
       const badge = screen.getByText("Security Risk");
       expect(badge).toHaveAttribute(
         "title",
-        expect.stringContaining("maxKeysPerAddress not set to 0"),
+        expect.stringContaining("Purchases still enabled"),
       );
     });
   });

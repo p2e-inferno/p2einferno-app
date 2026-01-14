@@ -90,6 +90,7 @@ typings/
 
 # Next.js build output
 .next
+next-env.d.ts
 
 # Nuxt.js build / generate output
 .nuxt
@@ -134,3 +135,6 @@ __inspector_reports__/
 .cache-synpress/
 .cache-synpress/.wallet-setup-dist/
 playwright-report/
+
+AGENTS.md
+CLAUDE.md

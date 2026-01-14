@@ -46,6 +46,16 @@ interface CohortFormProps {
   onSuccess?: () => void;
 }
 
+/**
+ * Render a form for creating or editing a cohort with validation, draft persistence, optional automatic lock deployment, and saving to the admin API.
+ *
+ * The component manages local form state, input validation, draft hydration/saving, bootcamp program loading, optional web3 lock deployment with grant-state tracking and pending-deployment persistence, and submits create/update requests to the admin API. It also provides in-form error messaging and user feedback.
+ *
+ * @param cohort - Optional existing cohort used to prefill the form when editing.
+ * @param isEditing - When true, the form operates in edit mode (disables immutable fields and performs an update). Defaults to false.
+ * @param onSuccess - Optional callback invoked after a successful update when editing.
+ * @returns The cohort form React element.
+ */
 export default function CohortForm({
   cohort,
   isEditing = false,
@@ -386,11 +396,22 @@ export default function CohortForm({
         grantError: result.grantError,
       });
 
+      // Find the parent bootcamp to store its lock address for Web3-native recovery
+      const parentBootcamp = bootcampPrograms.find(
+        (b) => b.id === formData.bootcamp_program_id,
+      );
+
+      // Enhance entityData with parent bootcamp's lock address for reliable recovery
+      const enhancedEntityData = {
+        ...formData,
+        parent_bootcamp_lock_address: parentBootcamp?.lock_address || null,
+      };
+
       // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "cohort",
-        entityData: formData,
+        entityData: enhancedEntityData,
         transactionHash: result.transactionHash,
         grantTransactionHash: result.grantTransactionHash,
         serverWalletAddress: result.serverWalletAddress,

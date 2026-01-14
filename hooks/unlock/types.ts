@@ -61,7 +61,7 @@ export interface AdminLockDeploymentParams {
   tokenAddress: Address; // Use Address(0) for ETH
   keyPrice: bigint;
   maxNumberOfKeys: bigint;
-  maxKeysPerAddress?: bigint; // Set to 0 for grant-based locks (milestones, quests, bootcamps)
+  maxKeysPerAddress?: bigint; // Per-address cap (avoid 0 to prevent NULL_VALUE() reverts)
   lockVersion?: number; // defaults to latest
   isAdmin: boolean; // Must be true to proceed
 }

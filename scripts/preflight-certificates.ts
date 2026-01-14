@@ -3,9 +3,14 @@
  */
 import { createAdminClient } from "@/lib/supabase/server";
 
+/**
+ * Performs a pre-flight check for already-issued certificates and blocks deployment if any are found.
+ *
+ * Queries the "bootcamp_enrollments" table for rows where `certificate_issued` is true; if the query fails
+ * or if at least one issued certificate is detected, logs an error and terminates the process with exit code 1.
+ */
 async function checkCertificates() {
   const supabase = createAdminClient();
-  console.log("🔍 Checking for existing certificates...");
   const { data, error } = await supabase
     .from("bootcamp_enrollments")
     .select("id")
@@ -22,11 +27,9 @@ async function checkCertificates() {
     console.error("Migration required before deploying V2 schema.\n");
     process.exit(1);
   }
-  console.log("✅ Pre-flight check passed: No certificates issued");
 }
 
 checkCertificates().catch((err) => {
   console.error("Pre-flight check failed:", err);
   process.exit(1);
 });
-

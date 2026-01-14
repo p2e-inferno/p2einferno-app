@@ -3,6 +3,7 @@ import { useRouter } from "next/router";
 import AdminLayout from "@/components/layouts/AdminLayout";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
+import SyncLockStateButton from "@/components/admin/SyncLockStateButton";
 import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,7 @@ import { NetworkError } from "@/components/ui/network-error";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
-import { useMaxKeysPerAddress } from "@/hooks/unlock/useMaxKeysPerAddress";
+import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
@@ -43,6 +44,14 @@ interface QuestDetails extends Quest {
   pending_submissions?: any[];
 }
 
+/**
+ * Admin page that displays and manages detailed information for a single quest.
+ *
+ * Shows quest metadata, statistics, tasks, submissions, and controls for synchronizing
+ * lock manager and purchase-security state between the database and the blockchain.
+ *
+ * @returns The React element rendering the admin UI for viewing and managing a quest's details, status, tasks, and submissions.
+ */
 export default function QuestDetailsPage() {
   const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const router = useRouter();
@@ -74,7 +83,7 @@ export default function QuestDetailsPage() {
   );
 
   const { checkIsLockManager } = useIsLockManager();
-  const { checkMaxKeysPerAddress } = useMaxKeysPerAddress();
+  const { checkMaxNumberOfKeys } = useMaxNumberOfKeys();
 
   // Reusable function to fetch quest details by id
   const fetchQuestDetails = useCallback(
@@ -165,19 +174,17 @@ export default function QuestDetailsPage() {
     }
   }, [quest?.lock_address, serverWalletAddress, checkIsLockManager]);
 
-  // Check actual maxKeysPerAddress value on blockchain
+  // Check actual maxNumberOfKeys value on blockchain
   const checkActualMaxKeysValue = useCallback(async () => {
     if (!quest?.lock_address) return;
 
     try {
-      const maxKeys = await checkMaxKeysPerAddress(
-        quest.lock_address as Address,
-      );
+      const maxKeys = await checkMaxNumberOfKeys(quest.lock_address as Address);
       setActualMaxKeysValue(maxKeys);
     } catch (err) {
-      log.error("Failed to check maxKeysPerAddress:", err);
+      log.error("Failed to check maxNumberOfKeys:", err);
     }
-  }, [quest?.lock_address, checkMaxKeysPerAddress]);
+  }, [quest?.lock_address, checkMaxNumberOfKeys]);
 
   useEffect(() => {
     fetchServerWallet();
@@ -434,10 +441,25 @@ export default function QuestDetailsPage() {
                   {actualManagerStatus !== null &&
                     quest.lock_manager_granted !== actualManagerStatus && (
                       <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
-                        <p className="text-amber-300 text-xs font-medium">
-                          ⚠️ Status Mismatch: Database and blockchain states
-                          don&apos;t match!
-                        </p>
+                        <div className="flex flex-col gap-2">
+                          <p className="text-amber-300 text-xs font-medium">
+                            ⚠️ Status Mismatch: Database and blockchain states
+                            don&apos;t match!
+                          </p>
+                          <SyncLockStateButton
+                            entityType="quest"
+                            entityId={quest.id}
+                            lockAddress={quest.lock_address}
+                            mode="manager"
+                            onSuccess={() => {
+                              if (id && typeof id === "string") {
+                                fetchQuestDetails(id);
+                                checkActualManagerStatus();
+                                checkActualMaxKeysValue();
+                              }
+                            }}
+                          />
+                        </div>
                       </div>
                     )}
                 </div>
@@ -519,11 +541,11 @@ export default function QuestDetailsPage() {
               />
             )}
 
-            {/* MaxKeysPerAddress Security Status Display */}
+            {/* Purchase Security Status Display */}
             {quest.lock_address && (
               <div className="mb-6 rounded-lg border border-slate-700 bg-slate-900 p-4">
                 <h3 className="text-sm font-medium text-slate-300 mb-3">
-                  MaxKeysPerAddress Security Status
+                  Purchase Security Status
                 </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
@@ -535,7 +557,9 @@ export default function QuestDetailsPage() {
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-slate-400">Blockchain Value:</span>
+                    <span className="text-slate-400">
+                      Blockchain maxNumberOfKeys:
+                    </span>
                     <span
                       className={`font-medium ${
                         actualMaxKeysValue === null
@@ -548,8 +572,8 @@ export default function QuestDetailsPage() {
                       {actualMaxKeysValue === null
                         ? "⏳ Checking..."
                         : actualMaxKeysValue === 0n
-                          ? "✅ Secured (0)"
-                          : `❌ Insecure (${actualMaxKeysValue.toString()})`}
+                          ? "✅ Purchases disabled (0)"
+                          : `❌ Purchases enabled (${actualMaxKeysValue.toString()})`}
                     </span>
                   </div>
                   {actualMaxKeysValue !== null &&
@@ -557,17 +581,31 @@ export default function QuestDetailsPage() {
                       (!quest.max_keys_secured &&
                         actualMaxKeysValue === 0n)) && (
                       <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
-                        <p className="text-amber-300 text-xs font-medium">
-                          ⚠️ Status Mismatch: Database and blockchain states
-                          don&apos;t match!
-                        </p>
+                        <div className="flex flex-col gap-2">
+                          <p className="text-amber-300 text-xs font-medium">
+                            ⚠️ Status Mismatch: Database and blockchain states
+                            don&apos;t match!
+                          </p>
+                          <SyncLockStateButton
+                            entityType="quest"
+                            entityId={quest.id}
+                            lockAddress={quest.lock_address}
+                            mode="maxKeys"
+                            onSuccess={() => {
+                              if (id && typeof id === "string") {
+                                fetchQuestDetails(id);
+                                checkActualMaxKeysValue();
+                              }
+                            }}
+                          />
+                        </div>
                       </div>
                     )}
                 </div>
               </div>
             )}
 
-            {/* MaxKeysPerAddress Security Button */}
+            {/* Purchase Security Button */}
             {quest.lock_address && actualMaxKeysValue !== 0n && (
               <MaxKeysSecurityButton
                 entityType="quest"
@@ -575,7 +613,7 @@ export default function QuestDetailsPage() {
                 lockAddress={quest.lock_address}
                 maxKeysFailureReason={quest.max_keys_failure_reason}
                 onSuccess={() => {
-                  toast.success("Lock secured successfully");
+                  toast.success("Lock purchases disabled successfully");
                   if (id && typeof id === "string") {
                     fetchQuestDetails(id); // Refresh quest data
                     checkActualMaxKeysValue(); // Refresh blockchain status
@@ -718,7 +756,15 @@ export default function QuestDetailsPage() {
   );
 }
 
-// Local helper to display NetworkError with retry
+/**
+ * Render an error UI that shows a network error with a retry action and a "Back to Quests" button.
+ *
+ * Displays NetworkError with an internal retry spinner while `onRetry` is executing.
+ *
+ * @param error - The error message to display in the NetworkError component
+ * @param onRetry - Callback invoked when the user triggers a retry; the component displays a retry state until the promise resolves
+ * @returns The wrapped error UI element containing the NetworkError and a navigation button back to the quests list
+ */
 function QuestErrorWrapper({
   error,
   onRetry,

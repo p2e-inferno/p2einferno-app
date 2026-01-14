@@ -31,7 +31,7 @@ describe("max-keys-security", () => {
 
         switch (args.functionName) {
           case "maxKeysPerAddress":
-            return Promise.resolve(config.maxKeysPerAddress ?? 0n);
+            return Promise.resolve(config.maxKeysPerAddress ?? 1n);
           case "expirationDuration":
             return Promise.resolve(config.expirationDuration ?? 0n);
           case "maxNumberOfKeys":
@@ -44,20 +44,20 @@ describe("max-keys-security", () => {
   }
 
   describe("verifyMaxKeysSecurity", () => {
-    it("returns isSecure:true when maxKeysPerAddress is 0", async () => {
-      const mockClient = createStubClient({ maxKeysPerAddress: 0n });
+    it("returns isSecure:true when maxNumberOfKeys is 0", async () => {
+      const mockClient = createStubClient({ maxNumberOfKeys: 0n });
       const result = await verifyMaxKeysSecurity(mockLockAddress, mockClient);
       expect(result).toEqual({ isSecure: true, currentValue: 0n });
     });
 
-    it("returns isSecure:false when maxKeysPerAddress is 1", async () => {
-      const mockClient = createStubClient({ maxKeysPerAddress: 1n });
+    it("returns isSecure:false when maxNumberOfKeys is 1", async () => {
+      const mockClient = createStubClient({ maxNumberOfKeys: 1n });
       const result = await verifyMaxKeysSecurity(mockLockAddress, mockClient);
       expect(result).toEqual({ isSecure: false, currentValue: 1n });
     });
 
-    it("returns isSecure:false for high maxKeysPerAddress values", async () => {
-      const mockClient = createStubClient({ maxKeysPerAddress: 100n });
+    it("returns isSecure:false for high maxNumberOfKeys values", async () => {
+      const mockClient = createStubClient({ maxNumberOfKeys: 100n });
       const result = await verifyMaxKeysSecurity(mockLockAddress, mockClient);
       expect(result).toEqual({ isSecure: false, currentValue: 100n });
     });
@@ -85,40 +85,49 @@ describe("max-keys-security", () => {
   });
 
   describe("getLockConfigForUpdate", () => {
-    it("returns current config with maxKeysPerAddress forced to 0", async () => {
+    it("returns current config with maxNumberOfKeys forced to 0", async () => {
       const mockClient = createStubClient({
         expirationDuration: 31536000n,
-        maxNumberOfKeys: 1000n,
+        maxKeysPerAddress: 2n,
       });
       const result = await getLockConfigForUpdate(mockLockAddress, mockClient);
-      expect(result).toEqual([31536000n, 1000n, 0n]);
+      expect(result).toEqual([31536000n, 0n, 2n]);
     });
 
     it("preserves zero expirationDuration", async () => {
       const mockClient = createStubClient({
         expirationDuration: 0n,
-        maxNumberOfKeys: 100n,
+        maxKeysPerAddress: 3n,
       });
       const result = await getLockConfigForUpdate(mockLockAddress, mockClient);
-      expect(result).toEqual([0n, 100n, 0n]);
+      expect(result).toEqual([0n, 0n, 3n]);
     });
 
-    it("preserves zero maxNumberOfKeys", async () => {
+    it("forces maxNumberOfKeys to 0 even when non-zero on-chain", async () => {
       const mockClient = createStubClient({
         expirationDuration: 1000n,
-        maxNumberOfKeys: 0n,
+        maxKeysPerAddress: 1n,
       });
       const result = await getLockConfigForUpdate(mockLockAddress, mockClient);
-      expect(result).toEqual([1000n, 0n, 0n]);
+      expect(result).toEqual([1000n, 0n, 1n]);
     });
 
     it("preserves large config values", async () => {
       const mockClient = createStubClient({
         expirationDuration: 999999999n,
-        maxNumberOfKeys: 999999999n,
+        maxKeysPerAddress: 5n,
       });
       const result = await getLockConfigForUpdate(mockLockAddress, mockClient);
-      expect(result).toEqual([999999999n, 999999999n, 0n]);
+      expect(result).toEqual([999999999n, 0n, 5n]);
+    });
+
+    it("bumps maxKeysPerAddress to 1 when it is 0", async () => {
+      const mockClient = createStubClient({
+        expirationDuration: 1000n,
+        maxKeysPerAddress: 0n,
+      });
+      const result = await getLockConfigForUpdate(mockLockAddress, mockClient);
+      expect(result).toEqual([1000n, 0n, 1n]);
     });
 
     it("throws on invalid lock address", async () => {
@@ -142,10 +151,10 @@ describe("max-keys-security", () => {
       ).rejects.toThrow("Contract not found");
     });
 
-    it("calls both expirationDuration and maxNumberOfKeys", async () => {
+    it("calls both expirationDuration and maxKeysPerAddress", async () => {
       const mockClient = createStubClient({
         expirationDuration: 1000n,
-        maxNumberOfKeys: 100n,
+        maxKeysPerAddress: 1n,
       });
       await getLockConfigForUpdate(mockLockAddress, mockClient);
 
@@ -153,7 +162,7 @@ describe("max-keys-security", () => {
         expect.objectContaining({ functionName: "expirationDuration" }),
       );
       expect(mockClient.readContract).toHaveBeenCalledWith(
-        expect.objectContaining({ functionName: "maxNumberOfKeys" }),
+        expect.objectContaining({ functionName: "maxKeysPerAddress" }),
       );
     });
   });

@@ -22,8 +22,14 @@
 - Preferred tool: Use the Supabase CLI for all database tasks unless the user specifies otherwise. Use `supabase --help` to discover commands.
 - Target selection: Read `NEXT_PUBLIC_SUPABASE_URL` to determine local vs remote; local typically includes `localhost`/`127.0.0.1`, remote ends with `.supabase.co`.
 - Credentials: The database password is in `.env.local`. Load env before running commands; never commit secrets.
+- **CRITICAL - Applying Migrations**:
+  - **NEVER reset the database when applying a migration unless the user explicitly asks you to do so.**
+  - **ALWAYS use `supabase migration up --local` to apply new migrations.**
+  - **If a migration command fails or you're unsure of the correct command syntax, run `supabase migration --help` or `supabase --help` to check available commands before attempting anything else.**
+  - **NEVER default to `supabase db reset` as a solution - this destroys data and should only be used when explicitly requested by the user.**
 - Common workflows:
-  - Local: `supabase start` (start stack), `supabase stop` (stop), `supabase db reset` (recreate local DB and apply `supabase/migrations/`).
+  - Local: `supabase start` (start stack), `supabase stop` (stop), `supabase migration up --local` (apply new migrations).
+  - Local (destructive, requires explicit user permission): `supabase db reset` (recreate local DB and reapply all `supabase/migrations/`).
   - Remote: `supabase link --project-ref <ref>` then `supabase db push` to apply migrations; create new files with `supabase migration new <name>`.
   - Edge functions: `supabase functions deploy verify-blockchain-payment` when updating `supabase/functions/verify-blockchain-payment`.
 - Repo script: `npm run db:migrate` exists but CLI is preferred for day-to-day work.
@@ -198,7 +204,7 @@ See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
 - Never commit secrets. Use `.env.local` for `NEXT_PUBLIC_*`, Supabase, Privy, Paystack, RPC keys (see `README.md`).
 - Validate config on startup (`lib/auth/config-validation.ts`).
 - Review CSP and auth docs in `docs/` before changing security-sensitive code.
-- Database changes must include Supabase migrations in `supabase/migrations/` and be applied with `db:migrate`.
+- Database changes must include Supabase migrations in `supabase/migrations/` and be applied with `supabase migration up --local` (never `supabase db reset` unless explicitly requested).
 
 ## Admin Security Architecture
 

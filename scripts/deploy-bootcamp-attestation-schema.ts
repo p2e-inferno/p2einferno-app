@@ -4,13 +4,21 @@
  */
 import { SchemaRegistry } from "@ethereum-attestation-service/eas-sdk";
 import { ethers } from "ethers";
+import { getLogger } from "@/lib/utils/logger";
 
+const log = getLogger("scripts:deploy-bootcamp-attestation-schema");
+
+/**
+ * Deploys the canonical Bootcamp Completion schema to the configured EAS registry.
+ *
+ * Requires `RPC_URL`, `DEPLOYER_PRIVATE_KEY`, and `EAS_CONTRACT_ADDRESS` environment variables; if any are missing the process logs an error and exits with code 1. Connects a signer to the RPC endpoint, registers the Bootcamp Completion schema on the specified EAS contract, and waits for the registration transaction to be mined.
+ */
 async function deploySchema() {
   const rpcUrl = process.env.RPC_URL;
   const pk = process.env.DEPLOYER_PRIVATE_KEY;
   const easAddress = process.env.EAS_CONTRACT_ADDRESS;
   if (!rpcUrl || !pk || !easAddress) {
-    console.error("Missing RPC_URL, DEPLOYER_PRIVATE_KEY or EAS_CONTRACT_ADDRESS");
+    log.error("Missing RPC_URL, DEPLOYER_PRIVATE_KEY or EAS_CONTRACT_ADDRESS");
     process.exit(1);
   }
 
@@ -22,19 +30,27 @@ async function deploySchema() {
   const schema =
     "string cohortId,string cohortName,string bootcampId,string bootcampTitle,address userAddress,uint256 completionDate,uint256 totalXpEarned,string certificateTxHash";
 
-  console.log("Deploying BOOTCAMP_COMPLETION_SCHEMA...");
-  const tx = await registry.register({ schema, resolverAddress: ethers.ZeroAddress, revocable: false });
-  const receipt = await tx.wait();
+  const tx = await registry.register({
+    schema,
+    resolverAddress: ethers.ZeroAddress,
+    revocable: false,
+  });
+  const schemaUid = await tx.wait();
+  const isValidUid =
+    typeof schemaUid === "string" && ethers.isHexString(schemaUid, 32);
 
-  // @ts-ignore EAS typings may vary
-  const uid = (receipt as any)?.uid || (receipt as any)?.transactionHash || "";
-  console.log("✅ Schema deployed!");
-  console.log("Transaction:", (receipt as any)?.transactionHash);
-  console.log("Schema UID:", uid);
-  console.log("\nAdd to .env:\nBOOTCAMP_COMPLETION_SCHEMA_UID=" + uid);
+  if (!isValidUid) {
+    log.error("Failed to obtain schema UID from registration", { schema });
+    process.exit(1);
+  }
+
+  log.info("Schema deployed", {
+    schemaUid,
+    schema,
+  });
 }
 
 deploySchema().catch((err) => {
-  console.error("Deployment failed:", err);
+  log.error("Deployment failed:", err);
   process.exit(1);
 });

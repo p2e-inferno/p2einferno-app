@@ -6,26 +6,26 @@ import { LOCK_CONFIG_VIEW_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { getLogger } from "@/lib/utils/logger";
 import type { Address } from "viem";
 
-const log = getLogger("hooks:unlock:max-keys-per-address");
+const log = getLogger("hooks:unlock:max-number-of-keys");
 
-interface UseMaxKeysPerAddressOptions {
+interface UseMaxNumberOfKeysOptions {
   enabled?: boolean; // Gate RPC usage
 }
 
 /**
- * Hook to read maxKeysPerAddress value from a lock contract
- * Used to verify if grant-based locks are secured (should be 0)
+ * Hook to read maxNumberOfKeys value from a lock contract
+ * Used to verify if grant-based locks are secured (should be 0 to disable purchases)
  *
  * @param options - Configuration options
- * @returns Function to check maxKeysPerAddress and error state
+ * @returns Function to check maxNumberOfKeys and error state
  */
-export const useMaxKeysPerAddress = (
-  options: UseMaxKeysPerAddressOptions = {},
+export const useMaxNumberOfKeys = (
+  options: UseMaxNumberOfKeysOptions = {},
 ) => {
   const { enabled = true } = options;
   const [error, setError] = useState<string | null>(null);
 
-  const checkMaxKeysPerAddress = useCallback(
+  const checkMaxNumberOfKeys = useCallback(
     async (lockAddress: Address): Promise<bigint | null> => {
       if (!enabled) return null;
 
@@ -35,22 +35,22 @@ export const useMaxKeysPerAddress = (
         // Fresh client per call - no persistence
         const client = createPublicClientUnified();
 
-        const maxKeysPerAddress = (await client.readContract({
+        const maxNumberOfKeys = (await client.readContract({
           address: lockAddress,
           abi: LOCK_CONFIG_VIEW_ABI,
-          functionName: "maxKeysPerAddress",
+          functionName: "maxNumberOfKeys",
         })) as bigint;
 
-        log.debug("maxKeysPerAddress check result", {
+        log.debug("maxNumberOfKeys check result", {
           lockAddress,
-          maxKeysPerAddress: maxKeysPerAddress.toString(),
-          isSecure: maxKeysPerAddress === 0n,
+          maxNumberOfKeys: maxNumberOfKeys.toString(),
+          isSecure: maxNumberOfKeys === 0n,
         });
 
-        return maxKeysPerAddress;
+        return maxNumberOfKeys;
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Unknown error";
-        log.error("Error checking maxKeysPerAddress:", {
+        log.error("Error checking maxNumberOfKeys:", {
           error: err,
           lockAddress,
         });
@@ -62,7 +62,7 @@ export const useMaxKeysPerAddress = (
   );
 
   return {
-    checkMaxKeysPerAddress,
+    checkMaxNumberOfKeys,
     error,
   };
 };
