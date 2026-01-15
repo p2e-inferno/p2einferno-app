@@ -92,6 +92,8 @@ async function createQuest(
     lock_address,
     lock_manager_granted,
     grant_failure_reason,
+    transferability_secured,
+    transferability_failure_reason,
   } = req.body;
 
   if (!title) {
@@ -112,6 +114,17 @@ async function createQuest(
       ? null
       : grant_failure_reason || null;
 
+    // Harden transferability flags for quests: if lock provided and flag not provided, default to false; clear reason when secured
+    const transferSecuredFinal =
+      typeof transferability_secured === "boolean"
+        ? transferability_secured
+        : lock_address
+          ? false
+          : false;
+    const transferReasonFinal = transferSecuredFinal
+      ? null
+      : transferability_failure_reason || null;
+
     const { data: quest, error: questError } = await supabase
       .from("quests")
       .insert({
@@ -123,6 +136,8 @@ async function createQuest(
         lock_address,
         lock_manager_granted: grantGrantedFinal,
         grant_failure_reason: grantReasonFinal,
+        transferability_secured: transferSecuredFinal,
+        transferability_failure_reason: transferReasonFinal,
       })
       .select()
       .single();

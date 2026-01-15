@@ -405,6 +405,7 @@ const QuestDetailsPage = () => {
                   task={task}
                   completion={completion}
                   isQuestStarted={isQuestStarted}
+                  questId={questId as string}
                   onAction={handleTaskAction}
                   onClaimReward={handleClaimReward}
                   processingTaskId={processingTask}

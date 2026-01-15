@@ -71,6 +71,7 @@ export interface AdminLockDeploymentResult {
   transactionHash?: string;
   grantTransactionHash?: string;
   configTransactionHash?: string; // Transaction hash for updateLockConfig call
+  transferConfigTransactionHash?: string; // Transaction hash for updateTransferFee call
   lockAddress?: Address;
   serverWalletAddress?: string; // Server wallet added as manager
   error?: string;
@@ -78,6 +79,8 @@ export interface AdminLockDeploymentResult {
   grantError?: string; // Error message from grant manager failure
   configFailed?: boolean; // True if lock deployed but config update failed
   configError?: string; // Error message from config update failure
+  transferConfigFailed?: boolean; // True if lock deployed but transferability update failed
+  transferConfigError?: string; // Error message from transferability update failure
 }
 
 // Key Grant Types

@@ -2,6 +2,7 @@ import React from "react";
 import Image from "next/image";
 import { Flame, Coins, Sparkles } from "lucide-react"; // Icons used in the header
 import type { QuestHeaderProps } from "./types";
+import { RichText } from "@/components/common/RichText";
 
 const QuestHeader: React.FC<QuestHeaderProps> = ({
   quest,
@@ -44,9 +45,10 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
               <Sparkles className="w-8 h-8 text-green-500 ml-3" />
             )}
           </h1>
-          <p className="text-base sm:text-lg text-gray-400 leading-relaxed break-words">
-            {quest.description}
-          </p>
+          <RichText
+            content={quest.description}
+            className="text-base sm:text-lg text-gray-400 leading-relaxed break-words"
+          />
         </div>
 
         <div className="md:ml-8 w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-lg overflow-hidden bg-gradient-to-br from-orange-900/20 to-red-900/20 flex-shrink-0 self-start md:self-auto mt-2 md:mt-0">

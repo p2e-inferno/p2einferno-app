@@ -558,3 +558,18 @@ export const LOCK_CONFIG_VIEW_ABI = [
     type: "function",
   },
 ] as const;
+
+/**
+ * View function to read current transfer fee basis points.
+ *
+ * `10000` means transfers are effectively disabled (non-transferable).
+ */
+export const TRANSFER_FEE_VIEW_ABI = [
+  {
+    inputs: [],
+    name: "transferFeeBasisPoints",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;

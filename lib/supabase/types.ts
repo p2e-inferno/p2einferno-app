@@ -16,6 +16,8 @@ export interface BootcampProgram {
   grant_failure_reason?: string;
   max_keys_secured?: boolean | null;
   max_keys_failure_reason?: string | null;
+  transferability_secured?: boolean | null;
+  transferability_failure_reason?: string | null;
   image_url?: string;
   created_at: string;
   updated_at: string;
@@ -34,6 +36,8 @@ export interface Cohort {
   lock_address?: string;
   lock_manager_granted?: boolean;
   grant_failure_reason?: string;
+  transferability_secured?: boolean | null;
+  transferability_failure_reason?: string | null;
   key_managers?: string[];
   usdt_amount?: number;
   naira_amount?: number;
@@ -54,6 +58,8 @@ export interface CohortMilestone {
   grant_failure_reason?: string;
   max_keys_secured?: boolean | null;
   max_keys_failure_reason?: string | null;
+  transferability_secured?: boolean | null;
+  transferability_failure_reason?: string | null;
   prerequisite_milestone_id?: string;
   duration_hours?: number;
   total_reward?: number;
@@ -92,6 +98,8 @@ export interface Quest {
   grant_failure_reason?: string;
   max_keys_secured?: boolean | null;
   max_keys_failure_reason?: string | null;
+  transferability_secured?: boolean | null;
+  transferability_failure_reason?: string | null;
   prerequisite_quest_id?: string | null;
   prerequisite_quest_lock_address?: string | null;
   requires_prerequisite_key?: boolean;
@@ -123,7 +131,8 @@ export type TaskType =
   | "vendor_buy"
   | "vendor_sell"
   | "vendor_light_up"
-  | "vendor_level_up";
+  | "vendor_level_up"
+  | "deploy_lock";
 
 export type InputValidationType =
   | "url"

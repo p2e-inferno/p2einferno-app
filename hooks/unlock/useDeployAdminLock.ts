@@ -21,6 +21,7 @@ import type {
 import { useAdminApi } from "@/hooks/useAdminApi";
 
 const log = getLogger("hooks:unlock:deploy-admin-lock");
+const NON_TRANSFERABLE_FEE_BPS = 10000n;
 
 export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
   const wallet = usePrivyWriteWallet();
@@ -290,6 +291,60 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           }
         }
 
+        // Enforce non-transferability by setting transferFeeBasisPoints to 10000
+        let transferTx: `0x${string}` | undefined;
+        let transferConfigFailed = false;
+        let transferConfigError: string | undefined;
+
+        try {
+          log.info("Updating lock transfer fee to enforce non-transferability", {
+            lockAddress,
+            transferFeeBasisPoints: NON_TRANSFERABLE_FEE_BPS.toString(),
+          });
+
+          const estimatedGas = await publicClient.estimateContractGas({
+            address: lockAddress as Address,
+            abi: LOCK_CONFIG_ABI,
+            functionName: "updateTransferFee",
+            args: [NON_TRANSFERABLE_FEE_BPS],
+            account: walletAccount,
+          });
+
+          const gasWithPadding = (estimatedGas * 120n) / 100n;
+
+          transferTx = await walletClient.writeContract({
+            address: lockAddress as Address,
+            abi: LOCK_CONFIG_ABI,
+            functionName: "updateTransferFee",
+            args: [NON_TRANSFERABLE_FEE_BPS],
+            account: walletAccount,
+            chain: walletChain,
+            gas: gasWithPadding,
+          });
+
+          await publicClient.waitForTransactionReceipt({
+            hash: transferTx,
+          });
+
+          log.info("Transfer fee updated successfully", {
+            transferTransactionHash: transferTx,
+            lockAddress,
+          });
+        } catch (transferErr: any) {
+          transferConfigFailed = true;
+          transferConfigError = truncateErrorMessage(
+            transferErr.message || "Failed to update transfer fee",
+            150,
+          );
+          log.error(
+            "Update transfer fee failed - lock deployed but transferability update failed",
+            {
+              error: transferErr,
+              lockAddress,
+            },
+          );
+        }
+
         setState({ isLoading: false, error: null, isSuccess: true });
 
         return {
@@ -297,12 +352,15 @@ export const useDeployAdminLock = ({ isAdmin }: { isAdmin: boolean }) => {
           transactionHash: deployTx,
           grantTransactionHash: grantTx,
           configTransactionHash: configTx,
+          transferConfigTransactionHash: transferTx,
           lockAddress: lockAddress as Address,
           serverWalletAddress: normalizedServerWallet,
           grantFailed,
           grantError,
           configFailed,
           configError,
+          transferConfigFailed,
+          transferConfigError,
         };
       } catch (error: any) {
         const errorMsg = error.message || "Admin lock deployment failed";

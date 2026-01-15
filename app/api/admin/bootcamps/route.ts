@@ -142,6 +142,14 @@ export async function POST(req: NextRequest) {
       if (record.max_keys_secured === true) {
         record.max_keys_failure_reason = null;
       }
+
+      // Harden transferability_secured flag
+      if (typeof record.transferability_secured === 'undefined' || record.transferability_secured === null) {
+        record.transferability_secured = false;
+      }
+      if (record.transferability_secured === true) {
+        record.transferability_failure_reason = null;
+      }
     }
 
     const supabase = createAdminClient();
@@ -187,6 +195,44 @@ export async function PUT(req: NextRequest) {
       ...updates,
       updated_at: new Date().toISOString(),
     };
+    const supabase = createAdminClient();
+
+    const hasMaxKeysSecured = Object.prototype.hasOwnProperty.call(
+      updates ?? {},
+      "max_keys_secured",
+    );
+    const hasTransferabilitySecured = Object.prototype.hasOwnProperty.call(
+      updates ?? {},
+      "transferability_secured",
+    );
+    const hasLockAddressField = Object.prototype.hasOwnProperty.call(
+      updates ?? {},
+      "lock_address",
+    );
+
+    // If lock address is being changed, default security flags to false unless explicitly provided.
+    // If lock address is unchanged and the client omits these fields, preserve DB truth (avoid clobbering synced state).
+    let lockAddressChanged = false;
+    if (hasLockAddressField) {
+      const normalizeLockAddress = (value: unknown) =>
+        typeof value === "string" && value.trim() ? value.trim() : null;
+      const { data: existing, error: existingError } = await supabase
+        .from("bootcamp_programs")
+        .select("lock_address")
+        .eq("id", id as string)
+        .maybeSingle();
+      if (existingError) {
+        log.error("bootcamp update prefetch error", { error: existingError, id });
+        return NextResponse.json(
+          { error: existingError.message || "Failed to update bootcamp" },
+          { status: 500 },
+        );
+      }
+      lockAddressChanged =
+        normalizeLockAddress((existing as any)?.lock_address) !==
+        normalizeLockAddress(updateData.lock_address);
+    }
+
     if (updateData.lock_address) {
       if (typeof updateData.lock_manager_granted === 'undefined' || updateData.lock_manager_granted === null) {
         updateData.lock_manager_granted = false;
@@ -196,15 +242,33 @@ export async function PUT(req: NextRequest) {
       }
 
       // Harden max_keys_secured flag
-      if (typeof updateData.max_keys_secured === 'undefined' || updateData.max_keys_secured === null) {
+      if (
+        (hasMaxKeysSecured || lockAddressChanged) &&
+        (typeof updateData.max_keys_secured === "undefined" ||
+          updateData.max_keys_secured === null)
+      ) {
         updateData.max_keys_secured = false;
       }
-      if (updateData.max_keys_secured === true) {
+      if ((hasMaxKeysSecured || lockAddressChanged) && updateData.max_keys_secured === true) {
         updateData.max_keys_failure_reason = null;
+      }
+
+      // Harden transferability_secured flag
+      if (
+        (hasTransferabilitySecured || lockAddressChanged) &&
+        (typeof updateData.transferability_secured === "undefined" ||
+          updateData.transferability_secured === null)
+      ) {
+        updateData.transferability_secured = false;
+      }
+      if (
+        (hasTransferabilitySecured || lockAddressChanged) &&
+        updateData.transferability_secured === true
+      ) {
+        updateData.transferability_failure_reason = null;
       }
     }
 
-    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from('bootcamp_programs')
       .update(updateData)

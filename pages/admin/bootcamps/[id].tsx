@@ -4,6 +4,7 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import BootcampForm from "@/components/admin/BootcampForm";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
+import TransferabilitySecurityButton from "@/components/admin/TransferabilitySecurityButton";
 import SyncLockStateButton from "@/components/admin/SyncLockStateButton";
 import type { BootcampProgram } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
@@ -11,9 +12,11 @@ import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
+import { useTransferFeeBasisPoints } from "@/hooks/unlock/useTransferFeeBasisPoints";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 import type { Address } from "viem";
+import { NON_TRANSFERABLE_FEE_BPS } from "@/hooks/unlock/useSyncLockTransferabilityState";
 
 const log = getLogger("admin:bootcamps:[id]");
 
@@ -41,9 +44,13 @@ export default function EditBootcampPage() {
   const [actualMaxKeysValue, setActualMaxKeysValue] = useState<bigint | null>(
     null,
   );
+  const [actualTransferFeeBps, setActualTransferFeeBps] = useState<
+    bigint | null
+  >(null);
 
   const { checkIsLockManager } = useIsLockManager();
   const { checkMaxNumberOfKeys } = useMaxNumberOfKeys();
+  const { checkTransferFeeBasisPoints } = useTransferFeeBasisPoints();
 
   const fetchBootcamp = useCallback(async () => {
     if (!id) return;
@@ -126,6 +133,20 @@ export default function EditBootcampPage() {
     }
   }, [bootcamp?.lock_address, checkMaxNumberOfKeys]);
 
+  // Check actual transferFeeBasisPoints value on blockchain
+  const checkActualTransferFeeBps = useCallback(async () => {
+    if (!bootcamp?.lock_address) return;
+
+    try {
+      const feeBps = await checkTransferFeeBasisPoints(
+        bootcamp.lock_address as Address,
+      );
+      setActualTransferFeeBps(feeBps);
+    } catch (err) {
+      log.error("Failed to check transferFeeBasisPoints:", err);
+    }
+  }, [bootcamp?.lock_address, checkTransferFeeBasisPoints]);
+
   useEffect(() => {
     fetchServerWallet();
   }, [fetchServerWallet]);
@@ -141,6 +162,12 @@ export default function EditBootcampPage() {
       checkActualMaxKeysValue();
     }
   }, [bootcamp?.lock_address, checkActualMaxKeysValue]);
+
+  useEffect(() => {
+    if (bootcamp?.lock_address) {
+      checkActualTransferFeeBps();
+    }
+  }, [bootcamp?.lock_address, checkActualTransferFeeBps]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -308,6 +335,75 @@ export default function EditBootcampPage() {
         </div>
       )}
 
+      {/* Transferability Security Status Display */}
+      {bootcamp?.lock_address && (
+        <div className="mb-6 rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <h3 className="text-sm font-medium text-slate-300 mb-3">
+            Transferability Security
+          </h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Database Status:</span>
+              <span
+                className={`font-medium ${
+                  bootcamp.transferability_secured
+                    ? "text-green-400"
+                    : "text-red-400"
+                }`}
+              >
+                {bootcamp.transferability_secured
+                  ? "✅ Secured"
+                  : "❌ Not Secured"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">
+                Blockchain transferFeeBasisPoints:
+              </span>
+              <span
+                className={`font-medium ${
+                  actualTransferFeeBps === null
+                    ? "text-yellow-400"
+                    : actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS
+                      ? "text-green-400"
+                      : "text-red-400"
+                }`}
+              >
+                {actualTransferFeeBps === null
+                  ? "⏳ Checking..."
+                  : actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS
+                    ? `✅ Non-transferable (${NON_TRANSFERABLE_FEE_BPS.toString()})`
+                    : `❌ Transferable (${actualTransferFeeBps.toString()})`}
+              </span>
+            </div>
+            {actualTransferFeeBps !== null &&
+              ((bootcamp.transferability_secured &&
+                actualTransferFeeBps !== NON_TRANSFERABLE_FEE_BPS) ||
+                (!bootcamp.transferability_secured &&
+                  actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS)) && (
+                <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-amber-300 text-xs font-medium">
+                      ⚠️ Status Mismatch: Database and blockchain states
+                      don&apos;t match!
+                    </p>
+                    <SyncLockStateButton
+                      entityType="bootcamp"
+                      entityId={bootcamp.id}
+                      lockAddress={bootcamp.lock_address}
+                      mode="transferability"
+                      onSuccess={() => {
+                        fetchBootcamp();
+                        checkActualTransferFeeBps();
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+          </div>
+        </div>
+      )}
+
       {/* Purchase Security Button */}
       {bootcamp?.lock_address && actualMaxKeysValue !== 0n && (
         <div className="mb-6">
@@ -327,6 +423,30 @@ export default function EditBootcampPage() {
           />
         </div>
       )}
+
+      {/* Transferability Security Button */}
+      {bootcamp?.lock_address &&
+        actualTransferFeeBps !== null &&
+        actualTransferFeeBps !== NON_TRANSFERABLE_FEE_BPS && (
+          <div className="mb-6">
+            <TransferabilitySecurityButton
+              entityType="bootcamp"
+              entityId={bootcamp.id}
+              lockAddress={bootcamp.lock_address}
+              transferabilityFailureReason={
+                bootcamp.transferability_failure_reason
+              }
+              onSuccess={() => {
+                toast.success("Lock transfers disabled successfully");
+                fetchBootcamp();
+                checkActualTransferFeeBps();
+              }}
+              onError={(error) => {
+                toast.error(`Security update failed: ${error}`);
+              }}
+            />
+          </div>
+        )}
 
       {
         bootcamp ? (

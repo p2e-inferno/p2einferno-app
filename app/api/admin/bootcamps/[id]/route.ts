@@ -94,12 +94,84 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 
     // Remove id from updates if it exists (shouldn't update ID)
     const { id: _, ...safeUpdates } = updates;
+    const hardened: any = {
+      ...safeUpdates,
+      updated_at: new Date().toISOString(),
+    };
+
+    const hasMaxKeysSecured = Object.prototype.hasOwnProperty.call(
+      safeUpdates ?? {},
+      "max_keys_secured",
+    );
+    const hasTransferabilitySecured = Object.prototype.hasOwnProperty.call(
+      safeUpdates ?? {},
+      "transferability_secured",
+    );
+    const hasLockAddressField = Object.prototype.hasOwnProperty.call(
+      safeUpdates ?? {},
+      "lock_address",
+    );
+
+    let lockAddressChanged = false;
+    if (hasLockAddressField) {
+      const normalizeLockAddress = (value: unknown) =>
+        typeof value === "string" && value.trim() ? value.trim() : null;
+      const { data: existing, error: existingError } = await supabase
+        .from("bootcamp_programs")
+        .select("lock_address")
+        .eq("id", id)
+        .maybeSingle();
+      if (existingError) {
+        log.error("bootcamp update prefetch error", { error: existingError, id });
+        return NextResponse.json(
+          { error: existingError.message || "Failed to update bootcamp" },
+          { status: 500 },
+        );
+      }
+      lockAddressChanged =
+        normalizeLockAddress((existing as any)?.lock_address) !==
+        normalizeLockAddress(hardened.lock_address);
+    }
+
+    // Harden flags when lock_address present
+    if (hardened.lock_address) {
+      if (typeof hardened.lock_manager_granted === "undefined" || hardened.lock_manager_granted === null) {
+        hardened.lock_manager_granted = false;
+      }
+      if (hardened.lock_manager_granted === true) {
+        hardened.grant_failure_reason = null;
+      }
+
+      if (
+        (hasMaxKeysSecured || lockAddressChanged) &&
+        (typeof hardened.max_keys_secured === "undefined" ||
+          hardened.max_keys_secured === null)
+      ) {
+        hardened.max_keys_secured = false;
+      }
+      if ((hasMaxKeysSecured || lockAddressChanged) && hardened.max_keys_secured === true) {
+        hardened.max_keys_failure_reason = null;
+      }
+
+      if (
+        (hasTransferabilitySecured || lockAddressChanged) &&
+        (typeof hardened.transferability_secured === "undefined" ||
+          hardened.transferability_secured === null)
+      ) {
+        hardened.transferability_secured = false;
+      }
+      if (
+        (hasTransferabilitySecured || lockAddressChanged) &&
+        hardened.transferability_secured === true
+      ) {
+        hardened.transferability_failure_reason = null;
+      }
+    }
 
     const { data, error } = await supabase
       .from('bootcamp_programs')
       .update({
-        ...safeUpdates,
-        updated_at: new Date().toISOString(),
+        ...hardened,
       })
       .eq('id', id)
       .select()

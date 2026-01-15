@@ -38,8 +38,10 @@ export default async function handler(
         task_id,
         reward_claimed,
         submission_status,
+        verification_data,
         quest_tasks!user_task_completions_task_id_fkey (
-          reward_amount
+          reward_amount,
+          task_type
         ),
         user_profiles!user_task_completions_user_id_fkey (
           id
@@ -88,7 +90,24 @@ export default async function handler(
     const questTask = Array.isArray(completion.quest_tasks)
       ? completion.quest_tasks[0]
       : completion.quest_tasks;
-    const rewardAmount = questTask?.reward_amount || 0;
+    const baseReward = questTask?.reward_amount || 0;
+
+    // For deploy_lock tasks, apply network-based reward multiplier
+    let rewardAmount = baseReward;
+    if (questTask?.task_type === "deploy_lock") {
+      const verificationData = completion.verification_data as
+        | { rewardMultiplier?: number }
+        | null;
+      const multiplier = verificationData?.rewardMultiplier || 1.0;
+      rewardAmount = Math.floor(baseReward * multiplier);
+
+      log.info("Applied deploy_lock reward multiplier", {
+        completionId,
+        baseReward,
+        multiplier,
+        finalReward: rewardAmount,
+      });
+    }
 
     // Award XP to the user (same pattern as milestone task claims)
     const userProfile = Array.isArray(completion.user_profiles)

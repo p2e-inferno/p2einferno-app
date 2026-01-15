@@ -157,12 +157,13 @@ export default async function handler(
         verificationMethod: "blockchain",
       };
 
-      const isTxBasedVendorTask = [
+      const isTxBasedTask = [
         "vendor_buy",
         "vendor_sell",
         "vendor_light_up",
+        "deploy_lock",
       ].includes(task.task_type);
-      if (isTxBasedVendorTask && clientTxHash) {
+      if (isTxBasedTask && clientTxHash) {
         const metadata = result.metadata || {};
         const registerData = await registerQuestTransaction(supabase, {
           txHash: clientTxHash,
@@ -173,9 +174,11 @@ export default async function handler(
             amount:
               typeof metadata.amount === "string" ? metadata.amount : null,
             eventName:
-              typeof metadata.eventName === "string"
-                ? metadata.eventName
-                : null,
+              task.task_type === "deploy_lock"
+                ? "NewLock"
+                : typeof metadata.eventName === "string"
+                  ? metadata.eventName
+                  : null,
             blockNumber:
               typeof metadata.blockNumber === "string"
                 ? metadata.blockNumber

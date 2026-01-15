@@ -32,9 +32,11 @@ import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
 import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
+  effectiveTransferabilityForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
+import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 
@@ -107,9 +109,17 @@ export default function CohortForm({
     grantFailureReason,
     setGrantFailureReason,
   } = useLockManagerState(isEditing, cohort);
+  const {
+    transferabilitySecured,
+    setTransferabilitySecured,
+    transferabilityFailureReason,
+    setTransferabilityFailureReason,
+  } = useTransferabilitySecurityState(isEditing, cohort);
   // Track the most recent grant outcome in local variables during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
+  let lastTransferFailed: boolean | undefined;
+  let lastTransferError: string | undefined;
 
   const [formData, setFormData] = useState<Partial<Cohort>>(
     cohort || {
@@ -389,6 +399,19 @@ export default function CohortForm({
         setGrantFailureReason(undefined);
       }
 
+      // Set transferability security state based on transfer config outcome
+      setTransferabilitySecured(!result.transferConfigFailed);
+      setTransferabilityFailureReason(result.transferConfigError);
+      lastTransferFailed = result.transferConfigFailed;
+      lastTransferError = result.transferConfigError;
+      if (result.transferConfigFailed) {
+        setDeploymentStep("Lock deployed but transferability update failed!");
+        log.warn("Lock deployed but transferability update failed", {
+          lockAddress,
+          transferError: result.transferConfigError,
+        });
+      }
+
       // Update draft with deployment result to preserve it in case of database failure
       updateDraftWithDeploymentResult("cohort", {
         lockAddress,
@@ -596,7 +619,20 @@ export default function CohortForm({
         currentReason: grantFailureReason,
       });
 
-      const dataToSave = {
+      const effectiveTransferability = effectiveTransferabilityForSave({
+        outcome: { lastTransferFailed, lastTransferError },
+        lockAddress: (formData.lock_address || lockAddress) as
+          | string
+          | undefined,
+        currentSecured: transferabilitySecured,
+        currentReason: transferabilityFailureReason,
+      });
+
+      const hasTransferOutcome = typeof lastTransferFailed === "boolean";
+      const shouldIncludeTransferabilityFields =
+        !isEditing || hasTransferOutcome;
+
+      const dataToSave: any = {
         ...cleanFormData,
         id: cohortId,
         key_managers: keyManagers,
@@ -604,6 +640,11 @@ export default function CohortForm({
         lock_manager_granted: effective.granted,
         grant_failure_reason: effective.reason,
       };
+      if (shouldIncludeTransferabilityFields) {
+        dataToSave.transferability_secured = effectiveTransferability.secured;
+        dataToSave.transferability_failure_reason =
+          effectiveTransferability.reason;
+      }
 
       const apiUrl = "/api/admin/cohorts";
       const method = isEditing ? "PUT" : "POST";

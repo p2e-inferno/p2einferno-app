@@ -116,6 +116,14 @@ export async function POST(req: NextRequest) {
       if (insertPayload.max_keys_secured === true) {
         insertPayload.max_keys_failure_reason = null;
       }
+
+      // Harden transferability_secured flag
+      if (typeof insertPayload.transferability_secured === 'undefined' || insertPayload.transferability_secured === null) {
+        insertPayload.transferability_secured = false;
+      }
+      if (insertPayload.transferability_secured === true) {
+        insertPayload.transferability_failure_reason = null;
+      }
     }
     const { data, error } = await supabase.from('cohort_milestones').insert(insertPayload).select('*').single();
     if (error) {
@@ -175,6 +183,10 @@ export async function PUT(req: NextRequest) {
       update ?? {},
       'max_keys_secured',
     );
+    const hasTransferabilitySecured = Object.prototype.hasOwnProperty.call(
+      update ?? {},
+      'transferability_secured',
+    );
     if (hardened.lock_address) {
       if (typeof hardened.lock_manager_granted === 'undefined' || hardened.lock_manager_granted === null) {
         hardened.lock_manager_granted = false;
@@ -189,6 +201,17 @@ export async function PUT(req: NextRequest) {
       }
       if (hasMaxKeysSecured && hardened.max_keys_secured === true) {
         hardened.max_keys_failure_reason = null;
+      }
+
+      // Harden transferability_secured flag
+      if (
+        hasTransferabilitySecured &&
+        (typeof hardened.transferability_secured === 'undefined' || hardened.transferability_secured === null)
+      ) {
+        hardened.transferability_secured = false;
+      }
+      if (hasTransferabilitySecured && hardened.transferability_secured === true) {
+        hardened.transferability_failure_reason = null;
       }
     }
     const { data, error } = await supabase.from('cohort_milestones').update(hardened).eq('id', id).select('*').single();

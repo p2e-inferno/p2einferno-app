@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { toast } from "react-hot-toast";
 import { getLogger } from "@/lib/utils/logger";
+import { RichText } from "@/components/common/RichText";
 
 const log = getLogger("lobby:TaskSubmissionModal");
 
@@ -595,7 +596,10 @@ export default function TaskSubmissionModal({
           {/* Task Info */}
           <div className="bg-purple-900/20 rounded-xl p-4 mb-6">
             <h3 className="font-bold mb-2">{task.title}</h3>
-            <p className="text-sm text-faded-grey mb-3">{task.description}</p>
+            <RichText
+              content={task.description}
+              className="text-sm text-faded-grey mb-3"
+            />
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
                 <span className="text-xs px-2 py-1 bg-purple-600/20 text-purple-300 rounded">

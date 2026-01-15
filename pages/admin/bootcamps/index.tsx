@@ -12,6 +12,8 @@ import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
+import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
+import { TransferabilitySecurityBadge } from "@/components/admin/TransferabilitySecurityBadge";
 
 const log = getLogger("admin:bootcamps:index");
 
@@ -154,6 +156,18 @@ export default function BootcampsPage() {
                         lockAddress={bootcamp.lock_address}
                         lockManagerGranted={bootcamp.lock_manager_granted}
                         reason={bootcamp.grant_failure_reason}
+                      />
+                      <MaxKeysSecurityBadge
+                        lockAddress={bootcamp.lock_address}
+                        maxKeysSecured={bootcamp.max_keys_secured}
+                        reason={bootcamp.max_keys_failure_reason}
+                      />
+                      <TransferabilitySecurityBadge
+                        lockAddress={bootcamp.lock_address}
+                        transferabilitySecured={
+                          bootcamp.transferability_secured
+                        }
+                        reason={bootcamp.transferability_failure_reason}
                       />
                     </div>
                   </td>

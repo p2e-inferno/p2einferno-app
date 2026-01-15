@@ -5,6 +5,7 @@ import TaskList from "@/components/admin/TaskList";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
 import SyncLockStateButton from "@/components/admin/SyncLockStateButton";
+import TransferabilitySecurityButton from "@/components/admin/TransferabilitySecurityButton";
 import { Calendar, Clock, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CohortMilestone, Cohort } from "@/lib/supabase/types";
@@ -13,9 +14,12 @@ import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
+import { useTransferFeeBasisPoints } from "@/hooks/unlock/useTransferFeeBasisPoints";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 import type { Address } from "viem";
+import { RichText } from "@/components/common/RichText";
+import { NON_TRANSFERABLE_FEE_BPS } from "@/hooks/unlock/useSyncLockTransferabilityState";
 
 const log = getLogger("admin:cohorts:[cohortId]:milestones:[milestoneId]");
 
@@ -58,9 +62,13 @@ export default function MilestoneDetailsPage() {
   const [actualMaxKeysValue, setActualMaxKeysValue] = useState<bigint | null>(
     null,
   );
+  const [actualTransferFeeBps, setActualTransferFeeBps] = useState<
+    bigint | null
+  >(null);
 
   const { checkIsLockManager } = useIsLockManager();
   const { checkMaxNumberOfKeys } = useMaxNumberOfKeys();
+  const { checkTransferFeeBasisPoints } = useTransferFeeBasisPoints();
 
   const fetchMilestone = useCallback(async () => {
     if (!milestoneId) return;
@@ -191,6 +199,19 @@ export default function MilestoneDetailsPage() {
     }
   }, [milestone?.lock_address, checkMaxNumberOfKeys]);
 
+  const checkActualTransferFeeBps = useCallback(async () => {
+    if (!milestone?.lock_address) return;
+
+    try {
+      const feeBps = await checkTransferFeeBasisPoints(
+        milestone.lock_address as Address,
+      );
+      setActualTransferFeeBps(feeBps);
+    } catch (err) {
+      log.error("Failed to check transferFeeBasisPoints:", err);
+    }
+  }, [milestone?.lock_address, checkTransferFeeBasisPoints]);
+
   useEffect(() => {
     fetchServerWallet();
   }, [fetchServerWallet]);
@@ -206,6 +227,12 @@ export default function MilestoneDetailsPage() {
       checkActualMaxKeysValue();
     }
   }, [milestone?.lock_address, checkActualMaxKeysValue]);
+
+  useEffect(() => {
+    if (milestone?.lock_address) {
+      checkActualTransferFeeBps();
+    }
+  }, [milestone?.lock_address, checkActualTransferFeeBps]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -313,9 +340,10 @@ export default function MilestoneDetailsPage() {
               <CardTitle className="text-white">Milestone Overview</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-gray-300 leading-relaxed">
-                {milestone.description}
-              </p>
+              <RichText
+                content={milestone.description}
+                className="text-gray-300 leading-relaxed"
+              />
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="flex items-center gap-3 p-3 bg-gray-800/50 rounded-lg">
@@ -462,6 +490,76 @@ export default function MilestoneDetailsPage() {
                 </div>
               )}
 
+              {/* Transferability Security Status Display */}
+              {milestone.lock_address && (
+                <div className="p-3 rounded-lg border border-slate-700 bg-slate-900">
+                  <h4 className="text-sm font-medium text-slate-300 mb-3">
+                    Transferability Security
+                  </h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Database Status:</span>
+                      <span
+                        className={`font-medium ${
+                          milestone.transferability_secured
+                            ? "text-green-400"
+                            : "text-red-400"
+                        }`}
+                      >
+                        {milestone.transferability_secured
+                          ? "✅ Secured"
+                          : "❌ Not Secured"}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">
+                        Blockchain transferFeeBasisPoints:
+                      </span>
+                      <span
+                        className={`font-medium ${
+                          actualTransferFeeBps === null
+                            ? "text-yellow-400"
+                            : actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS
+                              ? "text-green-400"
+                              : "text-red-400"
+                        }`}
+                      >
+                        {actualTransferFeeBps === null
+                          ? "⏳ Checking..."
+                          : actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS
+                            ? `✅ Non-transferable (${NON_TRANSFERABLE_FEE_BPS.toString()})`
+                            : `❌ Transferable (${actualTransferFeeBps.toString()})`}
+                      </span>
+                    </div>
+                    {actualTransferFeeBps !== null &&
+                      ((milestone.transferability_secured &&
+                        actualTransferFeeBps !== NON_TRANSFERABLE_FEE_BPS) ||
+                        (!milestone.transferability_secured &&
+                          actualTransferFeeBps ===
+                            NON_TRANSFERABLE_FEE_BPS)) && (
+                        <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
+                          <div className="flex flex-col gap-2">
+                            <p className="text-amber-300 text-xs font-medium">
+                              ⚠️ Status Mismatch: Database and blockchain states
+                              don&apos;t match!
+                            </p>
+                            <SyncLockStateButton
+                              entityType="milestone"
+                              entityId={milestone.id}
+                              lockAddress={milestone.lock_address}
+                              mode="transferability"
+                              onSuccess={() => {
+                                fetchMilestone();
+                                checkActualTransferFeeBps();
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                </div>
+              )}
+
               {/* Purchase Security Button */}
               {milestone.lock_address && actualMaxKeysValue !== 0n && (
                 <MaxKeysSecurityButton
@@ -479,6 +577,28 @@ export default function MilestoneDetailsPage() {
                   }}
                 />
               )}
+
+              {/* Transferability Security Button */}
+              {milestone.lock_address &&
+                actualTransferFeeBps !== null &&
+                actualTransferFeeBps !== NON_TRANSFERABLE_FEE_BPS && (
+                  <TransferabilitySecurityButton
+                    entityType="milestone"
+                    entityId={milestone.id}
+                    lockAddress={milestone.lock_address}
+                    transferabilityFailureReason={
+                      milestone.transferability_failure_reason
+                    }
+                    onSuccess={() => {
+                      toast.success("Lock transfers disabled successfully");
+                      fetchMilestone();
+                      checkActualTransferFeeBps();
+                    }}
+                    onError={(error) => {
+                      toast.error(`Security update failed: ${error}`);
+                    }}
+                  />
+                )}
             </CardContent>
           </Card>
 

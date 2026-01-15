@@ -37,10 +37,12 @@ import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
   effectiveMaxKeysForSave,
+  effectiveTransferabilityForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
+import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
 
 const log = getLogger("admin:MilestoneFormEnhanced");
 
@@ -130,6 +132,12 @@ export default function MilestoneFormEnhanced({
     maxKeysFailureReason,
     setMaxKeysFailureReason,
   } = useMaxKeysSecurityState(isEditing, milestone);
+  const {
+    transferabilitySecured,
+    setTransferabilitySecured,
+    transferabilityFailureReason,
+    setTransferabilityFailureReason,
+  } = useTransferabilitySecurityState(isEditing, milestone);
 
   // Track the most recent grant/config outcomes during submit to avoid async state races
   const deploymentOutcomeRef = useRef<{
@@ -137,6 +145,8 @@ export default function MilestoneFormEnhanced({
     grantError?: string;
     configFailed?: boolean;
     configError?: string;
+    transferFailed?: boolean;
+    transferError?: string;
   }>({});
   const { adminFetch } = useAdminApi();
   const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
@@ -410,6 +420,8 @@ export default function MilestoneFormEnhanced({
         grantError?: string;
         configFailed?: boolean;
         configError?: string;
+        transferConfigFailed?: boolean;
+        transferConfigError?: string;
       }
     | undefined
   > => {
@@ -475,6 +487,14 @@ export default function MilestoneFormEnhanced({
           lockAddress,
           configError: result.configError,
         });
+      } else if (result.transferConfigFailed) {
+        setDeploymentStep("Lock deployed but transferability update failed!");
+        setLockManagerGranted(true);
+        setGrantFailureReason(undefined);
+        log.warn("Lock deployed but transferability update failed", {
+          lockAddress,
+          transferError: result.transferConfigError,
+        });
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
         setLockManagerGranted(true);
@@ -488,6 +508,16 @@ export default function MilestoneFormEnhanced({
       // Set max keys security state based on config outcome
       setMaxKeysSecured(!result.configFailed);
       setMaxKeysFailureReason(result.configError);
+
+      // Set transferability security state based on transfer config outcome
+      setTransferabilitySecured(!result.transferConfigFailed);
+      setTransferabilityFailureReason(result.transferConfigError);
+      if (result.transferConfigFailed) {
+        log.warn("Lock deployed but transferability update failed", {
+          lockAddress,
+          transferError: result.transferConfigError,
+        });
+      }
 
       // Update draft with deployment result to preserve it in case of database failure
       updateDraftWithDeploymentResult("milestone", {
@@ -758,6 +788,23 @@ export default function MilestoneFormEnhanced({
               configError: deploymentResult.configError,
             });
           }
+
+          // Set transferability security state based on transfer config outcome
+          setTransferabilitySecured(!deploymentResult.transferConfigFailed);
+          setTransferabilityFailureReason(deploymentResult.transferConfigError);
+          deploymentOutcomeRef.current.transferFailed =
+            deploymentResult.transferConfigFailed;
+          deploymentOutcomeRef.current.transferError =
+            deploymentResult.transferConfigError;
+          if (deploymentResult.transferConfigFailed) {
+            log.warn(
+              "Milestone will be created with transferability failure flag",
+              {
+                lockAddress,
+                transferError: deploymentResult.transferConfigError,
+              },
+            );
+          }
         } catch (deployError: any) {
           // If lock deployment fails, don't create the milestone
           throw new Error(`Lock deployment failed: ${deployError.message}`);
@@ -807,11 +854,25 @@ export default function MilestoneFormEnhanced({
         currentReason: maxKeysFailureReason,
       });
 
+      const effectiveTransferability = effectiveTransferabilityForSave({
+        outcome: {
+          lastTransferFailed: deploymentOutcomeRef.current.transferFailed,
+          lastTransferError: deploymentOutcomeRef.current.transferError,
+        },
+        lockAddress,
+        currentSecured: transferabilitySecured,
+        currentReason: transferabilityFailureReason,
+      });
+
       // Only include max_keys fields when editing if there's a deployment outcome
       // Otherwise, omit them to preserve existing DB values (prevents overwriting synced state)
       const hasDeploymentOutcome =
         typeof deploymentOutcomeRef.current.configFailed === "boolean";
       const shouldIncludeMaxKeysFields = !isEditing || hasDeploymentOutcome;
+      const hasTransferOutcome =
+        typeof deploymentOutcomeRef.current.transferFailed === "boolean";
+      const shouldIncludeTransferabilityFields =
+        !isEditing || hasTransferOutcome;
 
       log.info("Preparing milestone data for save", {
         lockAddress,
@@ -823,6 +884,9 @@ export default function MilestoneFormEnhanced({
         shouldIncludeMaxKeysFields,
         effectiveMaxKeysSecured: effectiveMaxKeys.secured,
         effectiveMaxKeysReason: effectiveMaxKeys.reason,
+        shouldIncludeTransferabilityFields,
+        effectiveTransferabilitySecured: effectiveTransferability.secured,
+        effectiveTransferabilityReason: effectiveTransferability.reason,
       });
 
       const milestoneData: any = {
@@ -858,6 +922,24 @@ export default function MilestoneFormEnhanced({
         );
       }
 
+      if (shouldIncludeTransferabilityFields) {
+        milestoneData.transferability_secured =
+          effectiveTransferability.secured;
+        milestoneData.transferability_failure_reason =
+          effectiveTransferability.reason;
+      } else {
+        log.debug(
+          "Omitting transferability fields from edit payload to preserve DB state",
+          {
+            milestoneId: milestone?.id,
+            currentHookState: {
+              transferabilitySecured,
+              transferabilityFailureReason,
+            },
+          },
+        );
+      }
+
       // Include created_at when creating new milestone
       if (!isEditing) {
         (milestoneData as any).created_at = now;
@@ -879,6 +961,8 @@ export default function MilestoneFormEnhanced({
         "grant_failure_reason",
         "max_keys_secured",
         "max_keys_failure_reason",
+        "transferability_secured",
+        "transferability_failure_reason",
         "created_at",
         "updated_at",
         "old_id_text",

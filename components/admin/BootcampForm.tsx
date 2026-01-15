@@ -42,10 +42,12 @@ import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
   effectiveMaxKeysForSave,
+  effectiveTransferabilityForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
+import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
 
 const log = getLogger("admin:BootcampForm");
 
@@ -109,11 +111,19 @@ export default function BootcampForm({
     maxKeysFailureReason,
     setMaxKeysFailureReason,
   } = useMaxKeysSecurityState(isEditing, bootcamp);
+  const {
+    transferabilitySecured,
+    setTransferabilitySecured,
+    transferabilityFailureReason,
+    setTransferabilityFailureReason,
+  } = useTransferabilitySecurityState(isEditing, bootcamp);
   // Track the most recent grant outcome during submit to avoid async state races
   let lastGrantFailed: boolean | undefined;
   let lastGrantError: string | undefined;
   let lastConfigFailed: boolean | undefined;
   let lastConfigError: string | undefined;
+  let lastTransferFailed: boolean | undefined;
+  let lastTransferError: string | undefined;
 
   // Keep track of the original bootcamp ID for updates
   const [originalBootcampId, setOriginalBootcampId] = useState<string | null>(
@@ -327,6 +337,18 @@ export default function BootcampForm({
         });
       }
 
+      // Set transferability security state based on transfer config outcome
+      setTransferabilitySecured(!result.transferConfigFailed);
+      setTransferabilityFailureReason(result.transferConfigError);
+      lastTransferFailed = result.transferConfigFailed;
+      lastTransferError = result.transferConfigError;
+      if (result.transferConfigFailed) {
+        log.warn("Lock deployed but transferability update failed", {
+          lockAddress,
+          transferError: result.transferConfigError,
+        });
+      }
+
       // Update draft with deployment result to preserve it in case of database failure
       updateDraftWithDeploymentResult("bootcamp", {
         lockAddress,
@@ -514,10 +536,20 @@ export default function BootcampForm({
         currentReason: maxKeysFailureReason,
       });
 
+      const effectiveTransferability = effectiveTransferabilityForSave({
+        outcome: { lastTransferFailed, lastTransferError },
+        lockAddress,
+        currentSecured: transferabilitySecured,
+        currentReason: transferabilityFailureReason,
+      });
+
       // Only include max_keys fields when editing if there's a deployment outcome
       // Otherwise, omit them to preserve existing DB values (prevents overwriting synced state)
       const hasDeploymentOutcome = typeof lastConfigFailed === "boolean";
       const shouldIncludeMaxKeysFields = !isEditing || hasDeploymentOutcome;
+      const hasTransferOutcome = typeof lastTransferFailed === "boolean";
+      const shouldIncludeTransferabilityFields =
+        !isEditing || hasTransferOutcome;
 
       const apiData: any = {
         id: bootcampId, // Always include ID
@@ -536,6 +568,12 @@ export default function BootcampForm({
       if (shouldIncludeMaxKeysFields) {
         apiData.max_keys_secured = effectiveMaxKeys.secured;
         apiData.max_keys_failure_reason = effectiveMaxKeys.reason;
+      }
+
+      if (shouldIncludeTransferabilityFields) {
+        apiData.transferability_secured = effectiveTransferability.secured;
+        apiData.transferability_failure_reason =
+          effectiveTransferability.reason;
       }
 
       // Add created_at for new bootcamps

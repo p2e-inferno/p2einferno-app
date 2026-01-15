@@ -37,10 +37,12 @@ import {
   applyDeploymentOutcome,
   effectiveGrantForSave,
   effectiveMaxKeysForSave,
+  effectiveTransferabilityForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
+import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import type { Address } from "viem";
 
@@ -94,6 +96,12 @@ export default function QuestForm({
     maxKeysFailureReason,
     setMaxKeysFailureReason,
   } = useMaxKeysSecurityState(isEditing, quest);
+  const {
+    transferabilitySecured,
+    setTransferabilitySecured,
+    transferabilityFailureReason,
+    setTransferabilityFailureReason,
+  } = useTransferabilitySecurityState(isEditing, quest);
   const [serverWalletAddress, setServerWalletAddress] = useState<string | null>(
     null,
   );
@@ -110,6 +118,8 @@ export default function QuestForm({
     grantError?: string;
     configFailed?: boolean;
     configError?: string;
+    transferFailed?: boolean;
+    transferError?: string;
   }>({});
 
   const [formData, setFormData] = useState({
@@ -497,6 +507,8 @@ export default function QuestForm({
         setDeploymentStep("Lock deployed but grant manager failed!");
       } else if (result.configFailed) {
         setDeploymentStep("Lock deployed but config update failed!");
+      } else if (result.transferConfigFailed) {
+        setDeploymentStep("Lock deployed but transferability update failed!");
       } else {
         setDeploymentStep("Lock deployed and configured successfully!");
       }
@@ -510,6 +522,12 @@ export default function QuestForm({
       setMaxKeysFailureReason(result.configError);
       deploymentOutcomeRef.current.configFailed = result.configFailed;
       deploymentOutcomeRef.current.configError = result.configError;
+
+      // Set transferability security state based on transfer config outcome
+      setTransferabilitySecured(!result.transferConfigFailed);
+      setTransferabilityFailureReason(result.transferConfigError);
+      deploymentOutcomeRef.current.transferFailed = result.transferConfigFailed;
+      deploymentOutcomeRef.current.transferError = result.transferConfigError;
 
       if (outcome.lastGrantFailed) {
         log.warn("Lock deployed but grant manager transaction failed", {
@@ -763,11 +781,25 @@ export default function QuestForm({
         currentReason: maxKeysFailureReason,
       });
 
+      const effectiveTransferability = effectiveTransferabilityForSave({
+        outcome: {
+          lastTransferFailed: deploymentOutcomeRef.current.transferFailed,
+          lastTransferError: deploymentOutcomeRef.current.transferError,
+        },
+        lockAddress,
+        currentSecured: transferabilitySecured,
+        currentReason: transferabilityFailureReason,
+      });
+
       // Only include max_keys fields when editing if there's a deployment outcome
       // Otherwise, omit them to preserve existing DB values (prevents overwriting synced state)
       const hasDeploymentOutcome =
         typeof deploymentOutcomeRef.current.configFailed === "boolean";
       const shouldIncludeMaxKeysFields = !isEditing || hasDeploymentOutcome;
+      const hasTransferOutcome =
+        typeof deploymentOutcomeRef.current.transferFailed === "boolean";
+      const shouldIncludeTransferabilityFields =
+        !isEditing || hasTransferOutcome;
 
       const questData: any = {
         ...cleanFormData,
@@ -781,6 +813,12 @@ export default function QuestForm({
       if (shouldIncludeMaxKeysFields) {
         questData.max_keys_secured = effectiveMaxKeys.secured;
         questData.max_keys_failure_reason = effectiveMaxKeys.reason;
+      }
+
+      if (shouldIncludeTransferabilityFields) {
+        questData.transferability_secured = effectiveTransferability.secured;
+        questData.transferability_failure_reason =
+          effectiveTransferability.reason;
       }
 
       // Prepare tasks data
