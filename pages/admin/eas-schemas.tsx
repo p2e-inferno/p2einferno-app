@@ -197,6 +197,9 @@ export default function EasSchemasAdminPage() {
         error?: string;
       }>(`/api/admin/eas-schemas/${detailsSchema.schema_uid}/redeploy`, {
         method: "POST",
+        headers: {
+          "X-Active-Wallet": signedAction.signerAddress,
+        },
         body: JSON.stringify({
           network: selectedNetworkConfig.name,
           signedAction,

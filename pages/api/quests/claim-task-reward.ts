@@ -95,9 +95,9 @@ export default async function handler(
     // For deploy_lock tasks, apply network-based reward multiplier
     let rewardAmount = baseReward;
     if (questTask?.task_type === "deploy_lock") {
-      const verificationData = completion.verification_data as
-        | { rewardMultiplier?: number }
-        | null;
+      const verificationData = completion.verification_data as {
+        rewardMultiplier?: number;
+      } | null;
       const multiplier = verificationData?.rewardMultiplier || 1.0;
       rewardAmount = Math.floor(baseReward * multiplier);
 

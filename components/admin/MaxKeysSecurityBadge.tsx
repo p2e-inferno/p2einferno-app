@@ -29,7 +29,7 @@ export function MaxKeysSecurityBadge({
 
   return (
     <Badge
-      className={`bg-orange-600 ${className || ""}`}
+      className={`bg-orange-600 whitespace-nowrap shrink-0 ${className || ""}`}
       title={
         reason
           ? `Security Risk: ${reason}`

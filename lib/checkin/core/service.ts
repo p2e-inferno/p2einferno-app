@@ -20,7 +20,8 @@ import {
   MultiplierTier,
 } from "./types";
 import { AttestationService } from "@/lib/attestation/core/service";
-import { requireSchemaUID, isEASEnabled } from "@/lib/attestation/core/config";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { resolveSchemaUID } from "@/lib/attestation/schemas/network-resolver";
 import { supabase } from "@/lib/supabase";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -265,19 +266,33 @@ export class DailyCheckinService {
         walletAddress: userAddress,
         greeting,
         timestamp: Date.now(),
-        userDid: userProfileId,
         xpGained: xpBreakdown.totalXP,
       };
 
       // 5. Create attestation only when EAS is enabled
       let attestationResult: { success: boolean; attestationUid?: string; error?: string } = { success: true, attestationUid: undefined };
+      let resolvedSchemaUidForCheckin: string | null = null;
 
       if (isEASEnabled()) {
         log.debug("Creating attestation (EAS enabled)", { userAddress, checkinData });
 
+        const resolvedNetwork = getDefaultNetworkName();
+        resolvedSchemaUidForCheckin = await resolveSchemaUID(
+          "daily_checkin",
+          resolvedNetwork,
+        );
+        if (!resolvedSchemaUidForCheckin) {
+          throw new AttestationError(
+            "Daily check-in schema UID not configured. " +
+              "Set it in the DB (attestation_schemas.schema_key='daily_checkin' for this network) " +
+              "or via NEXT_PUBLIC_DAILY_CHECKIN_SCHEMA_UID.",
+            { userAddress, resolvedNetwork },
+          );
+        }
+
         attestationResult = await this.attestationService.createAttestation(
           {
-            schemaUid: requireSchemaUID('DAILY_CHECKIN'),
+            schemaUid: resolvedSchemaUidForCheckin,
             recipient: userAddress,
             data: checkinData,
             wallet,
@@ -316,10 +331,13 @@ export class DailyCheckinService {
         timestamp: new Date().toISOString(),
         activityType: "daily_checkin",
         // Optional attestation for server API to persist when EAS is enabled
-        attestation: attestationResult.attestationUid && isEASEnabled()
+        attestation:
+          attestationResult.attestationUid &&
+          isEASEnabled() &&
+          resolvedSchemaUidForCheckin
           ? {
               uid: attestationResult.attestationUid,
-              schemaUid: requireSchemaUID('DAILY_CHECKIN'),
+              schemaUid: resolvedSchemaUidForCheckin,
               attester: wallet.address,
               recipient: userAddress,
               data: checkinData,

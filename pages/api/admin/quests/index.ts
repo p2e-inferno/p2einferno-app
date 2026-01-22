@@ -94,6 +94,14 @@ async function createQuest(
     grant_failure_reason,
     transferability_secured,
     transferability_failure_reason,
+    // New fields for prerequisites and activation
+    prerequisite_quest_id,
+    prerequisite_quest_lock_address,
+    requires_prerequisite_key,
+    requires_gooddollar_verification,
+    reward_type,
+    activation_type,
+    activation_config,
   } = req.body;
 
   if (!title) {
@@ -138,6 +146,16 @@ async function createQuest(
         grant_failure_reason: grantReasonFinal,
         transferability_secured: transferSecuredFinal,
         transferability_failure_reason: transferReasonFinal,
+        // New fields
+        prerequisite_quest_id: prerequisite_quest_id || null,
+        prerequisite_quest_lock_address:
+          prerequisite_quest_lock_address || null,
+        requires_prerequisite_key: requires_prerequisite_key || false,
+        requires_gooddollar_verification:
+          requires_gooddollar_verification || false,
+        reward_type: reward_type || "xdg",
+        activation_type: activation_type || null,
+        activation_config: activation_config || null,
       })
       .select()
       .single();

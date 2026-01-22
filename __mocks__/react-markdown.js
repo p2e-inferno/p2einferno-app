@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Mock for react-markdown
 const React = require("react");
 

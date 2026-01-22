@@ -117,6 +117,9 @@ export default function SchemaDeploymentForm({
         `/api/admin/eas-schemas?network=${network.name}`,
         {
           method: "POST",
+          headers: {
+            "X-Active-Wallet": signedAction.signerAddress,
+          },
           body: JSON.stringify({
             name,
             description,

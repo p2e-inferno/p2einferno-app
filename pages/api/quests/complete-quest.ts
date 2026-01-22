@@ -44,6 +44,19 @@ export default async function handler(
       return res.status(404).json({ error: "Quest not found" });
     }
 
+    // Reject activation quests - they must use the /api/quests/get-trial endpoint
+    if (quest.reward_type === "activation") {
+      log.warn("Activation quest attempted via wrong endpoint", {
+        questId,
+        userId,
+        rewardType: quest.reward_type,
+      });
+      return res.status(400).json({
+        error: "This quest requires the activation endpoint",
+        code: "WRONG_ENDPOINT",
+      });
+    }
+
     // Check prerequisites before allowing quest completion
     const userWallet = await getUserPrimaryWallet(supabase, userId);
     const prereqCheck = await checkQuestPrerequisites(

@@ -1,18 +1,15 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { CopyBadge } from "@/components/ui/badge";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { toast } from "react-hot-toast";
-import {
-  formatErrorMessageForToast,
-  showInfoToast,
-} from "@/lib/utils/toast-utils";
+import { showInfoToast } from "@/lib/utils/toast-utils";
 import {
   generateBootcampLockConfig,
   createLockConfigWithManagers,
@@ -48,6 +45,10 @@ import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
 import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
+import { TransactionStepperModal } from "@/components/admin/TransactionStepperModal";
+import { useTransactionStepper } from "@/hooks/useTransactionStepper";
+import { buildBootcampDeploymentFlow } from "@/lib/blockchain/deployment-flows";
+import type { DeploymentStep } from "@/lib/transaction-stepper/types";
 
 const log = getLogger("admin:BootcampForm");
 
@@ -86,13 +87,17 @@ export default function BootcampForm({
   const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
 
   const { isAdmin } = useAdminAuthContext();
-  const { deployAdminLock, isLoading: isDeployingFromHook } =
-    useDeployAdminLock({ isAdmin });
+  const { createAdminLockDeploymentSteps } = useDeployAdminLock({ isAdmin });
 
-  // Lock deployment state
-  const [isDeployingLock, setIsDeployingLock] = useState(false);
-  const [deploymentStep, setDeploymentStep] = useState<string>("");
+  // Stepper modal state (multi-transaction deployment UX)
+  const [isStepperOpen, setIsStepperOpen] = useState(false);
+  const [stepperTitle, setStepperTitle] = useState("Deploy bootcamp lock");
+  const [deploymentSteps, setDeploymentSteps] = useState<DeploymentStep[]>([]);
+  const stepperDecisionResolverRef = useRef<
+    ((decision: "retry" | "cancel" | "skip") => void) | null
+  >(null);
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
+  const draftScopeKey = "global";
   const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(
     null,
   );
@@ -149,13 +154,73 @@ export default function BootcampForm({
       image_url: "",
     },
   );
+  const formDataRef = useRef(formData);
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
+  const bootcampDeploymentFlow = useMemo(
+    () =>
+      buildBootcampDeploymentFlow({
+        title: "Deploy bootcamp lock",
+        description:
+          "Deploys the bootcamp certificate lock and applies required configuration.",
+        steps: deploymentSteps,
+      }),
+    [deploymentSteps],
+  );
+  const {
+    state: stepperState,
+    start: stepperStart,
+    retryStep: stepperRetry,
+    skipStep: stepperSkip,
+    waitForSteps: stepperWaitForSteps,
+    cancel: stepperCancel,
+  } = useTransactionStepper(bootcampDeploymentFlow.steps);
+  const isDeploying = stepperState.isRunning;
+  const handleStepperRetry = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("retry");
+      stepperDecisionResolverRef.current = null;
+      return;
+    }
+    // No active decision waiter; ignore.
+  }, []);
+  const handleStepperSkip = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("skip");
+      stepperDecisionResolverRef.current = null;
+      return;
+    }
+  }, []);
+
+  const handleStepperCancel = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("cancel");
+      stepperDecisionResolverRef.current = null;
+      return;
+    }
+    stepperCancel();
+    setIsStepperOpen(false);
+  }, [stepperCancel]);
+
+  const handleStepperClose = useCallback(() => {
+    if (!stepperState.canClose) return;
+    // Treat close as cancel when a deployment attempt is waiting for user decision.
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("cancel");
+      stepperDecisionResolverRef.current = null;
+      return;
+    }
+    setIsStepperOpen(false);
+  }, [stepperState.canClose]);
 
   // Load draft data on mount and check for pending deployments
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isEditing) return;
 
-    const draft = getDraft("bootcamp");
+    const draft = getDraft("bootcamp", draftScopeKey);
     const hasPending = hasPendingDeployments("bootcamp");
     setHasPendingBootcampDeployments(hasPending);
 
@@ -202,7 +267,7 @@ export default function BootcampForm({
       if (cancelled) return;
 
       if (resolution.mode === "existing") {
-        removeDraft("bootcamp");
+        removeDraft("bootcamp", draftScopeKey);
         toast.success("Draft already saved — redirecting to bootcamp editor.");
         router.replace(`/admin/bootcamps/${resolution.draftId}`);
         return;
@@ -264,115 +329,115 @@ export default function BootcampForm({
       }
     | undefined
   > => {
-    if (!wallet) {
-      toast.error("Please connect your wallet to deploy the lock");
-      return undefined;
-    }
-
-    if (!formData.name) {
-      toast.error("Please enter bootcamp name before deploying lock");
-      return undefined;
-    }
-
-    setIsDeployingLock(true);
-    setDeploymentStep("Checking network...");
-
     try {
-      setDeploymentStep("Preparing lock configuration...");
+      if (!wallet) {
+        throw new Error("Please connect your wallet to deploy the lock");
+      }
+      if (!formDataRef.current?.name) {
+        throw new Error("Please enter bootcamp name before deploying lock");
+      }
 
-      // Generate lock config from bootcamp data
       const lockConfig = generateBootcampLockConfig(
-        formData as BootcampProgram,
+        formDataRef.current as BootcampProgram,
       );
       const deployConfig = createLockConfigWithManagers(lockConfig);
-
-      // Convert to AdminLockDeploymentParams
       const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+      const { steps, getResult } = createAdminLockDeploymentSteps(params);
+      setDeploymentSteps(steps);
+      setStepperTitle(
+        formDataRef.current?.name
+          ? `Deploy lock for ${formDataRef.current.name}`
+          : "Deploy bootcamp lock",
+      );
 
-      setDeploymentStep("Deploying lock on blockchain...");
-      toast.loading("Deploying bootcamp certificate lock...", {
-        id: "lock-deploy",
-      });
+      setIsStepperOpen(true);
+      await stepperWaitForSteps(steps.length);
 
-      // Deploy the lock using admin hook
-      const result = await deployAdminLock(params);
+      // First attempt
+      try {
+        await stepperStart();
+      } catch (err: any) {
+        // Wait for user to retry/cancel inside the modal
+        while (true) {
+          const decision = await new Promise<"retry" | "cancel" | "skip">(
+            (resolve) => {
+              stepperDecisionResolverRef.current = resolve;
+            },
+          );
+          stepperDecisionResolverRef.current = null;
 
-      if (!result.success || !result.lockAddress) {
-        throw new Error(result.error || "Lock deployment failed");
+          if (decision === "cancel") {
+            stepperCancel();
+            setIsStepperOpen(false);
+            throw err;
+          }
+
+          if (decision === "skip") {
+            try {
+              await stepperSkip();
+              break;
+            } catch (skipErr) {
+              err = skipErr;
+              continue;
+            }
+          }
+
+          try {
+            await stepperRetry();
+            break;
+          } catch (retryErr) {
+            err = retryErr;
+            continue;
+          }
+        }
       }
 
-      setDeploymentStep("Granting server wallet manager role...");
+      setIsStepperOpen(false);
 
-      const lockAddress = result.lockAddress;
-
-      // Check grant result
-      const outcome = applyDeploymentOutcome(result);
-      if (outcome.lastGrantFailed) {
-        setDeploymentStep("Lock deployed but grant manager failed!");
-      } else if (result.configFailed) {
-        setDeploymentStep("Lock deployed but config update failed!");
-      } else {
-        setDeploymentStep("Lock deployed and configured successfully!");
+      const deploymentResult = getResult();
+      const lockAddress: string | undefined = deploymentResult?.lockAddress;
+      if (!deploymentResult?.success || !lockAddress) {
+        throw new Error("Lock deployment failed");
       }
+
+      const outcome = applyDeploymentOutcome(deploymentResult);
       setLockManagerGranted(outcome.granted);
       setGrantFailureReason(outcome.reason);
       lastGrantFailed = outcome.lastGrantFailed;
       lastGrantError = outcome.lastGrantError;
-      if (outcome.lastGrantFailed) {
-        log.warn("Lock deployed but grant manager transaction failed", {
-          lockAddress,
-          grantError: outcome.lastGrantError,
-        });
-      }
 
-      // Set max keys security state based on config outcome
-      setMaxKeysSecured(!result.configFailed);
-      setMaxKeysFailureReason(result.configError);
-      lastConfigFailed = result.configFailed;
-      lastConfigError = result.configError;
-      if (result.configFailed) {
-        log.warn("Lock deployed but config update failed", {
-          lockAddress,
-          configError: result.configError,
-        });
-      }
+      setMaxKeysSecured(!deploymentResult.configFailed);
+      setMaxKeysFailureReason(deploymentResult.configError);
+      lastConfigFailed = deploymentResult.configFailed;
+      lastConfigError = deploymentResult.configError;
 
-      // Set transferability security state based on transfer config outcome
-      setTransferabilitySecured(!result.transferConfigFailed);
-      setTransferabilityFailureReason(result.transferConfigError);
-      lastTransferFailed = result.transferConfigFailed;
-      lastTransferError = result.transferConfigError;
-      if (result.transferConfigFailed) {
-        log.warn("Lock deployed but transferability update failed", {
-          lockAddress,
-          transferError: result.transferConfigError,
-        });
-      }
+      setTransferabilitySecured(!deploymentResult.transferConfigFailed);
+      setTransferabilityFailureReason(deploymentResult.transferConfigError);
+      lastTransferFailed = deploymentResult.transferConfigFailed;
+      lastTransferError = deploymentResult.transferConfigError;
 
-      // Update draft with deployment result to preserve it in case of database failure
-      updateDraftWithDeploymentResult("bootcamp", {
+      updateDraftWithDeploymentResult("bootcamp", draftScopeKey, {
         lockAddress,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
+        grantFailed: deploymentResult.grantFailed,
+        grantError: deploymentResult.grantError,
       });
 
-      // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "bootcamp",
-        entityData: formData,
-        transactionHash: result.transactionHash,
-        grantTransactionHash: result.grantTransactionHash,
-        serverWalletAddress: result.serverWalletAddress,
-        blockExplorerUrl: result.transactionHash
-          ? getBlockExplorerUrl(result.transactionHash)
+        entityData: formDataRef.current,
+        transactionHash: deploymentResult.transactionHash,
+        grantTransactionHash: deploymentResult.grantTransactionHash,
+        serverWalletAddress: deploymentResult.serverWalletAddress,
+        blockExplorerUrl: deploymentResult.transactionHash
+          ? getBlockExplorerUrl(deploymentResult.transactionHash)
           : undefined,
       });
 
-      // Store deployment ID for cleanup on success
       setCurrentDeploymentId(deploymentId);
 
-      if (result.grantFailed) {
+      // Keep a concise end-state toast (modal is the primary UX during execution)
+      if (deploymentResult.grantFailed) {
         toast(
           <>
             Lock deployed successfully!
@@ -380,9 +445,9 @@ export default function BootcampForm({
             ⚠️ Grant manager role failed - you can retry from bootcamp details
             page.
             <br />
-            {result.transactionHash && (
+            {deploymentResult.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.transactionHash)}
+                href={getBlockExplorerUrl(deploymentResult.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
@@ -391,22 +456,16 @@ export default function BootcampForm({
               </a>
             )}
           </>,
-          {
-            id: "lock-deploy",
-            duration: 8000,
-            icon: "⚠️",
-          },
+          { duration: 8000, icon: "⚠️" },
         );
       } else {
         toast.success(
           <>
             Lock deployed successfully!
             <br />
-            Server wallet granted manager role.
-            <br />
-            {result.transactionHash && (
+            {deploymentResult.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.transactionHash)}
+                href={getBlockExplorerUrl(deploymentResult.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
@@ -414,52 +473,19 @@ export default function BootcampForm({
                 View deployment
               </a>
             )}
-            {result.grantTransactionHash && (
-              <>
-                {" | "}
-                <a
-                  href={getBlockExplorerUrl(result.grantTransactionHash)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  View grant
-                </a>
-              </>
-            )}
           </>,
-          {
-            id: "lock-deploy",
-            duration: 5000,
-          },
+          { duration: 5000 },
         );
       }
 
-      log.info("Lock deployed:", {
-        lockAddress,
-        transactionHash: result.transactionHash,
-        grantTransactionHash: result.grantTransactionHash,
-        serverWalletAddress: result.serverWalletAddress,
-        deploymentId,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
-      });
-
       return {
         lockAddress,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
+        grantFailed: deploymentResult.grantFailed,
+        grantError: deploymentResult.grantError,
       };
     } catch (error: any) {
       log.error("Lock deployment failed:", error);
-      const errorMessage = error.message || "Failed to deploy lock";
-      toast.error(formatErrorMessageForToast(errorMessage), {
-        id: "lock-deploy",
-      });
-      setDeploymentStep("");
       throw error;
-    } finally {
-      setIsDeployingLock(false);
     }
   };
 
@@ -480,7 +506,7 @@ export default function BootcampForm({
 
       // Save draft before starting deployment (for new bootcamps)
       if (!isEditing) {
-        saveDraft("bootcamp", formData);
+        saveDraft("bootcamp", formData, draftScopeKey);
       }
 
       let lockAddress: string | undefined = formData.lock_address || undefined;
@@ -604,7 +630,7 @@ export default function BootcampForm({
       if (response.data.data) {
         // Clean up drafts and pending deployments on success
         if (!isEditing) {
-          removeDraft("bootcamp");
+          removeDraft("bootcamp", draftScopeKey);
 
           // Clean up pending deployment if we deployed a lock
           if (currentDeploymentId) {
@@ -640,222 +666,228 @@ export default function BootcampForm({
     "bg-transparent border-gray-700 text-gray-100 placeholder-gray-500 focus:border-flame-yellow/50";
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <AuthError
-        error={error}
-        onClear={() => setError(null)}
-        className="mb-4"
+    <>
+      <TransactionStepperModal
+        open={isStepperOpen}
+        title={stepperTitle}
+        description={bootcampDeploymentFlow.description}
+        steps={stepperState.steps}
+        activeStepIndex={stepperState.activeStepIndex}
+        canClose={stepperState.canClose}
+        onRetry={handleStepperRetry}
+        onSkip={handleStepperSkip}
+        onCancel={handleStepperCancel}
+        onClose={handleStepperClose}
       />
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <AuthError
+          error={error}
+          onClear={() => setError(null)}
+          className="mb-4"
+        />
 
-      {/* Pending Deployments Warning */}
-      {hasPendingBootcampDeployments && !isEditing && (
-        <div className="bg-yellow-900/20 border border-yellow-700 text-yellow-300 px-4 py-3 rounded-lg">
-          <div className="flex items-center space-x-2">
-            <AlertTriangle className="h-5 w-5 flex-shrink-0" />
-            <div>
-              <p className="font-medium">
-                Pending bootcamp deployments detected
-              </p>
-              <p className="text-sm mt-1">
-                There are unfinished bootcamp deployments with orphaned locks.
-                <Link
-                  href="/admin/draft-recovery"
-                  className="underline ml-1 hover:text-yellow-200"
-                >
-                  Visit Draft Recovery →
-                </Link>
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {isEditing && (
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="id" className="text-white">
-              Bootcamp ID
-            </Label>
-            <div className="mt-1">
-              <CopyBadge
-                value={formData.id || ""}
-                variant="outline"
-                className="text-gray-100 border-gray-600 bg-gray-900/50 hover:bg-gray-800 py-1.5 px-3"
-              />
+        {/* Pending Deployments Warning */}
+        {hasPendingBootcampDeployments && !isEditing && (
+          <div className="bg-yellow-900/20 border border-yellow-700 text-yellow-300 px-4 py-3 rounded-lg">
+            <div className="flex items-center space-x-2">
+              <AlertTriangle className="h-5 w-5 flex-shrink-0" />
+              <div>
+                <p className="font-medium">
+                  Pending bootcamp deployments detected
+                </p>
+                <p className="text-sm mt-1">
+                  There are unfinished bootcamp deployments with orphaned locks.
+                  <Link
+                    href="/admin/draft-recovery"
+                    className="underline ml-1 hover:text-yellow-200"
+                  >
+                    Visit Draft Recovery →
+                  </Link>
+                </p>
+              </div>
             </div>
           </div>
         )}
 
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="name" className="text-white">
-            Bootcamp Name
-          </Label>
-          <Input
-            id="name"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            placeholder="e.g., Ethereum for Everyone: Learn and Build Season 2"
-            required
-            className={inputClass}
-          />
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="description" className="text-white">
-            Description
-          </Label>
-          <Textarea
-            id="description"
-            name="description"
-            value={formData.description}
-            onChange={handleChange}
-            rows={4}
-            placeholder="Enter bootcamp description"
-            required
-            className={inputClass}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="duration_weeks" className="text-white">
-            Duration (weeks)
-          </Label>
-          <Input
-            id="duration_weeks"
-            name="duration_weeks"
-            type="number"
-            value={formData.duration_weeks}
-            onChange={handleChange}
-            min={1}
-            required
-            className={inputClass}
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="max_reward_dgt" className="text-white">
-            Max Reward (xDG)
-          </Label>
-          <Input
-            id="max_reward_dgt"
-            name="max_reward_dgt"
-            type="number"
-            value={formData.max_reward_dgt}
-            onChange={handleChange}
-            min={0}
-            required
-            className={inputClass}
-          />
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="lock_address" className="text-white">
-              Certificate Lock Address
-            </Label>
-            {!isEditing && !formData.lock_address && (
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="auto_lock_creation"
-                  checked={showAutoLockCreation}
-                  onChange={(e) => setShowAutoLockCreation(e.target.checked)}
-                  className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          {isEditing && (
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="id" className="text-white">
+                Bootcamp ID
+              </Label>
+              <div className="mt-1">
+                <CopyBadge
+                  value={formData.id || ""}
+                  variant="outline"
+                  className="text-gray-100 border-gray-600 bg-gray-900/50 hover:bg-gray-800 py-1.5 px-3"
                 />
-                <Label
-                  htmlFor="auto_lock_creation"
-                  className="text-sm text-gray-300 cursor-pointer"
-                >
-                  Auto-create lock
-                </Label>
-              </div>
-            )}
-          </div>
-
-          <Input
-            id="lock_address"
-            name="lock_address"
-            value={formData.lock_address}
-            onChange={handleChange}
-            placeholder={
-              showAutoLockCreation && !isEditing
-                ? "Will be auto-generated..."
-                : "e.g., 0x1234..."
-            }
-            className={inputClass}
-            disabled={showAutoLockCreation && !isEditing}
-          />
-
-          {/* Lock Manager Status Toggle */}
-          <LockManagerToggle
-            isGranted={lockManagerGranted}
-            onToggle={setLockManagerGranted}
-            lockAddress={formData.lock_address}
-            isEditing={isEditing}
-          />
-
-          {showAutoLockCreation && !isEditing && !formData.lock_address && (
-            <p className="text-sm text-blue-400 mt-1">
-              ✨ A new certificate lock will be automatically deployed for this
-              bootcamp using your connected wallet
-            </p>
-          )}
-
-          {!showAutoLockCreation && (
-            <p className="text-sm text-gray-400 mt-1">
-              Optional: Unlock Protocol lock address for bootcamp completion
-              certificates
-            </p>
-          )}
-
-          {isDeployingLock && (
-            <div className="bg-blue-900/20 border border-blue-700 text-blue-300 px-3 py-2 rounded mt-2">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 border-2 border-blue-300/20 border-t-blue-300 rounded-full animate-spin" />
-                <span className="text-sm">{deploymentStep}</span>
               </div>
             </div>
           )}
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="name" className="text-white">
+              Bootcamp Name
+            </Label>
+            <Input
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="e.g., Ethereum for Everyone: Learn and Build Season 2"
+              required
+              className={inputClass}
+            />
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="description" className="text-white">
+              Description
+            </Label>
+            <RichTextEditor
+              value={formData.description || ""}
+              onChange={(next) =>
+                setFormData((prev) => ({ ...prev, description: next }))
+              }
+              placeholder="Enter bootcamp description"
+              className="border-gray-700"
+              editorClassName="text-gray-100"
+              minHeightClassName="min-h-[120px]"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="duration_weeks" className="text-white">
+              Duration (weeks)
+            </Label>
+            <Input
+              id="duration_weeks"
+              name="duration_weeks"
+              type="number"
+              value={formData.duration_weeks}
+              onChange={handleChange}
+              min={1}
+              required
+              className={inputClass}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="max_reward_dgt" className="text-white">
+              Max Reward (xDG)
+            </Label>
+            <Input
+              id="max_reward_dgt"
+              name="max_reward_dgt"
+              type="number"
+              value={formData.max_reward_dgt}
+              onChange={handleChange}
+              min={0}
+              required
+              className={inputClass}
+            />
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="lock_address" className="text-white">
+                Certificate Lock Address
+              </Label>
+              {!isEditing && !formData.lock_address && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="auto_lock_creation"
+                    checked={showAutoLockCreation}
+                    onChange={(e) => setShowAutoLockCreation(e.target.checked)}
+                    className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+                  />
+                  <Label
+                    htmlFor="auto_lock_creation"
+                    className="text-sm text-gray-300 cursor-pointer"
+                  >
+                    Auto-create lock
+                  </Label>
+                </div>
+              )}
+            </div>
+
+            <Input
+              id="lock_address"
+              name="lock_address"
+              value={formData.lock_address}
+              onChange={handleChange}
+              placeholder={
+                showAutoLockCreation && !isEditing
+                  ? "Will be auto-generated..."
+                  : "e.g., 0x1234..."
+              }
+              className={inputClass}
+              disabled={showAutoLockCreation && !isEditing}
+            />
+
+            {/* Lock Manager Status Toggle */}
+            <LockManagerToggle
+              isGranted={lockManagerGranted}
+              onToggle={setLockManagerGranted}
+              lockAddress={formData.lock_address}
+              isEditing={isEditing}
+            />
+
+            {showAutoLockCreation && !isEditing && !formData.lock_address && (
+              <p className="text-sm text-blue-400 mt-1">
+                ✨ A new certificate lock will be automatically deployed for
+                this bootcamp using your connected wallet
+              </p>
+            )}
+
+            {!showAutoLockCreation && (
+              <p className="text-sm text-gray-400 mt-1">
+                Optional: Unlock Protocol lock address for bootcamp completion
+                certificates
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2 md:col-span-2">
+            <ImageUpload
+              value={formData.image_url}
+              onChange={handleImageChange}
+              disabled={isSubmitting}
+            />
+          </div>
         </div>
 
-        <div className="space-y-2 md:col-span-2">
-          <ImageUpload
-            value={formData.image_url}
-            onChange={handleImageChange}
-            disabled={isSubmitting}
-          />
+        <div className="flex justify-end space-x-4 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-700 text-white hover:bg-gray-800"
+            onClick={() => router.back()}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting || isDeploying}
+            className="bg-steel-red hover:bg-steel-red/90 text-white"
+          >
+            {isSubmitting || isDeploying ? (
+              <>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
+                {isDeploying
+                  ? "Deploying Lock..."
+                  : isEditing
+                    ? "Updating..."
+                    : "Creating..."}
+              </>
+            ) : (
+              <>{isEditing ? "Update Bootcamp" : "Create Bootcamp"}</>
+            )}
+          </Button>
         </div>
-      </div>
-
-      <div className="flex justify-end space-x-4 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          className="border-gray-700 text-white hover:bg-gray-800"
-          onClick={() => router.back()}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={isSubmitting || isDeployingFromHook}
-          className="bg-steel-red hover:bg-steel-red/90 text-white"
-        >
-          {isSubmitting || isDeployingFromHook ? (
-            <>
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-              {isDeployingFromHook
-                ? "Deploying Lock..."
-                : isEditing
-                  ? "Updating..."
-                  : "Creating..."}
-            </>
-          ) : (
-            <>{isEditing ? "Update Bootcamp" : "Create Bootcamp"}</>
-          )}
-        </Button>
-      </div>
-    </form>
+      </form>
+    </>
   );
 }

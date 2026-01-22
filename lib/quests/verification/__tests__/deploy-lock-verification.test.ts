@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Unit Tests for Deploy Lock Verification Strategy
  *

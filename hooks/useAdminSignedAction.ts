@@ -1,30 +1,11 @@
 import { useState } from "react";
-import {
-  usePrivy,
-  useWallets,
-  useSignTypedData,
-  toViemAccount,
-} from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { ethers } from "ethers";
 import { getLogger } from "@/lib/utils/logger";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { usePrivyWriteWallet } from "@/hooks/unlock/usePrivyWriteWallet";
-import { ensureCorrectNetwork } from "@/lib/blockchain/shared/network-utils";
-import { resolveChainById } from "@/lib/blockchain/config/core/chain-map";
-import { getClientRpcUrls } from "@/lib/blockchain/config";
 
 const log = getLogger("hooks:useAdminSignedAction");
-
-const ADMIN_ACTION_TYPES = {
-  AdminAction: [
-    { name: "action", type: "string" },
-    { name: "network", type: "string" },
-    { name: "schemaDefinitionHash", type: "bytes32" },
-    { name: "schemaUid", type: "string" },
-    { name: "transactionHash", type: "string" },
-    { name: "timestamp", type: "uint256" },
-    { name: "nonce", type: "string" },
-  ],
-} as const;
 
 const isUserRejectedError = (err: any): boolean => {
   const code = err?.code;
@@ -71,6 +52,13 @@ export type AdminActionMessage = {
   nonce: string;
 };
 
+export type AdminSignedActionPayload = {
+  signature: `0x${string}`;
+  nonce: string;
+  timestamp: number;
+  signerAddress: `0x${string}`;
+};
+
 export function useAdminSignedAction() {
   const { user } = usePrivy();
   const { wallets } = useWallets();
@@ -80,14 +68,13 @@ export function useAdminSignedAction() {
   const writeWallet = usePrivyWriteWallet() as
     | { address?: string; connectorType?: string; walletClientType?: string }
     | null;
-  const { signTypedData } = useSignTypedData();
   const [error, setError] = useState<string | null>(null);
   const [isSigning, setIsSigning] = useState(false);
 
   const signAdminAction = async (
     message: AdminActionMessage,
     chainId: number,
-  ): Promise<{ signature: `0x${string}`; nonce: string; timestamp: number }> => {
+  ): Promise<AdminSignedActionPayload> => {
     setError(null);
     setIsSigning(true);
 
@@ -97,148 +84,87 @@ export function useAdminSignedAction() {
       }
 
       const preferredAddress = selectedWallet?.address;
-      const matchedWallet =
-        (preferredAddress
-          ? wallets.find(
-              (candidate) =>
-                candidate?.address?.toLowerCase() ===
-                preferredAddress.toLowerCase(),
-            )
-          : null) || null;
-
-      const wallet = writeWallet || matchedWallet || wallets[0];
-
-      if (!wallet?.address) {
-        throw new Error("Wallet address not available");
+      if (!preferredAddress) {
+        throw new Error(
+          "Active wallet not selected. Please select a wallet in the admin UI.",
+        );
       }
 
+      // Find the wallet that matches the preferred (selected) address
+      const matchedWallet =
+        wallets.find(
+          (candidate) =>
+            candidate?.address?.toLowerCase() ===
+            preferredAddress.toLowerCase(),
+        ) || null;
+
+      // Mirror useAdminApi: sign with the same selected wallet used for X-Active-Wallet.
+      // Priority: matched wallet (from selectedWallet), then writeWallet, then first available
+      const wallet = matchedWallet || writeWallet || wallets[0];
+
+      if (!wallet?.address) {
+        throw new Error(
+          "Selected wallet is not available to sign. Please reconnect the wallet.",
+        );
+      }
+
+      // EIP-712 Domain - uses number for chainId (same as server)
       const domain = {
         name: "P2E Inferno Admin",
         version: "1",
-        chainId: chainId,
-      } as const;
-
-      const messageWithTimestamp = {
-        ...message,
-        timestamp: message.timestamp,
+        chainId: chainId, // number, not bigint
       };
 
+      // EIP-712 Types - must match server exactly
+      const types = {
+        AdminAction: [
+          { name: "action", type: "string" },
+          { name: "network", type: "string" },
+          { name: "schemaDefinitionHash", type: "bytes32" },
+          { name: "schemaUid", type: "string" },
+          { name: "transactionHash", type: "string" },
+          { name: "timestamp", type: "uint256" },
+          { name: "nonce", type: "string" },
+        ],
+      };
+
+      // Message value - uses number for timestamp (same as server)
+      const value = {
+        action: message.action,
+        network: message.network,
+        schemaDefinitionHash: message.schemaDefinitionHash,
+        schemaUid: message.schemaUid,
+        transactionHash: message.transactionHash,
+        timestamp: message.timestamp, // number, not bigint or string
+        nonce: message.nonce,
+      };
+
+      // Use ethers for signing (same as TeeRex pattern and server verification)
       let signature: string;
-      const walletAddress = wallet.address;
-      const isEmbedded = (wallet as any)?.walletClientType === "privy";
-      const selectedIsInjected =
-        selectedWallet?.connectorType === "injected" ||
-        selectedWallet?.walletClientType === "metamask";
-      const maybeIsInjected =
-        selectedIsInjected ||
-        (wallet as any)?.connectorType === "injected" ||
-        (wallet as any)?.walletClientType === "metamask" ||
-        (typeof window !== "undefined" && (window as any).ethereum?.isMetaMask);
 
-      if (isEmbedded) {
-        try {
-          const res = await signTypedData(
-            {
-              domain,
-              types: ADMIN_ACTION_TYPES as any,
-              primaryType: "AdminAction",
-              message: messageWithTimestamp as any,
-            },
-            { address: walletAddress },
-          );
-          signature = res.signature;
-        } catch (err: any) {
-          if (isUserRejectedError(err)) {
-            throw new Error("Signature request cancelled");
-          }
-          throw err;
+      // Get Ethereum provider from Privy wallet
+      const provider = await (wallet as any).getEthereumProvider();
+      const ethersProvider = new ethers.BrowserProvider(provider);
+      const signer = await ethersProvider.getSigner();
+
+      // Get actual signer address
+      const actualSignerAddress = await signer.getAddress();
+
+      try {
+        // Sign using ethers.js (matches server's ethers.verifyTypedData)
+        signature = await signer.signTypedData(domain, types, value);
+      } catch (err: any) {
+        if (isUserRejectedError(err)) {
+          throw new Error("Signature request cancelled");
         }
-      } else if (
-        maybeIsInjected &&
-        typeof window !== "undefined" &&
-        (window as any).ethereum?.request
-      ) {
-        try {
-          const chain = resolveChainById(chainId);
-          const [rpcUrl] = getClientRpcUrls(chainId);
-          if (chain && rpcUrl) {
-            await ensureCorrectNetwork((window as any).ethereum, {
-              chain,
-              rpcUrl,
-              networkName: chain.name,
-            });
-          }
-
-          const targetAddress = selectedWallet?.address || walletAddress;
-          const activeAccounts: string[] = await (window as any).ethereum.request({
-            method: "eth_accounts",
-          });
-          const active = activeAccounts?.[0];
-          if (!active || active.toLowerCase() !== targetAddress.toLowerCase()) {
-            throw new Error(
-              "Active wallet does not match selected address in app. Please switch account in MetaMask.",
-            );
-          }
-
-          const messageForMetaMask = {
-            ...messageWithTimestamp,
-            timestamp: message.timestamp.toString(),
-          };
-
-          const typedData = JSON.stringify({
-            domain,
-            types: ADMIN_ACTION_TYPES as any,
-            primaryType: "AdminAction",
-            message: messageForMetaMask,
-          });
-
-          signature = await (window as any).ethereum.request({
-            method: "eth_signTypedData_v4",
-            params: [targetAddress, typedData],
-          });
-        } catch (err: any) {
-          if (isUserRejectedError(err)) {
-            throw new Error("Signature request cancelled");
-          }
-          const msg = (err?.message || "").toString();
-          if (msg.includes("Disconnected from MetaMask background")) {
-            throw new Error("MetaMask disconnected. Reload the page and try again.");
-          }
-          const account = await toViemAccount({ wallet: wallet as any });
-          signature = await account.signTypedData({
-            domain: domain as any,
-            types: ADMIN_ACTION_TYPES as any,
-            primaryType: "AdminAction" as any,
-            message: {
-              ...message,
-              timestamp: BigInt(message.timestamp),
-            } as any,
-          });
-        }
-      } else {
-        try {
-          const account = await toViemAccount({ wallet: wallet as any });
-          signature = await account.signTypedData({
-            domain: domain as any,
-            types: ADMIN_ACTION_TYPES as any,
-            primaryType: "AdminAction" as any,
-            message: {
-              ...message,
-              timestamp: BigInt(message.timestamp),
-            } as any,
-          });
-        } catch (err: any) {
-          if (isUserRejectedError(err)) {
-            throw new Error("Signature request cancelled");
-          }
-          throw err;
-        }
+        throw err;
       }
 
       return {
         signature: signature as `0x${string}`,
         nonce: message.nonce,
         timestamp: message.timestamp,
+        signerAddress: actualSignerAddress.toLowerCase() as `0x${string}`,
       };
     } catch (err: any) {
       const msg = err?.message || "Failed to sign admin action";

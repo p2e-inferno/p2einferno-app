@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
  * Performs a cohort certificate check (when BOOTCAMP_CERTIFICATES_ENABLED = 'true') to prevent adding milestones after certificates have been issued. When the payload includes a `lock_address`, boolean lock-related flags are normalized and associated failure-reason fields are cleared as appropriate. Requires an admin caller.
  *
  * @returns JSON response containing the created milestone record on success; `201` on success, `409` if certificates have already been issued for the cohort, `400` for validation/insert errors, or `500` for server errors.
+ */
 export async function POST(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;

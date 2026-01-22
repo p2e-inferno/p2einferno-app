@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,10 +14,7 @@ import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import type { Cohort, BootcampProgram } from "@/lib/supabase/types";
 import { toast } from "react-hot-toast";
-import {
-  formatErrorMessageForToast,
-  showInfoToast,
-} from "@/lib/utils/toast-utils";
+import { showInfoToast } from "@/lib/utils/toast-utils";
 import {
   generateCohortLockConfig,
   createLockConfigWithManagers,
@@ -39,6 +42,10 @@ import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
+import { TransactionStepperModal } from "@/components/admin/TransactionStepperModal";
+import { useTransactionStepper } from "@/hooks/useTransactionStepper";
+import { buildCohortDeploymentFlow } from "@/lib/blockchain/deployment-flows";
+import type { DeploymentStep } from "@/lib/transaction-stepper/types";
 
 const log = getLogger("admin:CohortForm");
 
@@ -92,12 +99,15 @@ export default function CohortForm({
   );
 
   const { isAdmin } = useAdminAuthContext();
-  const { deployAdminLock, isLoading: isDeployingFromHook } =
-    useDeployAdminLock({ isAdmin });
+  const { createAdminLockDeploymentSteps } = useDeployAdminLock({ isAdmin });
 
-  // Lock deployment state
-  const [isDeployingLock, setIsDeployingLock] = useState(false);
-  const [deploymentStep, setDeploymentStep] = useState<string>("");
+  // Stepper modal state (multi-transaction deployment UX)
+  const [isStepperOpen, setIsStepperOpen] = useState(false);
+  const [stepperTitle, setStepperTitle] = useState("Deploy cohort lock");
+  const [deploymentSteps, setDeploymentSteps] = useState<DeploymentStep[]>([]);
+  const stepperDecisionResolverRef = useRef<
+    ((decision: "retry" | "cancel" | "skip") => void) | null
+  >(null);
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
   const [currentDeploymentId, setCurrentDeploymentId] = useState<string | null>(
     null,
@@ -138,6 +148,63 @@ export default function CohortForm({
       naira_amount: 0,
     },
   );
+  const draftScopeKey = formData.bootcamp_program_id
+    ? `bootcamp:${formData.bootcamp_program_id}`
+    : "global";
+  const formDataRef = useRef(formData);
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
+
+  const cohortDeploymentFlow = useMemo(
+    () =>
+      buildCohortDeploymentFlow({
+        title: "Deploy cohort lock",
+        description:
+          "Deploys the cohort access lock and applies required configuration.",
+        steps: deploymentSteps,
+      }),
+    [deploymentSteps],
+  );
+  const {
+    state: stepperState,
+    start: stepperStart,
+    retryStep: stepperRetry,
+    skipStep: stepperSkip,
+    waitForSteps: stepperWaitForSteps,
+    cancel: stepperCancel,
+  } = useTransactionStepper(cohortDeploymentFlow.steps);
+  const isDeploying = stepperState.isRunning;
+  const handleStepperRetry = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("retry");
+      stepperDecisionResolverRef.current = null;
+    }
+  }, []);
+  const handleStepperSkip = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("skip");
+      stepperDecisionResolverRef.current = null;
+    }
+  }, []);
+  const handleStepperCancel = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("cancel");
+      stepperDecisionResolverRef.current = null;
+      return;
+    }
+    stepperCancel();
+    setIsStepperOpen(false);
+  }, [stepperCancel]);
+  const handleStepperClose = useCallback(() => {
+    if (!stepperState.canClose) return;
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("cancel");
+      stepperDecisionResolverRef.current = null;
+      return;
+    }
+    setIsStepperOpen(false);
+  }, [stepperState.canClose]);
 
   // Validation function - no dependencies needed, stable across renders
   const validateForm = (data: Partial<Cohort>) => {
@@ -203,7 +270,7 @@ export default function CohortForm({
   useEffect(() => {
     if (isEditing) return;
 
-    const draft = getDraft("cohort");
+    const draft = getDraft("cohort", draftScopeKey);
     if (!draft) return;
 
     let cancelled = false;
@@ -246,7 +313,7 @@ export default function CohortForm({
       if (cancelled) return;
 
       if (resolution.mode === "existing") {
-        removeDraft("cohort");
+        removeDraft("cohort", draftScopeKey);
         toast.success("Draft already saved — redirecting to cohort editor.");
         router.replace(`/admin/cohorts/${resolution.draftId}`);
         return;
@@ -347,106 +414,116 @@ export default function CohortForm({
       }
     | undefined
   > => {
-    if (!wallet) {
-      toast.error("Please connect your wallet to deploy the lock");
-      return undefined;
-    }
-
-    if (!formData.name) {
-      toast.error("Please enter cohort name before deploying lock");
-      return undefined;
-    }
-
-    setIsDeployingLock(true);
-    setDeploymentStep("Checking network...");
-
     try {
-      setDeploymentStep("Preparing lock configuration...");
-
-      // Generate lock config from cohort data
-      const lockConfig = generateCohortLockConfig(formData as Cohort);
-      const deployConfig = createLockConfigWithManagers(lockConfig);
-
-      // Convert to AdminLockDeploymentParams
-      const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
-
-      setDeploymentStep("Deploying lock on blockchain...");
-      toast.loading("Deploying cohort access lock...", { id: "lock-deploy" });
-
-      // Deploy the lock using admin hook
-      const result = await deployAdminLock(params);
-
-      if (!result.success || !result.lockAddress) {
-        throw new Error(result.error || "Lock deployment failed");
+      if (!wallet) {
+        throw new Error("Please connect your wallet to deploy the lock");
+      }
+      if (!formDataRef.current?.name) {
+        throw new Error("Please enter cohort name before deploying lock");
       }
 
-      setDeploymentStep("Granting server wallet manager role...");
+      const lockConfig = generateCohortLockConfig(
+        formDataRef.current as Cohort,
+      );
+      const deployConfig = createLockConfigWithManagers(lockConfig);
+      const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+      const { steps, getResult } = createAdminLockDeploymentSteps(params);
+      setDeploymentSteps(steps);
+      setStepperTitle(
+        formDataRef.current?.name
+          ? `Deploy lock for ${formDataRef.current.name}`
+          : "Deploy cohort lock",
+      );
+      setIsStepperOpen(true);
+      await stepperWaitForSteps(steps.length);
 
-      const lockAddress = result.lockAddress;
+      try {
+        await stepperStart();
+      } catch (err: any) {
+        while (true) {
+          const decision = await new Promise<"retry" | "cancel" | "skip">(
+            (resolve) => {
+              stepperDecisionResolverRef.current = resolve;
+            },
+          );
+          stepperDecisionResolverRef.current = null;
 
-      // Check grant result
-      if (result.grantFailed) {
-        setDeploymentStep("Lock deployed but grant manager failed!");
+          if (decision === "cancel") {
+            stepperCancel();
+            setIsStepperOpen(false);
+            throw err;
+          }
+
+          if (decision === "skip") {
+            try {
+              await stepperSkip();
+              break;
+            } catch (skipErr) {
+              err = skipErr;
+              continue;
+            }
+          }
+
+          try {
+            await stepperRetry();
+            break;
+          } catch (retryErr) {
+            err = retryErr;
+            continue;
+          }
+        }
+      }
+
+      setIsStepperOpen(false);
+
+      const deploymentResult = getResult();
+      const lockAddress: string | undefined = deploymentResult?.lockAddress;
+      if (!deploymentResult?.success || !lockAddress) {
+        throw new Error("Lock deployment failed");
+      }
+
+      if (deploymentResult.grantFailed) {
         setLockManagerGranted(false);
-        setGrantFailureReason(result.grantError);
-        log.warn("Lock deployed but grant manager transaction failed", {
-          lockAddress,
-          grantError: result.grantError,
-        });
+        setGrantFailureReason(deploymentResult.grantError);
       } else {
-        setDeploymentStep("Lock deployed and configured successfully!");
         setLockManagerGranted(true);
         setGrantFailureReason(undefined);
       }
 
-      // Set transferability security state based on transfer config outcome
-      setTransferabilitySecured(!result.transferConfigFailed);
-      setTransferabilityFailureReason(result.transferConfigError);
-      lastTransferFailed = result.transferConfigFailed;
-      lastTransferError = result.transferConfigError;
-      if (result.transferConfigFailed) {
-        setDeploymentStep("Lock deployed but transferability update failed!");
-        log.warn("Lock deployed but transferability update failed", {
-          lockAddress,
-          transferError: result.transferConfigError,
-        });
-      }
+      setTransferabilitySecured(!deploymentResult.transferConfigFailed);
+      setTransferabilityFailureReason(deploymentResult.transferConfigError);
+      lastTransferFailed = deploymentResult.transferConfigFailed;
+      lastTransferError = deploymentResult.transferConfigError;
 
-      // Update draft with deployment result to preserve it in case of database failure
-      updateDraftWithDeploymentResult("cohort", {
+      updateDraftWithDeploymentResult("cohort", draftScopeKey, {
         lockAddress,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
+        grantFailed: deploymentResult.grantFailed,
+        grantError: deploymentResult.grantError,
       });
 
-      // Find the parent bootcamp to store its lock address for Web3-native recovery
       const parentBootcamp = bootcampPrograms.find(
-        (b) => b.id === formData.bootcamp_program_id,
+        (b) => b.id === formDataRef.current?.bootcamp_program_id,
       );
-
-      // Enhance entityData with parent bootcamp's lock address for reliable recovery
       const enhancedEntityData = {
-        ...formData,
+        ...formDataRef.current,
         parent_bootcamp_lock_address: parentBootcamp?.lock_address || null,
       };
 
-      // Save deployment state before database operation with both transaction hashes
       const deploymentId = savePendingDeployment({
         lockAddress,
         entityType: "cohort",
         entityData: enhancedEntityData,
-        transactionHash: result.transactionHash,
-        grantTransactionHash: result.grantTransactionHash,
-        serverWalletAddress: result.serverWalletAddress,
-        blockExplorerUrl: result.transactionHash
-          ? getBlockExplorerUrl(result.transactionHash)
+        transactionHash: deploymentResult.transactionHash,
+        grantTransactionHash: deploymentResult.grantTransactionHash,
+        serverWalletAddress: deploymentResult.serverWalletAddress,
+        blockExplorerUrl: deploymentResult.transactionHash
+          ? getBlockExplorerUrl(deploymentResult.transactionHash)
           : undefined,
       });
 
-      // Store deployment ID for cleanup on success
       setCurrentDeploymentId(deploymentId);
 
-      if (result.grantFailed) {
+      if (deploymentResult.grantFailed) {
         toast(
           <>
             Lock deployed successfully!
@@ -454,9 +531,9 @@ export default function CohortForm({
             ⚠️ Grant manager role failed - you can retry from cohort details
             page.
             <br />
-            {result.transactionHash && (
+            {deploymentResult.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.transactionHash)}
+                href={getBlockExplorerUrl(deploymentResult.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
@@ -465,22 +542,16 @@ export default function CohortForm({
               </a>
             )}
           </>,
-          {
-            id: "lock-deploy",
-            duration: 8000,
-            icon: "⚠️",
-          },
+          { duration: 8000, icon: "⚠️" },
         );
       } else {
         toast.success(
           <>
             Lock deployed successfully!
             <br />
-            Server wallet granted manager role.
-            <br />
-            {result.transactionHash && (
+            {deploymentResult.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.transactionHash)}
+                href={getBlockExplorerUrl(deploymentResult.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
@@ -488,52 +559,19 @@ export default function CohortForm({
                 View deployment
               </a>
             )}
-            {result.grantTransactionHash && (
-              <>
-                {" | "}
-                <a
-                  href={getBlockExplorerUrl(result.grantTransactionHash)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline"
-                >
-                  View grant
-                </a>
-              </>
-            )}
           </>,
-          {
-            id: "lock-deploy",
-            duration: 5000,
-          },
+          { duration: 5000 },
         );
       }
 
-      log.info("Lock deployed:", {
-        lockAddress,
-        transactionHash: result.transactionHash,
-        grantTransactionHash: result.grantTransactionHash,
-        serverWalletAddress: result.serverWalletAddress,
-        deploymentId,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
-      });
-
       return {
         lockAddress,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
+        grantFailed: deploymentResult.grantFailed,
+        grantError: deploymentResult.grantError,
       };
     } catch (error: any) {
       log.error("Lock deployment failed:", error);
-      const errorMessage = error.message || "Failed to deploy lock";
-      toast.error(formatErrorMessageForToast(errorMessage), {
-        id: "lock-deploy",
-      });
-      setDeploymentStep("");
       throw error;
-    } finally {
-      setIsDeployingLock(false);
     }
   };
 
@@ -560,7 +598,7 @@ export default function CohortForm({
 
       // Save draft before starting deployment (for new cohorts)
       if (!isEditing) {
-        saveDraft("cohort", formData);
+        saveDraft("cohort", formData, draftScopeKey);
       }
 
       let lockAddress: string | undefined = formData.lock_address || undefined;
@@ -680,7 +718,7 @@ export default function CohortForm({
       } else {
         // Clean up drafts and pending deployments on success
         if (!isEditing) {
-          removeDraft("cohort");
+          removeDraft("cohort", draftScopeKey);
 
           // Clean up pending deployment if we deployed a lock
           if (currentDeploymentId) {
@@ -719,393 +757,401 @@ export default function CohortForm({
   const dateInputClass = `${inputClass} [color-scheme:dark] cursor-pointer`;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
-          <div className="flex items-start space-x-3">
-            <div className="flex-shrink-0">
-              <svg
-                className="h-5 w-5 text-red-400"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <h3 className="text-sm font-medium text-red-300">
-                Error creating cohort
-              </h3>
-              <p className="mt-1 text-sm text-red-200">{error}</p>
-              {error.includes("admin") && (
-                <div className="mt-2 text-xs text-red-200">
-                  <p>If you believe you should have admin access:</p>
-                  <ul className="list-disc list-inside mt-1 space-y-1">
-                    <li>Try logging out and logging back in</li>
-                    <li>Ensure your wallet is connected properly</li>
-                    <li>Contact the system administrator</li>
-                  </ul>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {isEditing && (
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="id" className="text-white">
-              Cohort ID
-            </Label>
-            <div className="mt-1">
-              <CopyBadge
-                value={formData.id || ""}
-                variant="outline"
-                className="text-gray-100 border-gray-600 bg-gray-900/50 hover:bg-gray-800 py-1.5 px-3"
-              />
+    <>
+      <TransactionStepperModal
+        open={isStepperOpen}
+        title={stepperTitle}
+        description={cohortDeploymentFlow.description}
+        steps={stepperState.steps}
+        activeStepIndex={stepperState.activeStepIndex}
+        canClose={stepperState.canClose}
+        onRetry={handleStepperRetry}
+        onSkip={handleStepperSkip}
+        onCancel={handleStepperCancel}
+        onClose={handleStepperClose}
+      />
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {error && (
+          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">
+                <svg
+                  className="h-5 w-5 text-red-400"
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                >
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-red-300">
+                  Error creating cohort
+                </h3>
+                <p className="mt-1 text-sm text-red-200">{error}</p>
+                {error.includes("admin") && (
+                  <div className="mt-2 text-xs text-red-200">
+                    <p>If you believe you should have admin access:</p>
+                    <ul className="list-disc list-inside mt-1 space-y-1">
+                      <li>Try logging out and logging back in</li>
+                      <li>Ensure your wallet is connected properly</li>
+                      <li>Contact the system administrator</li>
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
 
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="name" className="text-white">
-            Cohort Name
-          </Label>
-          <Input
-            id="name"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            placeholder="e.g., Winter 2024 Cohort"
-            required
-            className={`${inputClass} ${validationErrors.name ? "border-red-500" : ""}`}
-          />
-          {validationErrors.name && (
-            <p className="text-sm text-red-400 mt-1">{validationErrors.name}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="bootcamp_program_id" className="text-white">
-            Bootcamp Program
-          </Label>
-          <select
-            id="bootcamp_program_id"
-            name="bootcamp_program_id"
-            value={formData.bootcamp_program_id}
-            onChange={handleChange}
-            required
-            disabled={isEditing}
-            className={`${inputClass} w-full h-10 rounded-md px-3 ${validationErrors.bootcamp_program_id ? "border-red-500" : ""}`}
-          >
-            <option value="" disabled>
-              {isLoadingPrograms
-                ? "Loading bootcamps..."
-                : "Select a bootcamp program"}
-            </option>
-            {bootcampPrograms.map((program) => (
-              <option key={program.id} value={program.id}>
-                {program.name}
-              </option>
-            ))}
-          </select>
-          {validationErrors.bootcamp_program_id && (
-            <p className="text-sm text-red-400 mt-1">
-              {validationErrors.bootcamp_program_id}
-            </p>
-          )}
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
           {isEditing && (
-            <p className="text-sm text-gray-400 mt-1">
-              Bootcamp program cannot be changed after creation.
-            </p>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="id" className="text-white">
+                Cohort ID
+              </Label>
+              <div className="mt-1">
+                <CopyBadge
+                  value={formData.id || ""}
+                  variant="outline"
+                  className="text-gray-100 border-gray-600 bg-gray-900/50 hover:bg-gray-800 py-1.5 px-3"
+                />
+              </div>
+            </div>
           )}
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="status" className="text-white">
-            Status
-          </Label>
-          <select
-            id="status"
-            name="status"
-            value={formData.status}
-            onChange={handleChange}
-            required
-            className={`${inputClass} w-full h-10 rounded-md px-3`}
-          >
-            <option value="upcoming">Upcoming</option>
-            <option value="open">Open</option>
-            <option value="closed">Closed</option>
-          </select>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="start_date" className="text-white">
-            Start Date
-          </Label>
-          <Input
-            id="start_date"
-            name="start_date"
-            type="date"
-            value={formData.start_date}
-            onChange={handleChange}
-            required
-            className={`${dateInputClass} ${validationErrors.start_date ? "border-red-500" : ""}`}
-            onClick={(e) => e.currentTarget.showPicker()}
-          />
-          {validationErrors.start_date && (
-            <p className="text-sm text-red-400 mt-1">
-              {validationErrors.start_date}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="end_date" className="text-white">
-            End Date
-          </Label>
-          <Input
-            id="end_date"
-            name="end_date"
-            type="date"
-            value={formData.end_date}
-            onChange={handleChange}
-            required
-            className={`${dateInputClass} ${validationErrors.end_date ? "border-red-500" : ""}`}
-            onClick={(e) => e.currentTarget.showPicker()}
-          />
-          {validationErrors.end_date && (
-            <p className="text-sm text-red-400 mt-1">
-              {validationErrors.end_date}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="registration_deadline" className="text-white">
-            Registration Deadline
-          </Label>
-          <Input
-            id="registration_deadline"
-            name="registration_deadline"
-            type="date"
-            value={formData.registration_deadline}
-            onChange={handleChange}
-            required
-            className={`${dateInputClass} ${validationErrors.registration_deadline ? "border-red-500" : ""}`}
-            onClick={(e) => e.currentTarget.showPicker()}
-          />
-          {validationErrors.registration_deadline && (
-            <p className="text-sm text-red-400 mt-1">
-              {validationErrors.registration_deadline}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="max_participants" className="text-white">
-            Maximum Participants
-          </Label>
-          <Input
-            id="max_participants"
-            name="max_participants"
-            type="number"
-            value={formData.max_participants}
-            onChange={handleChange}
-            min={1}
-            required
-            className={inputClass}
-          />
-        </div>
-
-        {isEditing && (
-          <div className="space-y-2">
-            <Label htmlFor="current_participants" className="text-white">
-              Current Participants
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="name" className="text-white">
+              Cohort Name
             </Label>
             <Input
-              id="current_participants"
-              name="current_participants"
-              type="number"
-              value={formData.current_participants}
+              id="name"
+              name="name"
+              value={formData.name}
               onChange={handleChange}
-              min={0}
+              placeholder="e.g., Winter 2024 Cohort"
+              required
+              className={`${inputClass} ${validationErrors.name ? "border-red-500" : ""}`}
+            />
+            {validationErrors.name && (
+              <p className="text-sm text-red-400 mt-1">
+                {validationErrors.name}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="bootcamp_program_id" className="text-white">
+              Bootcamp Program
+            </Label>
+            <select
+              id="bootcamp_program_id"
+              name="bootcamp_program_id"
+              value={formData.bootcamp_program_id}
+              onChange={handleChange}
+              required
+              disabled={isEditing}
+              className={`${inputClass} w-full h-10 rounded-md px-3 ${validationErrors.bootcamp_program_id ? "border-red-500" : ""}`}
+            >
+              <option value="" disabled>
+                {isLoadingPrograms
+                  ? "Loading bootcamps..."
+                  : "Select a bootcamp program"}
+              </option>
+              {bootcampPrograms.map((program) => (
+                <option key={program.id} value={program.id}>
+                  {program.name}
+                </option>
+              ))}
+            </select>
+            {validationErrors.bootcamp_program_id && (
+              <p className="text-sm text-red-400 mt-1">
+                {validationErrors.bootcamp_program_id}
+              </p>
+            )}
+            {isEditing && (
+              <p className="text-sm text-gray-400 mt-1">
+                Bootcamp program cannot be changed after creation.
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="status" className="text-white">
+              Status
+            </Label>
+            <select
+              id="status"
+              name="status"
+              value={formData.status}
+              onChange={handleChange}
+              required
+              className={`${inputClass} w-full h-10 rounded-md px-3`}
+            >
+              <option value="upcoming">Upcoming</option>
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="start_date" className="text-white">
+              Start Date
+            </Label>
+            <Input
+              id="start_date"
+              name="start_date"
+              type="date"
+              value={formData.start_date}
+              onChange={handleChange}
+              required
+              className={`${dateInputClass} ${validationErrors.start_date ? "border-red-500" : ""}`}
+              onClick={(e) => e.currentTarget.showPicker()}
+            />
+            {validationErrors.start_date && (
+              <p className="text-sm text-red-400 mt-1">
+                {validationErrors.start_date}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="end_date" className="text-white">
+              End Date
+            </Label>
+            <Input
+              id="end_date"
+              name="end_date"
+              type="date"
+              value={formData.end_date}
+              onChange={handleChange}
+              required
+              className={`${dateInputClass} ${validationErrors.end_date ? "border-red-500" : ""}`}
+              onClick={(e) => e.currentTarget.showPicker()}
+            />
+            {validationErrors.end_date && (
+              <p className="text-sm text-red-400 mt-1">
+                {validationErrors.end_date}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="registration_deadline" className="text-white">
+              Registration Deadline
+            </Label>
+            <Input
+              id="registration_deadline"
+              name="registration_deadline"
+              type="date"
+              value={formData.registration_deadline}
+              onChange={handleChange}
+              required
+              className={`${dateInputClass} ${validationErrors.registration_deadline ? "border-red-500" : ""}`}
+              onClick={(e) => e.currentTarget.showPicker()}
+            />
+            {validationErrors.registration_deadline && (
+              <p className="text-sm text-red-400 mt-1">
+                {validationErrors.registration_deadline}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="max_participants" className="text-white">
+              Maximum Participants
+            </Label>
+            <Input
+              id="max_participants"
+              name="max_participants"
+              type="number"
+              value={formData.max_participants}
+              onChange={handleChange}
+              min={1}
               required
               className={inputClass}
             />
           </div>
-        )}
 
-        <div className="space-y-2 md:col-span-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="lock_address" className="text-white">
-              Lock Address
-            </Label>
-            {!isEditing && !formData.lock_address && (
-              <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
-                  id="auto_lock_creation"
-                  checked={showAutoLockCreation}
-                  onChange={(e) => setShowAutoLockCreation(e.target.checked)}
-                  className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
-                />
-                <Label
-                  htmlFor="auto_lock_creation"
-                  className="text-sm text-gray-300 cursor-pointer"
-                >
-                  Auto-create lock
-                </Label>
-              </div>
+          {isEditing && (
+            <div className="space-y-2">
+              <Label htmlFor="current_participants" className="text-white">
+                Current Participants
+              </Label>
+              <Input
+                id="current_participants"
+                name="current_participants"
+                type="number"
+                value={formData.current_participants}
+                onChange={handleChange}
+                min={0}
+                required
+                className={inputClass}
+              />
+            </div>
+          )}
+
+          <div className="space-y-2 md:col-span-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="lock_address" className="text-white">
+                Lock Address
+              </Label>
+              {!isEditing && !formData.lock_address && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="auto_lock_creation"
+                    checked={showAutoLockCreation}
+                    onChange={(e) => setShowAutoLockCreation(e.target.checked)}
+                    className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+                  />
+                  <Label
+                    htmlFor="auto_lock_creation"
+                    className="text-sm text-gray-300 cursor-pointer"
+                  >
+                    Auto-create lock
+                  </Label>
+                </div>
+              )}
+            </div>
+
+            <Input
+              id="lock_address"
+              name="lock_address"
+              value={formData.lock_address}
+              onChange={handleChange}
+              placeholder={
+                showAutoLockCreation && !isEditing
+                  ? "Will be auto-generated..."
+                  : "e.g., 0x1234..."
+              }
+              className={inputClass}
+              disabled={showAutoLockCreation && !isEditing}
+            />
+
+            {/* Lock Manager Status Toggle */}
+            <LockManagerToggle
+              isGranted={lockManagerGranted}
+              onToggle={setLockManagerGranted}
+              lockAddress={formData.lock_address}
+              isEditing={isEditing}
+            />
+
+            {showAutoLockCreation && !isEditing && !formData.lock_address && (
+              <p className="text-sm text-blue-400 mt-1">
+                ✨ A new lock will be automatically deployed for this cohort
+                using your connected wallet
+              </p>
+            )}
+
+            {!showAutoLockCreation && (
+              <p className="text-sm text-gray-400 mt-1">
+                Optional: Unlock Protocol lock address for cohort access NFTs
+              </p>
             )}
           </div>
 
-          <Input
-            id="lock_address"
-            name="lock_address"
-            value={formData.lock_address}
-            onChange={handleChange}
-            placeholder={
-              showAutoLockCreation && !isEditing
-                ? "Will be auto-generated..."
-                : "e.g., 0x1234..."
-            }
-            className={inputClass}
-            disabled={showAutoLockCreation && !isEditing}
-          />
-
-          {/* Lock Manager Status Toggle */}
-          <LockManagerToggle
-            isGranted={lockManagerGranted}
-            onToggle={setLockManagerGranted}
-            lockAddress={formData.lock_address}
-            isEditing={isEditing}
-          />
-
-          {showAutoLockCreation && !isEditing && !formData.lock_address && (
-            <p className="text-sm text-blue-400 mt-1">
-              ✨ A new lock will be automatically deployed for this cohort using
-              your connected wallet
-            </p>
-          )}
-
-          {!showAutoLockCreation && (
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="key_managers" className="text-white">
+              Key Managers Wallets
+            </Label>
+            <Input
+              id="key_managers"
+              name="key_managers"
+              value={keyManagersInput}
+              onChange={(e) => setKeyManagersInput(e.target.value)}
+              placeholder="e.g., 0xabc..., 0xdef..., 0x123..."
+              className={inputClass}
+            />
             <p className="text-sm text-gray-400 mt-1">
-              Optional: Unlock Protocol lock address for cohort access NFTs
+              Optional: Comma-separated list of wallet addresses for key
+              managers
             </p>
-          )}
+          </div>
 
-          {isDeployingLock && (
-            <div className="bg-blue-900/20 border border-blue-700 text-blue-300 px-3 py-2 rounded mt-2">
-              <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 border-2 border-blue-300/20 border-t-blue-300 rounded-full animate-spin" />
-                <span className="text-sm">{deploymentStep}</span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="key_managers" className="text-white">
-            Key Managers Wallets
-          </Label>
-          <Input
-            id="key_managers"
-            name="key_managers"
-            value={keyManagersInput}
-            onChange={(e) => setKeyManagersInput(e.target.value)}
-            placeholder="e.g., 0xabc..., 0xdef..., 0x123..."
-            className={inputClass}
-          />
-          <p className="text-sm text-gray-400 mt-1">
-            Optional: Comma-separated list of wallet addresses for key managers
-          </p>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="usdt_amount" className="text-white">
-            USDT Amount
-          </Label>
-          <Input
-            id="usdt_amount"
-            name="usdt_amount"
-            type="number"
-            step="0.01"
-            value={formData.usdt_amount}
-            onChange={handleChange}
-            min={0}
-            placeholder="0.00"
-            className={`${inputClass} ${validationErrors.usdt_amount ? "border-red-500" : ""}`}
-          />
-          <p className="text-sm text-gray-400 mt-1">
-            Optional: Cohort price in USDT
-          </p>
-          {validationErrors.usdt_amount && (
-            <p className="text-sm text-red-400 mt-1">
-              {validationErrors.usdt_amount}
+          <div className="space-y-2">
+            <Label htmlFor="usdt_amount" className="text-white">
+              USDT Amount
+            </Label>
+            <Input
+              id="usdt_amount"
+              name="usdt_amount"
+              type="number"
+              step="0.01"
+              value={formData.usdt_amount}
+              onChange={handleChange}
+              min={0}
+              placeholder="0.00"
+              className={`${inputClass} ${validationErrors.usdt_amount ? "border-red-500" : ""}`}
+            />
+            <p className="text-sm text-gray-400 mt-1">
+              Optional: Cohort price in USDT
             </p>
-          )}
-        </div>
+            {validationErrors.usdt_amount && (
+              <p className="text-sm text-red-400 mt-1">
+                {validationErrors.usdt_amount}
+              </p>
+            )}
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="naira_amount" className="text-white">
-            Naira Amount
-          </Label>
-          <Input
-            id="naira_amount"
-            name="naira_amount"
-            type="number"
-            step="0.01"
-            value={formData.naira_amount}
-            onChange={handleChange}
-            min={0}
-            placeholder="0.00"
-            className={`${inputClass} ${validationErrors.naira_amount ? "border-red-500" : ""}`}
-          />
-          <p className="text-sm text-gray-400 mt-1">
-            Optional: Cohort price in Naira
-          </p>
-          {validationErrors.naira_amount && (
-            <p className="text-sm text-red-400 mt-1">
-              {validationErrors.naira_amount}
+          <div className="space-y-2">
+            <Label htmlFor="naira_amount" className="text-white">
+              Naira Amount
+            </Label>
+            <Input
+              id="naira_amount"
+              name="naira_amount"
+              type="number"
+              step="0.01"
+              value={formData.naira_amount}
+              onChange={handleChange}
+              min={0}
+              placeholder="0.00"
+              className={`${inputClass} ${validationErrors.naira_amount ? "border-red-500" : ""}`}
+            />
+            <p className="text-sm text-gray-400 mt-1">
+              Optional: Cohort price in Naira
             </p>
-          )}
+            {validationErrors.naira_amount && (
+              <p className="text-sm text-red-400 mt-1">
+                {validationErrors.naira_amount}
+              </p>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="flex justify-end space-x-4 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          className="border-gray-700 text-white hover:bg-gray-800"
-          onClick={() => router.back()}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={isSubmitting || !isFormValid || isDeployingFromHook}
-          className="bg-steel-red hover:bg-steel-red/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isSubmitting || isDeployingFromHook ? (
-            <>
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-              {isDeployingFromHook
-                ? "Deploying Lock..."
-                : isEditing
-                  ? "Updating..."
-                  : "Creating..."}
-            </>
-          ) : (
-            <>{isEditing ? "Update Cohort" : "Create Cohort"}</>
-          )}
-        </Button>
-      </div>
-    </form>
+        <div className="flex justify-end space-x-4 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-700 text-white hover:bg-gray-800"
+            onClick={() => router.back()}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting || !isFormValid || isDeploying}
+            className="bg-steel-red hover:bg-steel-red/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isSubmitting || isDeploying ? (
+              <>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
+                {isDeploying
+                  ? "Deploying Lock..."
+                  : isEditing
+                    ? "Updating..."
+                    : "Creating..."}
+              </>
+            ) : (
+              <>{isEditing ? "Update Cohort" : "Create Cohort"}</>
+            )}
+          </Button>
+        </div>
+      </form>
+    </>
   );
 }

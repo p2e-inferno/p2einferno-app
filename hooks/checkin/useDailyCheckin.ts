@@ -18,6 +18,11 @@ import { useStreakData } from "./useStreakData";
 import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
 import { normalizeAddress } from "@/lib/utils/address";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { resolveSchemaUID } from "@/lib/attestation/schemas/network-resolver";
+import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
+import { useDelegatedAttestationCheckin } from "./useDelegatedAttestationCheckin";
+import { SchemaEncoder } from "@ethereum-attestation-service/eas-sdk";
 
 const log = getLogger("hooks:useDailyCheckin");
 
@@ -104,6 +109,9 @@ export const useDailyCheckin = (
   // Privy for wallet connection
   const { user } = usePrivy();
   const writeWallet = usePrivyWriteWallet();
+
+  // Delegated attestation hook for gasless check-ins
+  const { signCheckinAttestation } = useDelegatedAttestationCheckin();
 
   // State
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(
@@ -300,13 +308,70 @@ export const useDailyCheckin = (
           };
         }
 
-        // Perform the check-in
-        const result = await checkinService.performCheckin(
-          userAddress,
-          userProfileId,
-          greeting,
-          writeWallet as any
-        );
+        // Step 1: Sign delegated attestation if EAS enabled (gasless for user)
+        let attestationSignature = null;
+
+        if (isEASEnabled()) {
+          try {
+            log.info("EAS enabled, signing delegated check-in attestation", { userAddress });
+
+            // Resolve schema UID
+            const resolvedNetwork = getDefaultNetworkName();
+            const resolvedSchemaUid = await resolveSchemaUID("daily_checkin", resolvedNetwork);
+
+            if (resolvedSchemaUid) {
+              // Encode check-in data using EAS schema encoder
+              // Schema format: string walletAddress, string greeting, uint256 timestamp, uint256 xpGained
+              const schemaEncoder = new SchemaEncoder("string walletAddress,string greeting,uint256 timestamp,uint256 xpGained");
+              const xpAmount = checkinPreview?.previewXP || 0;
+              const encodedData = schemaEncoder.encodeData([
+                { name: "walletAddress", value: userAddress, type: "string" },
+                { name: "greeting", value: greeting, type: "string" },
+                { name: "timestamp", value: BigInt(Date.now()), type: "uint256" },
+                { name: "xpGained", value: BigInt(xpAmount), type: "uint256" },
+              ]);
+
+              attestationSignature = await signCheckinAttestation({
+                schemaUid: resolvedSchemaUid,
+                recipient: userAddress,
+                data: encodedData,
+                deadlineSecondsFromNow: 3600, // 1 hour validity
+                network: resolvedNetwork,
+              });
+
+              log.info("Successfully signed delegated attestation", {
+                userAddress,
+                network: resolvedNetwork,
+              });
+            } else {
+              log.warn("Schema UID not configured, skipping attestation", {
+                network: resolvedNetwork,
+              });
+            }
+          } catch (error: any) {
+            log.error("Failed to sign attestation, continuing without it", {
+              error: error?.message || "Unknown error",
+              userAddress,
+            });
+            // Continue with check-in without attestation (graceful degradation)
+          }
+        }
+
+        // Step 2: Call API directly with attestation signature (bypassing service for now)
+        // TODO: Refactor service layer to properly support gasless attestation flow
+        const xpAmount = checkinPreview?.previewXP || 0;
+        const result = await fetch("/api/checkin", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userProfileId,
+            xpAmount,
+            activityData: { greeting },
+            attestationSignature,
+          }),
+        }).then(res => res.json());
 
         if (result.success) {
           log.info("Daily checkin successful", {
@@ -402,6 +467,8 @@ export const useDailyCheckin = (
       onCheckinSuccess,
       onCheckinError,
       showToasts,
+      checkinPreview,
+      signCheckinAttestation,
     ]
   );
 

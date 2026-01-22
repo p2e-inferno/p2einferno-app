@@ -18,10 +18,14 @@ import { createWalletClientUnified } from "@/lib/blockchain/config/clients/walle
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { isServerBlockchainConfigured } from "@/lib/blockchain/legacy/server-config";
 import { isValidEthereumAddress } from "@/lib/blockchain/services/transaction-service";
-import { grantKeyToUser } from "@/lib/blockchain/services/grant-key-service";
+import {
+  grantKeyToUser,
+  hasValidKey,
+} from "@/lib/blockchain/services/grant-key-service";
 import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
 import { getUserPrimaryWallet } from "@/lib/quests/prerequisite-checker";
 import { ethers } from "ethers";
+import type { Address } from "viem";
 import { getReadOnlyProvider } from "@/lib/blockchain/provider";
 import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { evaluateTrialEligibility } from "@/lib/quests/trial-eligibility";
@@ -36,6 +40,10 @@ interface TrialClaimResponse {
   success: boolean;
   message: string;
   transactionHash?: string;
+  transactionHashes?: {
+    questCompletion?: string;
+    dgNationTrial?: string;
+  };
   expiresAt?: string;
   error?: string;
 }
@@ -72,6 +80,8 @@ export default async function handler(
     });
   }
 
+  let userId: string | undefined;
+
   try {
     // Verify Privy user from token
     const authUser = await getPrivyUser(req);
@@ -82,7 +92,12 @@ export default async function handler(
         error: "Unauthorized",
       });
     }
-    const userId = authUser.id;
+    userId = authUser.id;
+
+    log.info("Trial claim attempt initiated", {
+      userId,
+      questId,
+    });
 
     const supabase = createAdminClient();
 
@@ -183,8 +198,9 @@ export default async function handler(
     }
 
     // Get user's wallet address
-    const userWalletAddress = await getUserPrimaryWallet(supabase, userId);
+    const userWalletAddress = await getUserPrimaryWallet(supabase, userId!);
     if (!userWalletAddress || !isValidEthereumAddress(userWalletAddress)) {
+      log.error("Invalid user wallet address", { userId, userWalletAddress });
       return res.status(400).json({
         success: false,
         message: "Wallet not found",
@@ -207,12 +223,7 @@ export default async function handler(
     let onChainTrialKeyBalance: bigint | null = null;
 
     try {
-      // Check DG Nation lock balance
       const dgBalance = await dgNationLock.balanceOf(userWalletAddress);
-      log.info("DG Nation balance check", {
-        userWalletAddress,
-        dgBalance: dgBalance.toString(),
-      });
       hasDGNationKey = dgBalance > 0n;
       onChainDGKeyBalance = BigInt(dgBalance);
 
@@ -225,10 +236,6 @@ export default async function handler(
           provider,
         ) as any;
         trialQuestBalance = await trialQuestLock.balanceOf(userWalletAddress);
-        log.info("Trial quest lock balance check", {
-          userWalletAddress,
-          trialQuestBalance: trialQuestBalance.toString(),
-        });
         hasTrialQuestKey = trialQuestBalance > 0n;
         onChainTrialKeyBalance = trialQuestBalance;
       }
@@ -278,13 +285,6 @@ export default async function handler(
     }
 
     // All checks passed - grant the trial key
-    log.info("Granting DG Nation trial key", {
-      userId,
-      userWalletAddress,
-      dgNationLockAddress,
-      trialDurationSeconds,
-    });
-
     // Create wallet client for key granting (uses service wallet)
     const walletClient = createWalletClientUnified();
     if (!walletClient) {
@@ -301,27 +301,99 @@ export default async function handler(
     const expirationTimestamp =
       BigInt(Math.floor(Date.now() / 1000)) + BigInt(trialDurationSeconds);
 
-    // Grant key with custom expiration
-    const grantResult = await grantKeyToUser(
-      walletClient,
+    // IDEMPOTENT GRANT PATTERN: Check before each grant to handle retries safely
+    // If quest completion key grant already succeeded in a previous attempt, skip it
+    const userAlreadyHasQuestKey = await hasValidKey(
       publicClient,
-      userWalletAddress,
-      dgNationLockAddress as `0x${string}`,
-      getKeyManagersForContext(
-        userWalletAddress as `0x${string}`,
-        "admin_grant",
-      ),
-      BigInt(trialDurationSeconds), // Pass duration for expiration
+      userWalletAddress as Address,
+      quest.lock_address as Address,
     );
 
-    if (!grantResult.success) {
-      log.error("Key granting failed:", grantResult.error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to grant trial key",
-        error: grantResult.error || "Failed to grant trial key",
-      });
+    let questLockGrantResult: any = null;
+
+    if (userAlreadyHasQuestKey) {
+      // Mark as successful with no transaction (idempotent state)
+      questLockGrantResult = {
+        success: true,
+        transactionHash: null,
+        idempotent: true,
+      };
+    } else {
+      questLockGrantResult = await grantKeyToUser(
+        walletClient,
+        publicClient,
+        userWalletAddress,
+        quest.lock_address as `0x${string}`,
+        getKeyManagersForContext(
+          userWalletAddress as `0x${string}`,
+          "milestone", // Quest completion keys are non-transferable admin-managed
+        ),
+        BigInt(365 * 24 * 60 * 60), // 1 year for quest completion certificate
+      );
+
+      if (!questLockGrantResult.success) {
+        log.error("Quest completion key grant failed", {
+          questId,
+          userId,
+          userWalletAddress,
+          error: questLockGrantResult.error,
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Failed to grant quest completion certificate",
+          error:
+            questLockGrantResult.error ||
+            "Failed to grant quest completion certificate",
+        });
+      }
     }
+
+    // IDEMPOTENT GRANT PATTERN: Check before granting trial key
+    const userAlreadyHasTrialKey = await hasValidKey(
+      publicClient,
+      userWalletAddress as Address,
+      dgNationLockAddress as Address,
+    );
+
+    let grantResult: any = null;
+
+    if (userAlreadyHasTrialKey) {
+      // Mark as successful with no transaction (idempotent state)
+      grantResult = {
+        success: true,
+        transactionHash: null,
+        idempotent: true,
+      };
+    } else {
+      grantResult = await grantKeyToUser(
+        walletClient,
+        publicClient,
+        userWalletAddress,
+        dgNationLockAddress as `0x${string}`,
+        getKeyManagersForContext(
+          userWalletAddress as `0x${string}`,
+          "admin_grant",
+        ),
+        BigInt(trialDurationSeconds), // Pass duration for expiration
+      );
+
+      if (!grantResult.success) {
+        log.error("DG Nation trial key grant failed", {
+          questId,
+          userId,
+          userWalletAddress,
+          error: grantResult.error,
+        });
+        return res.status(500).json({
+          success: false,
+          message: "Failed to grant trial key",
+          error: grantResult.error || "Failed to grant trial key",
+        });
+      }
+    }
+
+    // Both keys are now guaranteed to exist (either newly granted or already present)
+    // Safe to update DB and record the grant
 
     // Record the activation grant in DB
     const expiresAt = new Date(
@@ -377,25 +449,29 @@ export default async function handler(
       // Don't fail - the key was granted successfully
     }
 
-    log.info("DG Nation trial granted successfully", {
-      userId,
-      userWalletAddress,
-      transactionHash: grantResult.transactionHash,
-      expiresAt,
-    });
-
     return res.status(200).json({
       success: true,
       message: `DG Nation trial granted! Your trial expires in ${Math.floor(trialDurationSeconds / 86400)} days.`,
-      transactionHash: grantResult.transactionHash,
+      transactionHashes: {
+        questCompletion: questLockGrantResult.transactionHash,
+        dgNationTrial: grantResult.transactionHash,
+      },
       expiresAt,
     });
   } catch (error) {
-    log.error("Error in get-trial API:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    log.error("Error in get-trial API:", {
+      error: errorMessage,
+      stack: errorStack,
+      errorType: error?.constructor?.name,
+      questId,
+      userId,
+    });
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: "Internal server error",
+      error: errorMessage,
     });
   }
 }

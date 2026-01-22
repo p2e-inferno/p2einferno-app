@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useRouter } from "next/router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Plus, Trash2, Zap } from "lucide-react";
 import type { CohortMilestone } from "@/lib/supabase/types";
 import { getRecordId } from "@/lib/utils/id-generation";
@@ -43,6 +43,10 @@ import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
 import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
+import { TransactionStepperModal } from "@/components/admin/TransactionStepperModal";
+import { useTransactionStepper } from "@/hooks/useTransactionStepper";
+import { buildMilestoneDeploymentFlow } from "@/lib/blockchain/deployment-flows";
+import type { DeploymentStep } from "@/lib/transaction-stepper/types";
 
 const log = getLogger("admin:MilestoneFormEnhanced");
 
@@ -114,9 +118,14 @@ export default function MilestoneFormEnhanced({
   const router = useRouter();
   const isEditing = !!milestone;
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isDeployingLock, setIsDeployingLock] = useState(false);
-  const [deploymentStep, setDeploymentStep] = useState("");
+  const [isStepperOpen, setIsStepperOpen] = useState(false);
+  const [stepperTitle, setStepperTitle] = useState("Deploy milestone lock");
+  const [deploymentSteps, setDeploymentSteps] = useState<DeploymentStep[]>([]);
+  const stepperDecisionResolverRef = useRef<
+    ((decision: "retry" | "cancel" | "skip") => void) | null
+  >(null);
   const [showAutoLockCreation, setShowAutoLockCreation] = useState(!isEditing);
+  const draftScopeKey = cohortId ? `cohort:${cohortId}` : "global";
   const [error, setError] = useState<string | null>(null);
   // Use the reusable hook for lock manager state management
   const {
@@ -152,8 +161,7 @@ export default function MilestoneFormEnhanced({
   const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
   const { authenticated, isAdmin, user } = useAdminAuthContext();
-  const { deployAdminLock, isLoading: isDeployingFromHook } =
-    useDeployAdminLock({ isAdmin });
+  const { createAdminLockDeploymentSteps } = useDeployAdminLock({ isAdmin });
 
   const [formData, setFormData] = useState<Partial<CohortMilestone>>(
     milestone || {
@@ -173,6 +181,10 @@ export default function MilestoneFormEnhanced({
       total_reward: 0,
     },
   );
+  const formDataRef = useRef(formData);
+  useEffect(() => {
+    formDataRef.current = formData;
+  }, [formData]);
 
   const [tasks, setTasks] = useState<TaskForm[]>([
     {
@@ -188,6 +200,60 @@ export default function MilestoneFormEnhanced({
       _isFromDatabase: false, // Mark initial task as new
     },
   ]);
+  const tasksRef = useRef(tasks);
+  useEffect(() => {
+    tasksRef.current = tasks;
+  }, [tasks]);
+
+  const milestoneDeploymentFlow = useMemo(
+    () =>
+      buildMilestoneDeploymentFlow({
+        title: "Deploy milestone lock",
+        description:
+          "Deploys the milestone badge lock and applies required configuration.",
+        steps: deploymentSteps,
+      }),
+    [deploymentSteps],
+  );
+  const {
+    state: stepperState,
+    start: stepperStart,
+    retryStep: stepperRetry,
+    skipStep: stepperSkip,
+    waitForSteps: stepperWaitForSteps,
+    cancel: stepperCancel,
+  } = useTransactionStepper(milestoneDeploymentFlow.steps);
+  const isDeploying = stepperState.isRunning;
+  const handleStepperRetry = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("retry");
+      stepperDecisionResolverRef.current = null;
+    }
+  }, []);
+  const handleStepperSkip = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("skip");
+      stepperDecisionResolverRef.current = null;
+    }
+  }, []);
+  const handleStepperCancel = useCallback(() => {
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("cancel");
+      stepperDecisionResolverRef.current = null;
+      return;
+    }
+    stepperCancel();
+    setIsStepperOpen(false);
+  }, [stepperCancel]);
+  const handleStepperClose = useCallback(() => {
+    if (!stepperState.canClose) return;
+    if (stepperDecisionResolverRef.current) {
+      stepperDecisionResolverRef.current("cancel");
+      stepperDecisionResolverRef.current = null;
+      return;
+    }
+    setIsStepperOpen(false);
+  }, [stepperState.canClose]);
 
   const [deletedTasks, setDeletedTasks] = useState<string[]>([]);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -199,7 +265,7 @@ export default function MilestoneFormEnhanced({
   useEffect(() => {
     if (isEditing) return;
 
-    const draft = getDraft("milestone");
+    const draft = getDraft("milestone", draftScopeKey);
     if (!draft?.formData || typeof draft.formData !== "object") return;
 
     let cancelled = false;
@@ -271,7 +337,7 @@ export default function MilestoneFormEnhanced({
       if (cancelled) return;
 
       if (resolution.mode === "existing") {
-        removeDraft("milestone");
+        removeDraft("milestone", draftScopeKey);
         toast.success(
           "Draft already saved — redirecting to milestone details.",
         );
@@ -435,95 +501,96 @@ export default function MilestoneFormEnhanced({
       return undefined;
     }
 
-    setIsDeployingLock(true);
-    setDeploymentStep("Checking network...");
-
     try {
-      setDeploymentStep("Preparing lock configuration...");
+      const currentForm = formDataRef.current;
+      const currentTasks = tasksRef.current;
+      const totalReward = currentTasks.reduce(
+        (sum, task) => sum + (task.reward_amount || 0),
+        0,
+      );
 
-      // Generate lock config from milestone data
+      if (!currentForm?.name) {
+        throw new Error("Please enter milestone name before deploying lock");
+      }
+
       const lockConfig = generateMilestoneLockConfig(
-        formData as CohortMilestone,
-        totalTaskReward,
+        currentForm as CohortMilestone,
+        totalReward,
       );
       const deployConfig = createLockConfigWithManagers(lockConfig);
-
-      // Convert to AdminLockDeploymentParams
       const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+      const { steps, getResult } = createAdminLockDeploymentSteps(params);
+      setDeploymentSteps(steps);
+      setStepperTitle(
+        formDataRef.current?.name
+          ? `Deploy lock for ${formDataRef.current.name}`
+          : "Deploy milestone lock",
+      );
+      setIsStepperOpen(true);
+      await stepperWaitForSteps(steps.length);
 
-      setDeploymentStep("Deploying lock on blockchain...");
-      toast.loading("Deploying milestone access lock...", {
-        id: "milestone-lock-deploy",
-      });
+      try {
+        await stepperStart();
+      } catch (err: any) {
+        while (true) {
+          const decision = await new Promise<"retry" | "cancel" | "skip">(
+            (resolve) => {
+              stepperDecisionResolverRef.current = resolve;
+            },
+          );
+          stepperDecisionResolverRef.current = null;
 
-      // Deploy the lock using admin hook
-      const result = await deployAdminLock(params);
+          if (decision === "cancel") {
+            stepperCancel();
+            setIsStepperOpen(false);
+            throw err;
+          }
 
-      if (!result.success || !result.lockAddress) {
-        throw new Error(result.error || "Lock deployment failed");
+          if (decision === "skip") {
+            try {
+              await stepperSkip();
+              break;
+            } catch (skipErr) {
+              err = skipErr;
+              continue;
+            }
+          }
+
+          try {
+            await stepperRetry();
+            break;
+          } catch (retryErr) {
+            err = retryErr;
+            continue;
+          }
+        }
       }
 
-      setDeploymentStep("Granting server wallet manager role...");
+      setIsStepperOpen(false);
 
-      const lockAddress = result.lockAddress;
-
-      // Check if grant or config failed
-      if (result.grantFailed) {
-        setDeploymentStep("Lock deployed but grant manager failed!");
-        setLockManagerGranted(false);
-        setGrantFailureReason(
-          result.grantError || "Grant manager transaction failed",
-        );
-        log.warn("Lock deployed but grant manager transaction failed", {
-          lockAddress,
-          grantError: result.grantError,
-          lockManagerGranted: false,
-        });
-      } else if (result.configFailed) {
-        setDeploymentStep("Lock deployed but config update failed!");
-        setLockManagerGranted(true);
-        setGrantFailureReason(undefined);
-        log.warn("Lock deployed but config update failed", {
-          lockAddress,
-          configError: result.configError,
-        });
-      } else if (result.transferConfigFailed) {
-        setDeploymentStep("Lock deployed but transferability update failed!");
-        setLockManagerGranted(true);
-        setGrantFailureReason(undefined);
-        log.warn("Lock deployed but transferability update failed", {
-          lockAddress,
-          transferError: result.transferConfigError,
-        });
-      } else {
-        setDeploymentStep("Lock deployed and configured successfully!");
-        setLockManagerGranted(true);
-        setGrantFailureReason(undefined);
-        log.info("Lock deployed and grant manager successful", {
-          lockAddress,
-          lockManagerGranted: true,
-        });
+      const deploymentResult = getResult();
+      const lockAddress: string | undefined = deploymentResult?.lockAddress;
+      if (!deploymentResult?.success || !lockAddress) {
+        throw new Error("Lock deployment failed");
       }
 
-      // Set max keys security state based on config outcome
-      setMaxKeysSecured(!result.configFailed);
-      setMaxKeysFailureReason(result.configError);
+      const outcome = applyDeploymentOutcome(deploymentResult);
+      setLockManagerGranted(outcome.granted);
+      setGrantFailureReason(outcome.reason);
 
-      // Set transferability security state based on transfer config outcome
-      setTransferabilitySecured(!result.transferConfigFailed);
-      setTransferabilityFailureReason(result.transferConfigError);
-      if (result.transferConfigFailed) {
-        log.warn("Lock deployed but transferability update failed", {
-          lockAddress,
-          transferError: result.transferConfigError,
-        });
-      }
+      setMaxKeysSecured(!deploymentResult.configFailed);
+      setMaxKeysFailureReason(deploymentResult.configError);
 
-      // Update draft with deployment result to preserve it in case of database failure
-      updateDraftWithDeploymentResult("milestone", {
+      setTransferabilitySecured(!deploymentResult.transferConfigFailed);
+      setTransferabilityFailureReason(deploymentResult.transferConfigError);
+
+      // Update local form state so the lock address is visible and used for saving.
+      setFormData((prev) => ({ ...prev, lock_address: lockAddress }));
+
+      updateDraftWithDeploymentResult("milestone", draftScopeKey, {
         lockAddress,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
+        grantFailed: deploymentResult.grantFailed,
+        grantError: deploymentResult.grantError,
       });
 
       // Fetch parent cohort to store its lock address for Web3-native recovery
@@ -545,9 +612,12 @@ export default function MilestoneFormEnhanced({
 
       // Enhance entityData with parent cohort's lock address and tasks for reliable recovery
       const enhancedEntityData = {
-        ...formData,
+        ...formDataRef.current,
+        lock_address: lockAddress,
         parent_cohort_lock_address: parentCohortLockAddress,
-        tasks: tasks.filter((task) => task.title && task.title.trim()), // Include valid tasks
+        tasks: tasksRef.current.filter(
+          (task) => task.title && task.title.trim(),
+        ), // Include valid tasks
       };
 
       // Save deployment state before database operation with both transaction hashes
@@ -555,15 +625,15 @@ export default function MilestoneFormEnhanced({
         lockAddress,
         entityType: "milestone",
         entityData: enhancedEntityData,
-        transactionHash: result.transactionHash,
-        grantTransactionHash: result.grantTransactionHash,
-        serverWalletAddress: result.serverWalletAddress,
-        blockExplorerUrl: result.transactionHash
-          ? getBlockExplorerUrl(result.transactionHash)
+        transactionHash: deploymentResult.transactionHash,
+        grantTransactionHash: deploymentResult.grantTransactionHash,
+        serverWalletAddress: deploymentResult.serverWalletAddress,
+        blockExplorerUrl: deploymentResult.transactionHash
+          ? getBlockExplorerUrl(deploymentResult.transactionHash)
           : undefined,
       });
 
-      if (result.grantFailed) {
+      if (deploymentResult.grantFailed) {
         toast(
           <>
             Milestone lock deployed successfully!
@@ -571,9 +641,9 @@ export default function MilestoneFormEnhanced({
             ⚠️ Grant manager role failed - you can retry from milestone details
             page.
             <br />
-            {result.transactionHash && (
+            {deploymentResult.transactionHash && (
               <a
-                href={getBlockExplorerUrl(result.transactionHash)}
+                href={getBlockExplorerUrl(deploymentResult.transactionHash)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
@@ -595,10 +665,10 @@ export default function MilestoneFormEnhanced({
             <br />
             Server wallet granted manager role.
             <br />
-            {result.transactionHash && (
+            {deploymentResult.transactionHash && (
               <>
                 <a
-                  href={getBlockExplorerUrl(result.transactionHash)}
+                  href={getBlockExplorerUrl(deploymentResult.transactionHash)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="underline"
@@ -608,9 +678,11 @@ export default function MilestoneFormEnhanced({
                 <br />
               </>
             )}
-            {result.grantTransactionHash && (
+            {deploymentResult.grantTransactionHash && (
               <a
-                href={getBlockExplorerUrl(result.grantTransactionHash)}
+                href={getBlockExplorerUrl(
+                  deploymentResult.grantTransactionHash,
+                )}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="underline"
@@ -628,29 +700,38 @@ export default function MilestoneFormEnhanced({
 
       log.info("Milestone lock deployed:", {
         lockAddress,
-        transactionHash: result.transactionHash,
-        grantTransactionHash: result.grantTransactionHash,
-        serverWalletAddress: result.serverWalletAddress,
+        transactionHash: deploymentResult.transactionHash,
+        grantTransactionHash: deploymentResult.grantTransactionHash,
+        serverWalletAddress: deploymentResult.serverWalletAddress,
         deploymentId,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
+        grantFailed: deploymentResult.grantFailed,
+        grantError: deploymentResult.grantError,
+        configFailed: deploymentResult.configFailed,
+        transferConfigFailed: deploymentResult.transferConfigFailed,
       });
 
       return {
         lockAddress,
-        grantFailed: result.grantFailed,
-        grantError: result.grantError,
+        grantFailed: deploymentResult.grantFailed,
+        grantError: deploymentResult.grantError,
+        configFailed: deploymentResult.configFailed,
+        configError: deploymentResult.configError,
+        transferConfigFailed: deploymentResult.transferConfigFailed,
+        transferConfigError: deploymentResult.transferConfigError,
       };
     } catch (error: any) {
       log.error("Milestone lock deployment failed:", error);
       const errorMessage = error.message || "Failed to deploy lock";
-      toast.error(formatErrorMessageForToast(errorMessage), {
-        id: "milestone-lock-deploy",
-      });
-      setDeploymentStep("");
+      toast.error(formatErrorMessageForToast(errorMessage));
       throw error;
-    } finally {
-      setIsDeployingLock(false);
+    }
+  };
+
+  const handleManualDeployClick = async () => {
+    try {
+      await deployLockForMilestone();
+    } catch {
+      // Errors are surfaced via modal and/or toast; avoid unhandled rejections.
     }
   };
 
@@ -742,16 +823,11 @@ export default function MilestoneFormEnhanced({
           auto_lock_creation: showAutoLockCreation,
           tasks,
         };
-        saveDraft("milestone", draftPayload);
+        saveDraft("milestone", draftPayload, draftScopeKey);
       }
 
       // Deploy lock if not editing and auto-creation is enabled and no lock address provided
-      if (
-        !isEditing &&
-        showAutoLockCreation &&
-        !lockAddress &&
-        totalTaskReward > 0
-      ) {
+      if (!isEditing && showAutoLockCreation && !lockAddress) {
         try {
           log.info("Auto-deploying lock for milestone...");
           const deploymentResult = await deployLockForMilestone();
@@ -1093,7 +1169,7 @@ export default function MilestoneFormEnhanced({
 
       // Clean up drafts on success (for new milestones)
       if (!isEditing) {
-        removeDraft("milestone");
+        removeDraft("milestone", draftScopeKey);
       }
 
       // Clean up deleted tasks list after successful submission
@@ -1116,367 +1192,397 @@ export default function MilestoneFormEnhanced({
   const dateInputClass = `${inputClass} [color-scheme:dark] cursor-pointer`;
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      {error && (
-        <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-4">
-          {error}
-        </div>
-      )}
-
-      {/* Milestone Basic Info */}
-      <div className="space-y-6">
-        <h3 className="text-lg font-semibold text-white">Milestone Details</h3>
-
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="name" className="text-white">
-              Milestone Name *
-            </Label>
-            <Input
-              id="name"
-              name="name"
-              value={formData.name || ""}
-              onChange={handleChange}
-              placeholder="e.g., Week 1: Introduction to Web3"
-              required
-              className={inputClass}
-            />
+    <>
+      <TransactionStepperModal
+        open={isStepperOpen}
+        title={stepperTitle}
+        description={milestoneDeploymentFlow.description}
+        steps={stepperState.steps}
+        activeStepIndex={stepperState.activeStepIndex}
+        canClose={stepperState.canClose}
+        onRetry={handleStepperRetry}
+        onSkip={handleStepperSkip}
+        onCancel={handleStepperCancel}
+        onClose={handleStepperClose}
+      />
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {error && (
+          <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded mb-4">
+            {error}
           </div>
+        )}
 
-          <div className="space-y-2">
-            <Label htmlFor="duration_hours" className="text-white">
-              Duration (Hours) *
-            </Label>
-            <Input
-              id="duration_hours"
-              name="duration_hours"
-              type="number"
-              min="1"
-              value={formData.duration_hours || ""}
-              onChange={handleChange}
-              placeholder="8"
-              required
-              className={inputClass}
-            />
-          </div>
+        {/* Milestone Basic Info */}
+        <div className="space-y-6">
+          <h3 className="text-lg font-semibold text-white">
+            Milestone Details
+          </h3>
 
-          <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="description" className="text-white">
-              Description *
-            </Label>
-            <Textarea
-              id="description"
-              name="description"
-              value={formData.description || ""}
-              onChange={handleChange}
-              rows={3}
-              placeholder="Enter milestone description"
-              required
-              className={inputClass}
-            />
-          </div>
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-white">
+                Milestone Name *
+              </Label>
+              <Input
+                id="name"
+                name="name"
+                value={formData.name || ""}
+                onChange={handleChange}
+                placeholder="e.g., Week 1: Introduction to Web3"
+                required
+                className={inputClass}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="prerequisite_milestone_id" className="text-white">
-              Prerequisite Milestone
-            </Label>
-            <select
-              id="prerequisite_milestone_id"
-              name="prerequisite_milestone_id"
-              value={formData.prerequisite_milestone_id || ""}
-              onChange={handleChange}
-              className={`${inputClass} w-full h-10 rounded-md px-3`}
-            >
-              <option value="">None (First milestone)</option>
-              {existingMilestones
-                .sort((a, b) => a.order_index - b.order_index)
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-            </select>
-          </div>
+            <div className="space-y-2">
+              <Label htmlFor="duration_hours" className="text-white">
+                Duration (Hours) *
+              </Label>
+              <Input
+                id="duration_hours"
+                name="duration_hours"
+                type="number"
+                min="1"
+                value={formData.duration_hours || ""}
+                onChange={handleChange}
+                placeholder="8"
+                required
+                className={inputClass}
+              />
+            </div>
 
-          <div className="space-y-2">
-            <Label className="text-white">Total Reward</Label>
-            <div className="bg-gray-800 border border-gray-700 rounded-md p-3">
-              <span className="text-flame-yellow text-lg font-semibold">
-                {totalTaskReward.toLocaleString()} DG
-              </span>
-              <p className="text-sm text-gray-400 mt-1">
-                Calculated from task rewards
-              </p>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="description" className="text-white">
+                Description *
+              </Label>
+              <div className="space-y-2">
+                <RichTextEditor
+                  value={formData.description || ""}
+                  onChange={(next) =>
+                    setFormData((prev) => ({ ...prev, description: next }))
+                  }
+                  placeholder="Enter milestone description"
+                  className={inputClass}
+                  editorClassName="text-gray-100"
+                  minHeightClassName="min-h-[90px]"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="prerequisite_milestone_id" className="text-white">
+                Prerequisite Milestone
+              </Label>
+              <select
+                id="prerequisite_milestone_id"
+                name="prerequisite_milestone_id"
+                value={formData.prerequisite_milestone_id || ""}
+                onChange={handleChange}
+                className={`${inputClass} w-full h-10 rounded-md px-3`}
+              >
+                <option value="">None (First milestone)</option>
+                {existingMilestones
+                  .sort((a, b) => a.order_index - b.order_index)
+                  .map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-white">Total Reward</Label>
+              <div className="bg-gray-800 border border-gray-700 rounded-md p-3">
+                <span className="text-flame-yellow text-lg font-semibold">
+                  {totalTaskReward.toLocaleString()} DG
+                </span>
+                <p className="text-sm text-gray-400 mt-1">
+                  Calculated from task rewards
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="start_date" className="text-white">
+                Start Date
+              </Label>
+              <Input
+                id="start_date"
+                name="start_date"
+                type="date"
+                value={formData.start_date || ""}
+                onChange={handleChange}
+                className={dateInputClass}
+                onClick={(e) => e.currentTarget.showPicker()}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="end_date" className="text-white">
+                End Date
+              </Label>
+              <Input
+                id="end_date"
+                name="end_date"
+                type="date"
+                value={formData.end_date || ""}
+                onChange={handleChange}
+                className={dateInputClass}
+                onClick={(e) => e.currentTarget.showPicker()}
+              />
             </div>
           </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="start_date" className="text-white">
-              Start Date
-            </Label>
-            <Input
-              id="start_date"
-              name="start_date"
-              type="date"
-              value={formData.start_date || ""}
-              onChange={handleChange}
-              className={dateInputClass}
-              onClick={(e) => e.currentTarget.showPicker()}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="end_date" className="text-white">
-              End Date
-            </Label>
-            <Input
-              id="end_date"
-              name="end_date"
-              type="date"
-              value={formData.end_date || ""}
-              onChange={handleChange}
-              className={dateInputClass}
-              onClick={(e) => e.currentTarget.showPicker()}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Tasks Section */}
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-white">Tasks</h3>
-          <Button
-            type="button"
-            onClick={addTask}
-            variant="outline"
-            size="sm"
-            className="border-flame-yellow text-flame-yellow hover:bg-flame-yellow/10"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Add Task
-          </Button>
         </div>
 
-        <div className="space-y-4">
-          {tasks.map((task, index) => (
-            <div
-              key={task.id}
-              className="bg-card border border-gray-800 rounded-lg p-4"
+        {/* Tasks Section */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white">Tasks</h3>
+            <Button
+              type="button"
+              onClick={addTask}
+              variant="outline"
+              size="sm"
+              className="border-flame-yellow text-flame-yellow hover:bg-flame-yellow/10"
             >
-              <div className="flex items-start justify-between mb-4">
-                <h4 className="text-white font-medium">Task {index + 1}</h4>
-                {tasks.length > 1 && (
-                  <Button
-                    type="button"
-                    onClick={() => handleRemoveTask(task.id)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                )}
-              </div>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Task
+            </Button>
+          </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                {/* Task Type Selection */}
-                <div>
-                  <Label className="text-white text-sm">Task Type *</Label>
-                  <select
-                    value={task.task_type}
-                    onChange={(e) =>
-                      updateTask(
-                        task.id,
-                        "task_type",
-                        e.target.value as TaskType,
-                      )
-                    }
-                    className={`${inputClass} w-full h-10 rounded-md px-3 mt-1`}
-                  >
-                    {TASK_TYPES.map((type) => (
-                      <option key={type.value} value={type.value}>
-                        {type.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">
-                    {
-                      TASK_TYPES.find((t) => t.value === task.task_type)
-                        ?.description
-                    }
-                  </p>
+          <div className="space-y-4">
+            {tasks.map((task, index) => (
+              <div
+                key={task.id}
+                className="bg-card border border-gray-800 rounded-lg p-4"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <h4 className="text-white font-medium">Task {index + 1}</h4>
+                  {tasks.length > 1 && (
+                    <Button
+                      type="button"
+                      onClick={() => handleRemoveTask(task.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-400 hover:text-red-300 hover:bg-red-900/20"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
 
-                {/* Basic Task Fields */}
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="md:col-span-2">
-                    <Label className="text-white text-sm">Task Title *</Label>
-                    <Input
-                      value={task.title}
-                      onChange={(e) =>
-                        updateTask(task.id, "title", e.target.value)
-                      }
-                      placeholder="e.g., Create a Web3 wallet"
-                      className={`${inputClass} mt-1`}
-                    />
-                  </div>
-
+                <div className="grid grid-cols-1 gap-4">
+                  {/* Task Type Selection */}
                   <div>
-                    <Label className="text-white text-sm">Reward (DG) *</Label>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={task.reward_amount || ""}
+                    <Label className="text-white text-sm">Task Type *</Label>
+                    <select
+                      value={task.task_type}
                       onChange={(e) =>
                         updateTask(
                           task.id,
-                          "reward_amount",
-                          e.target.value === "" ? 0 : Number(e.target.value),
+                          "task_type",
+                          e.target.value as TaskType,
                         )
                       }
-                      placeholder="100"
-                      className={`${inputClass} mt-1`}
-                    />
+                      className={`${inputClass} w-full h-10 rounded-md px-3 mt-1`}
+                    >
+                      {TASK_TYPES.map((type) => (
+                        <option key={type.value} value={type.value}>
+                          {type.label}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {
+                        TASK_TYPES.find((t) => t.value === task.task_type)
+                          ?.description
+                      }
+                    </p>
                   </div>
-                </div>
 
-                {/* Contract Interaction Fields - Only show for contract_interaction tasks */}
-                {task.task_type === "contract_interaction" && (
-                  <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
-                    <h5 className="text-blue-300 font-medium mb-3 flex items-center">
-                      <Zap className="h-4 w-4 mr-2" />
-                      Contract Interaction Configuration
-                    </h5>
+                  {/* Basic Task Fields */}
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div className="md:col-span-2">
+                      <Label className="text-white text-sm">Task Title *</Label>
+                      <Input
+                        value={task.title}
+                        onChange={(e) =>
+                          updateTask(task.id, "title", e.target.value)
+                        }
+                        placeholder="e.g., Create a Web3 wallet"
+                        className={`${inputClass} mt-1`}
+                      />
+                    </div>
 
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div>
-                        <Label className="text-white text-sm">Network *</Label>
-                        <select
-                          value={task.contract_network || ""}
-                          onChange={(e) =>
-                            updateTask(
-                              task.id,
-                              "contract_network",
-                              e.target.value,
-                            )
-                          }
-                          className={`${inputClass} w-full h-10 rounded-md px-3 mt-1`}
-                          required
-                        >
-                          <option value="">Select network</option>
-                          {AVAILABLE_NETWORKS.map((network) => (
-                            <option key={network.value} value={network.value}>
-                              {network.label} (Chain ID: {network.chainId})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div>
-                        <Label className="text-white text-sm">
-                          Contract Address *
-                        </Label>
-                        <Input
-                          value={task.contract_address || ""}
-                          onChange={(e) =>
-                            updateTask(
-                              task.id,
-                              "contract_address",
-                              e.target.value,
-                            )
-                          }
-                          placeholder="0x1234..."
-                          className={`${inputClass} mt-1`}
-                          pattern="^0x[a-fA-F0-9]{40}$"
-                          title="Please enter a valid Ethereum address"
-                          required
-                        />
-                      </div>
-
-                      <div className="md:col-span-2">
-                        <Label className="text-white text-sm">
-                          Contract Method *
-                        </Label>
-                        <Input
-                          value={task.contract_method || ""}
-                          onChange={(e) =>
-                            updateTask(
-                              task.id,
-                              "contract_method",
-                              e.target.value,
-                            )
-                          }
-                          placeholder="e.g., mint, approve, transfer"
-                          className={`${inputClass} mt-1`}
-                          required
-                        />
-                        <p className="text-xs text-gray-400 mt-1">
-                          The function name from the contract&apos;s ABI that
-                          users should interact with
-                        </p>
-                      </div>
+                    <div>
+                      <Label className="text-white text-sm">
+                        Reward (DG) *
+                      </Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={task.reward_amount || ""}
+                        onChange={(e) =>
+                          updateTask(
+                            task.id,
+                            "reward_amount",
+                            e.target.value === "" ? 0 : Number(e.target.value),
+                          )
+                        }
+                        placeholder="100"
+                        className={`${inputClass} mt-1`}
+                      />
                     </div>
                   </div>
-                )}
 
-                {/* Task Description */}
-                <div>
-                  <Label className="text-white text-sm">Description</Label>
-                  <Textarea
-                    value={task.description}
-                    onChange={(e) =>
-                      updateTask(task.id, "description", e.target.value)
-                    }
-                    placeholder="Provide instructions for completing this task..."
-                    rows={task.task_type === "contract_interaction" ? 3 : 2}
-                    className={`${inputClass} mt-1`}
-                  />
+                  {/* Contract Interaction Fields - Only show for contract_interaction tasks */}
+                  {task.task_type === "contract_interaction" && (
+                    <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
+                      <h5 className="text-blue-300 font-medium mb-3 flex items-center">
+                        <Zap className="h-4 w-4 mr-2" />
+                        Contract Interaction Configuration
+                      </h5>
+
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                          <Label className="text-white text-sm">
+                            Network *
+                          </Label>
+                          <select
+                            value={task.contract_network || ""}
+                            onChange={(e) =>
+                              updateTask(
+                                task.id,
+                                "contract_network",
+                                e.target.value,
+                              )
+                            }
+                            className={`${inputClass} w-full h-10 rounded-md px-3 mt-1`}
+                            required
+                          >
+                            <option value="">Select network</option>
+                            {AVAILABLE_NETWORKS.map((network) => (
+                              <option key={network.value} value={network.value}>
+                                {network.label} (Chain ID: {network.chainId})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <Label className="text-white text-sm">
+                            Contract Address *
+                          </Label>
+                          <Input
+                            value={task.contract_address || ""}
+                            onChange={(e) =>
+                              updateTask(
+                                task.id,
+                                "contract_address",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="0x1234..."
+                            className={`${inputClass} mt-1`}
+                            pattern="^0x[a-fA-F0-9]{40}$"
+                            title="Please enter a valid Ethereum address"
+                            required
+                          />
+                        </div>
+
+                        <div className="md:col-span-2">
+                          <Label className="text-white text-sm">
+                            Contract Method *
+                          </Label>
+                          <Input
+                            value={task.contract_method || ""}
+                            onChange={(e) =>
+                              updateTask(
+                                task.id,
+                                "contract_method",
+                                e.target.value,
+                              )
+                            }
+                            placeholder="e.g., mint, approve, transfer"
+                            className={`${inputClass} mt-1`}
+                            required
+                          />
+                          <p className="text-xs text-gray-400 mt-1">
+                            The function name from the contract&apos;s ABI that
+                            users should interact with
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Task Description */}
+                  <div>
+                    <Label className="text-white text-sm">Description</Label>
+                    <div className="mt-1">
+                      <RichTextEditor
+                        value={task.description}
+                        onChange={(next) =>
+                          updateTask(task.id, "description", next)
+                        }
+                        placeholder="Provide instructions for completing this task..."
+                        className={inputClass}
+                        editorClassName="text-gray-100"
+                        minHeightClassName={
+                          task.task_type === "contract_interaction"
+                            ? "min-h-[90px]"
+                            : "min-h-[70px]"
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* Lock Configuration */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-white">Lock Configuration</h3>
+        {/* Lock Configuration */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-white">
+            Lock Configuration
+          </h3>
 
-        {!isEditing && (
-          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <h4 className="text-white font-medium">
-                  Automatic Lock Deployment
-                </h4>
-                <p className="text-sm text-gray-400">
-                  Deploy an Unlock Protocol lock for this milestone&apos;s NFT
-                  badges
-                </p>
-              </div>
-              <div className="flex items-center space-x-3">
-                <label className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={showAutoLockCreation}
-                    onChange={(e) => setShowAutoLockCreation(e.target.checked)}
-                    className="w-4 h-4 text-flame-yellow bg-transparent border-gray-600 rounded focus:ring-flame-yellow focus:ring-2"
-                  />
-                  <span className="text-white text-sm">Auto-deploy</span>
-                </label>
-                {showAutoLockCreation &&
-                  !formData.lock_address &&
-                  totalTaskReward > 0 && (
+          {!isEditing && (
+            <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h4 className="text-white font-medium">
+                    Automatic Lock Deployment
+                  </h4>
+                  <p className="text-sm text-gray-400">
+                    Deploy an Unlock Protocol lock for this milestone&apos;s NFT
+                    badges
+                  </p>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <label className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      checked={showAutoLockCreation}
+                      onChange={(e) =>
+                        setShowAutoLockCreation(e.target.checked)
+                      }
+                      className="w-4 h-4 text-flame-yellow bg-transparent border-gray-600 rounded focus:ring-flame-yellow focus:ring-2"
+                    />
+                    <span className="text-white text-sm">Auto-deploy</span>
+                  </label>
+                  {showAutoLockCreation && !formData.lock_address && (
                     <Button
                       type="button"
-                      onClick={deployLockForMilestone}
-                      disabled={isDeployingLock || !wallet}
+                      onClick={handleManualDeployClick}
+                      disabled={isDeploying || !wallet}
                       variant="outline"
                       size="sm"
                       className="border-flame-yellow text-flame-yellow hover:bg-flame-yellow/10"
                     >
-                      {isDeployingLock ? (
+                      {isDeploying ? (
                         <>
                           <div className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-t-transparent"></div>
                           Deploying...
@@ -1486,107 +1592,100 @@ export default function MilestoneFormEnhanced({
                       )}
                     </Button>
                   )}
+                </div>
               </div>
+
+              {showAutoLockCreation && (
+                <div className="text-xs text-gray-400 bg-gray-900/50 rounded p-3">
+                  <p className="mb-1">
+                    ✨ A new lock will be automatically deployed for this
+                    milestone using your connected wallet
+                  </p>
+                  <p>• Lock will be configured for milestone NFT badges</p>
+                  <p>
+                    • Total reward amount: {totalTaskReward.toLocaleString()} DG
+                  </p>
+                  <p>• Price: Free (0 ETH) - rewards distributed manually</p>
+                </div>
+              )}
             </div>
-
-            {isDeployingLock && deploymentStep && (
-              <div className="bg-blue-900/20 border border-blue-700 rounded p-3 mb-3">
-                <p className="text-blue-300 text-sm font-medium">
-                  {deploymentStep}
-                </p>
-              </div>
-            )}
-
-            {showAutoLockCreation && totalTaskReward > 0 && (
-              <div className="text-xs text-gray-400 bg-gray-900/50 rounded p-3">
-                <p className="mb-1">
-                  ✨ A new lock will be automatically deployed for this
-                  milestone using your connected wallet
-                </p>
-                <p>• Lock will be configured for milestone NFT badges</p>
-                <p>
-                  • Total reward amount: {totalTaskReward.toLocaleString()} DG
-                </p>
-                <p>• Price: Free (0 ETH) - rewards distributed manually</p>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <Label htmlFor="lock_address" className="text-white">
-            Lock Address{" "}
-            {!isEditing && showAutoLockCreation ? "(Auto-generated)" : ""}
-          </Label>
-          <Input
-            id="lock_address"
-            name="lock_address"
-            value={formData.lock_address || ""}
-            onChange={handleChange}
-            placeholder={
-              !isEditing && showAutoLockCreation
-                ? "Will be auto-generated on creation"
-                : "e.g., 0x1234..."
-            }
-            className={inputClass}
-            disabled={!isEditing && showAutoLockCreation}
-          />
-
-          {/* Lock Manager Status Toggle */}
-          <LockManagerToggle
-            isGranted={lockManagerGranted}
-            onToggle={setLockManagerGranted}
-            lockAddress={formData.lock_address}
-            isEditing={isEditing}
-          />
-
-          <p className="text-sm text-gray-400">
-            {!isEditing && showAutoLockCreation
-              ? "Lock address will be automatically generated during milestone creation"
-              : "Optional: Unlock Protocol lock address for milestone NFT badges"}
-          </p>
-        </div>
-      </div>
-
-      <div className="flex justify-end space-x-4 pt-4">
-        <Button
-          type="button"
-          variant="outline"
-          className="border-gray-700 text-white hover:bg-gray-800"
-          onClick={onCancel}
-        >
-          Cancel
-        </Button>
-        <Button
-          type="submit"
-          disabled={isSubmitting || isDeployingFromHook}
-          className="bg-steel-red hover:bg-steel-red/90 text-white"
-        >
-          {isSubmitting || isDeployingFromHook ? (
-            <>
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
-              {isDeployingFromHook
-                ? "Deploying Lock..."
-                : isEditing
-                  ? "Updating..."
-                  : "Creating..."}
-            </>
-          ) : (
-            <>{isEditing ? "Update Milestone" : "Create Milestone"}</>
           )}
-        </Button>
-      </div>
 
-      <ConfirmationDialog
-        isOpen={showDeleteConfirmation}
-        onClose={() => setShowDeleteConfirmation(false)}
-        onConfirm={confirmTaskDeletion}
-        isLoading={isDeletingTask}
-        title="Confirm Task Deletion"
-        description="Are you sure you want to delete this task? This action cannot be undone."
-        confirmText="Delete Task"
-        variant="danger"
-      />
-    </form>
+          <div className="space-y-2">
+            <Label htmlFor="lock_address" className="text-white">
+              Lock Address{" "}
+              {!isEditing && showAutoLockCreation ? "(Auto-generated)" : ""}
+            </Label>
+            <Input
+              id="lock_address"
+              name="lock_address"
+              value={formData.lock_address || ""}
+              onChange={handleChange}
+              placeholder={
+                !isEditing && showAutoLockCreation
+                  ? "Will be auto-generated on creation"
+                  : "e.g., 0x1234..."
+              }
+              className={inputClass}
+              disabled={!isEditing && showAutoLockCreation}
+            />
+
+            {/* Lock Manager Status Toggle */}
+            <LockManagerToggle
+              isGranted={lockManagerGranted}
+              onToggle={setLockManagerGranted}
+              lockAddress={formData.lock_address}
+              isEditing={isEditing}
+            />
+
+            <p className="text-sm text-gray-400">
+              {!isEditing && showAutoLockCreation
+                ? "Lock address will be automatically generated during milestone creation"
+                : "Optional: Unlock Protocol lock address for milestone NFT badges"}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end space-x-4 pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            className="border-gray-700 text-white hover:bg-gray-800"
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            disabled={isSubmitting || isDeploying}
+            className="bg-steel-red hover:bg-steel-red/90 text-white"
+          >
+            {isSubmitting || isDeploying ? (
+              <>
+                <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-t-transparent"></div>
+                {isDeploying
+                  ? "Deploying Lock..."
+                  : isEditing
+                    ? "Updating..."
+                    : "Creating..."}
+              </>
+            ) : (
+              <>{isEditing ? "Update Milestone" : "Create Milestone"}</>
+            )}
+          </Button>
+        </div>
+
+        <ConfirmationDialog
+          isOpen={showDeleteConfirmation}
+          onClose={() => setShowDeleteConfirmation(false)}
+          onConfirm={confirmTaskDeletion}
+          isLoading={isDeletingTask}
+          title="Confirm Task Deletion"
+          description="Are you sure you want to delete this task? This action cannot be undone."
+          confirmText="Delete Task"
+          variant="danger"
+        />
+      </form>
+    </>
   );
 }
