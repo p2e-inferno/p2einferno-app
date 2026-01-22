@@ -3,6 +3,10 @@
 ## Purpose
 The goal is to prove that `POST /api/checkin` behaves exactly like the existing `DailyCheckinService.performCheckin` flow. The service already provides the working logic for eligibility, streaks, attestation creation, XP math, and database updates, so the API must mirror the _outputs_, _DB interactions_, and _error surface_ before we can retire the old client path.
 
+## Contract Reference (Phase 0)
+Before implementing tests, align on the locked request/response + persistence contract:
+- `docs/checkin-api-parity-contract.md`
+
 ## Test Strategy
 1. Mock the Supabase RPC (`perform_daily_checkin`) so it returns controlled `ok`/`conflict`/`new_xp` results.
 2. Mock `resolveSchemaUID`, `createDelegatedAttestation`, and any other helpers so the API runs deterministically.
@@ -15,7 +19,7 @@ Persisting the API test suite alongside the service tests ensures the _new path_
 
 ## Shared Test Setup Example
 ```ts
-// __tests__/api/checkin-parity.test.ts
+// __tests__/pages/api/checkin-parity.spec.ts
 import { createMocks } from "node-mocks-http";
 import handler from "@/pages/api/checkin";
 import { createDelegatedAttestation } from "@/lib/attestation/core/delegated";

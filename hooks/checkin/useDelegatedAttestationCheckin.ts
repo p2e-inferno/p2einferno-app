@@ -1,16 +1,18 @@
 /**
- * Hook for signing delegated check-in attestations using EAS native delegated attestation
+ * Hook for signing delegated check-in attestations using EAS SDK
  *
  * This follows TeeRex's gasless attestation pattern where:
- * - User signs an EIP-712 message (no gas cost, no transaction)
+ * - User signs an EIP-712 message using EAS SDK (no gas cost, no transaction)
+ * - EAS SDK handles the correct domain construction automatically
  * - Server wallet submits the transaction and pays gas
  * - Real attestation UID is extracted from on-chain event
  *
- * Adapted from TeeRex's useTeeRexDelegatedAttestation.ts to P2E Inferno's patterns
+ * Implementation matches TeeRex's useDelegatedAttestation.ts (EAS SDK approach)
  */
 
 import { useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
+import { EAS } from "@ethereum-attestation-service/eas-sdk";
 import {
   resolveNetworkConfig,
   getDefaultNetworkName,
@@ -93,43 +95,45 @@ export const useDelegatedAttestationCheckin = () => {
         params.refUID ??
         "0x0000000000000000000000000000000000000000000000000000000000000000";
 
-      // EIP-712 domain for P2E Inferno (custom domain, not EAS SDK domain)
-      // This follows TeeRex's pattern of using a custom domain
-      const domain = {
-        name: "P2E Inferno",
-        version: "1.0.0",
-        chainId,
-        verifyingContract: easContractAddress,
-      };
+      // Initialize EAS SDK
+      const eas = new EAS(easContractAddress);
+      eas.connect(signer);
 
-      // EIP-712 type structure for EAS attestByDelegation
-      // This must match the EAS contract's ATTEST_TYPEHASH
-      const types = {
-        Attest: [
-          { name: "schema", type: "bytes32" },
-          { name: "recipient", type: "address" },
-          { name: "expirationTime", type: "uint64" },
-          { name: "revocable", type: "bool" },
-          { name: "refUID", type: "bytes32" },
-          { name: "data", type: "bytes" },
-          { name: "value", type: "uint256" },
-          { name: "deadline", type: "uint64" },
-        ],
-      };
+      // Get delegated interface
+      const delegated = await eas.getDelegated();
 
-      const value = {
-        schema: params.schemaUid,
-        recipient: params.recipient,
-        expirationTime,
-        revocable,
-        refUID,
-        data: params.data,
-        value: 0n,
-        deadline,
-      };
+      // Sign delegated attestation using EAS SDK
+      // This handles the correct EIP-712 domain automatically
+      const response = await delegated.signDelegatedAttestation(
+        {
+          schema: params.schemaUid,
+          recipient: params.recipient,
+          expirationTime,
+          revocable,
+          refUID,
+          data: params.data,
+          deadline,
+          value: 0n,
+        },
+        signer
+      );
 
-      // Sign using ethers.js (same pattern as admin signed actions)
-      const signature = await signer.signTypedData(domain, types, value);
+      // Normalize signature to 0x rsv string format
+      let signature: string;
+      if (typeof response.signature === "string") {
+        signature = response.signature;
+      } else if (
+        typeof response.signature === "object" &&
+        "v" in response.signature &&
+        "r" in response.signature &&
+        "s" in response.signature
+      ) {
+        // Convert {v, r, s} to 0x rsv format
+        const sig = ethers.Signature.from(response.signature as any);
+        signature = sig.serialized;
+      } else {
+        throw new Error("Unexpected signature format from EAS SDK");
+      }
 
       log.info("Successfully signed delegated check-in attestation", {
         attester,

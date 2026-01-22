@@ -2,6 +2,11 @@ import { ethers } from 'ethers';
 import { EAS } from '@ethereum-attestation-service/eas-sdk';
 import { createAdminClient } from '@/lib/supabase/server';
 import { getLogger } from '@/lib/utils/logger';
+import { resolveRpcUrls } from '@/lib/blockchain/config/core/chain-resolution';
+import {
+  isRpcResolverSupportedChain,
+  resolveChainById,
+} from '@/lib/blockchain/config/core/chain-map';
 
 const log = getLogger('attestation:delegated');
 
@@ -118,13 +123,12 @@ export async function createDelegatedAttestation(
       };
     }
 
-    const rpcUrl = networkData.rpc_url;
     const easContractAddress = networkData.eas_contract_address;
 
-    if (!rpcUrl) {
+    if (!easContractAddress) {
       return {
         success: false,
-        error: `RPC URL not configured for chain ${chainId}`,
+        error: `EAS contract address not configured for chain ${chainId}`,
       };
     }
 
@@ -135,8 +139,30 @@ export async function createDelegatedAttestation(
       network: networkData.name,
     });
 
-    // 5. Initialize provider and service wallet signer
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    // 5. Resolve RPC URL using unified resolver (chainId-based).
+    // Intentionally do not fall back to DB-provided RPC to ensure one canonical path and surface config bugs.
+    if (!isRpcResolverSupportedChain(chainId)) {
+      return {
+        success: false,
+        error: `Unified RPC resolver does not support chain ${chainId}`,
+      };
+    }
+
+    const { urls } = resolveRpcUrls(chainId);
+    const rpcUrl = urls[0];
+    if (!rpcUrl) {
+      return {
+        success: false,
+        error: `No RPC URLs resolved for chain ${chainId}`,
+      };
+    }
+
+    const chain = resolveChainById(chainId);
+    const provider = new ethers.JsonRpcProvider(
+      rpcUrl,
+      { chainId, name: chain?.name ?? `chain-${chainId}` },
+      { staticNetwork: true },
+    );
     const signer = new ethers.Wallet(LOCK_MANAGER_PK, provider);
 
     log.debug('Service wallet address', {

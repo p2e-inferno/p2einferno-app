@@ -26,6 +26,32 @@ import { SchemaEncoder } from "@ethereum-attestation-service/eas-sdk";
 
 const log = getLogger("hooks:useDailyCheckin");
 
+const isUserRejectedSignature = (err: unknown): boolean => {
+  const maybeAny = err as any;
+  const message =
+    typeof maybeAny?.message === "string" ? maybeAny.message.toLowerCase() : "";
+  const code = maybeAny?.code ?? maybeAny?.error?.code;
+  return (
+    code === 4001 ||
+    message.includes("user rejected") ||
+    message.includes("user denied") ||
+    message.includes("rejected the request")
+  );
+};
+
+const makeJsonSafe = <T,>(value: T): any => {
+  if (typeof value === "bigint") return value.toString();
+  if (Array.isArray(value)) return value.map(makeJsonSafe);
+  if (value && typeof value === "object") {
+    const result: Record<string, any> = {};
+    for (const [key, v] of Object.entries(value as any)) {
+      result[key] = makeJsonSafe(v);
+    }
+    return result;
+  }
+  return value;
+};
+
 // Minimal helper to detect the specific edge case where the user already
 // checked in today. Keeps semantics clear without broad refactors.
 const isAlreadyCheckedIn = (msg?: string): boolean =>
@@ -322,10 +348,10 @@ export const useDailyCheckin = (
             if (resolvedSchemaUid) {
               // Encode check-in data using EAS schema encoder
               // Schema format: string walletAddress, string greeting, uint256 timestamp, uint256 xpGained
-              const schemaEncoder = new SchemaEncoder("string walletAddress,string greeting,uint256 timestamp,uint256 xpGained");
+              const schemaEncoder = new SchemaEncoder("address walletAddress,string greeting,uint256 timestamp,uint256 xpGained");
               const xpAmount = checkinPreview?.previewXP || 0;
               const encodedData = schemaEncoder.encodeData([
-                { name: "walletAddress", value: userAddress, type: "string" },
+                { name: "walletAddress", value: userAddress, type: "address" },
                 { name: "greeting", value: greeting, type: "string" },
                 { name: "timestamp", value: BigInt(Date.now()), type: "uint256" },
                 { name: "xpGained", value: BigInt(xpAmount), type: "uint256" },
@@ -344,22 +370,33 @@ export const useDailyCheckin = (
                 network: resolvedNetwork,
               });
             } else {
-              log.warn("Schema UID not configured, skipping attestation", {
-                network: resolvedNetwork,
-              });
+              const error = "Check-in unavailable: attestation schema not configured";
+              log.error(error, { userAddress, network: resolvedNetwork });
+              if (showToasts) toast.error(error);
+              onCheckinError?.(error);
+              return { success: false, xpEarned: 0, newStreak: 0, error };
             }
           } catch (error: any) {
-            log.error("Failed to sign attestation, continuing without it", {
+            const cancelled = isUserRejectedSignature(error);
+            const message = cancelled
+              ? "Check-in cancelled"
+              : "Failed to sign check-in attestation";
+            log.warn("Check-in attestation signing failed", {
+              cancelled,
               error: error?.message || "Unknown error",
               userAddress,
             });
-            // Continue with check-in without attestation (graceful degradation)
+
+            if (showToasts) {
+              if (cancelled) toast(message);
+              else toast.error(message);
+            }
+            onCheckinError?.(message);
+            return { success: false, xpEarned: 0, newStreak: 0, error: message };
           }
         }
 
-        // Step 2: Call API directly with attestation signature (bypassing service for now)
-        // TODO: Refactor service layer to properly support gasless attestation flow
-        const xpAmount = checkinPreview?.previewXP || 0;
+        // Step 2: Call API directly with attestation signature (API is authoritative for XP/streak)
         const result = await fetch("/api/checkin", {
           method: "POST",
           headers: {
@@ -367,9 +404,10 @@ export const useDailyCheckin = (
           },
           body: JSON.stringify({
             userProfileId,
-            xpAmount,
             activityData: { greeting },
-            attestationSignature,
+            attestationSignature: attestationSignature
+              ? makeJsonSafe(attestationSignature)
+              : null,
           }),
         }).then(res => res.json());
 
