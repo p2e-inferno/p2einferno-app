@@ -50,8 +50,14 @@ export function claimActivationRewardRequest<T = any>(questId: string) {
   });
 }
 
-export function claimTaskRewardRequest<T = any>(completionId: string) {
+export function claimTaskRewardRequest<T = any>(
+  completionId: string,
+  options?: { attestationSignature?: any },
+) {
   return postQuestApi<T>("/api/quests/claim-task-reward", {
-    payload: { completionId },
+    payload: {
+      completionId,
+      attestationSignature: options?.attestationSignature ?? null,
+    },
   });
 }

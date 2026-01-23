@@ -17,7 +17,7 @@ export interface CreateDelegatedAttestationParams {
   signature: string; // 0x rsv format
   deadline: bigint | number | string;
   chainId: number;
-  expirationTime?: bigint | number;
+  expirationTime?: bigint | number | string;
   revocable?: boolean;
   refUID?: string;
 }

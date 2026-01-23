@@ -2,6 +2,12 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
+import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import {
+  buildEasScanLink,
+} from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:user:task:[taskId]:claim");
 
@@ -18,6 +24,10 @@ export default async function handler(
     const user = await getPrivyUser(req);
     if (!user?.id) return res.status(401).json({ error: "Unauthorized" });
 
+    const { attestationSignature } = (req.body || {}) as {
+      attestationSignature?: DelegatedAttestationSignature | null;
+    };
+
     const { taskId } = req.query;
     if (!taskId || typeof taskId !== "string") {
       return res.status(400).json({ error: "Invalid task ID" });
@@ -27,25 +37,28 @@ export default async function handler(
     const { data: task, error: taskErr } = await supabase
       .from("milestone_tasks")
       .select(
-        `id, reward_amount, milestone:milestone_id(id, cohort_id, start_date, end_date)`,
+        `id, reward_amount, milestone:milestone_id(id, cohort_id, start_date, end_date, lock_address)`,
       )
       .eq("id", taskId)
       .single();
     if (taskErr || !task)
       return res.status(404).json({ error: "Task not found" });
 
+    const milestone = Array.isArray(task.milestone)
+      ? task.milestone[0]
+      : task.milestone;
+    const cohortId = milestone?.cohort_id;
+
     // Get user profile
     const { data: profile, error: profileErr } = await supabase
       .from("user_profiles")
-      .select("id, privy_user_id")
+      .select("id, privy_user_id, wallet_address")
       .eq("privy_user_id", user.id)
       .maybeSingle();
     if (profileErr || !profile)
       return res.status(404).json({ error: "User profile not found" });
 
     // Verify user is enrolled in the cohort (including completed enrollments)
-    const taskMilestone = task.milestone as any;
-    const cohortId = taskMilestone?.cohort_id;
     const { data: enrollment } = await supabase
       .from("bootcamp_enrollments")
       .select("id")
@@ -76,9 +89,6 @@ export default async function handler(
       .eq("id", utp.submission_id || "")
       .maybeSingle();
 
-    const milestone = Array.isArray(task.milestone)
-      ? task.milestone[0]
-      : task.milestone;
     const endDate = milestone?.end_date ? new Date(milestone.end_date) : null;
     const submittedAt = submission?.submitted_at
       ? new Date(submission.submitted_at)
@@ -94,10 +104,68 @@ export default async function handler(
       return res.status(400).json({ error: "Reward eligibility expired" });
     }
 
+    // Optional gasless attestation (required when EAS is enabled unless graceful-degrade is configured).
+    // NOTE: We do this before DB updates to avoid marking rewards claimed if the attestation is required and fails.
+    const milestoneLockAddress =
+      typeof milestone?.lock_address === "string"
+        ? milestone.lock_address
+        : null;
+    const userWalletAddress =
+      typeof profile.wallet_address === "string"
+        ? profile.wallet_address
+        : null;
+
+    let rewardClaimAttestationUid: string | undefined;
+    let rewardClaimAttestationTxHash: string | undefined;
+    let attestationScanUrl: string | null = null;
+
+    if (isEASEnabled() && !userWalletAddress) {
+      return res.status(500).json({
+        error: "User profile wallet address not configured",
+      });
+    }
+
+    if (userWalletAddress) {
+      const attestationResult = await handleGaslessAttestation({
+        signature: attestationSignature ?? null,
+        schemaKey: "milestone_task_reward_claim",
+        recipient: userWalletAddress,
+        // Phase 3 is DB-only and must be fail-closed when EAS is enabled.
+        // Do not allow env-driven graceful degradation for this action.
+        gracefulDegrade: false,
+      });
+
+      if (!attestationResult.success) {
+        const message =
+          attestationResult.error || "Failed to create attestation";
+        const status =
+          message === "Attestation signature is required" ||
+          message === "Signature recipient mismatch" ||
+          message === "Signature schema UID mismatch"
+            ? 400
+            : 500;
+        return res.status(status).json({ error: message });
+      }
+
+      rewardClaimAttestationUid = attestationResult.uid;
+      rewardClaimAttestationTxHash = attestationResult.txHash;
+
+      if (rewardClaimAttestationUid) {
+        attestationScanUrl = await buildEasScanLink(rewardClaimAttestationUid);
+      }
+    }
+
     // Mark claimed
+    const claimUpdate: Record<string, any> = {
+      reward_claimed: true,
+      updated_at: new Date().toISOString(),
+    };
+    if (rewardClaimAttestationUid) {
+      claimUpdate.reward_claim_attestation_uid = rewardClaimAttestationUid;
+    }
     const { error: updateErr } = await supabase
       .from("user_task_progress")
-      .update({ reward_claimed: true, updated_at: new Date().toISOString() })
+      .update(claimUpdate)
       .eq("id", utp.id);
     if (updateErr)
       return res
@@ -147,6 +215,9 @@ export default async function handler(
           task_id: taskId,
           milestone_id: milestone?.id,
           cohort_id: cohortId,
+          attestation_uid: rewardClaimAttestationUid,
+          attestation_tx_hash: rewardClaimAttestationTxHash,
+          milestone_lock_address: milestoneLockAddress,
         },
         points_earned: rewardAmount,
       } as any);
@@ -155,7 +226,12 @@ export default async function handler(
       }
     }
 
-    return res.status(200).json({ success: true, reward_amount: rewardAmount });
+    return res.status(200).json({
+      success: true,
+      reward_amount: rewardAmount,
+      attestationUid: rewardClaimAttestationUid || null,
+      attestationScanUrl,
+    });
   } catch (e: any) {
     log.error("Claim error:", e);
     return res

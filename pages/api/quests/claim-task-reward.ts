@@ -2,6 +2,10 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { getPrivyUser } from "@/lib/auth/privy";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
+import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:quests:claim-task-reward");
 
@@ -13,7 +17,10 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { completionId } = req.body;
+  const { completionId, attestationSignature } = (req.body || {}) as {
+    completionId?: string;
+    attestationSignature?: DelegatedAttestationSignature | null;
+  };
 
   if (!completionId) {
     return res.status(400).json({ error: "Completion ID is required" });
@@ -43,9 +50,6 @@ export default async function handler(
           reward_amount,
           task_type
         ),
-        user_profiles!user_task_completions_user_id_fkey (
-          id
-        )
       `,
       )
       .eq("id", completionId)
@@ -73,10 +77,72 @@ export default async function handler(
       });
     }
 
+    const { data: userProfile, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("id, wallet_address")
+      .eq("privy_user_id", userId)
+      .maybeSingle();
+
+    if (profileError || !userProfile) {
+      log.error("Failed to load user profile for quest claim:", profileError);
+      return res
+        .status(500)
+        .json({ error: "Failed to load user profile for claim" });
+    }
+
+    const userWalletAddress =
+      typeof userProfile.wallet_address === "string"
+        ? userProfile.wallet_address
+        : null;
+
+    if (isEASEnabled() && !userWalletAddress) {
+      return res.status(500).json({
+        error: "User profile wallet address not configured",
+      });
+    }
+
+    let rewardClaimAttestationUid: string | undefined;
+    let rewardClaimAttestationTxHash: string | undefined;
+    let attestationScanUrl: string | null = null;
+
+    if (userWalletAddress) {
+      const attestationResult = await handleGaslessAttestation({
+        signature: attestationSignature ?? null,
+        schemaKey: "quest_task_reward_claim",
+        recipient: userWalletAddress,
+        // Phase 4 is DB-only and must be fail-closed when EAS is enabled.
+        // Do not allow env-driven graceful degradation for this action.
+        gracefulDegrade: false,
+      });
+
+      if (!attestationResult.success) {
+        const message =
+          attestationResult.error || "Failed to create attestation";
+        const status =
+          message === "Attestation signature is required" ||
+          message === "Signature recipient mismatch" ||
+          message === "Signature schema UID mismatch"
+            ? 400
+            : 500;
+        return res.status(status).json({ error: message });
+      }
+
+      rewardClaimAttestationUid = attestationResult.uid;
+      rewardClaimAttestationTxHash = attestationResult.txHash;
+
+      if (rewardClaimAttestationUid) {
+        attestationScanUrl = await buildEasScanLink(rewardClaimAttestationUid);
+      }
+    }
+
     // Update the completion to mark reward as claimed
+    const completionUpdate: Record<string, any> = { reward_claimed: true };
+    if (rewardClaimAttestationUid) {
+      completionUpdate.reward_claim_attestation_uid = rewardClaimAttestationUid;
+    }
     const { error: updateError } = await supabase
       .from("user_task_completions")
-      .update({ reward_claimed: true })
+      .update(completionUpdate)
       .eq("id", completionId);
 
     if (updateError) {
@@ -110,10 +176,6 @@ export default async function handler(
     }
 
     // Award XP to the user (same pattern as milestone task claims)
-    const userProfile = Array.isArray(completion.user_profiles)
-      ? completion.user_profiles[0]
-      : completion.user_profiles;
-
     if (rewardAmount > 0 && userProfile?.id) {
       // Get current experience points first
       const { data: currentProfile, error: fetchErr } = await supabase
@@ -156,6 +218,8 @@ export default async function handler(
           task_id: completion.task_id,
           completion_id: completion.id,
           reward_amount: rewardAmount,
+          attestation_uid: rewardClaimAttestationUid,
+          attestation_tx_hash: rewardClaimAttestationTxHash,
         },
         points_earned: rewardAmount,
       } as any);
@@ -166,13 +230,25 @@ export default async function handler(
       }
     }
 
+    log.info("Quest reward claimed", {
+      completionId,
+      questId: completion.quest_id,
+      userId,
+      attestationUid: rewardClaimAttestationUid,
+    });
+
     res.status(200).json({
       success: true,
       message: `Successfully claimed ${rewardAmount} DG tokens`,
       rewardAmount,
+      attestationUid: rewardClaimAttestationUid || null,
+      attestationScanUrl,
     });
   } catch (error) {
-    log.error("Error in claim task reward API:", error);
+    log.error("Error in claim task reward API:", {
+      error: error?.message || error,
+      stack: error?.stack,
+    });
     res.status(500).json({ error: "Internal server error" });
   }
 }

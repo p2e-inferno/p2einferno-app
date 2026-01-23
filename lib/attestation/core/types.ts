@@ -52,7 +52,9 @@ export interface AttestationSchema {
     | "review"
     | "achievement"
     | "payment"
-    | "reward";
+    | "reward"
+    | "transaction"
+    | "governance";
   revocable: boolean;
   created_at: string;
   updated_at: string;
