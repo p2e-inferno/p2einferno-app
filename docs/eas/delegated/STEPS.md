@@ -217,7 +217,8 @@ Verify UID saved in database
 Verify UID on EAS Scan
 Validation:
 Test WITH signature → UID saved, key granted
-Test WITHOUT signature → key granted, no UID
+When EAS is enabled: signature is required (canceling signing cancels the claim)
+If signature missing → claim should not proceed (API returns 400)
 Check gas costs
 Verify graceful degradation works
 Verify Phases 3-5 still work (no regression)
@@ -400,4 +401,3 @@ Each phase can be tested independently
 Graceful degradation ensures main actions always work
 Later phases cannot break earlier phases (no shared code modified after Phase 1)
 IMPORTANT: Do NOT touch the check-in flow to avoid regression. Leave /hooks/checkin/useDelegatedAttestationCheckin.ts and /pages/api/checkin/index.ts unchanged. Only COPY patterns from them.
-

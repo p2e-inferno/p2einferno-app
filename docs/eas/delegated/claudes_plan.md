@@ -66,7 +66,7 @@ Add gasless EAS attestations to 8 user actions using ONE reusable pattern. Curre
 
 **Policy decision (explicit rule):**
 - **Fail-closed** for DB-only actions (attestation required).
-- **Graceful degrade** for actions that already perform an on-chain transaction (attestation best-effort after success).
+- **On-chain actions**: user signature is required (cancel signing cancels the action). Server submission is best-effort after the on-chain operation succeeds.
 
 **Why Client Encodes + Signs (current pattern):**
 Delegated attestations follow EAS standard where **user is the attester**. The EAS contract verifies the user's signature matches the attester address. Therefore:
@@ -999,7 +999,8 @@ export interface WithAttestationSignature {
    - Verify UID on EAS Scan
 4. **Validation**:
    - Test WITH signature → UID saved, key granted
-   - Test WITHOUT signature → key granted, no UID
+   - When EAS is enabled: signature is required (cancel signing cancels the claim)
+   - If signature missing → claim should not proceed (API returns 400)
    - Check gas costs
    - Verify graceful degradation works
    - Verify Phases 3-5 still work (no regression)

@@ -735,7 +735,7 @@ const MilestoneActions = ({
   onClaimSuccess: () => void;
 }) => {
   const { isClaiming, claimMilestoneKey } = useMilestoneClaim({
-    milestoneId: milestone.id,
+    milestone,
     onSuccess: onClaimSuccess,
   });
 
