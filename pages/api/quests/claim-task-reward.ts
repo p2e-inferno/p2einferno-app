@@ -49,7 +49,7 @@ export default async function handler(
         quest_tasks!user_task_completions_task_id_fkey (
           reward_amount,
           task_type
-        ),
+        )
       `,
       )
       .eq("id", completionId)
@@ -244,10 +244,11 @@ export default async function handler(
       attestationUid: rewardClaimAttestationUid || null,
       attestationScanUrl,
     });
-  } catch (error) {
+  } catch (error: unknown) {
+    const err = error as { message?: string; stack?: string };
     log.error("Error in claim task reward API:", {
-      error: error?.message || error,
-      stack: error?.stack,
+      error: err?.message || String(error),
+      stack: err?.stack,
     });
     res.status(500).json({ error: "Internal server error" });
   }

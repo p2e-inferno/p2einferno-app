@@ -10,6 +10,9 @@ import React, { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { getLogger } from "@/lib/utils/logger";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
 
 const log = getLogger("components:admin:WithdrawalLimitsConfig");
 
@@ -26,13 +29,18 @@ interface AuditLog {
   oldValue: any;
   newValue: any;
   changedBy: string;
+  changedByWallet?: string | null;
   changedAt: string;
   ipAddress: string | null;
   userAgent: string | null;
+  attestationUid?: string | null;
+  attestationScanUrl?: string | null;
 }
 
 export function WithdrawalLimitsConfig() {
   const { adminFetch } = useAdminApi({ suppressToasts: true });
+  const selectedWallet = useSmartWalletSelection() as any;
+  const { signAttestation, isSigning } = useGaslessAttestation();
   const [limits, setLimits] = useState<Limits | null>(null);
   const [editedLimits, setEditedLimits] = useState({
     minAmount: 0,
@@ -45,6 +53,17 @@ export function WithdrawalLimitsConfig() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [showAudit, setShowAudit] = useState(false);
   const [auditLoaded, setAuditLoaded] = useState(false);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+
+  const copyToClipboard = async (value: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedValue(value);
+      setTimeout(() => setCopiedValue(null), 1500);
+    } catch (err) {
+      log.warn("Failed to copy value", { error: err });
+    }
+  };
 
   useEffect(() => {
     fetchLimits();
@@ -108,13 +127,61 @@ export function WithdrawalLimitsConfig() {
       setError(null);
       setSuccess(null);
 
+      let attestationSignature: any = null;
+      if (isEASEnabled()) {
+        if (!selectedWallet?.address) {
+          throw new Error("Wallet not connected");
+        }
+        if (!limits) {
+          throw new Error("Current limits not loaded");
+        }
+
+        const adminAddress = selectedWallet.address;
+        const changeTimestamp = BigInt(Math.floor(Date.now() / 1000));
+        const changeReason = "DG withdrawal limits updated";
+
+        attestationSignature = await signAttestation({
+          schemaKey: "dg_config_change",
+          recipient: adminAddress,
+          schemaData: [
+            { name: "adminAddress", type: "address", value: adminAddress },
+            {
+              name: "previousMinAmount",
+              type: "uint256",
+              value: BigInt(limits.minAmount),
+            },
+            {
+              name: "newMinAmount",
+              type: "uint256",
+              value: BigInt(editedLimits.minAmount),
+            },
+            {
+              name: "previousMaxDaily",
+              type: "uint256",
+              value: BigInt(limits.maxAmount),
+            },
+            {
+              name: "newMaxDaily",
+              type: "uint256",
+              value: BigInt(editedLimits.maxAmount),
+            },
+            {
+              name: "changeTimestamp",
+              type: "uint256",
+              value: changeTimestamp,
+            },
+            { name: "changeReason", type: "string", value: changeReason },
+          ],
+        });
+      }
+
       const result = await adminFetch<{
         success: boolean;
         limits: Limits;
         error?: string;
       }>("/api/admin/config/withdrawal-limits", {
         method: "PUT",
-        body: JSON.stringify(editedLimits),
+        body: JSON.stringify({ ...editedLimits, attestationSignature }),
       });
 
       if (result.error || !result.data?.success) {
@@ -233,10 +300,10 @@ export function WithdrawalLimitsConfig() {
 
         <button
           onClick={handleSave}
-          disabled={isSaving || !hasChanges}
+          disabled={isSaving || isSigning || !hasChanges}
           className="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-black bg-flame-yellow hover:bg-yellow-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-flame-yellow disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSaving ? "Saving..." : "Save Changes"}
+          {isSaving || isSigning ? "Saving..." : "Save Changes"}
         </button>
       </div>
 
@@ -282,6 +349,9 @@ export function WithdrawalLimitsConfig() {
                       <th className="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">
                         Changed By
                       </th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">
+                        Attestation
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-gray-800 divide-y divide-gray-600">
@@ -293,8 +363,26 @@ export function WithdrawalLimitsConfig() {
                         <td className="px-4 py-2 text-sm text-white">
                           {log.configKey === "dg_withdrawal_limits_batch" ? (
                             <div>
-                              <div>Min: {log.newValue?.minAmount || "N/A"}</div>
-                              <div>Max: {log.newValue?.maxAmount || "N/A"}</div>
+                              <div>
+                                Min:{" "}
+                                <span className="line-through text-gray-400">
+                                  {log.oldValue?.minAmount ?? "—"}
+                                </span>{" "}
+                                →{" "}
+                                <span className="font-medium">
+                                  {log.newValue?.minAmount ?? "—"}
+                                </span>
+                              </div>
+                              <div>
+                                Max:{" "}
+                                <span className="line-through text-gray-400">
+                                  {log.oldValue?.maxAmount ?? "—"}
+                                </span>{" "}
+                                →{" "}
+                                <span className="font-medium">
+                                  {log.newValue?.maxAmount ?? "—"}
+                                </span>
+                              </div>
                             </div>
                           ) : (
                             <div>
@@ -311,7 +399,45 @@ export function WithdrawalLimitsConfig() {
                           )}
                         </td>
                         <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-400">
-                          {log.changedBy.substring(0, 8)}...
+                          {log.changedByWallet ? (
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono">
+                                {log.changedByWallet.substring(0, 6)}...
+                                {log.changedByWallet.substring(
+                                  log.changedByWallet.length - 4,
+                                )}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  copyToClipboard(log.changedByWallet!)
+                                }
+                                className="text-xs text-flame-yellow hover:underline"
+                              >
+                                {copiedValue === log.changedByWallet
+                                  ? "Copied"
+                                  : "Copy"}
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="font-mono">
+                              {log.changedBy.substring(0, 8)}...
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2 text-sm text-white">
+                          {log.attestationScanUrl ? (
+                            <a
+                              href={log.attestationScanUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="block text-flame-yellow hover:underline"
+                            >
+                              View on EAS Scan
+                            </a>
+                          ) : (
+                            <span className="text-gray-500">—</span>
+                          )}
                         </td>
                       </tr>
                     ))}

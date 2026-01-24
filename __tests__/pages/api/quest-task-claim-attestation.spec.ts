@@ -62,7 +62,10 @@ jest.mock("@/lib/supabase/server", () => {
                       reward_claimed: false,
                       submission_status: "completed",
                       verification_data: { rewardMultiplier: 1.5 },
-                      quest_tasks: { reward_amount: 100, task_type: "deploy_lock" },
+                      quest_tasks: {
+                        reward_amount: 100,
+                        task_type: "deploy_lock",
+                      },
                       user_profiles: {
                         id: "profile-1",
                         wallet_address:

@@ -5,9 +5,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
 import { isEASEnabled } from "@/lib/attestation/core/config";
-import {
-  buildEasScanLink,
-} from "@/lib/attestation/core/network-config";
+import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:user:task:[taskId]:claim");
 

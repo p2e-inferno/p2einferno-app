@@ -42,7 +42,9 @@ export const useGaslessAttestation = () => {
     revocable?: boolean; // Whether attestation can be revoked (default: false)
     refUID?: string; // Reference UID for linked attestations
   }): Promise<DelegatedAttestationSignature> => {
-    const wallet = wallets?.[0];
+    const wallet =
+      wallets?.find((w: any) => w?.walletClientType && w.walletClientType !== "privy") ||
+      wallets?.[0];
     if (!wallet) {
       throw new Error("No wallet connected");
     }
