@@ -31,6 +31,7 @@ import {
   sendEmailWithDedup,
   normalizeEmail,
 } from "@/lib/email";
+import { isEASEnabled } from "@/lib/attestation/core/config";
 
 const log = getLogger("api:subscriptions:renew-with-xp");
 
@@ -47,6 +48,17 @@ interface RenewalResponse {
     newExpiration: string;
     transactionHash?: string;
     treasuryAfterFee: number;
+    renewalAttemptId: string;
+    attestationRequired: boolean;
+    attestationPayload?: {
+      userAddress: string;
+      subscriptionLockAddress: string;
+      amountXp: number;
+      serviceFeeXp: number;
+      durationDays: number;
+      newExpirationTimestamp: number;
+      renewalTxHash?: string;
+    };
   };
   error?: string;
   recovery?: {
@@ -603,6 +615,19 @@ export default async function handler(
         ).toISOString(),
         transactionHash: txHash,
         treasuryAfterFee: treasuryBalance,
+        renewalAttemptId: renewalAttemptId!,
+        attestationRequired: isEASEnabled(),
+        attestationPayload: isEASEnabled()
+          ? {
+              userAddress: privy.wallet.address,
+              subscriptionLockAddress: lockAddress,
+              amountXp: costs.baseCost,
+              serviceFeeXp: costs.fee,
+              durationDays: body.duration,
+              newExpirationTimestamp: Number(verifiedExpiration),
+              renewalTxHash: txHash,
+            }
+          : undefined,
       },
     });
   } catch (error: any) {
