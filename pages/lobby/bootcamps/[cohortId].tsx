@@ -315,9 +315,10 @@ export default function BootcampLearningPage() {
             </div>
           </div>
 
-          <p className="text-faded-grey max-w-2xl">
-            {data.cohort.bootcamp_program.description}
-          </p>
+          <RichText
+            content={data.cohort.bootcamp_program.description}
+            className="text-faded-grey max-w-2xl"
+          />
         </div>
 
         {/* Overall Progress */}

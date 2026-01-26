@@ -4,8 +4,104 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { CertificateService } from "@/lib/bootcamp-completion/certificate/service";
 import { rateLimiter } from "@/lib/utils/rate-limiter";
+import type {
+  DelegatedAttestationSignature,
+  SchemaFieldData,
+} from "@/lib/attestation/api/types";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:certificate-claim");
+
+async function computeTotalEarnedRewards(params: {
+  supabase: ReturnType<typeof createAdminClient>;
+  userProfileId: string;
+  cohortId: string;
+}): Promise<number> {
+  const { supabase, userProfileId, cohortId } = params;
+
+  const { data: milestones, error: milestonesError } = await supabase
+    .from("cohort_milestones")
+    .select("id")
+    .eq("cohort_id", cohortId);
+
+  if (milestonesError) {
+    throw new Error(`Failed to load milestones: ${milestonesError.message}`);
+  }
+
+  const milestoneIds = (milestones || []).map((m: any) => m.id);
+  if (milestoneIds.length === 0) return 0;
+
+  const { data: tasks, error: tasksError } = await supabase
+    .from("milestone_tasks")
+    .select("id, reward_amount")
+    .in("milestone_id", milestoneIds);
+
+  if (tasksError) {
+    throw new Error(`Failed to load tasks: ${tasksError.message}`);
+  }
+
+  const taskRewards = new Map<string, number>();
+  const taskIds: string[] = [];
+  for (const t of tasks || []) {
+    taskIds.push((t as any).id);
+    taskRewards.set((t as any).id, Number((t as any).reward_amount || 0));
+  }
+  if (taskIds.length === 0) return 0;
+
+  const { data: progress, error: progressError } = await supabase
+    .from("user_task_progress")
+    .select("task_id, reward_claimed")
+    .eq("user_profile_id", userProfileId)
+    .in("task_id", taskIds)
+    .eq("reward_claimed", true);
+
+  if (progressError) {
+    throw new Error(`Failed to load claimed rewards: ${progressError.message}`);
+  }
+
+  let total = 0;
+  for (const p of progress || []) {
+    const taskId = (p as any).task_id as string;
+    total += taskRewards.get(taskId) || 0;
+  }
+  return total;
+}
+
+function buildBootcampCompletionSchemaData(params: {
+  cohortId: string;
+  cohortName: string;
+  bootcampId: string;
+  bootcampTitle: string;
+  userAddress: string;
+  completionDateUnix: number;
+  totalEarnedRewards: number;
+  certificateTxHash: string;
+}): SchemaFieldData[] {
+  return [
+    { name: "cohortId", type: "string", value: params.cohortId },
+    { name: "cohortName", type: "string", value: params.cohortName },
+    { name: "bootcampId", type: "string", value: params.bootcampId },
+    { name: "bootcampTitle", type: "string", value: params.bootcampTitle },
+    { name: "userAddress", type: "address", value: params.userAddress },
+    {
+      name: "completionDate",
+      type: "uint256",
+      value: String(params.completionDateUnix),
+    },
+    {
+      name: "totalXpEarned",
+      type: "uint256",
+      value: String(params.totalEarnedRewards),
+    },
+    {
+      name: "certificateTxHash",
+      type: "string",
+      value: params.certificateTxHash,
+    },
+  ];
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -26,7 +122,10 @@ export default async function handler(
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { cohortId } = req.body as { cohortId?: string };
+    const { cohortId, attestationSignature } = req.body as {
+      cohortId?: string;
+      attestationSignature?: DelegatedAttestationSignature | null;
+    };
     if (!cohortId) {
       return res.status(400).json({ error: "cohortId required" });
     }
@@ -89,12 +188,16 @@ export default async function handler(
         id,
         enrollment_status,
         certificate_issued,
+        completion_date,
+        certificate_tx_hash,
+        certificate_attestation_uid,
         user_profile_id,
         user_profiles:user_profile_id ( id, wallet_address, privy_user_id ),
         cohorts:cohort_id ( 
           id, 
+          name,
           bootcamp_program_id,
-          bootcamp_programs:bootcamp_program_id ( id, lock_address )
+          bootcamp_programs:bootcamp_program_id ( id, name, lock_address )
         )
       `,
       )
@@ -114,6 +217,9 @@ export default async function handler(
       id: string;
       enrollment_status: string;
       certificate_issued: boolean;
+      completion_date: string | null;
+      certificate_tx_hash: string | null;
+      certificate_attestation_uid: string | null;
       user_profile_id: string;
       user_profiles: {
         id: string;
@@ -122,8 +228,13 @@ export default async function handler(
       } | null;
       cohorts: {
         id: string;
+        name: string;
         bootcamp_program_id: string;
-        bootcamp_programs: { id: string; lock_address: string | null } | null;
+        bootcamp_programs: {
+          id: string;
+          name: string;
+          lock_address: string | null;
+        } | null;
       } | null;
     };
     const row = data as unknown as EnrollmentWithRelations;
@@ -145,6 +256,74 @@ export default async function handler(
       });
     }
 
+    const existingAttestationUid = row.certificate_attestation_uid;
+    if (attestationSignature) {
+      if (!row.certificate_issued) {
+        return res
+          .status(400)
+          .json({ error: "No certificate found to attest" });
+      }
+
+      if (!isEASEnabled()) {
+        return res.status(200).json({
+          success: true,
+          attestationUid: null,
+          attestationScanUrl: null,
+          attestationPending: false,
+        });
+      }
+
+      if (existingAttestationUid) {
+        return res.status(200).json({
+          success: true,
+          attestationUid: existingAttestationUid,
+          attestationScanUrl: await buildEasScanLink(existingAttestationUid),
+          attestationPending: false,
+        });
+      }
+
+      const recipient = profile.wallet_address || "";
+      if (!recipient) {
+        return res.status(400).json({ error: "Wallet not configured" });
+      }
+
+      const attestationResult = await handleGaslessAttestation({
+        signature: attestationSignature,
+        schemaKey: "bootcamp_completion",
+        recipient,
+        // On-chain grant already happened; do not block user on EAS failures.
+        gracefulDegrade: true,
+      });
+
+      const uid = attestationResult.uid || null;
+      const attestationScanUrl = uid ? await buildEasScanLink(uid) : null;
+
+      if (uid) {
+        const { error: upErr } = await supabase
+          .from("bootcamp_enrollments")
+          .update({
+            certificate_attestation_uid: uid,
+            certificate_last_error: null,
+            certificate_last_error_at: null,
+          })
+          .eq("id", row.id);
+        if (upErr) {
+          log.error("Failed to persist certificate attestation UID", {
+            enrollmentId: row.id,
+            uid,
+            error: upErr,
+          });
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        attestationUid: uid,
+        attestationScanUrl,
+        attestationPending: !uid,
+      });
+    }
+
     const service = new CertificateService();
     const result = await service.claimCertificate({
       enrollmentId: row.id,
@@ -159,7 +338,101 @@ export default async function handler(
       return res.status(status).json(result);
     }
 
-    // Do not call revalidateTag from pages API (no-op in many setups)
+    // If EAS is enabled and we don't yet have an attestation UID, return a payload to sign.
+    // Client will POST back to this same endpoint with attestationSignature to commit it.
+    if (isEASEnabled()) {
+      // Refresh enrollment to capture tx hash/issued state set by the service
+      const { data: fresh, error: freshError } = await supabase
+        .from("bootcamp_enrollments")
+        .select(
+          `
+          certificate_issued,
+          certificate_tx_hash,
+          certificate_attestation_uid,
+          completion_date
+        `,
+        )
+        .eq("id", row.id)
+        .maybeSingle();
+
+      if (freshError) {
+        log.warn("Failed to refresh enrollment after claim", {
+          enrollmentId: row.id,
+          error: freshError,
+        });
+      }
+
+      const freshUid = (fresh as any)?.certificate_attestation_uid as
+        | string
+        | null
+        | undefined;
+
+      if (freshUid) {
+        return res.status(200).json({
+          ...result,
+          attestationUid: freshUid,
+          attestationScanUrl: await buildEasScanLink(freshUid),
+          attestationPending: false,
+          attestationRequired: false,
+        });
+      }
+
+      const recipient = profile.wallet_address || "";
+      const completionDateIso =
+        (fresh as any)?.completion_date || row?.completion_date || null;
+      const completionDateUnix = completionDateIso
+        ? Math.floor(new Date(completionDateIso).getTime() / 1000)
+        : Math.floor(Date.now() / 1000);
+
+      const certificateTxHash =
+        (fresh as any)?.certificate_tx_hash || (result as any)?.txHash || "";
+
+      let totalEarnedRewards = 0;
+      try {
+        totalEarnedRewards = await computeTotalEarnedRewards({
+          supabase,
+          userProfileId: row.user_profile_id,
+          cohortId,
+        });
+      } catch (e: any) {
+        log.warn(
+          "Failed to compute total earned rewards for certificate attestation",
+          {
+            enrollmentId: row.id,
+            cohortId,
+            error: e?.message || String(e),
+          },
+        );
+      }
+
+      const cohortName = row?.cohorts?.name || "";
+      const bootcampId = row?.cohorts?.bootcamp_program_id || "";
+      const bootcampTitle = program?.name || "";
+
+      const schemaData = buildBootcampCompletionSchemaData({
+        cohortId,
+        cohortName,
+        bootcampId,
+        bootcampTitle,
+        userAddress: recipient,
+        completionDateUnix,
+        totalEarnedRewards,
+        certificateTxHash,
+      });
+
+      return res.status(200).json({
+        ...result,
+        attestationUid: null,
+        attestationPending: true,
+        attestationRequired: true,
+        attestationPayload: {
+          schemaKey: "bootcamp_completion",
+          recipient,
+          schemaData,
+        },
+      });
+    }
+
     return res.status(200).json(result);
   } catch (error: any) {
     log.error("Certificate claim failed", { error: error?.message || error });
