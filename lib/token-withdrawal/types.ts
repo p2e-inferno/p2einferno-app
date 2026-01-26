@@ -12,6 +12,7 @@ export interface WithdrawRequest {
   amountDG: number; // DG amount as integer (e.g., 5000)
   signature: string; // EIP712 signature
   deadline: number; // Unix timestamp (seconds)
+  chainId?: number;
 }
 
 /**
@@ -23,6 +24,15 @@ export interface WithdrawSuccessResponse {
   transactionHash: string;
   amountDG: number;
   idempotent?: boolean; // True if signature was already used
+  // Phase 9 gasless attestation (post-withdrawal)
+  attestationUid?: string | null;
+  attestationRequired?: boolean;
+  attestationPayload?: {
+    userAddress: string;
+    amountDg: number;
+    withdrawalTimestamp: number;
+    withdrawalTxHash?: string | null;
+  };
 }
 
 /**
@@ -66,6 +76,7 @@ export interface WithdrawalRecord {
   error_message: string | null;
   created_at: string;
   completed_at: string | null;
+  attestation_uid?: string | null;
 }
 
 /**

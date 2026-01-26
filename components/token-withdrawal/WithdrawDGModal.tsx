@@ -13,6 +13,7 @@ import { useWithdrawalAccess } from "@/hooks/useWithdrawalAccess";
 import { useDGWithdrawal } from "@/hooks/useDGWithdrawal";
 import type { WithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 import { getBlockExplorerUrl } from "@/lib/blockchain/services/transaction-service";
+import { isEASEnabled } from "@/lib/attestation/core/config";
 
 interface WithdrawDGModalProps {
   isOpen: boolean;
@@ -41,6 +42,10 @@ export function WithdrawDGModal({
   const [amount, setAmount] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [attestationScanUrl, setAttestationScanUrl] = useState<string | null>(
+    null,
+  );
+  const [proofCancelled, setProofCancelled] = useState(false);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -88,6 +93,8 @@ export function WithdrawDGModal({
 
     if (result.success) {
       setIsSuccess(true);
+      setAttestationScanUrl(result.attestationScanUrl || null);
+      setProofCancelled(Boolean(result.proofCancelled));
       // Close modal after 3 seconds
       setTimeout(() => {
         handleClose();
@@ -99,6 +106,8 @@ export function WithdrawDGModal({
     setAmount("");
     setLocalError(null);
     setIsSuccess(false);
+    setAttestationScanUrl(null);
+    setProofCancelled(false);
     onClose();
   };
 
@@ -160,6 +169,11 @@ export function WithdrawDGModal({
                         Your pullout of {amount} DG has been processed
                         successfully.
                       </p>
+                      {isEASEnabled() && proofCancelled && (
+                        <p className="text-xs text-faded-grey text-center">
+                          Withdrawal proof cancelled — withdrawal completed.
+                        </p>
+                      )}
                       {txHash && (
                         <a
                           href={getBlockExplorerUrl(txHash)}
@@ -168,6 +182,16 @@ export function WithdrawDGModal({
                           className="block text-center text-sm text-flame-yellow hover:text-flame-orange"
                         >
                           View on Explorer →
+                        </a>
+                      )}
+                      {attestationScanUrl && (
+                        <a
+                          href={attestationScanUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-center text-sm text-flame-yellow hover:text-flame-orange"
+                        >
+                          View attestation on EAS Scan →
                         </a>
                       )}
                     </div>

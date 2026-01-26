@@ -25,6 +25,8 @@ import {
 import { getLogger } from "@/lib/utils/logger";
 import { getClientConfig } from "@/lib/blockchain/config";
 import { ensureCorrectNetwork } from "@/lib/blockchain/shared/network-utils";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
 
 const log = getLogger("hooks:useDGWithdrawal");
 
@@ -32,6 +34,8 @@ export interface WithdrawalResult {
   success: boolean;
   txHash?: string;
   withdrawalId?: string;
+  attestationScanUrl?: string | null;
+  proofCancelled?: boolean;
   error?: string;
 }
 
@@ -57,12 +61,13 @@ export function useDGWithdrawal() {
   const { wallets } = useWallets();
   const writeWallet = usePrivyWriteWallet() as any;
   const { signTypedData } = useSignTypedData();
+  const { signAttestation } = useGaslessAttestation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
   const initiateWithdrawal = async (
-    amountDG: number
+    amountDG: number,
   ): Promise<WithdrawalResult> => {
     try {
       setIsLoading(true);
@@ -89,8 +94,8 @@ export function useDGWithdrawal() {
         typeof (wallet as any)?.getEthereumProvider === "function"
           ? await (wallet as any).getEthereumProvider()
           : typeof window !== "undefined"
-          ? (window as any).ethereum
-          : null;
+            ? (window as any).ethereum
+            : null;
 
       if (!rawProvider) {
         throw new Error("Unable to access Ethereum provider");
@@ -160,7 +165,7 @@ export function useDGWithdrawal() {
               primaryType: "Withdrawal",
               message: messageStr,
             },
-            { address: walletAddress }
+            { address: walletAddress },
           );
           signature = res.signature;
         } catch (e: any) {
@@ -188,7 +193,7 @@ export function useDGWithdrawal() {
               active.toLowerCase() !== walletAddress.toLowerCase()
             ) {
               throw new Error(
-                "Active wallet does not match selected address in app. Please switch account in MetaMask."
+                "Active wallet does not match selected address in app. Please switch account in MetaMask.",
               );
             }
 
@@ -211,7 +216,7 @@ export function useDGWithdrawal() {
             const m = (e?.message || "").toString();
             if (m.includes("Disconnected from MetaMask background")) {
               throw new Error(
-                "MetaMask disconnected. Reload the page and try again."
+                "MetaMask disconnected. Reload the page and try again.",
               );
             }
             // Fall through to viem
@@ -234,7 +239,7 @@ export function useDGWithdrawal() {
                 amountDG,
                 deadline,
                 wallet,
-                domain
+                domain,
               );
             }
           }
@@ -258,7 +263,7 @@ export function useDGWithdrawal() {
               amountDG,
               deadline,
               wallet,
-              domain
+              domain,
             );
           }
         }
@@ -284,7 +289,7 @@ export function useDGWithdrawal() {
         });
         if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
           throw new Error(
-            `Signature was produced by ${recovered}, but selected wallet is ${walletAddress}. Please switch account in your wallet and try again.`
+            `Signature was produced by ${recovered}, but selected wallet is ${walletAddress}. Please switch account in your wallet and try again.`,
           );
         }
       } catch (e: any) {
@@ -320,10 +325,67 @@ export function useDGWithdrawal() {
       setTxHash(data.transactionHash);
       log.info("Withdrawal successful", { txHash: data.transactionHash });
 
+      let attestationScanUrl: string | null | undefined = null;
+      let proofCancelled = false;
+
+      if (isEASEnabled() && data.attestationRequired) {
+        try {
+          const signature = await signAttestation({
+            schemaKey: "dg_withdrawal",
+            recipient: walletAddress,
+            schemaData: [
+              { name: "userAddress", type: "address", value: walletAddress },
+              {
+                name: "amountDg",
+                type: "uint256",
+                value: BigInt(data?.attestationPayload?.amountDg ?? amountDG),
+              },
+              {
+                name: "withdrawalTimestamp",
+                type: "uint256",
+                value: BigInt(
+                  data?.attestationPayload?.withdrawalTimestamp ??
+                    Math.floor(Date.now() / 1000),
+                ),
+              },
+              {
+                name: "withdrawalTxHash",
+                type: "bytes32",
+                value:
+                  data?.attestationPayload?.withdrawalTxHash ||
+                  data.transactionHash,
+              },
+            ],
+          });
+
+          const commitRes = await fetch(
+            "/api/token/withdraw/commit-attestation",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                withdrawalId: data.withdrawalId,
+                attestationSignature: signature,
+              }),
+            },
+          );
+          const commitJson = await commitRes.json().catch(() => ({}));
+          attestationScanUrl = commitJson?.attestationScanUrl || null;
+        } catch (e: any) {
+          if (isUserRejectedError(e)) {
+            proofCancelled = true;
+          } else {
+            throw e;
+          }
+        }
+      }
+
       return {
         success: true,
         txHash: data.transactionHash,
         withdrawalId: data.withdrawalId,
+        attestationScanUrl,
+        proofCancelled,
       };
     } catch (err) {
       const errorMessage =
