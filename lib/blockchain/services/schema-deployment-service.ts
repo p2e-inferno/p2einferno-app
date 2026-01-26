@@ -1,4 +1,11 @@
-import { decodeEventLog, type Address, type PublicClient, type WalletClient } from "viem";
+import {
+  decodeEventLog,
+  encodePacked,
+  keccak256,
+  type Address,
+  type PublicClient,
+  type WalletClient,
+} from "viem";
 import { getLogger } from "@/lib/utils/logger";
 import {
   SCHEMA_REGISTRY_ABI,
@@ -86,6 +93,18 @@ const extractSchemaUidFromReceipt = (
   return null;
 };
 
+const deriveSchemaUid = (params: {
+  schemaDefinition: string;
+  resolver: Address;
+  revocable: boolean;
+}): `0x${string}` =>
+  keccak256(
+    encodePacked(
+      ["string", "address", "bool"],
+      [params.schemaDefinition, params.resolver, params.revocable],
+    ),
+  );
+
 export async function deploySchema(
   walletClient: WalletClient,
   publicClient: PublicClient,
@@ -107,6 +126,31 @@ export async function deploySchema(
 
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     try {
+      const resolver = params.resolver || DEFAULT_RESOLVER;
+      const revocable = Boolean(params.revocable);
+
+      const expectedUid = deriveSchemaUid({
+        schemaDefinition: params.schemaDefinition,
+        resolver,
+        revocable,
+      });
+
+      const existing = await verifySchemaOnChain(
+        publicClient,
+        networkConfig,
+        expectedUid,
+      );
+      if (existing.exists) {
+        log.info("Schema already exists on-chain", {
+          schemaUid: expectedUid,
+          schemaRegistry: networkConfig.schemaRegistryAddress,
+        });
+        return {
+          success: true,
+          schemaUid: expectedUid,
+        };
+      }
+
       log.info("Deploying schema", {
         attempt,
         schemaRegistry: networkConfig.schemaRegistryAddress,
@@ -119,8 +163,8 @@ export async function deploySchema(
           functionName: "register",
           args: [
             params.schemaDefinition,
-            params.resolver || DEFAULT_RESOLVER,
-            Boolean(params.revocable),
+            resolver,
+            revocable,
           ],
           account: walletClient.account,
           chain: walletClient.chain,

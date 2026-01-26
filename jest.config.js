@@ -13,6 +13,9 @@ const customJestConfig = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
     '^ethers(/.*)?$': '<rootDir>/__mocks__/ethers.js',
+    '^react-markdown$': '<rootDir>/__mocks__/react-markdown.js',
+    '^remark-gfm$': '<rootDir>/__mocks__/remark-gfm.js',
+    '^rehype-sanitize$': '<rootDir>/__mocks__/rehype-sanitize.js',
   },
   collectCoverageFrom: [
     'components/**/*.{ts,tsx}',

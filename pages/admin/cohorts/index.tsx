@@ -13,6 +13,7 @@ import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { getLogger } from "@/lib/utils/logger";
 import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
+import { TransferabilitySecurityBadge } from "@/components/admin/TransferabilitySecurityBadge";
 
 const log = getLogger("admin:cohorts:index");
 
@@ -137,6 +138,11 @@ export default function CohortListPage() {
                       lockAddress={cohort.lock_address}
                       lockManagerGranted={cohort.lock_manager_granted}
                       reason={cohort.grant_failure_reason}
+                    />
+                    <TransferabilitySecurityBadge
+                      lockAddress={cohort.lock_address}
+                      transferabilitySecured={cohort.transferability_secured}
+                      reason={cohort.transferability_failure_reason}
                     />
                   </div>
                 </td>

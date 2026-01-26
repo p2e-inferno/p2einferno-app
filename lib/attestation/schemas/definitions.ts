@@ -17,7 +17,7 @@ export const getDailyCheckinSchema = (): Omit<
   name: "Daily Check-in",
   description: "Simple daily check-in attestation for user engagement",
   schema_definition:
-    "address walletAddress,string greeting,uint256 timestamp,string userDid,uint256 xpGained",
+    "address walletAddress,string greeting,uint256 timestamp,uint256 xpGained",
   category: "attendance",
   revocable: false, // Daily check-ins should be permanent
 });
@@ -71,6 +71,86 @@ export const getMilestoneAchievementSchema = (): Omit<
 });
 
 /**
+ * XP Renewal Schema - For subscription renewals using XP
+ */
+export const getXpRenewalSchema = (): Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> => ({
+  schema_uid: requireSchemaUID('XP_RENEWAL'),
+  name: "XP Subscription Renewal",
+  description: "On-chain attestation for subscription renewals using XP. Creates immutable audit trail for off-chain renewal transaction.",
+  schema_definition:
+    "address userAddress,address subscriptionLockAddress,uint256 amountXp,uint256 serviceFeeXp,uint256 durationDays,uint256 newExpirationTimestamp,bytes32 renewalTxHash",
+  category: "transaction",
+  revocable: false,
+});
+
+/**
+ * DG Withdrawal Schema - For DG token withdrawals
+ */
+export const getDgWithdrawalSchema = (): Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> => ({
+  schema_uid: requireSchemaUID('DG_WITHDRAWAL'),
+  name: "DG Token Withdrawal",
+  description: "On-chain attestation for DG token withdrawals. Creates audit trail for token transfers.",
+  schema_definition:
+    "address userAddress,uint256 amountDg,uint256 withdrawalTimestamp,bytes32 withdrawalTxHash",
+  category: "transaction",
+  revocable: false,
+});
+
+/**
+ * DG Config Change Schema - For admin changes to DG withdrawal limits
+ */
+export const getDgConfigChangeSchema = (): Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> => ({
+  schema_uid: requireSchemaUID('DG_CONFIG_CHANGE'),
+  name: "DG Withdrawal Config Change",
+  description: "On-chain attestation for admin changes to DG withdrawal limits. Creates governance audit trail.",
+  schema_definition:
+    "address adminAddress,uint256 previousMinAmount,uint256 newMinAmount,uint256 previousMaxDaily,uint256 newMaxDaily,uint256 changeTimestamp,string changeReason",
+  category: "governance",
+  revocable: false,
+});
+
+/**
+ * Milestone Task Reward Claim Schema - For XP rewards from individual milestone tasks
+ */
+export const getMilestoneTaskRewardClaimSchema = (): Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> => ({
+  schema_uid: requireSchemaUID('MILESTONE_TASK_REWARD_CLAIM'),
+  name: "Milestone Task Reward Claim",
+  description: "On-chain attestation for claiming XP rewards for individual milestone task completions. Creates audit trail for XP awards.",
+  schema_definition:
+    "string milestoneId,address userAddress,address milestoneLockAddress,uint256 rewardAmount,uint256 claimTimestamp",
+  category: "achievement",
+  revocable: false,
+});
+
+/**
+ * Quest Task Reward Claim Schema - For XP rewards from individual quest tasks
+ */
+export const getQuestTaskRewardClaimSchema = (): Omit<
+  AttestationSchema,
+  "id" | "created_at" | "updated_at"
+> => ({
+  schema_uid: requireSchemaUID('QUEST_TASK_REWARD_CLAIM'),
+  name: "Quest Task Reward Claim",
+  description: "On-chain attestation for claiming XP rewards for individual quest task completions. Creates audit trail for XP awards.",
+  schema_definition:
+    "string questId,string taskId,string taskType,address userAddress,address questLockAddress,uint256 rewardAmount,uint256 claimTimestamp",
+  category: "achievement",
+  revocable: false,
+});
+
+/**
  * Get all predefined schemas for easy registration
  * Called lazily to avoid requiring schema UIDs at module load time
  */
@@ -79,6 +159,11 @@ export const getPredefinedSchemas = () => [
   getQuestCompletionSchema(),
   getBootcampCompletionSchema(),
   getMilestoneAchievementSchema(),
+  getXpRenewalSchema(),
+  getDgWithdrawalSchema(),
+  getDgConfigChangeSchema(),
+  getMilestoneTaskRewardClaimSchema(),
+  getQuestTaskRewardClaimSchema(),
 ];
 
 /**

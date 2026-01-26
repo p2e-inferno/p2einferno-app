@@ -157,6 +157,19 @@ export const resolveNetworkConfig = async (
   return network || buildFallbackConfig();
 };
 
+export const buildEasScanLink = async (
+  uid: string,
+  networkName?: string,
+): Promise<string | null> => {
+  if (!uid || typeof uid !== "string") {
+    return null;
+  }
+
+  const network = await resolveNetworkConfig(networkName);
+  const baseUrl = network.easScanBaseUrl?.replace(/\/+$/, "") || "";
+  return baseUrl ? `${baseUrl}/attestation/view/${uid}` : null;
+};
+
 export const __clearNetworkConfigCacheForTests = (): void => {
   cacheState = null;
 };

@@ -92,6 +92,16 @@ async function createQuest(
     lock_address,
     lock_manager_granted,
     grant_failure_reason,
+    transferability_secured,
+    transferability_failure_reason,
+    // New fields for prerequisites and activation
+    prerequisite_quest_id,
+    prerequisite_quest_lock_address,
+    requires_prerequisite_key,
+    requires_gooddollar_verification,
+    reward_type,
+    activation_type,
+    activation_config,
   } = req.body;
 
   if (!title) {
@@ -112,6 +122,17 @@ async function createQuest(
       ? null
       : grant_failure_reason || null;
 
+    // Harden transferability flags for quests: if lock provided and flag not provided, default to false; clear reason when secured
+    const transferSecuredFinal =
+      typeof transferability_secured === "boolean"
+        ? transferability_secured
+        : lock_address
+          ? false
+          : false;
+    const transferReasonFinal = transferSecuredFinal
+      ? null
+      : transferability_failure_reason || null;
+
     const { data: quest, error: questError } = await supabase
       .from("quests")
       .insert({
@@ -123,6 +144,18 @@ async function createQuest(
         lock_address,
         lock_manager_granted: grantGrantedFinal,
         grant_failure_reason: grantReasonFinal,
+        transferability_secured: transferSecuredFinal,
+        transferability_failure_reason: transferReasonFinal,
+        // New fields
+        prerequisite_quest_id: prerequisite_quest_id || null,
+        prerequisite_quest_lock_address:
+          prerequisite_quest_lock_address || null,
+        requires_prerequisite_key: requires_prerequisite_key || false,
+        requires_gooddollar_verification:
+          requires_gooddollar_verification || false,
+        reward_type: reward_type || "xdg",
+        activation_type: activation_type || null,
+        activation_config: activation_config || null,
       })
       .select()
       .single();

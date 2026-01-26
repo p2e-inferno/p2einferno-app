@@ -23,6 +23,7 @@ import { usePrivy } from "@privy-io/react-auth";
 import type { MilestoneTask } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { NetworkError } from "@/components/ui/network-error";
+import { RichText } from "@/components/common/RichText";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("admin:TaskSubmissions");
@@ -247,7 +248,7 @@ export default function TaskSubmissions({
         <CardHeader>
           <CardTitle className="text-white">{task.title}</CardTitle>
           {task.description && (
-            <p className="text-gray-400">{task.description}</p>
+            <RichText content={task.description} className="text-gray-400" />
           )}
           <div className="flex items-center gap-4 text-sm">
             <span className="text-flame-yellow font-semibold">

@@ -13,7 +13,6 @@ export interface CheckinData extends AttestationData {
   walletAddress: string;
   greeting: string;
   timestamp: number;
-  userDid: string;
   xpGained: number;
 }
 

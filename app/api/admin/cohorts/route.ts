@@ -98,6 +98,14 @@ export async function POST(req: NextRequest) {
       if (record.lock_manager_granted === true) {
         record.grant_failure_reason = null;
       }
+
+      // Harden transferability_secured flag
+      if (typeof record.transferability_secured === 'undefined' || record.transferability_secured === null) {
+        record.transferability_secured = false;
+      }
+      if (record.transferability_secured === true) {
+        record.transferability_failure_reason = null;
+      }
     }
 
     const supabase = createAdminClient();
@@ -136,6 +144,35 @@ export async function PUT(req: NextRequest) {
       ...cohort,
       updated_at: new Date().toISOString(),
     };
+    const hasTransferabilitySecured = Object.prototype.hasOwnProperty.call(
+      cohort ?? {},
+      "transferability_secured",
+    );
+    const hasLockAddressField = Object.prototype.hasOwnProperty.call(
+      cohort ?? {},
+      "lock_address",
+    );
+
+    let lockAddressChanged = false;
+    if (hasLockAddressField) {
+      const normalizeLockAddress = (value: unknown) =>
+        typeof value === "string" && value.trim() ? value.trim() : null;
+      const { data: existing, error: existingError } = await supabase
+        .from("cohorts")
+        .select("lock_address")
+        .eq("id", id)
+        .maybeSingle();
+      if (existingError) {
+        log.error("cohorts PUT prefetch error", { error: existingError, id });
+        return NextResponse.json(
+          { error: existingError.message || "Failed to update cohort" },
+          { status: 500 },
+        );
+      }
+      lockAddressChanged =
+        normalizeLockAddress((existing as any)?.lock_address) !==
+        normalizeLockAddress(update.lock_address);
+    }
     // Harden grant flags: same rules as POST
     if (update.lock_address) {
       if (typeof update.lock_manager_granted === 'undefined' || update.lock_manager_granted === null) {
@@ -143,6 +180,21 @@ export async function PUT(req: NextRequest) {
       }
       if (update.lock_manager_granted === true) {
         update.grant_failure_reason = null;
+      }
+
+      // Harden transferability_secured flag
+      if (
+        (hasTransferabilitySecured || lockAddressChanged) &&
+        (typeof update.transferability_secured === "undefined" ||
+          update.transferability_secured === null)
+      ) {
+        update.transferability_secured = false;
+      }
+      if (
+        (hasTransferabilitySecured || lockAddressChanged) &&
+        update.transferability_secured === true
+      ) {
+        update.transferability_failure_reason = null;
       }
     }
 

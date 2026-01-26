@@ -51,7 +51,6 @@ function buildReadOnlyProvider() {
       { chainId: cfg.chain.id, name: cfg.networkName || "unknown" },
       { staticNetwork: true, polling: false },
     );
-    (provider as any).pollingInterval = Number.MAX_SAFE_INTEGER;
     return provider;
   };
 
@@ -66,12 +65,7 @@ function buildReadOnlyProvider() {
     weight: 1,
   }));
 
-  fallbackProviders.forEach(({ provider }) => {
-    (provider as any).pollingInterval = Number.MAX_SAFE_INTEGER;
-  });
-
   const fallback = new ethers.FallbackProvider(fallbackProviders, 1);
-  (fallback as any).pollingInterval = Number.MAX_SAFE_INTEGER;
   return fallback;
 }
 

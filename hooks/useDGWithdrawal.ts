@@ -25,6 +25,9 @@ import {
 import { getLogger } from "@/lib/utils/logger";
 import { getClientConfig } from "@/lib/blockchain/config";
 import { ensureCorrectNetwork } from "@/lib/blockchain/shared/network-utils";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 
 const log = getLogger("hooks:useDGWithdrawal");
 
@@ -32,8 +35,17 @@ export interface WithdrawalResult {
   success: boolean;
   txHash?: string;
   withdrawalId?: string;
+  attestationScanUrl?: string | null;
+  proofCancelled?: boolean;
   error?: string;
 }
+
+export type WithdrawalAuthorization = {
+  walletAddress: string;
+  chainId: number;
+  signature: string;
+  deadline: bigint;
+};
 
 function isUserRejectedError(err: any): boolean {
   const code = err?.code;
@@ -57,189 +69,146 @@ export function useDGWithdrawal() {
   const { wallets } = useWallets();
   const writeWallet = usePrivyWriteWallet() as any;
   const { signTypedData } = useSignTypedData();
+  const { signAttestation } = useGaslessAttestation();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
 
-  const initiateWithdrawal = async (
-    amountDG: number
-  ): Promise<WithdrawalResult> => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      setTxHash(null);
+  const createWithdrawalAuthorization = async (
+    amountDG: number,
+  ): Promise<WithdrawalAuthorization> => {
+    if (!user || !wallets || wallets.length === 0 || !writeWallet) {
+      throw new Error("Wallet not connected");
+    }
 
-      if (!user || !wallets || wallets.length === 0 || !writeWallet) {
-        throw new Error("Wallet not connected");
-      }
+    const wallet = writeWallet;
+    if (!wallet?.address) {
+      throw new Error("Wallet address not available");
+    }
+    const walletAddress = wallet.address;
+    const isEmbedded = (wallet as any)?.walletClientType === "privy";
 
-      const wallet = writeWallet;
-      if (!wallet?.address) {
-        throw new Error("Wallet address not available");
-      }
-      const walletAddress = wallet.address;
-      const isEmbedded = (wallet as any)?.walletClientType === "privy";
+    // Get target network from environment config (defaults to Base Sepolia)
+    const clientConfig = getClientConfig();
+    const chainId = clientConfig.chainId;
 
-      // Get target network from environment config (defaults to Base Sepolia)
-      const clientConfig = getClientConfig();
-      const chainId = clientConfig.chainId;
-
-      // Ensure wallet is on the correct network
-      const rawProvider =
-        typeof (wallet as any)?.getEthereumProvider === "function"
-          ? await (wallet as any).getEthereumProvider()
-          : typeof window !== "undefined"
+    // Ensure wallet is on the correct network
+    const rawProvider =
+      typeof (wallet as any)?.getEthereumProvider === "function"
+        ? await (wallet as any).getEthereumProvider()
+        : typeof window !== "undefined"
           ? (window as any).ethereum
           : null;
 
-      if (!rawProvider) {
-        throw new Error("Unable to access Ethereum provider");
-      }
+    if (!rawProvider) {
+      throw new Error("Unable to access Ethereum provider");
+    }
 
-      await ensureCorrectNetwork(rawProvider, {
-        chain: clientConfig.chain,
-        rpcUrl: clientConfig.rpcUrl,
-        networkName: clientConfig.networkName,
+    await ensureCorrectNetwork(rawProvider, {
+      chain: clientConfig.chain,
+      rpcUrl: clientConfig.rpcUrl,
+      networkName: clientConfig.networkName,
+    });
+
+    const domain = getWithdrawalDomain(chainId);
+
+    // Calculate deadline (15 minutes from now)
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 900);
+
+    const amountWei = BigInt(amountDG) * BigInt(10 ** 18);
+    const messageBig: WithdrawalMessage = {
+      user: walletAddress as `0x${string}`,
+      amount: amountWei,
+      deadline,
+    };
+
+    const messageStr = {
+      user: walletAddress as `0x${string}`,
+      amount: amountWei.toString(),
+      deadline: deadline.toString(),
+    } as any;
+
+    const messageForMetaMask = {
+      user: walletAddress,
+      amount: amountWei.toString(),
+      deadline: deadline.toString(),
+    };
+
+    try {
+      hashTypedData({
+        domain: domain as any,
+        types: WITHDRAWAL_TYPES as any,
+        primaryType: "Withdrawal" as any,
+        message: messageBig as any,
       });
+    } catch (e) {
+      log.warn("DG withdraw: failed to compute client typed data hash", {
+        e,
+      });
+    }
 
-      const domain = getWithdrawalDomain(chainId);
+    const maybeIsInjected =
+      (wallet as any)?.connectorType === "injected" ||
+      (wallet as any)?.walletClientType === "metamask" ||
+      (typeof window !== "undefined" && (window as any).ethereum?.isMetaMask);
 
-      // 1. Calculate deadline (15 minutes from now)
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 900);
+    let signature: string;
 
-      // 2. Sign EIP712 message - Prefer Privy's native hook for embedded wallets
-      const amountWei = BigInt(amountDG) * BigInt(10 ** 18);
-      const messageBig: WithdrawalMessage = {
-        user: walletAddress as `0x${string}`,
-        amount: amountWei,
-        deadline,
-      };
-      // For Privy hook and MetaMask: use string representation of BigInt values
-      const messageStr = {
-        user: walletAddress as `0x${string}`,
-        amount: amountWei.toString(),
-        deadline: deadline.toString(),
-      } as any;
-
-      // For MetaMask eth_signTypedData_v4: use numeric values for uint256 fields
-      const messageForMetaMask = {
-        user: walletAddress,
-        amount: amountWei.toString(),
-        deadline: deadline.toString(),
-      };
-
-      // Validate typed data structure
+    if (isEmbedded) {
       try {
-        hashTypedData({
-          domain: domain as any,
-          types: WITHDRAWAL_TYPES as any,
-          primaryType: "Withdrawal" as any,
-          message: messageBig as any,
-        });
-      } catch (e) {
-        log.warn("DG withdraw: failed to compute client typed data hash", {
-          e,
-        });
+        const res = await signTypedData(
+          {
+            domain,
+            types: WITHDRAWAL_TYPES as any,
+            primaryType: "Withdrawal",
+            message: messageStr,
+          },
+          { address: walletAddress },
+        );
+        signature = res.signature;
+      } catch (e: any) {
+        if (isUserRejectedError(e)) {
+          throw new Error("Signature request cancelled");
+        }
+        throw e;
       }
-
-      // Determine wallet type for consistent message handling
-      const maybeIsInjected =
-        (wallet as any)?.connectorType === "injected" ||
-        (wallet as any)?.walletClientType === "metamask" ||
-        (typeof window !== "undefined" && (window as any).ethereum?.isMetaMask);
-
-      let signature: string;
-
-      if (isEmbedded) {
-        // Sign with embedded wallet only; abort on user rejection
+    } else {
+      if (
+        maybeIsInjected &&
+        typeof window !== "undefined" &&
+        (window as any).ethereum?.request
+      ) {
         try {
-          const res = await signTypedData(
-            {
-              domain,
-              types: WITHDRAWAL_TYPES as any,
-              primaryType: "Withdrawal",
-              message: messageStr,
-            },
-            { address: walletAddress }
-          );
-          signature = res.signature;
+          const activeAccounts: string[] = await (
+            window as any
+          ).ethereum.request({ method: "eth_accounts" });
+          const active = activeAccounts?.[0];
+          if (!active || active.toLowerCase() !== walletAddress.toLowerCase()) {
+            throw new Error(
+              "Active wallet does not match selected address in app. Please switch account in MetaMask.",
+            );
+          }
+
+          const typedData = JSON.stringify({
+            domain,
+            types: WITHDRAWAL_TYPES as any,
+            primaryType: "Withdrawal",
+            message: messageForMetaMask,
+          });
+          signature = await (window as any).ethereum.request({
+            method: "eth_signTypedData_v4",
+            params: [walletAddress, typedData],
+          });
         } catch (e: any) {
           if (isUserRejectedError(e)) {
             throw new Error("Signature request cancelled");
           }
-          throw e;
-        }
-      } else {
-        // External wallet path
-        // Prefer native MetaMask eth_signTypedData_v4 for injected MetaMask
-        if (
-          maybeIsInjected &&
-          typeof window !== "undefined" &&
-          (window as any).ethereum?.request
-        ) {
-          try {
-            // Ensure selected injected account matches our target wallet
-            const activeAccounts: string[] = await (
-              window as any
-            ).ethereum.request({ method: "eth_accounts" });
-            const active = activeAccounts?.[0];
-            if (
-              !active ||
-              active.toLowerCase() !== walletAddress.toLowerCase()
-            ) {
-              throw new Error(
-                "Active wallet does not match selected address in app. Please switch account in MetaMask."
-              );
-            }
-
-            // Use consistent BigInt structure to match server verification
-            const typedData = JSON.stringify({
-              domain,
-              types: WITHDRAWAL_TYPES as any,
-              primaryType: "Withdrawal",
-              message: messageForMetaMask,
-            });
-            signature = await (window as any).ethereum.request({
-              method: "eth_signTypedData_v4",
-              params: [walletAddress, typedData],
-            });
-          } catch (e: any) {
-            if (isUserRejectedError(e)) {
-              throw new Error("Signature request cancelled");
-            }
-            // If provider is disconnected, surface a clear message
-            const m = (e?.message || "").toString();
-            if (m.includes("Disconnected from MetaMask background")) {
-              throw new Error(
-                "MetaMask disconnected. Reload the page and try again."
-              );
-            }
-            // Fall through to viem
-            try {
-              const account = await toViemAccount({ wallet: wallet as any });
-              const sigHex = await account.signTypedData({
-                domain: domain as any,
-                types: WITHDRAWAL_TYPES as any,
-                primaryType: "Withdrawal" as any,
-                message: messageBig as any,
-              });
-              signature = sigHex;
-            } catch (eV: any) {
-              if (isUserRejectedError(eV)) {
-                throw new Error("Signature request cancelled");
-              }
-              // Finally try ethers fallback
-              signature = await signWithdrawalMessage(
-                walletAddress as `0x${string}`,
-                amountDG,
-                deadline,
-                wallet,
-                domain
-              );
-            }
+          const m = (e?.message || "").toString();
+          if (m.includes("Disconnected from MetaMask background")) {
+            throw new Error(
+              "MetaMask disconnected. Reload the page and try again.",
+            );
           }
-        } else {
-          // Non-injected external wallet: viem first, ethers fallback
           try {
             const account = await toViemAccount({ wallet: wallet as any });
             const sigHex = await account.signTypedData({
@@ -248,9 +217,9 @@ export function useDGWithdrawal() {
               primaryType: "Withdrawal" as any,
               message: messageBig as any,
             });
-            signature = sigHex as unknown as string;
-          } catch (e: any) {
-            if (isUserRejectedError(e)) {
+            signature = sigHex;
+          } catch (eV: any) {
+            if (isUserRejectedError(eV)) {
               throw new Error("Signature request cancelled");
             }
             signature = await signWithdrawalMessage(
@@ -258,72 +227,199 @@ export function useDGWithdrawal() {
               amountDG,
               deadline,
               wallet,
-              domain
+              domain,
             );
           }
         }
-      }
-
-      // Verify signature with the same message structure used for signing
-      let verificationMessage;
-      if (isEmbedded) {
-        verificationMessage = messageStr;
-      } else if (maybeIsInjected) {
-        verificationMessage = messageForMetaMask;
       } else {
-        verificationMessage = messageBig;
-      }
-
-      try {
-        const recovered = await recoverTypedDataAddress({
-          domain: domain as any,
-          types: WITHDRAWAL_TYPES as any,
-          primaryType: "Withdrawal" as any,
-          message: verificationMessage as any,
-          signature: signature as `0x${string}`,
-        });
-        if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
-          throw new Error(
-            `Signature was produced by ${recovered}, but selected wallet is ${walletAddress}. Please switch account in your wallet and try again.`
+        try {
+          const account = await toViemAccount({ wallet: wallet as any });
+          const sigHex = await account.signTypedData({
+            domain: domain as any,
+            types: WITHDRAWAL_TYPES as any,
+            primaryType: "Withdrawal" as any,
+            message: messageBig as any,
+          });
+          signature = sigHex as unknown as string;
+        } catch (e: any) {
+          if (isUserRejectedError(e)) {
+            throw new Error("Signature request cancelled");
+          }
+          signature = await signWithdrawalMessage(
+            walletAddress as `0x${string}`,
+            amountDG,
+            deadline,
+            wallet,
+            domain,
           );
         }
-      } catch (e: any) {
-        if (isUserRejectedError(e)) throw e;
-        // Surface any mismatch
-        throw e instanceof Error ? e : new Error("Signature mismatch");
       }
+    }
 
-      log.info("Withdrawal signature created", {
-        amountDG,
-        deadline: deadline.toString(),
+    let verificationMessage;
+    if (isEmbedded) {
+      verificationMessage = messageStr;
+    } else if (maybeIsInjected) {
+      verificationMessage = messageForMetaMask;
+    } else {
+      verificationMessage = messageBig;
+    }
+
+    const recovered = await recoverTypedDataAddress({
+      domain: domain as any,
+      types: WITHDRAWAL_TYPES as any,
+      primaryType: "Withdrawal" as any,
+      message: verificationMessage as any,
+      signature: signature as `0x${string}`,
+    });
+    if (recovered.toLowerCase() !== walletAddress.toLowerCase()) {
+      throw new Error(
+        `Signature was produced by ${recovered}, but selected wallet is ${walletAddress}. Please switch account in your wallet and try again.`,
+      );
+    }
+
+    log.info("Withdrawal signature created", {
+      amountDG,
+      deadline: deadline.toString(),
+    });
+
+    return { walletAddress, chainId, signature, deadline };
+  };
+
+  const submitWithdrawal = async (params: {
+    walletAddress: string;
+    amountDG: number;
+    signature: string;
+    deadline: bigint;
+    chainId: number;
+  }) => {
+    const response = await fetch("/api/token/withdraw", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        walletAddress: params.walletAddress,
+        amountDG: params.amountDG,
+        signature: params.signature,
+        deadline: Number(params.deadline),
+        chainId: params.chainId,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok || !data.success) {
+      throw new Error(data.error || "Withdrawal failed");
+    }
+    return data as any;
+  };
+
+  const waitForWithdrawalConfirmation = async (transactionHash: string) => {
+    const publicClient = createPublicClientUnified();
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: transactionHash as `0x${string}`,
+      confirmations: 1,
+    });
+    return { receipt };
+  };
+
+  const commitWithdrawalAttestation = async (params: {
+    withdrawalId: string;
+    walletAddress: string;
+    amountDG: number;
+    withdrawalTimestamp: number;
+    withdrawalTxHash: string;
+  }): Promise<{
+    attestationScanUrl: string | null;
+    proofCancelled: boolean;
+  }> => {
+    try {
+      const signature = await signAttestation({
+        schemaKey: "dg_withdrawal",
+        recipient: params.walletAddress,
+        schemaData: [
+          { name: "userAddress", type: "address", value: params.walletAddress },
+          { name: "amountDg", type: "uint256", value: BigInt(params.amountDG) },
+          {
+            name: "withdrawalTimestamp",
+            type: "uint256",
+            value: BigInt(params.withdrawalTimestamp),
+          },
+          {
+            name: "withdrawalTxHash",
+            type: "bytes32",
+            value: params.withdrawalTxHash,
+          },
+        ],
       });
 
-      // 3. Submit to API
-      const response = await fetch("/api/token/withdraw", {
+      const commitRes = await fetch("/api/token/withdraw/commit-attestation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          walletAddress,
-          amountDG,
-          signature,
-          deadline: Number(deadline),
-          chainId,
+          withdrawalId: params.withdrawalId,
+          attestationSignature: signature,
         }),
       });
-
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Withdrawal failed");
+      const commitJson = await commitRes.json().catch(() => ({}));
+      return {
+        attestationScanUrl: commitJson?.attestationScanUrl || null,
+        proofCancelled: false,
+      };
+    } catch (e: any) {
+      if (isUserRejectedError(e)) {
+        return { attestationScanUrl: null, proofCancelled: true };
       }
+      throw e;
+    }
+  };
+
+  const initiateWithdrawal = async (
+    amountDG: number,
+  ): Promise<WithdrawalResult> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      setTxHash(null);
+
+      const auth = await createWithdrawalAuthorization(amountDG);
+      const data = await submitWithdrawal({
+        walletAddress: auth.walletAddress,
+        amountDG,
+        signature: auth.signature,
+        deadline: auth.deadline,
+        chainId: auth.chainId,
+      });
 
       setTxHash(data.transactionHash);
       log.info("Withdrawal successful", { txHash: data.transactionHash });
+
+      let attestationScanUrl: string | null | undefined = null;
+      let proofCancelled = false;
+
+      if (isEASEnabled() && data.attestationRequired) {
+        const payload = data?.attestationPayload;
+        const amount = Number(payload?.amountDg ?? amountDG);
+        const withdrawalTimestamp =
+          payload?.withdrawalTimestamp ?? Math.floor(Date.now() / 1000);
+        const withdrawalTxHash =
+          payload?.withdrawalTxHash || data.transactionHash;
+
+        const proof = await commitWithdrawalAttestation({
+          withdrawalId: data.withdrawalId,
+          walletAddress: auth.walletAddress,
+          amountDG: amount,
+          withdrawalTimestamp,
+          withdrawalTxHash,
+        });
+        attestationScanUrl = proof.attestationScanUrl;
+        proofCancelled = proof.proofCancelled;
+      }
 
       return {
         success: true,
         txHash: data.transactionHash,
         withdrawalId: data.withdrawalId,
+        attestationScanUrl,
+        proofCancelled,
       };
     } catch (err) {
       const errorMessage =
@@ -338,6 +434,10 @@ export function useDGWithdrawal() {
 
   return {
     initiateWithdrawal,
+    createWithdrawalAuthorization,
+    submitWithdrawal,
+    waitForWithdrawalConfirmation,
+    commitWithdrawalAttestation,
     isLoading,
     error,
     txHash,

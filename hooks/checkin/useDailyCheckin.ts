@@ -18,8 +18,39 @@ import { useStreakData } from "./useStreakData";
 import { useVisibilityAwarePoll } from "./useVisibilityAwarePoll";
 import { getLogger } from "@/lib/utils/logger";
 import { normalizeAddress } from "@/lib/utils/address";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { resolveSchemaUID } from "@/lib/attestation/schemas/network-resolver";
+import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
+import { useDelegatedAttestationCheckin } from "./useDelegatedAttestationCheckin";
+import { SchemaEncoder } from "@ethereum-attestation-service/eas-sdk";
 
 const log = getLogger("hooks:useDailyCheckin");
+
+const isUserRejectedSignature = (err: unknown): boolean => {
+  const maybeAny = err as any;
+  const message =
+    typeof maybeAny?.message === "string" ? maybeAny.message.toLowerCase() : "";
+  const code = maybeAny?.code ?? maybeAny?.error?.code;
+  return (
+    code === 4001 ||
+    message.includes("user rejected") ||
+    message.includes("user denied") ||
+    message.includes("rejected the request")
+  );
+};
+
+const makeJsonSafe = <T,>(value: T): any => {
+  if (typeof value === "bigint") return value.toString();
+  if (Array.isArray(value)) return value.map(makeJsonSafe);
+  if (value && typeof value === "object") {
+    const result: Record<string, any> = {};
+    for (const [key, v] of Object.entries(value as any)) {
+      result[key] = makeJsonSafe(v);
+    }
+    return result;
+  }
+  return value;
+};
 
 // Minimal helper to detect the specific edge case where the user already
 // checked in today. Keeps semantics clear without broad refactors.
@@ -104,6 +135,9 @@ export const useDailyCheckin = (
   // Privy for wallet connection
   const { user } = usePrivy();
   const writeWallet = usePrivyWriteWallet();
+
+  // Delegated attestation hook for gasless check-ins
+  const { signCheckinAttestation } = useDelegatedAttestationCheckin();
 
   // State
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus | null>(
@@ -300,13 +334,82 @@ export const useDailyCheckin = (
           };
         }
 
-        // Perform the check-in
-        const result = await checkinService.performCheckin(
-          userAddress,
-          userProfileId,
-          greeting,
-          writeWallet as any
-        );
+        // Step 1: Sign delegated attestation if EAS enabled (gasless for user)
+        let attestationSignature = null;
+
+        if (isEASEnabled()) {
+          try {
+            log.info("EAS enabled, signing delegated check-in attestation", { userAddress });
+
+            // Resolve schema UID
+            const resolvedNetwork = getDefaultNetworkName();
+            const resolvedSchemaUid = await resolveSchemaUID("daily_checkin", resolvedNetwork);
+
+            if (resolvedSchemaUid) {
+              // Encode check-in data using EAS schema encoder
+              // Schema format: string walletAddress, string greeting, uint256 timestamp, uint256 xpGained
+              const schemaEncoder = new SchemaEncoder("address walletAddress,string greeting,uint256 timestamp,uint256 xpGained");
+              const xpAmount = checkinPreview?.previewXP || 0;
+              const encodedData = schemaEncoder.encodeData([
+                { name: "walletAddress", value: userAddress, type: "address" },
+                { name: "greeting", value: greeting, type: "string" },
+                { name: "timestamp", value: BigInt(Date.now()), type: "uint256" },
+                { name: "xpGained", value: BigInt(xpAmount), type: "uint256" },
+              ]);
+
+              attestationSignature = await signCheckinAttestation({
+                schemaUid: resolvedSchemaUid,
+                recipient: userAddress,
+                data: encodedData,
+                deadlineSecondsFromNow: 3600, // 1 hour validity
+                network: resolvedNetwork,
+              });
+
+              log.info("Successfully signed delegated attestation", {
+                userAddress,
+                network: resolvedNetwork,
+              });
+            } else {
+              const error = "Check-in unavailable: attestation schema not configured";
+              log.error(error, { userAddress, network: resolvedNetwork });
+              if (showToasts) toast.error(error);
+              onCheckinError?.(error);
+              return { success: false, xpEarned: 0, newStreak: 0, error };
+            }
+          } catch (error: any) {
+            const cancelled = isUserRejectedSignature(error);
+            const message = cancelled
+              ? "Check-in cancelled"
+              : "Failed to sign check-in attestation";
+            log.warn("Check-in attestation signing failed", {
+              cancelled,
+              error: error?.message || "Unknown error",
+              userAddress,
+            });
+
+            if (showToasts) {
+              if (cancelled) toast(message);
+              else toast.error(message);
+            }
+            onCheckinError?.(message);
+            return { success: false, xpEarned: 0, newStreak: 0, error: message };
+          }
+        }
+
+        // Step 2: Call API directly with attestation signature (API is authoritative for XP/streak)
+        const result = await fetch("/api/checkin", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userProfileId,
+            activityData: { greeting },
+            attestationSignature: attestationSignature
+              ? makeJsonSafe(attestationSignature)
+              : null,
+          }),
+        }).then(res => res.json());
 
         if (result.success) {
           log.info("Daily checkin successful", {
@@ -402,6 +505,8 @@ export const useDailyCheckin = (
       onCheckinSuccess,
       onCheckinError,
       showToasts,
+      checkinPreview,
+      signCheckinAttestation,
     ]
   );
 

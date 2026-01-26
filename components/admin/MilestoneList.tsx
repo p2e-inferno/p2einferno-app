@@ -17,6 +17,8 @@ import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
 import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
 import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
+import { TransferabilitySecurityBadge } from "@/components/admin/TransferabilitySecurityBadge";
+import { RichText } from "@/components/common/RichText";
 
 const log = getLogger("admin:MilestoneList");
 
@@ -313,10 +315,18 @@ export default function MilestoneList({ cohortId }: MilestoneListProps) {
                               maxKeysSecured={milestone.max_keys_secured}
                               reason={milestone.max_keys_failure_reason}
                             />
+                            <TransferabilitySecurityBadge
+                              lockAddress={milestone.lock_address}
+                              transferabilitySecured={
+                                milestone.transferability_secured
+                              }
+                              reason={milestone.transferability_failure_reason}
+                            />
                           </div>
-                          <p className="text-gray-400 text-xs mt-1 max-w-xs truncate">
-                            {milestone.description}
-                          </p>
+                          <RichText
+                            content={milestone.description}
+                            className="text-gray-400 text-xs mt-1 max-w-xs truncate"
+                          />
                         </div>
                       </td>
                       <td className="py-4 px-4 text-sm text-white">

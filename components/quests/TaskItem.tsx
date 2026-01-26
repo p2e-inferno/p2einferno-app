@@ -14,12 +14,16 @@ import {
   Clock,
   XCircle,
   RotateCcw,
+  Network,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { DeployLockTaskForm } from "./DeployLockTaskForm";
+import { RichText } from "@/components/common/RichText";
 
 import type { QuestTask, UserTaskCompletion } from "@/lib/supabase/types";
+import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
 
 interface Task extends QuestTask {
   // Extend QuestTask with any additional fields needed
@@ -33,6 +37,7 @@ interface TaskItemProps {
   task: Task;
   completion: TaskCompletion | undefined; // A task might not be completed yet
   isQuestStarted: boolean; // To enable/disable actions if quest isn't started
+  questId: string; // Quest ID for deploy_lock task submissions
   onAction: (task: Task, inputData?: any) => void; // Handler for completing a task
   onClaimReward: (completionId: string, amount: number) => void; // Handler for claiming reward
   processingTaskId: string | null; // ID of the task currently being processed (for loading states)
@@ -72,6 +77,9 @@ const getTaskIcon = (
     case "complete_external":
       specificIcon = <CheckCircle {...iconProps} />;
       break;
+    case "deploy_lock":
+      specificIcon = <Network {...iconProps} />;
+      break;
     case "custom":
       specificIcon = <Circle {...iconProps} />;
       break;
@@ -99,6 +107,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   task,
   completion,
   isQuestStarted,
+  questId,
   onAction,
   onClaimReward,
   processingTaskId,
@@ -211,10 +220,37 @@ const TaskItem: React.FC<TaskItemProps> = ({
             >
               <span className="break-words">{task.title}</span>
             </h3>
-            <p className="text-gray-400 mb-4 break-words">{task.description}</p>
+            <RichText
+              content={task.description}
+              className="text-gray-400 mb-4 break-words"
+            />
+
+            {/* Deploy Lock Task Form */}
+            {task.task_type === "deploy_lock" &&
+              !isCompleted &&
+              !isPending &&
+              isQuestStarted &&
+              task.task_config && (
+                <div className="mb-4">
+                  <DeployLockTaskForm
+                    taskId={task.id}
+                    questId={questId}
+                    taskConfig={
+                      task.task_config as unknown as DeployLockTaskConfig
+                    }
+                    baseReward={task.reward_amount}
+                    isCompleted={isCompleted}
+                    isQuestStarted={isQuestStarted}
+                    onSubmit={async (txHash) => {
+                      onAction(task, { transactionHash: txHash });
+                    }}
+                  />
+                </div>
+              )}
 
             {/* Input Field for input-based tasks */}
             {task.input_required &&
+              task.task_type !== "deploy_lock" &&
               !isCompleted &&
               !isPending &&
               isQuestStarted && (

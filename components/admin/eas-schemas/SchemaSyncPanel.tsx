@@ -105,6 +105,9 @@ export default function SchemaSyncPanel({
 
       const { data, error } = await adminFetch(`/api/admin/eas-schemas/sync`, {
         method: "POST",
+        headers: {
+          "X-Active-Wallet": signedAction.signerAddress,
+        },
         body: JSON.stringify({
           schemaUid,
           name,

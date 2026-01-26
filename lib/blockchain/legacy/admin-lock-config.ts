@@ -94,7 +94,7 @@ export const generateBootcampLockConfig = (
     currency: "FREE",
     price: 0,
     maxKeysPerAddress: 1, // Non-zero to avoid NULL_VALUE() revert
-    transferable: true, // Certificates can be transferred
+    transferable: false, // Non-transferable credential
     requiresApproval: false,
   };
 };
@@ -116,7 +116,7 @@ export const generateQuestLockConfig = (quest: Quest): LockConfig => {
     currency: "FREE",
     price: 0,
     maxKeysPerAddress: 1, // Non-zero to avoid NULL_VALUE() revert
-    transferable: true, // Badges can be transferred
+    transferable: false, // Non-transferable credential
     requiresApproval: false,
   };
 };
@@ -141,7 +141,7 @@ export const generateMilestoneLockConfig = (
     currency: "FREE",
     price: 0,
     maxKeysPerAddress: 1, // Non-zero to avoid NULL_VALUE() revert
-    transferable: true, // Milestone badges can be transferred
+    transferable: false, // Non-transferable credential
     requiresApproval: false, // Automatic approval for completed milestones
   };
 };

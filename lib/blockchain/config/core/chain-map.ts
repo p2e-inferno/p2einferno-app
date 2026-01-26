@@ -3,6 +3,7 @@ import {
   arbitrumNova,
   base,
   baseSepolia,
+  celo,
   mainnet,
   optimism,
   optimismSepolia,
@@ -17,6 +18,7 @@ const chainMap: Record<number, Chain> = {
   84532: baseSepolia,
   42161: arbitrum,
   42170: arbitrumNova,
+  42220: celo,
 };
 
 const rpcResolverSupportedChainIds = new Set<number>([1, 8453, 84532]);

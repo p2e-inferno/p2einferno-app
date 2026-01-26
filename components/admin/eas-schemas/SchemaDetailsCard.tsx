@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Check, Copy, Loader2 } from "lucide-react";
 import {
@@ -10,6 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { cn } from "@/lib/utils/wallet-change";
 
 interface SchemaDetailsCardProps {
   schema: {
@@ -47,10 +48,15 @@ export default function SchemaDetailsCard({
 }: SchemaDetailsCardProps) {
   const { adminFetch } = useAdminApi({ suppressToasts: true });
 
-  const schemaLink =
-    easScanBaseUrl && isValidSchemaUid
-      ? `${easScanBaseUrl}/schema/view/${schema.schema_uid}`
-      : null;
+  const schemaLink = useMemo(() => {
+    if (!easScanBaseUrl || !isValidSchemaUid) {
+      return null;
+    }
+    const normalizedBaseUrl = easScanBaseUrl.replace(/\/+$/, "");
+    return `${normalizedBaseUrl}/schema/view/${encodeURIComponent(
+      schema.schema_uid,
+    )}`;
+  }, [easScanBaseUrl, isValidSchemaUid, schema.schema_uid]);
   const [copiedUid, setCopiedUid] = useState(false);
   const [copiedDefinition, setCopiedDefinition] = useState(false);
   const [schemaKeys, setSchemaKeys] = useState<
@@ -281,15 +287,17 @@ export default function SchemaDetailsCard({
       )}
       <div className="flex flex-col gap-3">
         {schemaLink && (
-          <Button
-            variant="secondary"
-            className="w-full"
-            onClick={() => {
-              window.open(schemaLink, "_blank", "noopener,noreferrer");
-            }}
+          <a
+            href={schemaLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn(
+              buttonVariants({ variant: "secondary" }),
+              "w-full text-center",
+            )}
           >
             View on EAS Scan
-          </Button>
+          </a>
         )}
         {(!onChain || !isValidSchemaUid) && onRedeploy && (
           <Button

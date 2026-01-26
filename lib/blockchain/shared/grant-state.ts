@@ -159,3 +159,43 @@ export function effectiveMaxKeysForSave(input: EffectiveMaxKeysInput): {
   // No lock => default to false
   return { secured: false, reason: undefined };
 }
+
+export interface EffectiveTransferabilityInput {
+  outcome?: { lastTransferFailed?: boolean; lastTransferError?: string };
+  lockAddress?: string | null;
+  currentSecured?: boolean;
+  currentReason?: string | undefined | null;
+}
+
+/**
+ * Compute the effective "transferability" secured state and an optional reason for saving.
+ *
+ * - secured is true when the last transfer fee update did not fail and the lock is expected to be non-transferable.
+ * - reason is the outcome error message when the update failed, or the default "Transferability update failed - transfers not disabled".
+ */
+export function effectiveTransferabilityForSave(
+  input: EffectiveTransferabilityInput,
+): { secured: boolean; reason?: string } {
+  const hasOutcome = typeof input.outcome?.lastTransferFailed === "boolean";
+  if (hasOutcome) {
+    const secured = !input.outcome!.lastTransferFailed!;
+    return {
+      secured,
+      reason: secured
+        ? undefined
+        : input.outcome!.lastTransferError ||
+          "Transferability update failed - transfers not disabled",
+    };
+  }
+
+  if (input.lockAddress) {
+    return {
+      secured: Boolean(input.currentSecured),
+      reason: input.currentSecured
+        ? undefined
+        : input.currentReason || undefined,
+    };
+  }
+
+  return { secured: false, reason: undefined };
+}

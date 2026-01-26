@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -352,13 +352,13 @@ export default function QuestTaskForm({
         <Label htmlFor={`task-description-${index}`} className="text-white">
           Task Description
         </Label>
-        <Textarea
-          id={`task-description-${index}`}
+        <RichTextEditor
           value={localTask.description || ""}
-          onChange={(e) => handleChange("description", e.target.value)}
+          onChange={(next) => handleChange("description", next)}
           placeholder="Describe what the user needs to do..."
-          className="bg-transparent border-gray-700 text-gray-100"
-          rows={3}
+          className="border-gray-700"
+          editorClassName="text-gray-100"
+          minHeightClassName="min-h-[90px]"
         />
       </div>
 
