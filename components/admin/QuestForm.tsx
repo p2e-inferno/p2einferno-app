@@ -910,15 +910,25 @@ export default function QuestForm({
         grant_failure_reason: effective.reason,
       };
 
+      // DB safety: avoid sending empty strings for constrained columns.
+      // - prerequisite_quest_id is UUID ("" => invalid uuid)
+      // - activation_type has a CHECK constraint ("" => violates constraint)
+      const sanitizedQuestData: any = {
+        ...questData,
+        prerequisite_quest_id: questData.prerequisite_quest_id || null,
+        activation_type: questData.activation_type || null,
+      };
+
       // Only include max_keys fields if creating new quest or if there was a deployment
       if (shouldIncludeMaxKeysFields) {
-        questData.max_keys_secured = effectiveMaxKeys.secured;
-        questData.max_keys_failure_reason = effectiveMaxKeys.reason;
+        sanitizedQuestData.max_keys_secured = effectiveMaxKeys.secured;
+        sanitizedQuestData.max_keys_failure_reason = effectiveMaxKeys.reason;
       }
 
       if (shouldIncludeTransferabilityFields) {
-        questData.transferability_secured = effectiveTransferability.secured;
-        questData.transferability_failure_reason =
+        sanitizedQuestData.transferability_secured =
+          effectiveTransferability.secured;
+        sanitizedQuestData.transferability_failure_reason =
           effectiveTransferability.reason;
       }
 
@@ -931,12 +941,36 @@ export default function QuestForm({
         };
       });
 
+      log.info("Submitting quest form", {
+        mode: isEditing ? "edit" : "create",
+        endpoint,
+        method,
+        questId: quest?.id ?? null,
+        fields: {
+          title: sanitizedQuestData.title,
+          reward_type: sanitizedQuestData.reward_type,
+          activation_type: sanitizedQuestData.activation_type,
+          activation_config: sanitizedQuestData.activation_config,
+          prerequisite_quest_id: sanitizedQuestData.prerequisite_quest_id,
+          prerequisite_quest_lock_address:
+            sanitizedQuestData.prerequisite_quest_lock_address,
+          requires_prerequisite_key:
+            sanitizedQuestData.requires_prerequisite_key,
+          lock_address: sanitizedQuestData.lock_address,
+          total_reward: sanitizedQuestData.total_reward,
+        },
+        derived: {
+          totalRewardFromTasks: totalReward,
+          tasksCount: tasksData.length,
+        },
+      });
+
       const result = await adminFetch(endpoint, {
         method,
         body: JSON.stringify({
-          ...questData,
+          ...sanitizedQuestData,
           tasks: tasksData,
-          xp_reward: questData.total_reward, // Map field name for API
+          xp_reward: sanitizedQuestData.total_reward, // Map field name for API
         }),
       });
 
@@ -1212,57 +1246,61 @@ export default function QuestForm({
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label
-                htmlFor="prerequisite_quest_lock_address"
-                className="text-white"
-              >
-                Prerequisite Lock Address
-              </Label>
-              <Input
-                id="prerequisite_quest_lock_address"
-                value={formData.prerequisite_quest_lock_address}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    prerequisite_quest_lock_address: e.target.value,
-                  })
-                }
-                placeholder="0x..."
-                className="bg-transparent border-gray-700 text-gray-100"
-                disabled={isSubmitting}
-              />
-              <p className="text-sm text-gray-400">
-                Lock address users must have completed (first-class on-chain
-                reference)
-              </p>
-            </div>
+            {formData.prerequisite_quest_id ? (
+              <>
+                <div className="space-y-2">
+                  <Label
+                    htmlFor="prerequisite_quest_lock_address"
+                    className="text-white"
+                  >
+                    Prerequisite Lock Address
+                  </Label>
+                  <Input
+                    id="prerequisite_quest_lock_address"
+                    value={formData.prerequisite_quest_lock_address}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        prerequisite_quest_lock_address: e.target.value,
+                      })
+                    }
+                    placeholder="0x..."
+                    className="bg-transparent border-gray-700 text-gray-100"
+                    disabled={isSubmitting}
+                  />
+                  <p className="text-sm text-gray-400">
+                    Lock address users must have completed (first-class on-chain
+                    reference)
+                  </p>
+                </div>
 
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="requires_prerequisite_key"
-                checked={formData.requires_prerequisite_key}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    requires_prerequisite_key: e.target.checked,
-                  })
-                }
-                className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
-                disabled={isSubmitting}
-              />
-              <Label
-                htmlFor="requires_prerequisite_key"
-                className="text-white cursor-pointer"
-              >
-                Require Active Key (not just completion)
-              </Label>
-            </div>
-            <p className="text-sm text-gray-400 ml-7">
-              If checked, users must currently hold a valid key for the
-              prerequisite lock
-            </p>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    id="requires_prerequisite_key"
+                    checked={formData.requires_prerequisite_key}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        requires_prerequisite_key: e.target.checked,
+                      })
+                    }
+                    className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+                    disabled={isSubmitting}
+                  />
+                  <Label
+                    htmlFor="requires_prerequisite_key"
+                    className="text-white cursor-pointer"
+                  >
+                    Require Active Key (not just completion)
+                  </Label>
+                </div>
+                <p className="text-sm text-gray-400 ml-7">
+                  If checked, users must currently hold a valid key for the
+                  prerequisite lock
+                </p>
+              </>
+            ) : null}
           </div>
         </div>
 

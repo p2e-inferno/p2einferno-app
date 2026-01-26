@@ -9,6 +9,30 @@ import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation
 import { EAS } from "@ethereum-attestation-service/eas-sdk";
 
 // Mock dependencies
+let __MOCK_SCHEMA_DEFINITION__: string | null = null;
+jest.mock("@supabase/supabase-js", () => ({
+  createClient: jest.fn(() => ({
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          eq: () => ({
+            order: () => ({
+              limit: () => ({
+                maybeSingle: async () => ({
+                  data: __MOCK_SCHEMA_DEFINITION__
+                    ? { schema_definition: __MOCK_SCHEMA_DEFINITION__ }
+                    : null,
+                  error: null,
+                }),
+              }),
+            }),
+          }),
+        }),
+      }),
+    }),
+  })),
+}));
+
 jest.mock("@privy-io/react-auth", () => ({
   useWallets: jest.fn(),
 }));
@@ -96,6 +120,7 @@ describe("useGaslessAttestation", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    __MOCK_SCHEMA_DEFINITION__ = null;
 
     // Setup default mocks
     getDefaultNetworkName.mockReturnValue("base-sepolia");
@@ -216,6 +241,7 @@ describe("useGaslessAttestation", () => {
       mockDelegated.signDelegatedAttestation.mockResolvedValue({
         signature: "0xSig",
       });
+      __MOCK_SCHEMA_DEFINITION__ = "address userAddress,uint256 amount";
 
       const { result } = renderHook(() => useGaslessAttestation());
 
@@ -238,6 +264,28 @@ describe("useGaslessAttestation", () => {
         { name: "amount", value: "100", type: "uint256" },
       ]);
     });
+
+    it("should throw when schemaData does not match DB schema_definition", async () => {
+      mockDelegated.signDelegatedAttestation.mockResolvedValue({
+        signature: "0xSig",
+      });
+      __MOCK_SCHEMA_DEFINITION__ =
+        "address userAddress,uint256 amount,uint256 extra";
+
+      const { result } = renderHook(() => useGaslessAttestation());
+
+      await act(async () => {
+        await expect(
+          result.current.signAttestation({
+            schemaKey: "dg_withdrawal",
+            recipient: "0xRecipient",
+            schemaData: mockSchemaData,
+          }),
+        ).rejects.toThrow(
+          "Schema definition mismatch for 'dg_withdrawal' on 'base-sepolia'",
+        );
+      });
+    });
   });
 
   describe("error handling", () => {
@@ -246,13 +294,15 @@ describe("useGaslessAttestation", () => {
 
       const { result } = renderHook(() => useGaslessAttestation());
 
-      await expect(
-        result.current.signAttestation({
-          schemaKey: "xp_renewal",
-          recipient: "0xRecipient",
-          schemaData: mockSchemaData,
-        }),
-      ).rejects.toThrow("No wallet connected");
+      await act(async () => {
+        await expect(
+          result.current.signAttestation({
+            schemaKey: "xp_renewal",
+            recipient: "0xRecipient",
+            schemaData: mockSchemaData,
+          }),
+        ).rejects.toThrow("No wallet connected");
+      });
 
       expect(result.current.isSigning).toBe(false);
     });
@@ -263,14 +313,16 @@ describe("useGaslessAttestation", () => {
 
       const { result } = renderHook(() => useGaslessAttestation());
 
-      await expect(
-        result.current.signAttestation({
-          schemaKey: "xp_renewal",
-          recipient: "0xRecipient",
-          schemaData: mockSchemaData,
-          network: "invalid-network",
-        }),
-      ).rejects.toThrow("Network invalid-network not configured");
+      await act(async () => {
+        await expect(
+          result.current.signAttestation({
+            schemaKey: "xp_renewal",
+            recipient: "0xRecipient",
+            schemaData: mockSchemaData,
+            network: "invalid-network",
+          }),
+        ).rejects.toThrow("Network invalid-network not configured");
+      });
 
       expect(result.current.isSigning).toBe(false);
     });
@@ -281,15 +333,17 @@ describe("useGaslessAttestation", () => {
 
       const { result } = renderHook(() => useGaslessAttestation());
 
-      await expect(
-        result.current.signAttestation({
-          schemaKey: "unknown_schema" as any, // Testing error handling for unknown schema
-          recipient: "0xRecipient",
-          schemaData: mockSchemaData,
-        }),
-      ).rejects.toThrow(
-        "Schema UID not found for key 'unknown_schema' on network 'base-sepolia'",
-      );
+      await act(async () => {
+        await expect(
+          result.current.signAttestation({
+            schemaKey: "unknown_schema" as any, // Testing error handling for unknown schema
+            recipient: "0xRecipient",
+            schemaData: mockSchemaData,
+          }),
+        ).rejects.toThrow(
+          "Schema UID not found for key 'unknown_schema' on network 'base-sepolia'",
+        );
+      });
 
       expect(result.current.isSigning).toBe(false);
     });
@@ -302,13 +356,15 @@ describe("useGaslessAttestation", () => {
 
       const { result } = renderHook(() => useGaslessAttestation());
 
-      await expect(
-        result.current.signAttestation({
-          schemaKey: "xp_renewal",
-          recipient: "0xRecipient",
-          schemaData: mockSchemaData,
-        }),
-      ).rejects.toThrow("Failed to get Ethereum provider from wallet");
+      await act(async () => {
+        await expect(
+          result.current.signAttestation({
+            schemaKey: "xp_renewal",
+            recipient: "0xRecipient",
+            schemaData: mockSchemaData,
+          }),
+        ).rejects.toThrow("Failed to get Ethereum provider from wallet");
+      });
 
       expect(result.current.isSigning).toBe(false);
     });
@@ -321,13 +377,15 @@ describe("useGaslessAttestation", () => {
 
       const { result } = renderHook(() => useGaslessAttestation());
 
-      await expect(
-        result.current.signAttestation({
-          schemaKey: "xp_renewal",
-          recipient: "0xRecipient",
-          schemaData: mockSchemaData,
-        }),
-      ).rejects.toThrow("Unexpected signature format from EAS SDK");
+      await act(async () => {
+        await expect(
+          result.current.signAttestation({
+            schemaKey: "xp_renewal",
+            recipient: "0xRecipient",
+            schemaData: mockSchemaData,
+          }),
+        ).rejects.toThrow("Unexpected signature format from EAS SDK");
+      });
 
       expect(result.current.isSigning).toBe(false);
     });

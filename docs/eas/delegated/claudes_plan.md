@@ -1036,7 +1036,9 @@ export interface WithAttestationSignature {
    - Test activation quests (grants 2 keys)
 4. **Validation**:
    - Test WITH signature → UID saved, key granted
-   - Test WITHOUT signature → key granted, no UID
+   - When EAS is enabled: signature is required (cancel signing cancels the claim)
+   - If signature missing → claim should not proceed (API returns 400)
+   - On-chain key grant should not be blocked by EAS submission failures (best-effort after signature)
    - Check gas costs
    - Verify graceful degradation works
    - Verify Phases 3-6 still work (no regression)

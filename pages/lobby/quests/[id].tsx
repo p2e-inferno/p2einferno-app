@@ -407,17 +407,193 @@ const QuestDetailsPage = () => {
     }
     setIsClaimingQuestReward(true);
     try {
+      const easEnabled = isEASEnabled();
+      let attestationSignature: any = null;
+
+      // UX: when EAS is enabled, signing is required. Canceling the signature == canceling the claim.
+      // For activation quests, we currently sign before calling the activation endpoint.
+      // For standard quests, the signature must be created after the key grant so we can include
+      // the real tokenId + grant tx hash in the schema data.
+      if (easEnabled && questData.quest.reward_type === "activation") {
+        const wallet = wallets?.[0];
+        const userAddress = wallet?.address;
+        if (!userAddress) {
+          throw new Error("Wallet not connected");
+        }
+
+        const quest = questData.quest;
+        const questLockAddress =
+          typeof quest?.lock_address === "string" && quest.lock_address
+            ? quest.lock_address
+            : "0x0000000000000000000000000000000000000000";
+
+        try {
+          attestationSignature = await signAttestation({
+            schemaKey: "quest_completion",
+            recipient: userAddress,
+            schemaData: [
+              { name: "questId", type: "string", value: String(questId) },
+              { name: "questTitle", type: "string", value: quest?.title ?? "" },
+              { name: "userAddress", type: "address", value: userAddress },
+              {
+                name: "questLockAddress",
+                type: "address",
+                value: questLockAddress,
+              },
+              { name: "keyTokenId", type: "uint256", value: 0n },
+              {
+                name: "grantTxHash",
+                type: "bytes32",
+                value:
+                  "0x0000000000000000000000000000000000000000000000000000000000000000",
+              },
+              {
+                name: "completionDate",
+                type: "uint256",
+                value: BigInt(Math.floor(Date.now() / 1000)),
+              },
+              {
+                name: "xpEarned",
+                type: "uint256",
+                value: BigInt(quest?.total_reward ?? 0),
+              },
+              { name: "difficulty", type: "string", value: "" },
+            ],
+          });
+        } catch (err: any) {
+          if (isUserRejected(err)) {
+            throw new Error("Claim cancelled");
+          }
+          throw err;
+        }
+      }
+
       if (questData.quest.reward_type === "activation") {
         const response = await claimActivationRewardRequest<{
           message?: string;
-        }>(questId as string);
-        toast.success(response.message || "Trial claimed successfully!");
+          attestationScanUrl?: string | null;
+        }>(questId as string, { attestationSignature });
+        const scanUrl = response.attestationScanUrl;
+        toast.success(
+          <div className="text-sm leading-relaxed">
+            {response.message || "Trial claimed successfully!"}
+            {scanUrl && (
+              <div className="text-xs mt-1 break-all">
+                <a
+                  href={scanUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-cyan-500 underline"
+                >
+                  View attestation on EAS Scan
+                </a>
+              </div>
+            )}
+          </div>,
+        );
       } else {
         const response = await completeQuestRequest<{
           message?: string;
-        }>(questId as string);
+          transactionHash?: string | null;
+          keyTokenId?: string | null;
+          attestationRequired?: boolean;
+        }>(questId as string, { attestationSignature: null });
+
+        let attestationScanUrl: string | null | undefined = null;
+        let proofCancelled = false;
+
+        if (isEASEnabled() && response.attestationRequired) {
+          const wallet = wallets?.[0];
+          const userAddress = wallet?.address;
+          if (!userAddress) {
+            throw new Error("Wallet not connected");
+          }
+          const quest = questData.quest;
+          const questLockAddress =
+            typeof quest?.lock_address === "string" && quest.lock_address
+              ? quest.lock_address
+              : "0x0000000000000000000000000000000000000000";
+          const keyTokenId = BigInt(response.keyTokenId || "0");
+          const grantTxHash =
+            response.transactionHash ||
+            "0x0000000000000000000000000000000000000000000000000000000000000000";
+
+          try {
+            const completionSignature = await signAttestation({
+              schemaKey: "quest_completion",
+              recipient: userAddress,
+              schemaData: [
+                { name: "questId", type: "string", value: String(questId) },
+                {
+                  name: "questTitle",
+                  type: "string",
+                  value: quest?.title ?? "",
+                },
+                { name: "userAddress", type: "address", value: userAddress },
+                {
+                  name: "questLockAddress",
+                  type: "address",
+                  value: questLockAddress,
+                },
+                { name: "keyTokenId", type: "uint256", value: keyTokenId },
+                { name: "grantTxHash", type: "bytes32", value: grantTxHash },
+                {
+                  name: "completionDate",
+                  type: "uint256",
+                  value: BigInt(Math.floor(Date.now() / 1000)),
+                },
+                {
+                  name: "xpEarned",
+                  type: "uint256",
+                  value: BigInt(quest?.total_reward ?? 0),
+                },
+                { name: "difficulty", type: "string", value: "" },
+              ],
+            });
+
+            const commitResp = await fetch(
+              "/api/quests/commit-completion-attestation",
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  questId,
+                  attestationSignature: completionSignature,
+                }),
+              },
+            );
+            const commitJson = await commitResp.json().catch(() => ({}));
+            attestationScanUrl = commitJson?.attestationScanUrl || null;
+          } catch (err: any) {
+            if (isUserRejected(err)) {
+              proofCancelled = true;
+            } else {
+              throw err;
+            }
+          }
+        }
+
         toast.success(
-          response.message || "Quest completed and key granted successfully",
+          <div className="text-sm leading-relaxed">
+            {response.message || "Quest completed and key granted successfully"}
+            {proofCancelled && (
+              <div className="text-xs mt-1 text-gray-300">
+                Completion proof cancelled — claim completed.
+              </div>
+            )}
+            {attestationScanUrl && (
+              <div className="text-xs mt-1 break-all">
+                <a
+                  href={attestationScanUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-cyan-500 underline"
+                >
+                  View attestation on EAS Scan
+                </a>
+              </div>
+            )}
+          </div>,
         );
       }
       await loadQuestDetails();

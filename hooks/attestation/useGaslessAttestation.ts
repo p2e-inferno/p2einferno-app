@@ -13,6 +13,7 @@
 import { useWallets } from "@privy-io/react-auth";
 import { ethers } from "ethers";
 import { EAS, SchemaEncoder } from "@ethereum-attestation-service/eas-sdk";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import {
   resolveNetworkConfig,
   getDefaultNetworkName,
@@ -27,6 +28,66 @@ import type {
 } from "@/lib/attestation/api/types";
 
 const log = getLogger("hooks:useGaslessAttestation");
+
+const getSupabaseUrl = (): string | null =>
+  process.env.NEXT_PUBLIC_SUPABASE_URL || null;
+const getSupabaseAnonKey = (): string | null =>
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || null;
+
+let publicSupabaseClient:
+  | ReturnType<typeof createSupabaseClient>
+  | null
+  | undefined;
+
+const getPublicSupabaseClient = () => {
+  if (publicSupabaseClient !== undefined) return publicSupabaseClient;
+  const url = getSupabaseUrl();
+  const anonKey = getSupabaseAnonKey();
+  if (!url || !anonKey) {
+    publicSupabaseClient = null;
+    return publicSupabaseClient;
+  }
+  publicSupabaseClient = createSupabaseClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  return publicSupabaseClient;
+};
+
+const normalizeSchemaDefinition = (schema: string): string =>
+  schema
+    .split(",")
+    .map((part) => part.trim().replace(/\s+/g, " "))
+    .join(",");
+
+const resolveSchemaDefinition = async (
+  schemaKey: SchemaKey,
+  network: string,
+): Promise<string | null> => {
+  const supabase = getPublicSupabaseClient();
+  if (!supabase) return null;
+  const { data, error } = await supabase
+    .from("attestation_schemas")
+    .select("schema_definition")
+    .eq("schema_key", schemaKey)
+    .eq("network", network)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    log.warn("Failed to resolve schema definition from DB", {
+      schemaKey,
+      network,
+      error: error.message,
+    });
+    return null;
+  }
+
+  const schemaDefinition = (data as any)?.schema_definition;
+  return typeof schemaDefinition === "string" && schemaDefinition.length > 0
+    ? schemaDefinition
+    : null;
+};
 
 export const useGaslessAttestation = () => {
   const { wallets } = useWallets();
@@ -103,6 +164,25 @@ export const useGaslessAttestation = () => {
       const schemaString = params.schemaData
         .map((field) => `${field.type} ${field.name}`)
         .join(",");
+
+      // Guardrail: ensure the encoding schema matches the deployed DB definition for this schema key + network.
+      // Prevents silently encoding bytes for an outdated schema (which breaks decoded views on EASScan).
+      const expectedSchema = await resolveSchemaDefinition(
+        params.schemaKey,
+        networkName,
+      );
+      if (expectedSchema) {
+        const expectedNormalized = normalizeSchemaDefinition(expectedSchema);
+        const actualNormalized = normalizeSchemaDefinition(schemaString);
+        if (expectedNormalized !== actualNormalized) {
+          throw new Error(
+            `Schema definition mismatch for '${params.schemaKey}' on '${networkName}'. ` +
+              `Expected: ${expectedSchema} ` +
+              `Got: ${schemaString}`,
+          );
+        }
+      }
+
       const encoder = new SchemaEncoder(schemaString);
       const encodedData = encoder.encodeData(
         params.schemaData.map((field) => ({

@@ -29,11 +29,16 @@ import type { Address } from "viem";
 import { getReadOnlyProvider } from "@/lib/blockchain/provider";
 import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { evaluateTrialEligibility } from "@/lib/quests/trial-eligibility";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
+import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:quests:get-trial");
 
 interface TrialClaimRequest {
   questId: string;
+  attestationSignature?: DelegatedAttestationSignature | null;
 }
 
 interface TrialClaimResponse {
@@ -45,6 +50,8 @@ interface TrialClaimResponse {
     dgNationTrial?: string;
   };
   expiresAt?: string;
+  attestationUid?: string | null;
+  attestationScanUrl?: string | null;
   error?: string;
 }
 
@@ -70,7 +77,7 @@ export default async function handler(
     });
   }
 
-  const { questId }: TrialClaimRequest = req.body;
+  const { questId, attestationSignature }: TrialClaimRequest = req.body;
 
   if (!questId) {
     return res.status(400).json({
@@ -205,6 +212,14 @@ export default async function handler(
         success: false,
         message: "Wallet not found",
         error: "No valid wallet address found for your account",
+      });
+    }
+
+    if (isEASEnabled() && !attestationSignature) {
+      return res.status(400).json({
+        success: false,
+        message: "Attestation signature is required",
+        error: "Attestation signature is required",
       });
     }
 
@@ -434,11 +449,32 @@ export default async function handler(
       // Don't fail the whole operation - the key was granted successfully
     }
 
+    // Best-effort gasless attestation (server continues even if EAS submission fails)
+    let keyClaimAttestationUid: string | null = null;
+    let attestationScanUrl: string | null = null;
+
+    if (isEASEnabled() && attestationSignature) {
+      const attestationResult = await handleGaslessAttestation({
+        signature: attestationSignature,
+        schemaKey: "quest_completion",
+        recipient: userWalletAddress,
+        gracefulDegrade: true,
+      });
+
+      if (attestationResult.success && attestationResult.uid) {
+        keyClaimAttestationUid = attestationResult.uid;
+        attestationScanUrl = await buildEasScanLink(keyClaimAttestationUid);
+      }
+    }
+
     // Mark quest rewards as claimed
     const { error: updateError } = await supabase
       .from("user_quest_progress")
       .update({
         reward_claimed: true,
+        ...(keyClaimAttestationUid
+          ? { key_claim_attestation_uid: keyClaimAttestationUid }
+          : {}),
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", userId)
@@ -457,6 +493,8 @@ export default async function handler(
         dgNationTrial: grantResult.transactionHash,
       },
       expiresAt,
+      attestationUid: keyClaimAttestationUid,
+      attestationScanUrl,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
