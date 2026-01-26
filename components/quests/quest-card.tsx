@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Coins, ChevronRight, Sparkles } from "lucide-react";
 import { QuestCardProps } from "./types";
+import { RichText } from "@/components/common/RichText";
 
 /**
  * QuestCard - Individual quest display card for the quest list
@@ -51,7 +52,10 @@ export const QuestCard = ({
           {quest.title}
         </h3>
 
-        <p className="text-gray-400 mb-4 line-clamp-2">{quest.description}</p>
+        <RichText
+          content={quest.description}
+          className="text-gray-400 mb-4 line-clamp-2"
+        />
 
         {/* Progress Bar */}
         {isStarted && (

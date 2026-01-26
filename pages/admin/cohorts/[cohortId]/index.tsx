@@ -4,14 +4,17 @@ import AdminEditPageLayout from "@/components/admin/AdminEditPageLayout";
 import CohortForm from "@/components/admin/CohortForm";
 import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import SyncLockStateButton from "@/components/admin/SyncLockStateButton";
+import TransferabilitySecurityButton from "@/components/admin/TransferabilitySecurityButton";
 import type { Cohort } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
+import { useTransferFeeBasisPoints } from "@/hooks/unlock/useTransferFeeBasisPoints";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 import type { Address } from "viem";
+import { NON_TRANSFERABLE_FEE_BPS } from "@/hooks/unlock/useSyncLockTransferabilityState";
 
 const log = getLogger("admin:cohorts:[cohortId]:index");
 
@@ -40,8 +43,12 @@ export default function EditCohortPage() {
   const [actualManagerStatus, setActualManagerStatus] = useState<
     boolean | null
   >(null);
+  const [actualTransferFeeBps, setActualTransferFeeBps] = useState<
+    bigint | null
+  >(null);
 
   const { checkIsLockManager } = useIsLockManager();
+  const { checkTransferFeeBasisPoints } = useTransferFeeBasisPoints();
 
   const fetchCohort = useCallback(async () => {
     if (!cohortId) return;
@@ -115,6 +122,19 @@ export default function EditCohortPage() {
     }
   }, [cohort?.lock_address, serverWalletAddress, checkIsLockManager]);
 
+  const checkActualTransferFeeBps = useCallback(async () => {
+    if (!cohort?.lock_address) return;
+
+    try {
+      const feeBps = await checkTransferFeeBasisPoints(
+        cohort.lock_address as Address,
+      );
+      setActualTransferFeeBps(feeBps);
+    } catch (err) {
+      log.error("Failed to check transferFeeBasisPoints:", err);
+    }
+  }, [cohort?.lock_address, checkTransferFeeBasisPoints]);
+
   useEffect(() => {
     fetchServerWallet();
   }, [fetchServerWallet]);
@@ -124,6 +144,12 @@ export default function EditCohortPage() {
       checkActualManagerStatus();
     }
   }, [cohort?.lock_address, serverWalletAddress, checkActualManagerStatus]);
+
+  useEffect(() => {
+    if (cohort?.lock_address) {
+      checkActualTransferFeeBps();
+    }
+  }, [cohort?.lock_address, checkActualTransferFeeBps]);
 
   const [isRetrying, setIsRetrying] = useState(false);
   const handleRetry = async () => {
@@ -202,6 +228,99 @@ export default function EditCohortPage() {
           </div>
         </div>
       )}
+
+      {/* Transferability Security Status Display */}
+      {cohort?.lock_address && (
+        <div className="mb-6 rounded-lg border border-slate-700 bg-slate-900 p-4">
+          <h3 className="text-sm font-medium text-slate-300 mb-3">
+            Transferability Security
+          </h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between">
+              <span className="text-slate-400">Database Status:</span>
+              <span
+                className={`font-medium ${
+                  cohort.transferability_secured
+                    ? "text-green-400"
+                    : "text-red-400"
+                }`}
+              >
+                {cohort.transferability_secured
+                  ? "✅ Secured"
+                  : "❌ Not Secured"}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-slate-400">
+                Blockchain transferFeeBasisPoints:
+              </span>
+              <span
+                className={`font-medium ${
+                  actualTransferFeeBps === null
+                    ? "text-yellow-400"
+                    : actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS
+                      ? "text-green-400"
+                      : "text-red-400"
+                }`}
+              >
+                {actualTransferFeeBps === null
+                  ? "⏳ Checking..."
+                  : actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS
+                    ? `✅ Non-transferable (${NON_TRANSFERABLE_FEE_BPS.toString()})`
+                    : `❌ Transferable (${actualTransferFeeBps.toString()})`}
+              </span>
+            </div>
+            {actualTransferFeeBps !== null &&
+              ((cohort.transferability_secured &&
+                actualTransferFeeBps !== NON_TRANSFERABLE_FEE_BPS) ||
+                (!cohort.transferability_secured &&
+                  actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS)) && (
+                <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
+                  <div className="flex flex-col gap-2">
+                    <p className="text-amber-300 text-xs font-medium">
+                      ⚠️ Status Mismatch: Database and blockchain states
+                      don&apos;t match!
+                    </p>
+                    <SyncLockStateButton
+                      entityType="cohort"
+                      entityId={cohort.id}
+                      lockAddress={cohort.lock_address}
+                      mode="transferability"
+                      onSuccess={() => {
+                        fetchCohort();
+                        checkActualTransferFeeBps();
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+          </div>
+        </div>
+      )}
+
+      {/* Transferability Security Button */}
+      {cohort?.lock_address &&
+        actualTransferFeeBps !== null &&
+        actualTransferFeeBps !== NON_TRANSFERABLE_FEE_BPS && (
+          <div className="mb-6">
+            <TransferabilitySecurityButton
+              entityType="cohort"
+              entityId={cohort.id}
+              lockAddress={cohort.lock_address}
+              transferabilityFailureReason={
+                cohort.transferability_failure_reason
+              }
+              onSuccess={() => {
+                toast.success("Lock transfers disabled successfully");
+                fetchCohort();
+                checkActualTransferFeeBps();
+              }}
+              onError={(error) => {
+                toast.error(`Security update failed: ${error}`);
+              }}
+            />
+          </div>
+        )}
 
       {/* Lock Manager Grant Retry Button */}
       {cohort?.lock_address && cohort?.lock_manager_granted === false && (

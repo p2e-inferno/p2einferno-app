@@ -4,6 +4,7 @@ export { useIsLockManager } from "./useIsLockManager";
 export { useKeyPrice } from "./useKeyPrice";
 export { useLockTokenAddress } from "./useLockTokenAddress";
 export { useKeyExpirationTimestamp } from "./useKeyExpirationTimestamp";
+export { useTransferFeeBasisPoints } from "./useTransferFeeBasisPoints";
 // Add new read hooks
 export { useIsRenewable } from "./useIsRenewable";
 export { useFreeTrialLength } from "./useFreeTrialLength";
@@ -15,6 +16,7 @@ export { useDeployLock } from "./useDeployLock";
 export { useDeployAdminLock } from "./useDeployAdminLock";
 export { useLockManagerKeyGrant } from "./useLockManagerKeyGrant";
 export { useAddLockManager } from "./useAddLockManager";
+export { useUpdateTransferFee } from "./useUpdateTransferFee";
 // Add new write hooks
 export { useExtendKey } from "./useExtendKey";
 export { useGrantKeyExtension } from "./useGrantKeyExtension";

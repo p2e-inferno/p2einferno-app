@@ -8,6 +8,7 @@ import type { MilestoneTask } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { NetworkError } from "@/components/ui/network-error";
 import { getLogger } from "@/lib/utils/logger";
+import { RichText } from "@/components/common/RichText";
 
 const log = getLogger("admin:TaskList");
 
@@ -190,9 +191,10 @@ export default function TaskList({
                     </CardTitle>
                   </div>
                   {task.description && (
-                    <p className="text-gray-400 text-sm leading-relaxed">
-                      {task.description}
-                    </p>
+                    <RichText
+                      content={task.description}
+                      className="text-gray-400 text-sm leading-relaxed"
+                    />
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-flame-yellow">

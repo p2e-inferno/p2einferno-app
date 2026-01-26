@@ -10,6 +10,10 @@ import {
   type LockSecurityEntityType,
 } from "@/hooks/unlock/useSyncLockSecurityState";
 import {
+  useSyncLockTransferabilityState,
+  type LockTransferabilityEntityType,
+} from "@/hooks/unlock/useSyncLockTransferabilityState";
+import {
   useSyncLockManagerState,
   type LockManagerEntityType,
 } from "@/hooks/unlock/useSyncLockManagerState";
@@ -27,6 +31,15 @@ type SyncLockStateButtonProps =
   | {
       mode: "manager";
       entityType: LockManagerEntityType;
+      entityId: string;
+      lockAddress: string;
+      onSuccess?: () => void;
+      onError?: (error: string) => void;
+      compact?: boolean;
+    }
+  | {
+      mode: "transferability";
+      entityType: LockTransferabilityEntityType;
       entityId: string;
       lockAddress: string;
       onSuccess?: () => void;
@@ -60,6 +73,10 @@ export default function SyncLockStateButton({
 }: SyncLockStateButtonProps) {
   const [isWorking, setIsWorking] = useState(false);
   const { syncState, isSyncing } = useSyncLockSecurityState();
+  const {
+    syncState: syncTransferability,
+    isSyncing: isSyncingTransferability,
+  } = useSyncLockTransferabilityState();
   const { syncState: syncManager, isSyncing: isSyncingManager } =
     useSyncLockManagerState();
 
@@ -74,11 +91,17 @@ export default function SyncLockStateButton({
               entityId,
               lockAddress: lockAddress as Address,
             })
-          : await syncState({
-              entityType,
-              entityId,
-              lockAddress: lockAddress as Address,
-            });
+          : mode === "transferability"
+            ? await syncTransferability({
+                entityType,
+                entityId,
+                lockAddress: lockAddress as Address,
+              })
+            : await syncState({
+                entityType,
+                entityId,
+                lockAddress: lockAddress as Address,
+              });
 
       if (!result.success) {
         throw new Error(result.error || "Failed to sync state");
@@ -101,9 +124,14 @@ export default function SyncLockStateButton({
       size={compact ? "sm" : "default"}
       variant="outline"
       className="border-amber-700 text-amber-200 hover:bg-amber-900/20"
-      disabled={isWorking || isSyncing || isSyncingManager}
+      disabled={
+        isWorking || isSyncing || isSyncingManager || isSyncingTransferability
+      }
     >
-      {isWorking || isSyncing || isSyncingManager ? (
+      {isWorking ||
+      isSyncing ||
+      isSyncingManager ||
+      isSyncingTransferability ? (
         <>
           <div className="w-3 h-3 border border-amber-200/20 border-t-amber-200 rounded-full animate-spin mr-2" />
           Syncing...

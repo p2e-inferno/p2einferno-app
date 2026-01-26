@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
  * Performs a cohort certificate check (when BOOTCAMP_CERTIFICATES_ENABLED = 'true') to prevent adding milestones after certificates have been issued. When the payload includes a `lock_address`, boolean lock-related flags are normalized and associated failure-reason fields are cleared as appropriate. Requires an admin caller.
  *
  * @returns JSON response containing the created milestone record on success; `201` on success, `409` if certificates have already been issued for the cohort, `400` for validation/insert errors, or `500` for server errors.
+ */
 export async function POST(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
@@ -115,6 +116,14 @@ export async function POST(req: NextRequest) {
       }
       if (insertPayload.max_keys_secured === true) {
         insertPayload.max_keys_failure_reason = null;
+      }
+
+      // Harden transferability_secured flag
+      if (typeof insertPayload.transferability_secured === 'undefined' || insertPayload.transferability_secured === null) {
+        insertPayload.transferability_secured = false;
+      }
+      if (insertPayload.transferability_secured === true) {
+        insertPayload.transferability_failure_reason = null;
       }
     }
     const { data, error } = await supabase.from('cohort_milestones').insert(insertPayload).select('*').single();
@@ -175,6 +184,10 @@ export async function PUT(req: NextRequest) {
       update ?? {},
       'max_keys_secured',
     );
+    const hasTransferabilitySecured = Object.prototype.hasOwnProperty.call(
+      update ?? {},
+      'transferability_secured',
+    );
     if (hardened.lock_address) {
       if (typeof hardened.lock_manager_granted === 'undefined' || hardened.lock_manager_granted === null) {
         hardened.lock_manager_granted = false;
@@ -189,6 +202,17 @@ export async function PUT(req: NextRequest) {
       }
       if (hasMaxKeysSecured && hardened.max_keys_secured === true) {
         hardened.max_keys_failure_reason = null;
+      }
+
+      // Harden transferability_secured flag
+      if (
+        hasTransferabilitySecured &&
+        (typeof hardened.transferability_secured === 'undefined' || hardened.transferability_secured === null)
+      ) {
+        hardened.transferability_secured = false;
+      }
+      if (hasTransferabilitySecured && hardened.transferability_secured === true) {
+        hardened.transferability_failure_reason = null;
       }
     }
     const { data, error } = await supabase.from('cohort_milestones').update(hardened).eq('id', id).select('*').single();

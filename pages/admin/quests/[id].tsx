@@ -5,6 +5,7 @@ import LockManagerRetryButton from "@/components/admin/LockManagerRetryButton";
 import MaxKeysSecurityButton from "@/components/admin/MaxKeysSecurityButton";
 import SyncLockStateButton from "@/components/admin/SyncLockStateButton";
 import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
+import TransferabilitySecurityButton from "@/components/admin/TransferabilitySecurityButton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,14 +22,17 @@ import Image from "next/image";
 import type { Quest } from "@/lib/supabase/types";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { NetworkError } from "@/components/ui/network-error";
+import { RichText } from "@/components/common/RichText";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
+import { useTransferFeeBasisPoints } from "@/hooks/unlock/useTransferFeeBasisPoints";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 import type { Address } from "viem";
+import { NON_TRANSFERABLE_FEE_BPS } from "@/hooks/unlock/useSyncLockTransferabilityState";
 
 const log = getLogger("admin:quests:[id]");
 
@@ -77,6 +81,9 @@ export default function QuestDetailsPage() {
   const [actualMaxKeysValue, setActualMaxKeysValue] = useState<bigint | null>(
     null,
   );
+  const [actualTransferFeeBps, setActualTransferFeeBps] = useState<
+    bigint | null
+  >(null);
   const activationLockAddress = useMemo(
     () => (quest?.activation_config as any)?.lockAddress || "",
     [quest?.activation_config],
@@ -84,6 +91,7 @@ export default function QuestDetailsPage() {
 
   const { checkIsLockManager } = useIsLockManager();
   const { checkMaxNumberOfKeys } = useMaxNumberOfKeys();
+  const { checkTransferFeeBasisPoints } = useTransferFeeBasisPoints();
 
   // Reusable function to fetch quest details by id
   const fetchQuestDetails = useCallback(
@@ -186,6 +194,20 @@ export default function QuestDetailsPage() {
     }
   }, [quest?.lock_address, checkMaxNumberOfKeys]);
 
+  // Check actual transferFeeBasisPoints value on blockchain
+  const checkActualTransferFeeBps = useCallback(async () => {
+    if (!quest?.lock_address) return;
+
+    try {
+      const feeBps = await checkTransferFeeBasisPoints(
+        quest.lock_address as Address,
+      );
+      setActualTransferFeeBps(feeBps);
+    } catch (err) {
+      log.error("Failed to check transferFeeBasisPoints:", err);
+    }
+  }, [quest?.lock_address, checkTransferFeeBasisPoints]);
+
   useEffect(() => {
     fetchServerWallet();
   }, [fetchServerWallet]);
@@ -249,6 +271,12 @@ export default function QuestDetailsPage() {
       checkActualMaxKeysValue();
     }
   }, [quest?.lock_address, checkActualMaxKeysValue]);
+
+  useEffect(() => {
+    if (quest?.lock_address) {
+      checkActualTransferFeeBps();
+    }
+  }, [quest?.lock_address, checkActualTransferFeeBps]);
 
   const getTaskIcon = (taskType: string) => {
     switch (taskType) {
@@ -387,7 +415,10 @@ export default function QuestDetailsPage() {
                   </div>
                 )}
                 <div className="flex-1">
-                  <p className="text-gray-300 mb-4">{quest.description}</p>
+                  <RichText
+                    content={quest.description}
+                    className="text-gray-300 mb-4"
+                  />
                   <div className="flex items-center gap-6">
                     <div className="flex items-center text-yellow-400">
                       <Coins className="w-5 h-5 mr-2" />
@@ -625,6 +656,101 @@ export default function QuestDetailsPage() {
               />
             )}
 
+            {/* Transferability Security Status Display */}
+            {quest.lock_address && (
+              <div className="mb-6 rounded-lg border border-slate-700 bg-slate-900 p-4">
+                <h3 className="text-sm font-medium text-slate-300 mb-3">
+                  Transferability Security
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Database Status:</span>
+                    <span
+                      className={`font-medium ${
+                        quest.transferability_secured
+                          ? "text-green-400"
+                          : "text-red-400"
+                      }`}
+                    >
+                      {quest.transferability_secured
+                        ? "✅ Secured"
+                        : "❌ Not Secured"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">
+                      Blockchain transferFeeBasisPoints:
+                    </span>
+                    <span
+                      className={`font-medium ${
+                        actualTransferFeeBps === null
+                          ? "text-yellow-400"
+                          : actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS
+                            ? "text-green-400"
+                            : "text-red-400"
+                      }`}
+                    >
+                      {actualTransferFeeBps === null
+                        ? "⏳ Checking..."
+                        : actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS
+                          ? `✅ Non-transferable (${NON_TRANSFERABLE_FEE_BPS.toString()})`
+                          : `❌ Transferable (${actualTransferFeeBps.toString()})`}
+                    </span>
+                  </div>
+                  {actualTransferFeeBps !== null &&
+                    ((quest.transferability_secured &&
+                      actualTransferFeeBps !== NON_TRANSFERABLE_FEE_BPS) ||
+                      (!quest.transferability_secured &&
+                        actualTransferFeeBps === NON_TRANSFERABLE_FEE_BPS)) && (
+                      <div className="mt-3 p-3 bg-amber-900/20 border border-amber-700 rounded">
+                        <div className="flex flex-col gap-2">
+                          <p className="text-amber-300 text-xs font-medium">
+                            ⚠️ Status Mismatch: Database and blockchain states
+                            don&apos;t match!
+                          </p>
+                          <SyncLockStateButton
+                            entityType="quest"
+                            entityId={quest.id}
+                            lockAddress={quest.lock_address}
+                            mode="transferability"
+                            onSuccess={() => {
+                              if (id && typeof id === "string") {
+                                fetchQuestDetails(id);
+                                checkActualTransferFeeBps();
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                </div>
+              </div>
+            )}
+
+            {/* Transferability Security Button */}
+            {quest.lock_address &&
+              actualTransferFeeBps !== null &&
+              actualTransferFeeBps !== NON_TRANSFERABLE_FEE_BPS && (
+                <TransferabilitySecurityButton
+                  entityType="quest"
+                  entityId={quest.id}
+                  lockAddress={quest.lock_address}
+                  transferabilityFailureReason={
+                    quest.transferability_failure_reason
+                  }
+                  onSuccess={() => {
+                    toast.success("Lock transfers disabled successfully");
+                    if (id && typeof id === "string") {
+                      fetchQuestDetails(id);
+                      checkActualTransferFeeBps();
+                    }
+                  }}
+                  onError={(error) => {
+                    toast.error(`Security update failed: ${error}`);
+                  }}
+                />
+              )}
+
             {/* Statistics */}
             {quest.stats && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -708,7 +834,10 @@ export default function QuestDetailsPage() {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-gray-400 mb-4">{task.description}</p>
+                        <RichText
+                          content={task.description}
+                          className="text-gray-400 mb-4"
+                        />
 
                         <div className="flex items-center gap-6 text-sm">
                           <div className="flex items-center text-yellow-400">

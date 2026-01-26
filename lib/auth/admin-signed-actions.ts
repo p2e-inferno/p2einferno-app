@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
-import { keccak256, stringToHex, verifyTypedData } from "viem";
+import { keccak256, stringToHex } from "viem";
+import { ethers } from "ethers";
 
 const log = getLogger("auth:admin-signed-action");
 
@@ -15,18 +16,6 @@ export type AdminSignedAction = {
   timestamp: number;
   nonce: string;
 };
-
-const ADMIN_ACTION_TYPES = {
-  AdminAction: [
-    { name: "action", type: "string" },
-    { name: "network", type: "string" },
-    { name: "schemaDefinitionHash", type: "bytes32" },
-    { name: "schemaUid", type: "string" },
-    { name: "transactionHash", type: "string" },
-    { name: "timestamp", type: "uint256" },
-    { name: "nonce", type: "string" },
-  ],
-} as const;
 
 const buildActionHash = (message: AdminSignedAction): `0x${string}` =>
   keccak256(
@@ -58,31 +47,54 @@ export async function verifyAdminSignedAction(params: {
     return { valid: false, error: "Signature timestamp expired" };
   }
 
-  try {
-    const valid = await verifyTypedData({
-      address: params.address,
-      domain: {
-        name: "P2E Inferno Admin",
-        version: "1",
-        chainId: BigInt(params.chainId),
-      },
-      types: ADMIN_ACTION_TYPES,
-      primaryType: "AdminAction",
-      message: {
-        ...params.message,
-        timestamp: BigInt(params.message.timestamp),
-      },
-      signature: params.signature,
-    });
+  // Use ethers for verification (same as TeeRex) to match client-side encoding
+  const domain = {
+    name: "P2E Inferno Admin",
+    version: "1",
+    chainId: params.chainId, // ethers uses number, not bigint
+  };
 
-    if (!valid) {
-      return { valid: false, error: "Invalid admin action signature" };
-    }
+  const types = {
+    AdminAction: [
+      { name: "action", type: "string" },
+      { name: "network", type: "string" },
+      { name: "schemaDefinitionHash", type: "bytes32" },
+      { name: "schemaUid", type: "string" },
+      { name: "transactionHash", type: "string" },
+      { name: "timestamp", type: "uint256" },
+      { name: "nonce", type: "string" },
+    ],
+  };
+
+  const value = {
+    action: params.message.action,
+    network: params.message.network,
+    schemaDefinitionHash: params.message.schemaDefinitionHash,
+    schemaUid: params.message.schemaUid,
+    transactionHash: params.message.transactionHash,
+    timestamp: params.message.timestamp, // Keep as number
+    nonce: params.message.nonce,
+  };
+
+  let recovered: string;
+  try {
+    // Use ethers.verifyTypedData (same as TeeRex pattern)
+    recovered = ethers.verifyTypedData(domain, types, value, params.signature);
   } catch (error: any) {
     log.warn("Admin signature verification failed", {
       error: error?.message || "unknown error",
+      chainId: params.chainId,
+      message: params.message,
+      signaturePrefix: params.signature.slice(0, 12),
     });
     return { valid: false, error: "Admin signature verification failed" };
+  }
+
+  const recoveredLowercase = recovered.toLowerCase();
+  const expectedLowercase = params.address.toLowerCase();
+
+  if (recoveredLowercase !== expectedLowercase) {
+    return { valid: false, error: "Invalid admin action signature" };
   }
 
   const actionHash = buildActionHash(params.message);

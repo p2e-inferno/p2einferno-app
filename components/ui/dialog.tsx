@@ -73,9 +73,13 @@ export function DialogTrigger({
 export function DialogContent({
   children,
   className = "",
+  canClose = true,
+  onCloseAttempt,
 }: {
   children: React.ReactNode;
   className?: string;
+  canClose?: boolean;
+  onCloseAttempt?: () => void;
 }) {
   const context = useContext(DialogContext);
 
@@ -84,6 +88,13 @@ export function DialogContent({
   }
 
   const { open, setOpen } = context;
+  const requestClose = () => {
+    if (!canClose) {
+      onCloseAttempt?.();
+      return;
+    }
+    setOpen(false);
+  };
 
   // Lock body scroll when modal is open
   useEffect(() => {
@@ -101,7 +112,9 @@ export function DialogContent({
         document.body.style.position = "";
         document.body.style.top = "";
         document.body.style.width = "";
-        window.scrollTo(0, scrollY);
+        if (process.env.NODE_ENV !== "test") {
+          window.scrollTo(0, scrollY);
+        }
       };
     }
   }, [open]);
@@ -115,14 +128,14 @@ export function DialogContent({
       {/* Backdrop with elevated z-index and scroll lock */}
       <div
         className="fixed inset-0 bg-black/50 z-[100] overflow-hidden"
-        onClick={() => setOpen(false)}
+        onClick={requestClose}
         style={{ position: "fixed" }}
       />
 
       {/* Modal container with viewport-based positioning */}
       <div
         className="fixed inset-0 z-[100] flex items-center justify-center p-0 sm:p-4 overflow-y-auto"
-        onClick={() => setOpen(false)}
+        onClick={requestClose}
       >
         <div
           className={`relative w-screen h-[100dvh] sm:w-full sm:h-auto sm:max-w-md mx-auto my-0 sm:my-8 rounded-none sm:rounded-lg shadow-xl ${className}`}
@@ -135,8 +148,9 @@ export function DialogContent({
 
           {/* Close button */}
           <button
-            onClick={() => setOpen(false)}
+            onClick={requestClose}
             className="absolute right-4 top-4 rounded-full p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-500 transition-colors"
+            disabled={!canClose}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

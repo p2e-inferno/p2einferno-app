@@ -10,6 +10,10 @@ import { createAdminClient } from '@/lib/supabase/server';
 import { getPrivyUserFromNextRequest } from '@/lib/auth/privy';
 import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
+import { isEASEnabled } from '@/lib/attestation/core/config';
+import type { DelegatedAttestationSignature } from '@/lib/attestation/api/types';
+import { handleGaslessAttestation } from '@/lib/attestation/api/helpers';
+import { buildEasScanLink } from '@/lib/attestation/core/network-config';
 
 const log = getLogger('api:admin:config:withdrawal-limits');
 
@@ -92,7 +96,11 @@ export async function PUT(req: NextRequest) {
     }
 
     // Parse request
-    const { minAmount, maxAmount } = await req.json();
+    const { minAmount, maxAmount, attestationSignature } = (await req.json()) as {
+      minAmount: number;
+      maxAmount: number;
+      attestationSignature?: DelegatedAttestationSignature | null;
+    };
 
     // Validate inputs
     if (typeof minAmount !== 'number' || typeof maxAmount !== 'number') {
@@ -128,6 +136,32 @@ export async function PUT(req: NextRequest) {
     const userAgent = req.headers.get('user-agent') || 'unknown';
 
     const supabase = createAdminClient();
+
+    // Capture current limits so the batch audit row can show old -> new.
+    // (The DB trigger may also write per-key audit rows, but the UI defaults to the batch row.)
+    const { data: previousRows, error: previousErr } = await supabase
+      .from('system_config')
+      .select('key, value')
+      .in('key', ['dg_withdrawal_min_amount', 'dg_withdrawal_max_daily_amount']);
+
+    if (previousErr) {
+      log.warn('Failed to fetch current withdrawal limits before update', { error: previousErr });
+    }
+
+    const previousLimits = {
+      minAmount: null as number | null,
+      maxAmount: null as number | null,
+    };
+
+    previousRows?.forEach((row) => {
+      if (row.key === 'dg_withdrawal_min_amount') {
+        const parsed = parseInt(row.value);
+        previousLimits.minAmount = Number.isFinite(parsed) ? parsed : null;
+      } else if (row.key === 'dg_withdrawal_max_daily_amount') {
+        const parsed = parseInt(row.value);
+        previousLimits.maxAmount = Number.isFinite(parsed) ? parsed : null;
+      }
+    });
 
     // Update minimum amount
     const { error: minError } = await supabase
@@ -165,27 +199,54 @@ export async function PUT(req: NextRequest) {
       );
     }
 
+    // Gasless attestation (admin audit) - best-effort by design for this admin config update.
+    // This avoids introducing rollback complexity if EAS is temporarily unavailable.
+    const activeWallet = req.headers.get('x-active-wallet') || '';
+    let attestationUid: string | null = null;
+    let attestationScanUrl: string | null = null;
+
+    if (isEASEnabled() && !activeWallet) {
+      log.warn('EAS enabled but X-Active-Wallet header missing; skipping attestation');
+    } else if (activeWallet) {
+      const attestationResult = await handleGaslessAttestation({
+        signature: attestationSignature ?? null,
+        schemaKey: 'dg_config_change',
+        recipient: activeWallet,
+        gracefulDegrade: true,
+      });
+
+      if (attestationResult.success && attestationResult.uid) {
+        attestationUid = attestationResult.uid;
+        attestationScanUrl = await buildEasScanLink(attestationUid);
+      }
+    }
+
     // Manually log to audit (trigger handles this for updates, but let's add IP and user agent)
     await supabase.from('config_audit_log').insert([
       {
         config_key: 'dg_withdrawal_limits_batch',
+        old_value: JSON.stringify(previousLimits),
         new_value: JSON.stringify({ minAmount, maxAmount }),
         changed_by: user.id,
         ip_address: ipAddress,
-        user_agent: userAgent
+        user_agent: userAgent,
+        attestation_uid: attestationUid
       }
     ]);
 
     log.info('Withdrawal limits updated', {
       minAmount,
       maxAmount,
-      userId: user.id
+      userId: user.id,
+      attestationUid
     });
 
     return NextResponse.json({
       success: true,
       limits: { minAmount, maxAmount },
-      message: 'Limits updated successfully'
+      message: 'Limits updated successfully',
+      attestationUid,
+      attestationScanUrl
     });
   } catch (error) {
     log.error('Withdrawal limits PUT failed', { error });

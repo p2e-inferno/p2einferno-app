@@ -7,6 +7,10 @@ import { createPublicClientUnified } from "@/lib/blockchain/config/clients/publi
 import { getLogger } from "@/lib/utils/logger";
 import { Address } from "viem";
 import { checkAndUpdateMilestoneKeyClaimStatus } from "@/lib/helpers/checkAndUpdateMilestoneKeyClaimStatus";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
+import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:milestones:claim");
 
@@ -30,7 +34,10 @@ export default async function handler(
         .json({ error: "Unauthorized: User not authenticated." });
     }
 
-    const { milestoneId } = req.body;
+    const { milestoneId, attestationSignature } = (req.body || {}) as {
+      milestoneId?: string;
+      attestationSignature?: DelegatedAttestationSignature | null;
+    };
     if (!milestoneId) {
       return res
         .status(400)
@@ -42,12 +49,23 @@ export default async function handler(
     // 1. Fetch user profile to get the internal user_profile_id
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("id")
+      .select("id, wallet_address")
       .eq("privy_user_id", user.id)
       .single();
 
     if (!profile) {
       return res.status(404).json({ error: "User profile not found." });
+    }
+
+    const walletAddress =
+      typeof (profile as any)?.wallet_address === "string"
+        ? ((profile as any).wallet_address as string)
+        : null;
+
+    if (isEASEnabled() && walletAddress && !attestationSignature) {
+      return res.status(400).json({
+        error: "Attestation signature is required",
+      });
     }
 
     // 2. Verify the milestone is actually completed in the database for this user
@@ -125,6 +143,39 @@ export default async function handler(
       `Successfully granted key for lock ${lockAddress} to user ${user.id}. Tx: ${grantResult.transactionHash}`,
     );
 
+    // 3b. Best-effort gasless attestation (on-chain action should not be blocked by EAS issues)
+    let keyClaimAttestationUid: string | null = null;
+    let attestationScanUrl: string | null = null;
+
+    if (isEASEnabled() && walletAddress && attestationSignature) {
+      const attestationResult = await handleGaslessAttestation({
+        signature: attestationSignature,
+        schemaKey: "milestone_achievement",
+        recipient: walletAddress,
+        gracefulDegrade: true,
+      });
+
+      if (attestationResult.success && attestationResult.uid) {
+        keyClaimAttestationUid = attestationResult.uid;
+        attestationScanUrl = await buildEasScanLink(keyClaimAttestationUid);
+
+        const { error: keyAttErr } = await supabase
+          .from("user_milestone_progress")
+          .update({ key_claim_attestation_uid: keyClaimAttestationUid })
+          .eq("milestone_id", milestoneId)
+          .eq("user_profile_id", profile.id);
+
+        if (keyAttErr) {
+          log.error("Failed to persist milestone key claim attestation UID", {
+            milestoneId,
+            userProfileId: profile.id,
+            keyClaimAttestationUid,
+            error: keyAttErr,
+          });
+        }
+      }
+    }
+
     // 4. Verify key ownership on-chain and update database tracking (if feature enabled)
     let keyVerified = false;
     const enableKeyTracking =
@@ -148,6 +199,8 @@ export default async function handler(
       success: true,
       transactionHash: grantResult.transactionHash,
       keyVerified,
+      attestationUid: keyClaimAttestationUid,
+      attestationScanUrl,
     });
   } catch (error: any) {
     log.error("Error in /api/milestones/claim:", error);

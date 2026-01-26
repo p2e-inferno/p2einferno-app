@@ -127,6 +127,11 @@ export const P2E_SCHEMA_UIDS = {
   QUEST_COMPLETION: process.env.NEXT_PUBLIC_QUEST_COMPLETION_SCHEMA_UID || null,
   BOOTCAMP_COMPLETION: process.env.NEXT_PUBLIC_BOOTCAMP_COMPLETION_SCHEMA_UID || null,
   MILESTONE_ACHIEVEMENT: process.env.NEXT_PUBLIC_MILESTONE_ACHIEVEMENT_SCHEMA_UID || null,
+  XP_RENEWAL: process.env.NEXT_PUBLIC_XP_RENEWAL_SCHEMA_UID || null,
+  DG_WITHDRAWAL: process.env.NEXT_PUBLIC_DG_WITHDRAWAL_SCHEMA_UID || null,
+  DG_CONFIG_CHANGE: process.env.NEXT_PUBLIC_DG_CONFIG_CHANGE_SCHEMA_UID || null,
+  MILESTONE_TASK_REWARD_CLAIM: process.env.NEXT_PUBLIC_MILESTONE_TASK_REWARD_CLAIM_SCHEMA_UID || null,
+  QUEST_TASK_REWARD_CLAIM: process.env.NEXT_PUBLIC_QUEST_TASK_REWARD_CLAIM_SCHEMA_UID || null,
 } as const;
 
 // Helper function to get schema UID with validation and clear error messages
@@ -157,13 +162,23 @@ export type SchemaKey =
   | "daily_checkin"
   | "quest_completion"
   | "bootcamp_completion"
-  | "milestone_achievement";
+  | "milestone_achievement"
+  | "xp_renewal"
+  | "dg_withdrawal"
+  | "dg_config_change"
+  | "milestone_task_reward_claim"
+  | "quest_task_reward_claim";
 
 const schemaKeyEnvMap: Record<SchemaKey, keyof typeof P2E_SCHEMA_UIDS> = {
   daily_checkin: "DAILY_CHECKIN",
   quest_completion: "QUEST_COMPLETION",
   bootcamp_completion: "BOOTCAMP_COMPLETION",
   milestone_achievement: "MILESTONE_ACHIEVEMENT",
+  xp_renewal: "XP_RENEWAL",
+  dg_withdrawal: "DG_WITHDRAWAL",
+  dg_config_change: "DG_CONFIG_CHANGE",
+  milestone_task_reward_claim: "MILESTONE_TASK_REWARD_CLAIM",
+  quest_task_reward_claim: "QUEST_TASK_REWARD_CLAIM",
 };
 
 export function resolveSchemaUIDFromEnv(schemaKey: SchemaKey): string | null {

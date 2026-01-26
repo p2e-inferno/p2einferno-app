@@ -12,6 +12,8 @@ import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 import { PendingLockManagerBadge } from "@/components/admin/PendingLockManagerBadge";
 import { MaxKeysSecurityBadge } from "@/components/admin/MaxKeysSecurityBadge";
+import { TransferabilitySecurityBadge } from "@/components/admin/TransferabilitySecurityBadge";
+import { RichText } from "@/components/common/RichText";
 
 const log = getLogger("admin:quests:index");
 
@@ -246,6 +248,11 @@ export default function AdminQuestsPage() {
                       maxKeysSecured={quest.max_keys_secured}
                       reason={quest.max_keys_failure_reason}
                     />
+                    <TransferabilitySecurityBadge
+                      lockAddress={quest.lock_address}
+                      transferabilitySecured={quest.transferability_secured}
+                      reason={quest.transferability_failure_reason}
+                    />
                     {quest.stats && quest.stats.pending_submissions > 0 && (
                       <Badge className="bg-orange-600 text-xs">
                         {quest.stats.pending_submissions} Pending
@@ -269,9 +276,10 @@ export default function AdminQuestsPage() {
               </div>
 
               {/* Description */}
-              <p className="text-gray-400 text-sm mb-3 leading-relaxed">
-                {quest.description}
-              </p>
+              <RichText
+                content={quest.description}
+                className="text-gray-400 text-sm mb-3 leading-relaxed"
+              />
 
               {/* Quest Tasks Preview */}
               <div className="flex flex-wrap gap-1 mb-3">
@@ -408,15 +416,21 @@ export default function AdminQuestsPage() {
                         maxKeysSecured={quest.max_keys_secured}
                         reason={quest.max_keys_failure_reason}
                       />
+                      <TransferabilitySecurityBadge
+                        lockAddress={quest.lock_address}
+                        transferabilitySecured={quest.transferability_secured}
+                        reason={quest.transferability_failure_reason}
+                      />
                       {quest.stats && quest.stats.pending_submissions > 0 && (
                         <Badge className="bg-orange-600">
                           {quest.stats.pending_submissions} Pending Reviews
                         </Badge>
                       )}
                     </div>
-                    <p className="text-gray-400 mb-3 line-clamp-2">
-                      {quest.description}
-                    </p>
+                    <RichText
+                      content={quest.description}
+                      className="text-gray-400 mb-3 line-clamp-2"
+                    />
 
                     {/* Quest Tasks Preview */}
                     <div className="flex flex-wrap gap-2 mb-3">

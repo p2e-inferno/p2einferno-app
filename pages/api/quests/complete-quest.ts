@@ -9,6 +9,8 @@ import { getPrivyUser } from "@/lib/auth/privy";
 import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { grantKeyToUser } from "@/lib/services/user-key-service";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { extractTokenTransfers } from "@/lib/blockchain/shared/transaction-utils";
 
 const log = getLogger("api:quests:complete-quest");
 
@@ -20,7 +22,9 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { questId } = req.body;
+  const { questId } = (req.body || {}) as {
+    questId?: string;
+  };
   if (!questId) {
     return res.status(400).json({ error: "Missing required fields" });
   }
@@ -42,6 +46,19 @@ export default async function handler(
 
     if (questError || !quest) {
       return res.status(404).json({ error: "Quest not found" });
+    }
+
+    // Reject activation quests - they must use the /api/quests/get-trial endpoint
+    if (quest.reward_type === "activation") {
+      log.warn("Activation quest attempted via wrong endpoint", {
+        questId,
+        userId,
+        rewardType: quest.reward_type,
+      });
+      return res.status(400).json({
+        error: "This quest requires the activation endpoint",
+        code: "WRONG_ENDPOINT",
+      });
     }
 
     // Check prerequisites before allowing quest completion
@@ -136,12 +153,46 @@ export default async function handler(
       });
     }
 
+    // Extract tokenId from receipt logs (for attestation schema fields).
+    // Note: we do not submit the attestation from this endpoint because the client must
+    // sign the exact schema bytes (including tokenId + grant tx hash).
+    let keyTokenId: string | null = null;
+    const transactionHash = grantResult.transactionHash;
+
+    if (transactionHash) {
+      try {
+        const receipt = await publicClient.waitForTransactionReceipt({
+          hash: transactionHash as `0x${string}`,
+          confirmations: 1,
+        });
+        const transfers = extractTokenTransfers(receipt);
+        const normalizedWallet = (userWallet || "").toLowerCase();
+        const matching = transfers.find(
+          (t) => t.to.toLowerCase() === normalizedWallet,
+        );
+        if (matching) {
+          keyTokenId = matching.tokenId.toString();
+        } else if (transfers.length > 0) {
+          keyTokenId = transfers[0]!.tokenId.toString();
+        }
+      } catch (error: any) {
+        log.warn("Failed to extract tokenId from quest key grant receipt", {
+          questId,
+          userId,
+          transactionHash,
+          error: error?.message || String(error),
+        });
+      }
+    }
+
     // Mark quest as completed for the user
     const { error: updateError } = await supabase
       .from("user_quest_progress")
       .update({
         reward_claimed: true,
         is_completed: true,
+        key_claim_tx_hash: transactionHash ?? null,
+        key_claim_token_id: keyTokenId,
         updated_at: new Date().toISOString(),
       })
       .eq("user_id", userId)
@@ -155,7 +206,10 @@ export default async function handler(
     return res.status(200).json({
       success: true,
       message: "Quest completed and key granted successfully",
-      transactionHash: grantResult.transactionHash,
+      transactionHash,
+      keyTokenId,
+      // When EAS is enabled, the client should sign and then call the commit endpoint.
+      attestationRequired: isEASEnabled(),
     });
   } catch (error) {
     log.error("Error in complete quest API:", error);

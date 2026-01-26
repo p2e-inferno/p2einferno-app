@@ -282,6 +282,14 @@ export default function DraftRecoveryPage() {
         delete (apiData as any).tasks;
       }
 
+      if (
+        deployment.entityType === "quest" &&
+        typeof (apiData as any).xp_reward === "undefined" &&
+        typeof (apiData as any).total_reward !== "undefined"
+      ) {
+        (apiData as any).xp_reward = (apiData as any).total_reward;
+      }
+
       const response = await adminApi.adminFetch<{
         success: boolean;
         data?: any;
@@ -390,9 +398,9 @@ export default function DraftRecoveryPage() {
     }
   };
 
-  const deleteDraft = (entityType: string) => {
+  const deleteDraft = (entityType: string, scopeKey: string) => {
     if (confirm(`Are you sure you want to delete the ${entityType} draft?`)) {
-      removeDraft(entityType as any);
+      removeDraft(entityType as any, scopeKey);
       toast.success("Draft removed");
       loadData();
     }
@@ -619,6 +627,12 @@ export default function DraftRecoveryPage() {
                         >
                           {draft.entityType}
                         </Badge>
+                        <Badge
+                          variant="outline"
+                          className="bg-gray-900/40 border-gray-700 text-gray-300 text-xs"
+                        >
+                          {draft.scopeKey}
+                        </Badge>
                       </div>
                       <h3 className="font-medium text-white text-sm lg:text-base">
                         {draft.formData?.name || `${draft.entityType} draft`}
@@ -632,7 +646,9 @@ export default function DraftRecoveryPage() {
                     <Button
                       size="sm"
                       variant="destructive"
-                      onClick={() => deleteDraft(draft.entityType)}
+                      onClick={() =>
+                        deleteDraft(draft.entityType, draft.scopeKey)
+                      }
                       className="bg-red-600 hover:bg-red-700 p-2 lg:px-3 flex-shrink-0"
                       title="Delete draft"
                     >

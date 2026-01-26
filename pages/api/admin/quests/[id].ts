@@ -134,6 +134,37 @@ async function updateQuest(
 
     // Harden grant flags when lock_address present
     const lockAddr = (questFields as any)?.lock_address;
+    const hasLockAddressField = Object.prototype.hasOwnProperty.call(
+      questFields ?? {},
+      "lock_address",
+    );
+    const hasMaxKeysSecured = Object.prototype.hasOwnProperty.call(
+      questFields ?? {},
+      "max_keys_secured",
+    );
+    const hasTransferabilitySecured = Object.prototype.hasOwnProperty.call(
+      questFields ?? {},
+      "transferability_secured",
+    );
+
+    let lockAddressChanged = false;
+    if (hasLockAddressField) {
+      const normalizeLockAddress = (value: unknown) =>
+        typeof value === "string" && value.trim() ? value.trim() : null;
+      const { data: existing, error: existingError } = await supabase
+        .from("quests")
+        .select("lock_address")
+        .eq("id", questId)
+        .maybeSingle();
+      if (existingError) {
+        log.error("Quest prefetch failed", { questId, error: existingError });
+        return res.status(500).json({ error: "Failed to update quest" });
+      }
+      lockAddressChanged =
+        normalizeLockAddress((existing as any)?.lock_address) !==
+        normalizeLockAddress((questFields as any)?.lock_address);
+    }
+
     if (lockAddr) {
       const hasGranted = Object.prototype.hasOwnProperty.call(
         questFields,
@@ -151,19 +182,33 @@ async function updateQuest(
       }
 
       // Harden max_keys_secured flag
-      const hasMaxKeysSecured = Object.prototype.hasOwnProperty.call(
-        questFields,
-        "max_keys_secured",
-      );
       if (
-        !hasMaxKeysSecured ||
-        (questFields as any).max_keys_secured === undefined ||
-        (questFields as any).max_keys_secured === null
+        (hasMaxKeysSecured || lockAddressChanged) &&
+        ((questFields as any).max_keys_secured === undefined ||
+          (questFields as any).max_keys_secured === null)
       ) {
         (questFields as any).max_keys_secured = false;
       }
-      if ((questFields as any).max_keys_secured === true) {
+      if (
+        (hasMaxKeysSecured || lockAddressChanged) &&
+        (questFields as any).max_keys_secured === true
+      ) {
         (questFields as any).max_keys_failure_reason = null;
+      }
+
+      // Harden transferability_secured flag
+      if (
+        (hasTransferabilitySecured || lockAddressChanged) &&
+        ((questFields as any).transferability_secured === undefined ||
+          (questFields as any).transferability_secured === null)
+      ) {
+        (questFields as any).transferability_secured = false;
+      }
+      if (
+        (hasTransferabilitySecured || lockAddressChanged) &&
+        (questFields as any).transferability_secured === true
+      ) {
+        (questFields as any).transferability_failure_reason = null;
       }
     }
 
@@ -357,6 +402,21 @@ async function patchQuest(
       }
       if (updates.max_keys_secured === true) {
         updates.max_keys_failure_reason = null;
+      }
+
+      // Harden transferability_secured flag
+      if (
+        !Object.prototype.hasOwnProperty.call(
+          updates,
+          "transferability_secured",
+        ) ||
+        updates.transferability_secured === undefined ||
+        updates.transferability_secured === null
+      ) {
+        updates.transferability_secured = false;
+      }
+      if (updates.transferability_secured === true) {
+        updates.transferability_failure_reason = null;
       }
     }
 

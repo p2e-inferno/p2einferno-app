@@ -17,6 +17,7 @@ import { useMilestoneClaim } from "@/hooks/useMilestoneClaim";
 import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
 import { FlameIcon, CrystalIcon } from "@/components/icons/dashboard-icons";
 import { getLogger } from "@/lib/utils/logger";
+import { RichText } from "@/components/common/RichText";
 import {
   ArrowLeft,
   Trophy,
@@ -314,9 +315,10 @@ export default function BootcampLearningPage() {
             </div>
           </div>
 
-          <p className="text-faded-grey max-w-2xl">
-            {data.cohort.bootcamp_program.description}
-          </p>
+          <RichText
+            content={data.cohort.bootcamp_program.description}
+            className="text-faded-grey max-w-2xl"
+          />
         </div>
 
         {/* Overall Progress */}
@@ -499,9 +501,10 @@ export default function BootcampLearningPage() {
                                   : status}
                           </span>
                         </div>
-                        <p className="text-faded-grey text-sm">
-                          {milestone.description}
-                        </p>
+                        <RichText
+                          content={milestone.description}
+                          className="text-faded-grey text-sm"
+                        />
                       </div>
                     </div>
 
@@ -604,9 +607,10 @@ export default function BootcampLearningPage() {
                           <div className="flex items-center justify-between">
                             <div>
                               <h5 className="font-medium">{task.title}</h5>
-                              <p className="text-sm text-faded-grey mt-1">
-                                {task.description}
-                              </p>
+                              <RichText
+                                content={task.description}
+                                className="text-sm text-faded-grey mt-1"
+                              />
                               <div className="flex items-center space-x-4 mt-2">
                                 <span className="text-xs px-2 py-1 bg-purple-600/20 text-purple-300 rounded">
                                   {task.task_type
@@ -732,7 +736,7 @@ const MilestoneActions = ({
   onClaimSuccess: () => void;
 }) => {
   const { isClaiming, claimMilestoneKey } = useMilestoneClaim({
-    milestoneId: milestone.id,
+    milestone,
     onSuccess: onClaimSuccess,
   });
 

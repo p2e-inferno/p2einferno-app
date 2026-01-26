@@ -38,20 +38,38 @@ export function completeQuestTaskRequest<T = any>(params: {
   });
 }
 
-export function completeQuestRequest<T = any>(questId: string) {
+export function completeQuestRequest<T = any>(
+  questId: string,
+  options?: { attestationSignature?: any },
+) {
   return postQuestApi<T>("/api/quests/complete-quest", {
-    payload: { questId },
+    payload: {
+      questId,
+      attestationSignature: options?.attestationSignature ?? null,
+    },
   });
 }
 
-export function claimActivationRewardRequest<T = any>(questId: string) {
+export function claimActivationRewardRequest<T = any>(
+  questId: string,
+  options?: { attestationSignature?: any },
+) {
   return postQuestApi<T>("/api/quests/get-trial", {
-    payload: { questId },
+    payload: {
+      questId,
+      attestationSignature: options?.attestationSignature ?? null,
+    },
   });
 }
 
-export function claimTaskRewardRequest<T = any>(completionId: string) {
+export function claimTaskRewardRequest<T = any>(
+  completionId: string,
+  options?: { attestationSignature?: any },
+) {
   return postQuestApi<T>("/api/quests/claim-task-reward", {
-    payload: { completionId },
+    payload: {
+      completionId,
+      attestationSignature: options?.attestationSignature ?? null,
+    },
   });
 }

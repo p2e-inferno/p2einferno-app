@@ -5,7 +5,7 @@
  * Handles amount validation, signature creation, and transaction submission.
  */
 
-import React, { useState, Fragment } from "react";
+import React, { useState } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,10 @@ import { useWithdrawalAccess } from "@/hooks/useWithdrawalAccess";
 import { useDGWithdrawal } from "@/hooks/useDGWithdrawal";
 import type { WithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 import { getBlockExplorerUrl } from "@/lib/blockchain/services/transaction-service";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { TransactionStepperModal } from "@/components/admin/TransactionStepperModal";
+import { useTransactionStepper } from "@/hooks/useTransactionStepper";
+import type { DeploymentStep } from "@/lib/transaction-stepper/types";
 
 interface WithdrawDGModalProps {
   isOpen: boolean;
@@ -31,6 +35,10 @@ export function WithdrawDGModal({
   });
   const {
     initiateWithdrawal,
+    createWithdrawalAuthorization,
+    submitWithdrawal,
+    waitForWithdrawalConfirmation,
+    commitWithdrawalAttestation,
     isLoading,
     error: withdrawalError,
     txHash,
@@ -41,6 +49,21 @@ export function WithdrawDGModal({
   const [amount, setAmount] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [attestationScanUrl, setAttestationScanUrl] = useState<string | null>(
+    null,
+  );
+  const [proofCancelled, setProofCancelled] = useState(false);
+  const [isStepperOpen, setIsStepperOpen] = useState(false);
+  const [stepperSteps, setStepperSteps] = useState<DeploymentStep[]>([]);
+
+  const {
+    state: stepperState,
+    start: stepperStart,
+    retryStep: stepperRetry,
+    skipStep: stepperSkip,
+    waitForSteps: stepperWaitForSteps,
+    cancel: stepperCancel,
+  } = useTransactionStepper(stepperSteps);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -83,11 +106,119 @@ export function WithdrawDGModal({
       return;
     }
 
+    if (isEASEnabled()) {
+      const ctx: {
+        auth?: Awaited<ReturnType<typeof createWithdrawalAuthorization>>;
+        withdrawal?: any;
+        attestationScanUrl?: string | null;
+        proofCancelled?: boolean;
+      } = {};
+
+      const steps: DeploymentStep[] = [
+        {
+          id: "withdrawal-authorize",
+          title: "Authorize withdrawal",
+          description: "Sign a message to authorize this withdrawal.",
+          execute: async () => {
+            ctx.auth = await createWithdrawalAuthorization(amountNum);
+            return { data: { authorized: true } };
+          },
+        },
+        {
+          id: "withdrawal-transfer",
+          title: "Process withdrawal",
+          description: "Submitting withdrawal and transferring DG on-chain.",
+          execute: async () => {
+            if (!ctx.auth) throw new Error("Missing authorization");
+            ctx.withdrawal = await submitWithdrawal({
+              walletAddress: ctx.auth.walletAddress,
+              amountDG: amountNum,
+              signature: ctx.auth.signature,
+              deadline: ctx.auth.deadline,
+              chainId: ctx.auth.chainId,
+            });
+
+            const hash = ctx.withdrawal.transactionHash as string;
+            return {
+              transactionHash: hash,
+              transactionUrl: getBlockExplorerUrl(hash),
+              waitForConfirmation: async () => {
+                const waited = await waitForWithdrawalConfirmation(hash);
+                return { receipt: waited.receipt };
+              },
+            };
+          },
+        },
+        {
+          id: "withdrawal-proof",
+          title: "Sign withdrawal proof",
+          description:
+            "Optional gasless attestation for on-chain audit proof (EAS).",
+          execute: async () => {
+            if (!ctx.auth || !ctx.withdrawal) {
+              throw new Error("Missing withdrawal context");
+            }
+
+            if (!ctx.withdrawal.attestationRequired) {
+              ctx.attestationScanUrl = null;
+              ctx.proofCancelled = false;
+              return { data: { skipped: true } };
+            }
+
+            const payload = ctx.withdrawal.attestationPayload;
+            const amount = Number(payload?.amountDg ?? amountNum);
+            const withdrawalTimestamp =
+              payload?.withdrawalTimestamp ?? Math.floor(Date.now() / 1000);
+            const withdrawalTxHash =
+              payload?.withdrawalTxHash || ctx.withdrawal.transactionHash;
+
+            const proof = await commitWithdrawalAttestation({
+              withdrawalId: ctx.withdrawal.withdrawalId,
+              walletAddress: ctx.auth.walletAddress,
+              amountDG: amount,
+              withdrawalTimestamp,
+              withdrawalTxHash,
+            });
+
+            ctx.attestationScanUrl = proof.attestationScanUrl;
+            ctx.proofCancelled = proof.proofCancelled;
+
+            return {
+              data: {
+                attestationScanUrl: proof.attestationScanUrl,
+                proofCancelled: proof.proofCancelled,
+              },
+            };
+          },
+        },
+      ];
+
+      setStepperSteps(steps);
+      setIsStepperOpen(true);
+      await stepperWaitForSteps(steps.length);
+
+      try {
+        await stepperStart();
+      } finally {
+        setIsStepperOpen(false);
+      }
+
+      if (ctx.withdrawal?.success) {
+        setIsSuccess(true);
+        setAttestationScanUrl(ctx.attestationScanUrl || null);
+        setProofCancelled(Boolean(ctx.proofCancelled));
+        setTimeout(() => handleClose(), 3000);
+      }
+      return;
+    }
+
     // Initiate withdrawal
     const result = await initiateWithdrawal(amountNum);
 
     if (result.success) {
       setIsSuccess(true);
+      setAttestationScanUrl(result.attestationScanUrl || null);
+      setProofCancelled(Boolean(result.proofCancelled));
       // Close modal after 3 seconds
       setTimeout(() => {
         handleClose();
@@ -99,30 +230,32 @@ export function WithdrawDGModal({
     setAmount("");
     setLocalError(null);
     setIsSuccess(false);
+    setAttestationScanUrl(null);
+    setProofCancelled(false);
+    setIsStepperOpen(false);
     onClose();
   };
 
   const displayError = localError || withdrawalError;
 
   return (
-    <Transition appear show={isOpen} as={Fragment}>
+    <Transition appear show={isOpen} as="div">
       <Dialog as="div" className="relative z-50" onClose={handleClose}>
         <Transition.Child
-          as={Fragment}
+          as="div"
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm"
           enter="ease-out duration-300"
           enterFrom="opacity-0"
           enterTo="opacity-100"
           leave="ease-in duration-200"
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
-        >
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
-        </Transition.Child>
+        />
 
         <div className="fixed inset-0 overflow-y-auto">
           <div className="flex min-h-full items-center justify-center p-4 text-center">
             <Transition.Child
-              as={Fragment}
+              as="div"
               enter="ease-out duration-300"
               enterFrom="opacity-0 scale-95"
               enterTo="opacity-100 scale-100"
@@ -160,6 +293,11 @@ export function WithdrawDGModal({
                         Your pullout of {amount} DG has been processed
                         successfully.
                       </p>
+                      {isEASEnabled() && proofCancelled && (
+                        <p className="text-xs text-faded-grey text-center">
+                          Withdrawal proof cancelled — withdrawal completed.
+                        </p>
+                      )}
                       {txHash && (
                         <a
                           href={getBlockExplorerUrl(txHash)}
@@ -168,6 +306,16 @@ export function WithdrawDGModal({
                           className="block text-center text-sm text-flame-yellow hover:text-flame-orange"
                         >
                           View on Explorer →
+                        </a>
+                      )}
+                      {attestationScanUrl && (
+                        <a
+                          href={attestationScanUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block text-center text-sm text-flame-yellow hover:text-flame-orange"
+                        >
+                          View attestation on EAS Scan →
                         </a>
                       )}
                     </div>
@@ -188,14 +336,14 @@ export function WithdrawDGModal({
                             onChange={handleAmountChange}
                             placeholder={`Min: ${minAmount} DG`}
                             className="flex-1 bg-background/50 border-purple-500/30 placeholder-faded-grey focus:ring-flame-yellow focus:ring-offset-0 focus:border-transparent"
-                            disabled={isLoading}
+                            disabled={isLoading || stepperState.isRunning}
                           />
                           <Button
                             type="button"
                             onClick={handleMaxClick}
                             variant="ghost"
                             className="px-3 py-2 text-sm font-medium text-flame-yellow hover:text-flame-orange"
-                            disabled={isLoading}
+                            disabled={isLoading || stepperState.isRunning}
                           >
                             MAX
                           </Button>
@@ -223,7 +371,9 @@ export function WithdrawDGModal({
                         <Button
                           type="submit"
                           className="px-6 bg-gradient-to-r from-flame-yellow to-flame-orange text-gray-900 font-semibold hover:from-flame-yellow/90 hover:to-flame-orange/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                          disabled={isLoading || !amount}
+                          disabled={
+                            isLoading || stepperState.isRunning || !amount
+                          }
                         >
                           {isLoading ? "Processing..." : "Pullout"}
                         </Button>
@@ -236,6 +386,22 @@ export function WithdrawDGModal({
           </div>
         </div>
       </Dialog>
+
+      <TransactionStepperModal
+        open={isStepperOpen}
+        title="Process DG withdrawal"
+        description="Follow the steps to complete your withdrawal. You may see wallet signature popups."
+        steps={stepperState.steps}
+        activeStepIndex={stepperState.activeStepIndex}
+        canClose={stepperState.canClose}
+        onRetry={stepperRetry}
+        onSkip={stepperSkip}
+        onCancel={() => {
+          stepperCancel();
+          setIsStepperOpen(false);
+        }}
+        onClose={() => setIsStepperOpen(false)}
+      />
     </Transition>
   );
 }

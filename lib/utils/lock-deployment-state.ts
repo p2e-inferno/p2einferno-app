@@ -16,6 +16,7 @@ const STORAGE_KEYS = {
 // ============================================================================
 
 export type EntityType = "bootcamp" | "cohort" | "quest" | "milestone";
+const DEFAULT_DRAFT_SCOPE_KEY = "global";
 
 export interface PendingDeployment {
   id: string;
@@ -33,6 +34,7 @@ export interface PendingDeployment {
 export interface DeploymentDraft {
   id: string;
   entityType: EntityType;
+  scopeKey: string;
   formData: any;
   timestamp: number;
 }
@@ -167,36 +169,68 @@ export const hasPendingDeployments = (entityType?: EntityType): boolean => {
 /**
  * Save form data as draft before starting lock deployment
  */
-export const saveDraft = (entityType: EntityType, formData: any): string => {
+export const saveDraft = (
+  entityType: EntityType,
+  formData: any,
+  scopeKey: string = DEFAULT_DRAFT_SCOPE_KEY,
+): string => {
   try {
     if (typeof window === "undefined") return "";
 
-    const draftId = `${entityType}_draft_${Date.now()}`;
+    const safeScopeKey = scopeKey.replace(/[^a-z0-9_-]/gi, "-");
+    const draftId = `${entityType}_${safeScopeKey}_draft_${Date.now()}`;
 
     const draft: DeploymentDraft = {
       id: draftId,
       entityType,
+      scopeKey,
       formData,
       timestamp: Date.now(),
     };
 
     const existing = getDrafts();
     const updated = [
-      ...existing.filter((d) => d.entityType !== entityType),
+      ...existing.filter(
+        (d) => d.entityType !== entityType || d.scopeKey !== scopeKey,
+      ),
       draft,
-    ]; // Keep only latest draft per type
+    ]; // Keep only latest draft per type+scope
 
     localStorage.setItem(
       STORAGE_KEYS.DEPLOYMENT_DRAFTS,
       JSON.stringify(updated),
     );
-    log.info("Saved draft:", draftId);
+    log.info("Saved draft:", { draftId, entityType, scopeKey });
 
     return draftId;
   } catch (error) {
     log.error("Error saving draft:", error);
     return "";
   }
+};
+
+const inferDraftScopeKey = (draft: Partial<DeploymentDraft>): string => {
+  if (draft.scopeKey) {
+    return draft.scopeKey;
+  }
+
+  const formData = draft.formData as Record<string, unknown> | undefined;
+
+  if (draft.entityType === "milestone") {
+    const cohortId = formData?.cohort_id;
+    if (typeof cohortId === "string" && cohortId.trim().length > 0) {
+      return `cohort:${cohortId}`;
+    }
+  }
+
+  if (draft.entityType === "cohort") {
+    const bootcampId = formData?.bootcamp_program_id;
+    if (typeof bootcampId === "string" && bootcampId.trim().length > 0) {
+      return `bootcamp:${bootcampId}`;
+    }
+  }
+
+  return DEFAULT_DRAFT_SCOPE_KEY;
 };
 
 /**
@@ -210,13 +244,23 @@ export const getDrafts = (): DeploymentDraft[] => {
     if (!stored) return [];
 
     const drafts = JSON.parse(stored) as DeploymentDraft[];
+    const normalizedDrafts = drafts.map((draft) => ({
+      ...draft,
+      scopeKey: inferDraftScopeKey(draft),
+    })) as DeploymentDraft[];
+    const shouldPersistNormalized = drafts.some(
+      (draft, index) =>
+        normalizedDrafts[index]?.scopeKey !== (draft as any).scopeKey,
+    );
 
     // Filter out old drafts (older than 7 days)
     const cutoffTime = Date.now() - 7 * 24 * 60 * 60 * 1000;
-    const validDrafts = drafts.filter((d) => d.timestamp > cutoffTime);
+    const validDrafts = normalizedDrafts.filter(
+      (d) => d.timestamp > cutoffTime,
+    );
 
     // Update storage if we filtered any out
-    if (validDrafts.length !== drafts.length) {
+    if (validDrafts.length !== drafts.length || shouldPersistNormalized) {
       localStorage.setItem(
         STORAGE_KEYS.DEPLOYMENT_DRAFTS,
         JSON.stringify(validDrafts),
@@ -233,9 +277,22 @@ export const getDrafts = (): DeploymentDraft[] => {
 /**
  * Get draft for specific entity type
  */
-export const getDraft = (entityType: EntityType): DeploymentDraft | null => {
+export const getDraft = (
+  entityType: EntityType,
+  scopeKey: string = DEFAULT_DRAFT_SCOPE_KEY,
+): DeploymentDraft | null => {
   const drafts = getDrafts();
-  return drafts.find((d) => d.entityType === entityType) || null;
+  const scopedDraft =
+    drafts.find(
+      (d) => d.entityType === entityType && d.scopeKey === scopeKey,
+    ) || null;
+
+  if (scopedDraft || scopeKey !== DEFAULT_DRAFT_SCOPE_KEY) {
+    return scopedDraft;
+  }
+
+  const entityDrafts = drafts.filter((d) => d.entityType === entityType);
+  return entityDrafts.length === 1 ? entityDrafts[0] ?? null : null;
 };
 
 /**
@@ -244,6 +301,7 @@ export const getDraft = (entityType: EntityType): DeploymentDraft | null => {
  */
 export const updateDraftWithDeploymentResult = (
   entityType: EntityType,
+  scopeKey: string = DEFAULT_DRAFT_SCOPE_KEY,
   result: {
     lockAddress: string;
     grantFailed?: boolean;
@@ -254,11 +312,14 @@ export const updateDraftWithDeploymentResult = (
     if (typeof window === "undefined") return;
 
     const existing = getDrafts();
-    const draftIndex = existing.findIndex((d) => d.entityType === entityType);
+    const draftIndex = existing.findIndex(
+      (d) => d.entityType === entityType && d.scopeKey === scopeKey,
+    );
 
     if (draftIndex === -1) {
       log.warn("No existing draft found to update with deployment result:", {
         entityType,
+        scopeKey,
         lockAddress: result.lockAddress,
       });
       return;
@@ -299,6 +360,7 @@ export const updateDraftWithDeploymentResult = (
     const updatedDraft: DeploymentDraft = {
       id: currentDraft.id,
       entityType: currentDraft.entityType,
+      scopeKey: currentDraft.scopeKey,
       formData: updatedFormData,
       timestamp: Date.now(), // Update timestamp to reflect latest change
     };
@@ -312,6 +374,7 @@ export const updateDraftWithDeploymentResult = (
     );
     log.info("Updated draft with deployment result:", {
       entityType,
+      scopeKey,
       lockAddress: result.lockAddress,
       grantFailed: result.grantFailed,
     });
@@ -325,26 +388,35 @@ export const updateDraftWithDeploymentResult = (
  */
 export const updateDraftWithLockAddress = (
   entityType: EntityType,
+  scopeKey: string = DEFAULT_DRAFT_SCOPE_KEY,
   lockAddress: string,
 ): void => {
-  updateDraftWithDeploymentResult(entityType, { lockAddress });
+  updateDraftWithDeploymentResult(entityType, scopeKey, { lockAddress });
 };
 
 /**
  * Remove draft after successful deployment or cancellation
  */
-export const removeDraft = (entityType: EntityType): void => {
+export const removeDraft = (
+  entityType: EntityType,
+  scopeKey?: string,
+): void => {
   try {
     if (typeof window === "undefined") return;
 
     const existing = getDrafts();
-    const updated = existing.filter((d) => d.entityType !== entityType);
+    const updated =
+      typeof scopeKey === "string"
+        ? existing.filter(
+            (d) => d.entityType !== entityType || d.scopeKey !== scopeKey,
+          )
+        : existing.filter((d) => d.entityType !== entityType);
 
     localStorage.setItem(
       STORAGE_KEYS.DEPLOYMENT_DRAFTS,
       JSON.stringify(updated),
     );
-    log.info("Removed draft for:", entityType);
+    log.info("Removed draft for:", { entityType, scopeKey: scopeKey || "all" });
   } catch (error) {
     log.error("Error removing draft:", error);
   }
