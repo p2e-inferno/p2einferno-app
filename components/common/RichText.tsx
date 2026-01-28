@@ -53,14 +53,22 @@ export function RichText({ content, className = "" }: RichTextProps) {
 
   return (
     <div
-      className={`prose prose-slate prose-sm max-w-none dark:prose-invert ${className}`}
+      className={`prose prose-slate prose-invert prose-sm max-w-none 
+      prose-headings:text-white prose-p:text-gray-300 prose-strong:text-white prose-strong:font-bold prose-ul:text-gray-300 prose-ol:text-gray-300
+      ${className}`}
     >
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeRaw, [rehypeSanitize, sanitizeSchema]]}
         components={{
           a: ({ href, children, ...props }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-400 hover:text-blue-300 underline font-medium"
+              {...props}
+            >
               {children}
             </a>
           ),

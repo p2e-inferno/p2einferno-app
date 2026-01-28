@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { calculateTimeRemaining } from "@/lib/utils/registration-validation";
 import { useCohortDetails } from "@/hooks/useCohortDetails";
+import { RichText } from "@/components/common/RichText";
 
 interface CohortPageProps {
   bootcampId: string;
@@ -139,31 +140,28 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
           <div className="relative z-10 container mx-auto text-center px-4 text-white">
             {/* Status Badge */}
             <div
-              className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-4 py-2 mb-6 ${
-                isRegistrationOpen
-                  ? "bg-green-500/20 border-green-500/30"
-                  : cohort.status === "upcoming"
-                    ? "bg-blue-500/20 border-blue-500/30"
-                    : "bg-red-500/20 border-red-500/30"
-              }`}
+              className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-4 py-2 mb-6 ${isRegistrationOpen
+                ? "bg-green-500/20 border-green-500/30"
+                : cohort.status === "upcoming"
+                  ? "bg-blue-500/20 border-blue-500/30"
+                  : "bg-red-500/20 border-red-500/30"
+                }`}
             >
               <div
-                className={`w-2 h-2 rounded-full ${
-                  isRegistrationOpen
-                    ? "bg-green-500 animate-pulse"
-                    : cohort.status === "upcoming"
-                      ? "bg-blue-500"
-                      : "bg-red-500"
-                }`}
+                className={`w-2 h-2 rounded-full ${isRegistrationOpen
+                  ? "bg-green-500 animate-pulse"
+                  : cohort.status === "upcoming"
+                    ? "bg-blue-500"
+                    : "bg-red-500"
+                  }`}
               ></div>
               <span
-                className={`font-medium text-sm ${
-                  isRegistrationOpen
-                    ? "text-green-400"
-                    : cohort.status === "upcoming"
-                      ? "text-blue-400"
-                      : "text-red-400"
-                }`}
+                className={`font-medium text-sm ${isRegistrationOpen
+                  ? "text-green-400"
+                  : cohort.status === "upcoming"
+                    ? "text-blue-400"
+                    : "text-red-400"
+                  }`}
               >
                 {isRegistrationOpen
                   ? "Registration Open"
@@ -174,7 +172,7 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
                       : timeRemaining === "Registration Closed"
                         ? "Registration Closed"
                         : cohort.status.charAt(0).toUpperCase() +
-                          cohort.status.slice(1)}
+                        cohort.status.slice(1)}
               </span>
             </div>
 
@@ -189,9 +187,10 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
               </span>
             </div>
 
-            <p className="max-w-3xl mx-auto text-lg md:text-xl mb-12 leading-relaxed">
-              {bootcamp.description}
-            </p>
+            <RichText
+              content={bootcamp.description}
+              className="max-w-3xl mx-auto text-lg md:text-xl mb-12 leading-relaxed"
+            />
 
             {/* Key Stats */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4 max-w-5xl mx-auto mb-12">
@@ -333,9 +332,10 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
                             <h3 className="text-lg font-bold mb-2">
                               {milestone.name}
                             </h3>
-                            <p className="text-faded-grey text-sm mb-3">
-                              {milestone.description}
-                            </p>
+                            <RichText
+                              content={milestone.description}
+                              className="text-faded-grey text-sm mb-3"
+                            />
                             {milestone.milestone_tasks &&
                               milestone.milestone_tasks.length > 0 && (
                                 <div className="mt-4">
