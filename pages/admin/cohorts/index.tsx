@@ -100,7 +100,7 @@ export default function CohortListPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-gray-800">
-              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 w-full">
                 Name
               </th>
               <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
@@ -130,7 +130,7 @@ export default function CohortListPage() {
                   <div className="flex items-center gap-2">
                     <Link
                       href={`/admin/cohorts/${cohort.id}/applications`}
-                      className="hover:text-flame-yellow"
+                      className="hover:text-flame-yellow whitespace-nowrap"
                     >
                       {cohort.name}
                     </Link>
