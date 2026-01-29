@@ -1,6 +1,7 @@
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
 import { createViemPublicClient } from "@/lib/blockchain/providers/privy-viem";
 import { getLogger } from "@/lib/utils/logger";
+import { validateDeployLockConfig } from "./verification/deploy-lock-utils";
 
 const log = getLogger("quests:vendor-task-config");
 
@@ -60,7 +61,7 @@ export async function getVendorStageConstants(): Promise<
 }
 
 export async function validateVendorTaskConfig(
-  tasks: Array<{ task_type?: string; task_config?: Record<string, unknown> }>,
+  tasks: Array<{ title?: string; task_type?: string; task_config?: Record<string, unknown> }>,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const relevant = tasks.filter((task) => {
     const type = task.task_type;
@@ -98,6 +99,16 @@ export async function validateVendorTaskConfig(
         return {
           ok: false,
           error: `Required sell amount must be >= contract minimum (${constants.minSellAmount.toString()})`,
+        };
+      }
+    }
+
+    if (task.task_type === "deploy_lock") {
+      const deployValidation = validateDeployLockConfig(task.task_config);
+      if (!deployValidation.success) {
+        return {
+          ok: false,
+          error: `Task "${task.title || "Deploy Lock"}": ${deployValidation.error}`,
         };
       }
     }

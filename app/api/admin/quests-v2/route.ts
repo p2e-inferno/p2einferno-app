@@ -76,6 +76,11 @@ export async function POST(req: NextRequest) {
       lock_address,
       lock_manager_granted,
       grant_failure_reason,
+      // Security fields
+      max_keys_secured,
+      max_keys_failure_reason,
+      transferability_secured,
+      transferability_failure_reason,
       // New fields for prerequisites and activation
       prerequisite_quest_id,
       prerequisite_quest_lock_address,
@@ -122,6 +127,15 @@ export async function POST(req: NextRequest) {
       typeof lock_manager_granted === 'boolean' ? lock_manager_granted : lock_address ? false : false;
     const grantReasonFinal = grantGrantedFinal ? null : grant_failure_reason || null;
 
+    // Harden security flags
+    const maxKeysSecuredFinal =
+      typeof max_keys_secured === 'boolean' ? max_keys_secured : lock_address ? false : false;
+    const maxKeysReasonFinal = maxKeysSecuredFinal ? null : max_keys_failure_reason || null;
+
+    const transferSecuredFinal =
+      typeof transferability_secured === 'boolean' ? transferability_secured : lock_address ? false : false;
+    const transferReasonFinal = transferSecuredFinal ? null : transferability_failure_reason || null;
+
     // Insert quest
     const resolvedTotalReward =
       typeof xp_reward !== "undefined"
@@ -141,6 +155,10 @@ export async function POST(req: NextRequest) {
       lock_address,
       lock_manager_granted: grantGrantedFinal,
       grant_failure_reason: grantReasonFinal,
+      max_keys_secured: maxKeysSecuredFinal,
+      max_keys_failure_reason: maxKeysReasonFinal,
+      transferability_secured: transferSecuredFinal,
+      transferability_failure_reason: transferReasonFinal,
       // New fields
       prerequisite_quest_id: prerequisite_quest_id || null,
       prerequisite_quest_lock_address: prerequisite_quest_lock_address || null,

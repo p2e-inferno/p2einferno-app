@@ -121,6 +121,27 @@ export async function PUT(
       if (questFields.lock_manager_granted === true) {
         questFields.grant_failure_reason = null;
       }
+
+      // Harden security flags - ONLY if they are explicitly provided in the update
+      if (Object.prototype.hasOwnProperty.call(questFields, "max_keys_secured")) {
+        if (questFields.max_keys_secured === null) {
+          questFields.max_keys_secured = false;
+        }
+        if (questFields.max_keys_secured === true) {
+          questFields.max_keys_failure_reason = null;
+        }
+      }
+
+      if (
+        Object.prototype.hasOwnProperty.call(questFields, "transferability_secured")
+      ) {
+        if (questFields.transferability_secured === null) {
+          questFields.transferability_secured = false;
+        }
+        if (questFields.transferability_secured === true) {
+          questFields.transferability_failure_reason = null;
+        }
+      }
     }
 
     const now = new Date().toISOString();
