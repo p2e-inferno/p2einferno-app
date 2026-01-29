@@ -7,6 +7,7 @@ import {
   createPublicClientForNetwork,
   createWalletClientForNetwork,
   isServerBlockchainConfigured,
+  CHAIN_ID as APP_CHAIN_ID,
 } from "@/lib/blockchain/config";
 import {
   deploySchema,
@@ -59,7 +60,10 @@ export async function POST(
   }
 
   if (!signedAction?.signature || !signedAction?.nonce) {
-    return NextResponse.json({ error: "Missing signed action" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing signed action" },
+      { status: 400 },
+    );
   }
 
   const networkConfig = await getNetworkConfig(network, {
@@ -106,7 +110,7 @@ export async function POST(
   const schemaDefinitionHash = keccak256(stringToHex(schema.schema_definition));
   const verifyResult = await verifyAdminSignedAction({
     address: activeWallet,
-    chainId: networkConfig.chainId,
+    chainId: APP_CHAIN_ID,
     message: {
       action: "redeploy",
       network: networkConfig.name,
@@ -131,7 +135,10 @@ export async function POST(
   const onChainResult = isBytes32Hex(schemaUid)
     ? await verifySchemaOnChain(
         publicClient,
-        { schemaRegistryAddress: networkConfig.schemaRegistryAddress as `0x${string}` },
+        {
+          schemaRegistryAddress:
+            networkConfig.schemaRegistryAddress as `0x${string}`,
+        },
         schemaUid as `0x${string}`,
       )
     : { exists: false };
@@ -158,7 +165,10 @@ export async function POST(
   const deployResult = await deploySchema(
     walletClient,
     publicClient,
-    { schemaRegistryAddress: networkConfig.schemaRegistryAddress as `0x${string}` },
+    {
+      schemaRegistryAddress:
+        networkConfig.schemaRegistryAddress as `0x${string}`,
+    },
     { schemaDefinition: schema.schema_definition, revocable: schema.revocable },
   );
 

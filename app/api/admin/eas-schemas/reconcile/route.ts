@@ -3,7 +3,10 @@ import { ensureAdminOrRespond } from "@/lib/auth/route-handlers/admin-guard";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { getNetworkConfig } from "@/lib/attestation/core/network-config";
-import { createPublicClientForNetwork } from "@/lib/blockchain/config";
+import {
+  CHAIN_ID as APP_CHAIN_ID,
+  createPublicClientForNetwork,
+} from "@/lib/blockchain/config";
 import {
   getSchemaFromTransaction,
   verifySchemaOnChain,
@@ -98,7 +101,7 @@ export async function POST(req: NextRequest) {
 
   const verifyResult = await verifyAdminSignedAction({
     address: activeWallet,
-    chainId: networkConfig.chainId,
+    chainId: APP_CHAIN_ID,
     message: {
       action: "reconcile",
       network: networkConfig.name,

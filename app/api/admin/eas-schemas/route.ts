@@ -11,6 +11,7 @@ import {
   createPublicClientForNetwork,
   createWalletClientForNetwork,
   isServerBlockchainConfigured,
+  CHAIN_ID as APP_CHAIN_ID,
 } from "@/lib/blockchain/config";
 import { deploySchema } from "@/lib/blockchain/services/schema-deployment-service";
 import { verifyAdminSignedAction } from "@/lib/auth/admin-signed-actions";
@@ -118,7 +119,10 @@ export async function POST(req: NextRequest) {
   } = body || {};
 
   if (!name || !description || !schemaDefinition || !category || !network) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing required fields" },
+      { status: 400 },
+    );
   }
 
   if (!ALLOWED_CATEGORIES.includes(category)) {
@@ -149,7 +153,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (!signedAction?.signature || !signedAction?.nonce) {
-    return NextResponse.json({ error: "Missing signed action" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing signed action" },
+      { status: 400 },
+    );
   }
 
   let resolvedSchemaKey: string | null = null;
@@ -165,7 +172,7 @@ export async function POST(req: NextRequest) {
 
   const verifyResult = await verifyAdminSignedAction({
     address: activeWallet,
-    chainId: networkConfig.chainId,
+    chainId: APP_CHAIN_ID,
     message: {
       action: "deploy",
       network: networkConfig.name,
@@ -216,7 +223,10 @@ export async function POST(req: NextRequest) {
   const deployResult = await deploySchema(
     walletClient,
     publicClient,
-    { schemaRegistryAddress: networkConfig.schemaRegistryAddress as `0x${string}` },
+    {
+      schemaRegistryAddress:
+        networkConfig.schemaRegistryAddress as `0x${string}`,
+    },
     { schemaDefinition, revocable },
   );
 
