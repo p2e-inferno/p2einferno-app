@@ -100,18 +100,15 @@ export default function SchemaDeploymentForm({
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-      const signedAction = await signAdminAction(
-        {
-          action: "deploy",
-          network: network.name,
-          schemaDefinitionHash,
-          schemaUid: "",
-          transactionHash: "",
-          timestamp,
-          nonce,
-        },
-        network.chainId,
-      );
+      const signedAction = await signAdminAction({
+        action: "deploy",
+        network: network.name,
+        schemaDefinitionHash,
+        schemaUid: "",
+        transactionHash: "",
+        timestamp,
+        nonce,
+      });
 
       const { data, error } = await adminFetch<DeployResponse>(
         `/api/admin/eas-schemas?network=${network.name}`,

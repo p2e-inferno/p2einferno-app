@@ -187,10 +187,26 @@ export async function deploySchema(
         break;
       }
 
-      const schemaUid = extractSchemaUidFromReceipt(
+      let schemaUid = extractSchemaUidFromReceipt(
         receipt,
         networkConfig.schemaRegistryAddress,
       );
+
+      if (!schemaUid) {
+        log.warn("Failed to extract schema UID from logs, trying on-chain fallback", {
+          txHash,
+          expectedUid,
+        });
+        const verified = await verifySchemaOnChain(
+          publicClient,
+          networkConfig,
+          expectedUid,
+        );
+        if (verified.exists) {
+          schemaUid = expectedUid;
+        }
+      }
+
       if (!schemaUid) {
         lastError = "Failed to extract schema UID from transaction logs";
         log.error("Schema UID extraction failed", { txHash, receipt });

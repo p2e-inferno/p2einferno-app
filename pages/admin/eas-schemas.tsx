@@ -176,18 +176,15 @@ export default function EasSchemasAdminPage() {
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-      const signedAction = await signAdminAction(
-        {
-          action: "redeploy",
-          network: selectedNetworkConfig.name,
-          schemaDefinitionHash,
-          schemaUid: detailsSchema.schema_uid,
-          transactionHash: "",
-          timestamp,
-          nonce,
-        },
-        selectedNetworkConfig.chainId,
-      );
+      const signedAction = await signAdminAction({
+        action: "redeploy",
+        network: selectedNetworkConfig.name,
+        schemaDefinitionHash,
+        schemaUid: detailsSchema.schema_uid,
+        transactionHash: "",
+        timestamp,
+        nonce,
+      });
 
       const { data, error } = await adminFetch<{
         success?: boolean;
