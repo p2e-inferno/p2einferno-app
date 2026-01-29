@@ -156,16 +156,13 @@ const QuestDetailsPage = () => {
     }
   };
 
-  const handleTaskAction = async (task: any, inputData?: string) => {
+  const handleTaskAction = async (task: any, inputData?: any) => {
     if (!questId) return;
     setProcessingTask(task.id);
     try {
       let result;
-      // This logic is simplified. The original page had more complex calls via useQuests hook.
-      // We're simulating the core action here.
       switch (task.task_type) {
         case "link_email":
-          // Simulate linking email - actual logic might involve Privy SDK or other services
           if (user?.email?.address) {
             result = await completeQuestTaskRequest({
               questId: questId as string,
@@ -173,7 +170,7 @@ const QuestDetailsPage = () => {
               verificationData: { email: user.email.address },
             });
           } else {
-            toast.error("Please link your email in your profile first."); // Or trigger Privy email linking
+            toast.error("Please link your email in your profile first.");
             result = { success: false, error: "Email not available" };
           }
           break;
@@ -185,7 +182,6 @@ const QuestDetailsPage = () => {
           });
           break;
         case "link_farcaster":
-          // Verify Farcaster is linked in Privy, then complete via API
           if (user?.farcaster?.fid) {
             result = await completeQuestTaskRequest({
               questId: questId as string,
@@ -218,8 +214,7 @@ const QuestDetailsPage = () => {
         case "submit_url":
         case "submit_text":
         case "submit_proof":
-          // These task types require input data
-          if (inputData && inputData.trim()) {
+          if (inputData && typeof inputData === "string" && inputData.trim()) {
             result = await completeQuestTaskRequest({
               questId: questId as string,
               taskId: task.id,
@@ -233,8 +228,38 @@ const QuestDetailsPage = () => {
             };
           }
           break;
+        case "deploy_lock":
+        case "vendor_buy":
+        case "vendor_sell":
+        case "vendor_light_up":
+          // If inputData is an object (from specialized forms), it contains transactionHash
+          // If it's a string (from generic input), assume it's the transactionHash
+          const txHash =
+            typeof inputData === "object"
+              ? (inputData as any).transactionHash
+              : inputData;
+
+          if (txHash) {
+            result = await completeQuestTaskRequest({
+              questId: questId as string,
+              taskId: task.id,
+              verificationData: { transactionHash: txHash },
+            });
+          } else {
+            result = {
+              success: false,
+              error: `Please provide a valid transaction hash for ${task.title}`,
+            };
+          }
+          break;
+        case "vendor_level_up":
+          result = await completeQuestTaskRequest({
+            questId: questId as string,
+            taskId: task.id,
+            verificationData: {},
+          });
+          break;
         case "complete_external":
-          // External tasks are completed outside the platform
           result = await completeQuestTaskRequest({
             questId: questId as string,
             taskId: task.id,
@@ -245,7 +270,6 @@ const QuestDetailsPage = () => {
           });
           break;
         case "custom":
-          // Custom tasks may or may not require input
           if (task.input_required && inputData) {
             result = await completeQuestTaskRequest({
               questId: questId as string,
@@ -272,7 +296,7 @@ const QuestDetailsPage = () => {
 
       if (result.success) {
         toast.success("Task completed! 🔥");
-        await loadQuestDetails(); // Refresh data
+        await loadQuestDetails();
       } else {
         toast.error(result.error || "Failed to perform task action");
       }

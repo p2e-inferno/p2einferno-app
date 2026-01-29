@@ -121,6 +121,27 @@ export async function PUT(
       if (questFields.lock_manager_granted === true) {
         questFields.grant_failure_reason = null;
       }
+
+      // Harden security flags
+      if (
+        typeof questFields.max_keys_secured === "undefined" ||
+        questFields.max_keys_secured === null
+      ) {
+        questFields.max_keys_secured = false;
+      }
+      if (questFields.max_keys_secured === true) {
+        questFields.max_keys_failure_reason = null;
+      }
+
+      if (
+        typeof questFields.transferability_secured === "undefined" ||
+        questFields.transferability_secured === null
+      ) {
+        questFields.transferability_secured = false;
+      }
+      if (questFields.transferability_secured === true) {
+        questFields.transferability_failure_reason = null;
+      }
     }
 
     const now = new Date().toISOString();

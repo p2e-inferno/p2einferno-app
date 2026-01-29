@@ -24,6 +24,7 @@ import {
   Trash2,
   Coins,
   Flame,
+  Network,
   ArrowUpCircle,
 } from "lucide-react";
 import { useDGMarket } from "@/hooks/vendor/useDGMarket";
@@ -51,86 +52,92 @@ const taskTypeOptions: {
   icon: React.ReactNode;
   description: string;
 }[] = [
-  {
-    value: "link_email",
-    label: "Link Email",
-    icon: <Mail className="w-4 h-4" />,
-    description: "User links their email address",
-  },
-  {
-    value: "link_wallet",
-    label: "Link Wallet",
-    icon: <Wallet className="w-4 h-4" />,
-    description: "User connects their Web3 wallet",
-  },
-  {
-    value: "link_farcaster",
-    label: "Link Farcaster",
-    icon: <Share2 className="w-4 h-4" />,
-    description: "User connects their Farcaster account",
-  },
-  {
-    value: "sign_tos",
-    label: "Sign Terms",
-    icon: <FileSignature className="w-4 h-4" />,
-    description: "User signs terms of service",
-  },
-  {
-    value: "submit_url",
-    label: "Submit URL",
-    icon: <Link2 className="w-4 h-4" />,
-    description: "User submits a URL (e.g., social post)",
-  },
-  {
-    value: "submit_text",
-    label: "Submit Text",
-    icon: <FileText className="w-4 h-4" />,
-    description: "User submits text response",
-  },
-  {
-    value: "submit_proof",
-    label: "Submit Proof",
-    icon: <Camera className="w-4 h-4" />,
-    description: "User submits proof (screenshot, etc.)",
-  },
-  {
-    value: "complete_external",
-    label: "External Task",
-    icon: <CheckCircle className="w-4 h-4" />,
-    description: "User completes external task",
-  },
-  {
-    value: "custom",
-    label: "Custom Task",
-    icon: <Sparkles className="w-4 h-4" />,
-    description: "Custom verification logic",
-  },
-  // Vendor Task Types
-  {
-    value: "vendor_buy",
-    label: "Buy DG Tokens",
-    icon: <Coins className="w-4 h-4" />,
-    description: "User must buy DG tokens from vendor",
-  },
-  {
-    value: "vendor_sell",
-    label: "Sell DG Tokens",
-    icon: <Coins className="w-4 h-4" />,
-    description: "User must sell DG tokens to vendor",
-  },
-  {
-    value: "vendor_light_up",
-    label: "Light Up",
-    icon: <Flame className="w-4 h-4" />,
-    description: "User must execute Light Up action",
-  },
-  {
-    value: "vendor_level_up",
-    label: "Level Up / Upgrade Stage",
-    icon: <ArrowUpCircle className="w-4 h-4" />,
-    description: "User must reach a specific vendor stage",
-  },
-];
+    {
+      value: "link_email",
+      label: "Link Email",
+      icon: <Mail className="w-4 h-4" />,
+      description: "User links their email address",
+    },
+    {
+      value: "link_wallet",
+      label: "Link Wallet",
+      icon: <Wallet className="w-4 h-4" />,
+      description: "User connects their Web3 wallet",
+    },
+    {
+      value: "link_farcaster",
+      label: "Link Farcaster",
+      icon: <Share2 className="w-4 h-4" />,
+      description: "User connects their Farcaster account",
+    },
+    {
+      value: "sign_tos",
+      label: "Sign Terms",
+      icon: <FileSignature className="w-4 h-4" />,
+      description: "User signs terms of service",
+    },
+    {
+      value: "submit_url",
+      label: "Submit URL",
+      icon: <Link2 className="w-4 h-4" />,
+      description: "User submits a URL (e.g., social post)",
+    },
+    {
+      value: "submit_text",
+      label: "Submit Text",
+      icon: <FileText className="w-4 h-4" />,
+      description: "User submits text response",
+    },
+    {
+      value: "submit_proof",
+      label: "Submit Proof",
+      icon: <Camera className="w-4 h-4" />,
+      description: "User submits proof (screenshot, etc.)",
+    },
+    {
+      value: "complete_external",
+      label: "External Task",
+      icon: <CheckCircle className="w-4 h-4" />,
+      description: "User completes external task",
+    },
+    {
+      value: "custom",
+      label: "Custom Task",
+      icon: <Sparkles className="w-4 h-4" />,
+      description: "Custom verification logic",
+    },
+    // Vendor Task Types
+    {
+      value: "vendor_buy",
+      label: "Buy DG Tokens",
+      icon: <Coins className="w-4 h-4" />,
+      description: "User must buy DG tokens from vendor",
+    },
+    {
+      value: "vendor_sell",
+      label: "Sell DG Tokens",
+      icon: <Coins className="w-4 h-4" />,
+      description: "User must sell DG tokens to vendor",
+    },
+    {
+      value: "vendor_light_up",
+      label: "Light Up",
+      icon: <Flame className="w-4 h-4" />,
+      description: "User must execute Light Up action",
+    },
+    {
+      value: "vendor_level_up",
+      label: "Level Up / Upgrade Stage",
+      icon: <ArrowUpCircle className="w-4 h-4" />,
+      description: "User must reach a specific vendor stage",
+    },
+    {
+      value: "deploy_lock",
+      label: "Deploy Lock",
+      icon: <Network className="w-4 h-4" />,
+      description: "User must deploy an Unlock Protocol lock",
+    },
+  ];
 
 const validationOptions: { value: InputValidationType; label: string }[] = [
   { value: "text", label: "Text" },
@@ -187,6 +194,7 @@ export default function QuestTaskForm({
       "vendor_sell",
       "vendor_light_up",
       "vendor_level_up",
+      "deploy_lock",
     ];
 
     const requiresInput = inputTaskTypes.includes(taskType);
@@ -226,6 +234,7 @@ export default function QuestTaskForm({
   const isVendorBuy = localTask.task_type === "vendor_buy";
   const isVendorSell = localTask.task_type === "vendor_sell";
   const isVendorLevelUp = localTask.task_type === "vendor_level_up";
+  const isDeployLock = localTask.task_type === "deploy_lock";
   const vendorConfig = (localTask.task_config as Record<string, unknown>) || {};
 
   const updateTaskConfig = (updates: Record<string, unknown>) => {
@@ -298,11 +307,10 @@ export default function QuestTaskForm({
               key={type.value}
               type="button"
               onClick={() => handleTaskTypeChange(type.value)}
-              className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
-                localTask.task_type === type.value
-                  ? "border-flame-yellow bg-flame-yellow/10 text-white"
-                  : "border-gray-700 hover:border-gray-600 text-gray-300"
-              }`}
+              className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${localTask.task_type === type.value
+                ? "border-flame-yellow bg-flame-yellow/10 text-white"
+                : "border-gray-700 hover:border-gray-600 text-gray-300"
+                }`}
             >
               {type.icon}
               <span className="text-sm font-medium">{type.label}</span>
@@ -385,23 +393,23 @@ export default function QuestTaskForm({
                   step="0.000000000000000001"
                   value={
                     vendorConfig.required_amount &&
-                    typeof vendorConfig.required_amount === "string"
+                      typeof vendorConfig.required_amount === "string"
                       ? (
-                          BigInt(vendorConfig.required_amount) /
-                          BigInt(10 ** 18)
-                        ).toString() +
-                        (BigInt(vendorConfig.required_amount) %
-                          BigInt(10 ** 18) >
+                        BigInt(vendorConfig.required_amount) /
+                        BigInt(10 ** 18)
+                      ).toString() +
+                      (BigInt(vendorConfig.required_amount) %
+                        BigInt(10 ** 18) >
                         0
-                          ? "." +
-                            (
-                              BigInt(vendorConfig.required_amount) %
-                              BigInt(10 ** 18)
-                            )
-                              .toString()
-                              .padStart(18, "0")
-                              .replace(/0+$/, "")
-                          : "")
+                        ? "." +
+                        (
+                          BigInt(vendorConfig.required_amount) %
+                          BigInt(10 ** 18)
+                        )
+                          .toString()
+                          .padStart(18, "0")
+                          .replace(/0+$/, "")
+                        : "")
                       : ""
                   }
                   onChange={(e) => {
@@ -482,6 +490,88 @@ export default function QuestTaskForm({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {isDeployLock && (
+        <div className="border border-gray-700 rounded-lg p-4 space-y-4 bg-gray-800/50">
+          <h4 className="font-semibold text-white flex items-center gap-2">
+            <Network className="w-4 h-4" />
+            Lock Deployment Config
+          </h4>
+
+          <p className="text-sm text-gray-400">
+            Configure which networks users are allowed to deploy their locks on to complete this task.
+            You can set <strong>Reward Multipliers</strong> for each network to incentivize deployment on specific chains.
+            For example, a multiplier of 1.2 will give the user 20% more DG tokens for deploying on that network.
+          </p>
+
+          <div className="space-y-4">
+            <Label className="text-white">Allowed Networks & Multipliers</Label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[
+                { id: 8453, name: "Base Mainnet" },
+                { id: 84532, name: "Base Sepolia" },
+                { id: 10, name: "Optimism" },
+                { id: 42161, name: "Arbitrum One" },
+                { id: 42220, name: "Celo" },
+              ].map((net) => {
+                const networks = (vendorConfig.allowed_networks as any[]) || [];
+                const netConfig = networks.find((n) => n.chain_id === net.id) || {
+                  chain_id: net.id,
+                  reward_ratio: 1.0,
+                  enabled: false,
+                };
+
+                return (
+                  <div key={net.id} className="flex flex-col p-3 rounded bg-gray-900 border border-gray-700 gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-gray-200">{net.name}</span>
+                      <input
+                        type="checkbox"
+                        checked={netConfig.enabled}
+                        onChange={(e) => {
+                          const newEnabled = e.target.checked;
+                          let newNetworks = [...networks];
+                          const idx = newNetworks.findIndex((n) => n.chain_id === net.id);
+
+                          if (idx >= 0) {
+                            newNetworks[idx] = { ...netConfig, enabled: newEnabled };
+                          } else {
+                            newNetworks.push({ ...netConfig, enabled: newEnabled });
+                          }
+                          updateTaskConfig({ allowed_networks: newNetworks });
+                        }}
+                        className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+                      />
+                    </div>
+                    {netConfig.enabled && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Label className="text-xs text-gray-400">Reward Multiplier:</Label>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0.1"
+                          max="2.0"
+                          value={netConfig.reward_ratio}
+                          onChange={(e) => {
+                            const val = parseFloat(e.target.value) || 1.0;
+                            let newNetworks = [...networks];
+                            const idx = newNetworks.findIndex((n) => n.chain_id === net.id);
+                            if (idx >= 0) {
+                              newNetworks[idx] = { ...netConfig, reward_ratio: val };
+                              updateTaskConfig({ allowed_networks: newNetworks });
+                            }
+                          }}
+                          className="h-7 text-xs bg-gray-800 border-gray-700"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       )}
 
