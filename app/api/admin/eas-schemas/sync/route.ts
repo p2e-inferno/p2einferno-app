@@ -6,6 +6,7 @@ import { getNetworkConfig } from "@/lib/attestation/core/network-config";
 import {
   createPublicClientForNetwork,
   isServerBlockchainConfigured,
+  CHAIN_ID as APP_CHAIN_ID,
 } from "@/lib/blockchain/config";
 import { verifySchemaOnChain } from "@/lib/blockchain/services/schema-deployment-service";
 import { verifyAdminSignedAction } from "@/lib/auth/admin-signed-actions";
@@ -58,7 +59,10 @@ export async function POST(req: NextRequest) {
   } = body || {};
 
   if (!schemaUid || !name || !description || !category || !network) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing required fields" },
+      { status: 400 },
+    );
   }
 
   if (!isBytes32Hex(schemaUid)) {
@@ -82,7 +86,10 @@ export async function POST(req: NextRequest) {
   }
 
   if (!signedAction?.signature || !signedAction?.nonce) {
-    return NextResponse.json({ error: "Missing signed action" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Missing signed action" },
+      { status: 400 },
+    );
   }
 
   let resolvedSchemaKey: string | null = null;
@@ -96,7 +103,7 @@ export async function POST(req: NextRequest) {
 
   const verifyResult = await verifyAdminSignedAction({
     address: activeWallet,
-    chainId: networkConfig.chainId,
+    chainId: APP_CHAIN_ID,
     message: {
       action: "sync",
       network: networkConfig.name,
@@ -135,12 +142,18 @@ export async function POST(req: NextRequest) {
 
   const onChain = await verifySchemaOnChain(
     publicClient,
-    { schemaRegistryAddress: networkConfig.schemaRegistryAddress as `0x${string}` },
+    {
+      schemaRegistryAddress:
+        networkConfig.schemaRegistryAddress as `0x${string}`,
+    },
     schemaUid,
   );
 
   if (!onChain.exists || !onChain.schemaDefinition) {
-    return NextResponse.json({ error: "Schema not found on-chain" }, { status: 404 });
+    return NextResponse.json(
+      { error: "Schema not found on-chain" },
+      { status: 404 },
+    );
   }
 
   const { error } = await supabase.from("attestation_schemas").insert({
@@ -156,7 +169,10 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     log.error("Failed to sync schema", { error });
-    return NextResponse.json({ error: "Failed to sync schema" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Failed to sync schema" },
+      { status: 500 },
+    );
   }
 
   return NextResponse.json({ success: true, schemaUid }, { status: 200 });

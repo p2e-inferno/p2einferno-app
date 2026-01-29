@@ -4,6 +4,7 @@ import { ethers } from "ethers";
 import { getLogger } from "@/lib/utils/logger";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { usePrivyWriteWallet } from "@/hooks/unlock/usePrivyWriteWallet";
+import { getClientConfig } from "@/lib/blockchain/config";
 
 const log = getLogger("hooks:useAdminSignedAction");
 
@@ -62,18 +63,21 @@ export type AdminSignedActionPayload = {
 export function useAdminSignedAction() {
   const { user } = usePrivy();
   const { wallets } = useWallets();
-  const selectedWallet = useSmartWalletSelection() as
-    | { address?: string; connectorType?: string; walletClientType?: string }
-    | null;
-  const writeWallet = usePrivyWriteWallet() as
-    | { address?: string; connectorType?: string; walletClientType?: string }
-    | null;
+  const selectedWallet = useSmartWalletSelection() as {
+    address?: string;
+    connectorType?: string;
+    walletClientType?: string;
+  } | null;
+  const writeWallet = usePrivyWriteWallet() as {
+    address?: string;
+    connectorType?: string;
+    walletClientType?: string;
+  } | null;
   const [error, setError] = useState<string | null>(null);
   const [isSigning, setIsSigning] = useState(false);
 
   const signAdminAction = async (
     message: AdminActionMessage,
-    chainId: number,
   ): Promise<AdminSignedActionPayload> => {
     setError(null);
     setIsSigning(true);
@@ -109,10 +113,11 @@ export function useAdminSignedAction() {
       }
 
       // EIP-712 Domain - uses number for chainId (same as server)
+      const { chainId: appChainId } = getClientConfig();
       const domain = {
         name: "P2E Inferno Admin",
         version: "1",
-        chainId: chainId, // number, not bigint
+        chainId: appChainId, // app-configured chainId; do not bind to target network
       };
 
       // EIP-712 Types - must match server exactly

@@ -90,18 +90,15 @@ export default function SchemaSyncPanel({
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
 
-      const signedAction = await signAdminAction(
-        {
-          action: "sync",
-          network: network.name,
-          schemaDefinitionHash: keccak256(stringToHex("")),
-          schemaUid,
-          transactionHash: "",
-          timestamp,
-          nonce,
-        },
-        network.chainId,
-      );
+      const signedAction = await signAdminAction({
+        action: "sync",
+        network: network.name,
+        schemaDefinitionHash: keccak256(stringToHex("")),
+        schemaUid,
+        transactionHash: "",
+        timestamp,
+        nonce,
+      });
 
       const { data, error } = await adminFetch(`/api/admin/eas-schemas/sync`, {
         method: "POST",
