@@ -1,10 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCohortRegistrationStatus } from "@/lib/utils/registration-validation";
 import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
 import {
@@ -66,28 +62,31 @@ export function BootcampCard({ bootcamp }: BootcampCardProps) {
         {/* Status Badge - First element, positioned at top */}
         <div className="flex justify-end mb-2">
           <div
-            className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-3 py-1 ${isRegistrationOpen
-              ? "bg-flame-yellow/20 border-flame-yellow/30"
-              : activeCohort?.status === "upcoming"
-                ? "bg-blue-500/20 border-blue-500/30"
-                : "bg-red-500/20 border-red-500/30"
-              }`}
+            className={`inline-flex items-center gap-2 backdrop-blur-sm border rounded-full px-3 py-1 ${
+              isRegistrationOpen
+                ? "bg-flame-yellow/20 border-flame-yellow/30"
+                : activeCohort?.status === "upcoming"
+                  ? "bg-blue-500/20 border-blue-500/30"
+                  : "bg-red-500/20 border-red-500/30"
+            }`}
           >
             <div
-              className={`w-2 h-2 rounded-full ${isRegistrationOpen
-                ? "bg-flame-yellow animate-pulse"
-                : activeCohort?.status === "upcoming"
-                  ? "bg-blue-500"
-                  : "bg-red-500"
-                }`}
+              className={`w-2 h-2 rounded-full ${
+                isRegistrationOpen
+                  ? "bg-flame-yellow animate-pulse"
+                  : activeCohort?.status === "upcoming"
+                    ? "bg-blue-500"
+                    : "bg-red-500"
+              }`}
             ></div>
             <span
-              className={`font-medium text-sm ${isRegistrationOpen
-                ? "text-flame-yellow"
-                : activeCohort?.status === "upcoming"
-                  ? "text-blue-400"
-                  : "text-red-400"
-                }`}
+              className={`font-medium text-sm ${
+                isRegistrationOpen
+                  ? "text-flame-yellow"
+                  : activeCohort?.status === "upcoming"
+                    ? "text-blue-400"
+                    : "text-red-400"
+              }`}
             >
               {isRegistrationOpen
                 ? "Registration Open"
@@ -163,14 +162,16 @@ export function BootcampCard({ bootcamp }: BootcampCardProps) {
               disabled={isButtonDisabled}
               onClick={() => {
                 if (!isButtonDisabled) {
-                  window.location.href = `/bootcamp/${bootcamp.id}${activeCohort ? `/cohort/${activeCohort.id}` : ""
-                    }`;
+                  window.location.href = `/bootcamp/${bootcamp.id}${
+                    activeCohort ? `/cohort/${activeCohort.id}` : ""
+                  }`;
                 }
               }}
-              className={`group font-bold px-6 transition-all transform hover:scale-105 ${!isButtonDisabled
-                ? "bg-steel-red hover:bg-steel-red/90 text-white"
-                : "bg-gray-600 text-gray-300 cursor-not-allowed"
-                }`}
+              className={`group font-bold px-6 transition-all transform hover:scale-105 ${
+                !isButtonDisabled
+                  ? "bg-steel-red hover:bg-steel-red/90 text-white"
+                  : "bg-gray-600 text-gray-300 cursor-not-allowed"
+              }`}
             >
               {getButtonText()}
               {!isButtonDisabled && (

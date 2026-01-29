@@ -239,7 +239,8 @@ export const DeployLockTaskForm: React.FC<DeployLockTaskFormProps> = ({
           <span className="font-semibold">Accepted Networks</span>
         </div>
         <p className="text-xs text-blue-300/60 mb-3">
-          Each network has a different reward multiplier. Choose your network wisely!
+          Each network has a different reward multiplier. Choose your network
+          wisely!
         </p>
         <div className="space-y-2">
           {allowedNetworks.map((net) => {
