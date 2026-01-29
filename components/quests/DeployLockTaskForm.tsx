@@ -234,10 +234,13 @@ export const DeployLockTaskForm: React.FC<DeployLockTaskFormProps> = ({
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Network Information */}
       <div className="bg-blue-900/20 border border-blue-700 rounded-lg p-4">
-        <div className="flex items-center text-blue-400 mb-3">
+        <div className="flex items-center text-blue-400 mb-1">
           <Network className="w-5 h-5 mr-2" />
           <span className="font-semibold">Accepted Networks</span>
         </div>
+        <p className="text-xs text-blue-300/60 mb-3">
+          Each network has a different reward multiplier. Choose your network wisely!
+        </p>
         <div className="space-y-2">
           {allowedNetworks.map((net) => {
             const reward = calculateRewardAmount(
