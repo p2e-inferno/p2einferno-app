@@ -47,6 +47,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create new trigger with updated function
+DROP TRIGGER IF EXISTS ensure_single_submission_per_user_task ON public.task_submissions;
 CREATE TRIGGER ensure_single_submission_per_user_task
 BEFORE INSERT OR UPDATE ON task_submissions
 FOR EACH ROW

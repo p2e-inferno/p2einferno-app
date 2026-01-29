@@ -18,20 +18,29 @@ CREATE TABLE IF NOT EXISTS user_journey_preferences (
 ALTER TABLE user_journey_preferences ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
-CREATE POLICY "Users can only access their own journey preferences"
-    ON user_journey_preferences
-    FOR ALL
-    USING (
-        user_profile_id IN (
-            SELECT id FROM user_profiles
-            WHERE privy_user_id = (auth.jwt() ->> 'sub')::text
-        )
-    );
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'user_journey_preferences' 
+        AND policyname = 'Users can only access their own journey preferences'
+    ) THEN
+        CREATE POLICY "Users can only access their own journey preferences"
+            ON user_journey_preferences
+            FOR ALL
+            USING (
+                user_profile_id IN (
+                    SELECT id FROM user_profiles
+                    WHERE privy_user_id = (auth.jwt() ->> 'sub')::text
+                )
+            );
+    END IF;
+END $$;
 
 -- Create indexes for performance
-CREATE INDEX idx_user_journey_preferences_user_profile_id ON user_journey_preferences(user_profile_id);
-CREATE INDEX idx_user_journey_preferences_enrollment_id ON user_journey_preferences(enrollment_id);
-CREATE INDEX idx_user_journey_preferences_is_hidden ON user_journey_preferences(is_hidden);
+CREATE INDEX IF NOT EXISTS idx_user_journey_preferences_user_profile_id ON user_journey_preferences(user_profile_id);
+CREATE INDEX IF NOT EXISTS idx_user_journey_preferences_enrollment_id ON user_journey_preferences(enrollment_id);
+CREATE INDEX IF NOT EXISTS idx_user_journey_preferences_is_hidden ON user_journey_preferences(is_hidden);
 
 -- Create updated_at trigger function with security
 CREATE OR REPLACE FUNCTION update_user_journey_preferences_updated_at()
@@ -45,6 +54,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger
+DROP TRIGGER IF EXISTS user_journey_preferences_updated_at ON user_journey_preferences;
 CREATE TRIGGER user_journey_preferences_updated_at
     BEFORE UPDATE ON user_journey_preferences
     FOR EACH ROW
