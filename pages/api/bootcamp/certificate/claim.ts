@@ -11,6 +11,12 @@ import type {
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
+import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
+import {
+  decodeAttestationDataFromDb,
+  getDecodedFieldValue,
+  normalizeBytes32,
+} from "@/lib/attestation/api/commit-guards";
 
 const log = getLogger("api:certificate-claim");
 
@@ -285,6 +291,48 @@ export default async function handler(
       const recipient = profile.wallet_address || "";
       if (!recipient) {
         return res.status(400).json({ error: "Wallet not configured" });
+      }
+
+      const decoded = await decodeAttestationDataFromDb({
+        supabase,
+        schemaKey: "bootcamp_completion",
+        network: getDefaultNetworkName(),
+        encodedData: attestationSignature.data,
+      });
+
+      if (!decoded) {
+        return res
+          .status(400)
+          .json({ error: "Invalid attestation payload" });
+      }
+
+      const decodedTxHashRaw = getDecodedFieldValue(
+        decoded,
+        "certificateTxHash",
+      );
+      const expectedTxHashRaw = row.certificate_tx_hash;
+
+      const decodedTxHash =
+        normalizeBytes32(decodedTxHashRaw) ||
+        (typeof decodedTxHashRaw === "string"
+          ? decodedTxHashRaw.toLowerCase()
+          : null);
+      const expectedTxHash =
+        normalizeBytes32(expectedTxHashRaw) ||
+        (typeof expectedTxHashRaw === "string"
+          ? expectedTxHashRaw.toLowerCase()
+          : null);
+
+      if (!decodedTxHash || !expectedTxHash) {
+        return res.status(400).json({
+          error: "Certificate transaction hash missing for verification",
+        });
+      }
+
+      if (decodedTxHash !== expectedTxHash) {
+        return res.status(400).json({
+          error: "Attestation payload does not match certificate transaction",
+        });
       }
 
       const attestationResult = await handleGaslessAttestation({

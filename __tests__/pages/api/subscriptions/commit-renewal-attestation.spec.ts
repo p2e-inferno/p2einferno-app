@@ -45,6 +45,21 @@ jest.mock("@/lib/attestation/api/helpers", () => ({
 
 jest.mock("@/lib/attestation/core/network-config", () => ({
   buildEasScanLink: jest.fn(async (uid: string) => `https://scan/${uid}`),
+  getDefaultNetworkName: jest.fn(() => "base-sepolia"),
+}));
+
+jest.mock("@/lib/attestation/api/commit-guards", () => ({
+  decodeAttestationDataFromDb: jest.fn(async () => [
+    { name: "renewalTxHash", value: "0xrenewtx" },
+    {
+      name: "subscriptionLockAddress",
+      value: "0x00000000000000000000000000000000000000aa",
+    },
+  ]),
+  getDecodedFieldValue: (decoded: any[], field: string) =>
+    decoded.find((item) => item.name === field)?.value,
+  normalizeBytes32: (value: any) =>
+    typeof value === "string" ? value.toLowerCase() : null,
 }));
 
 jest.mock("@/lib/supabase/server", () => {
@@ -64,6 +79,9 @@ jest.mock("@/lib/supabase/server", () => {
                         status: "success",
                         attestation_uid:
                           global.__XP_RENEW_COMMIT_EXISTING_UID__,
+                        lock_address:
+                          "0x00000000000000000000000000000000000000aa",
+                        transaction_hash: "0xrenewtx",
                       },
                       error: null,
                     }),

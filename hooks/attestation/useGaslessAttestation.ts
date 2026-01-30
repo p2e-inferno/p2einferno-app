@@ -26,8 +26,26 @@ import type {
   DelegatedAttestationSignature,
   SchemaFieldData,
 } from "@/lib/attestation/api/types";
+import { ensureWalletOnChainId } from "@/lib/blockchain/shared/ensure-wallet-network";
 
 const log = getLogger("hooks:useGaslessAttestation");
+
+const isUserRejectedError = (err: any): boolean => {
+  const code = err?.code;
+  const name = (err?.name || "").toString().toLowerCase();
+  const msg = (err?.message || "").toString().toLowerCase();
+  return (
+    code === 4001 ||
+    code === "ACTION_REJECTED" ||
+    name.includes("userrejected") ||
+    msg.includes("user rejected") ||
+    msg.includes("rejected") ||
+    msg.includes("denied") ||
+    msg.includes("cancel") ||
+    msg.includes("canceled") ||
+    msg.includes("cancelled")
+  );
+};
 
 const getSupabaseUrl = (): string | null =>
   process.env.NEXT_PUBLIC_SUPABASE_URL || null;
@@ -104,8 +122,9 @@ export const useGaslessAttestation = () => {
     refUID?: string; // Reference UID for linked attestations
   }): Promise<DelegatedAttestationSignature> => {
     const wallet =
-      wallets?.find((w: any) => w?.walletClientType && w.walletClientType !== "privy") ||
-      wallets?.[0];
+      wallets?.find(
+        (w: any) => w?.walletClientType && w.walletClientType !== "privy",
+      ) || wallets?.[0];
     if (!wallet) {
       throw new Error("No wallet connected");
     }
@@ -128,7 +147,7 @@ export const useGaslessAttestation = () => {
       const schemaUid = await resolveSchemaUID(params.schemaKey, networkName);
       if (!schemaUid) {
         throw new Error(
-          `Schema UID not found for key '${params.schemaKey}' on network '${networkName}'`
+          `Schema UID not found for key '${params.schemaKey}' on network '${networkName}'`,
         );
       }
 
@@ -146,11 +165,24 @@ export const useGaslessAttestation = () => {
         throw new Error("Failed to get Ethereum provider from wallet");
       }
 
+      try {
+        await ensureWalletOnChainId(provider, {
+          chainId,
+          rpcUrl: networkConfig.rpcUrl,
+          networkName: networkConfig.displayName,
+        });
+      } catch (err: any) {
+        if (isUserRejectedError(err)) {
+          throw new Error("Network switch cancelled");
+        }
+        throw err;
+      }
+
       const ethersProvider = new ethers.BrowserProvider(provider);
       const signer = await ethersProvider.getSigner();
 
       const deadline = BigInt(
-        Math.floor(Date.now() / 1000) + (params.deadlineSecondsFromNow ?? 3600)
+        Math.floor(Date.now() / 1000) + (params.deadlineSecondsFromNow ?? 3600),
       );
       const attester = await signer.getAddress();
       const expirationTime = params.expirationTime ?? 0n;
@@ -189,7 +221,7 @@ export const useGaslessAttestation = () => {
           name: field.name,
           value: field.value,
           type: field.type,
-        }))
+        })),
       );
 
       // Initialize EAS SDK
@@ -212,7 +244,7 @@ export const useGaslessAttestation = () => {
           deadline,
           value: 0n,
         },
-        signer
+        signer,
       );
 
       // Normalize signature to 0x rsv string format

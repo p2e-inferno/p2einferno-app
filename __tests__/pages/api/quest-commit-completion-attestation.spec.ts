@@ -47,6 +47,19 @@ jest.mock("@/lib/attestation/api/helpers", () => ({
 
 jest.mock("@/lib/attestation/core/network-config", () => ({
   buildEasScanLink: jest.fn(async (uid: string) => `https://scan/${uid}`),
+  getDefaultNetworkName: jest.fn(() => "base-sepolia"),
+}));
+
+jest.mock("@/lib/attestation/api/commit-guards", () => ({
+  decodeAttestationDataFromDb: jest.fn(async () => [
+    { name: "grantTxHash", value: "0xgranttxhash" },
+    { name: "keyTokenId", value: "123" },
+  ]),
+  getDecodedFieldValue: (decoded: any[], field: string) =>
+    decoded.find((item) => item.name === field)?.value,
+  normalizeBytes32: (value: any) =>
+    typeof value === "string" ? value.toLowerCase() : null,
+  normalizeUint: (value: any) => (value == null ? null : BigInt(value)),
 }));
 
 jest.mock("@/lib/supabase/server", () => {
@@ -65,6 +78,8 @@ jest.mock("@/lib/supabase/server", () => {
                         is_completed: true,
                         key_claim_attestation_uid:
                           global.__QUEST_COMMIT_EXISTING_UID__,
+                        key_claim_tx_hash: "0xgranttxhash",
+                        key_claim_token_id: 123,
                       },
                       error: null,
                     }),

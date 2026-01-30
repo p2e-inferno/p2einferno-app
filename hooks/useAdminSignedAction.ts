@@ -5,6 +5,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { usePrivyWriteWallet } from "@/hooks/unlock/usePrivyWriteWallet";
 import { getClientConfig } from "@/lib/blockchain/config";
+import { ensureWalletOnAppNetwork } from "@/lib/blockchain/shared/ensure-wallet-network";
 
 const log = getLogger("hooks:useAdminSignedAction");
 
@@ -149,6 +150,17 @@ export function useAdminSignedAction() {
 
       // Get Ethereum provider from Privy wallet
       const provider = await (wallet as any).getEthereumProvider();
+
+      try {
+        await ensureWalletOnAppNetwork(provider);
+      } catch (err: any) {
+        if (isUserRejectedError(err)) {
+          throw new Error("Network switch cancelled");
+        }
+        const msg = err?.message || "Failed to switch network";
+        throw new Error(msg);
+      }
+
       const ethersProvider = new ethers.BrowserProvider(provider);
       const signer = await ethersProvider.getSigner();
 

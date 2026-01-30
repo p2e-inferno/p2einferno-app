@@ -41,12 +41,28 @@ jest.mock("@/lib/attestation/api/helpers", () => ({
 
 jest.mock("@/lib/attestation/core/network-config", () => ({
   buildEasScanLink: jest.fn(async (uid: string) => `https://scan/${uid}`),
+  getDefaultNetworkName: jest.fn(() => "base-sepolia"),
+}));
+
+jest.mock("@/lib/attestation/api/commit-guards", () => ({
+  decodeAttestationDataFromDb: jest.fn(async () => [
+    { name: "grantTxHash", value: "0xgranttx" },
+    { name: "keyTokenId", value: "123" },
+  ]),
+  getDecodedFieldValue: (decoded: any[], field: string) =>
+    decoded.find((item) => item.name === field)?.value,
+  normalizeBytes32: (value: any) =>
+    typeof value === "string" ? value.toLowerCase() : null,
+  normalizeUint: (value: any) => (value == null ? null : BigInt(value)),
 }));
 
 jest.mock("@/lib/services/user-key-service", () => ({
   grantKeyToUser: jest.fn(async () => ({
     success: true,
     transactionHash: "0xgranttx",
+  })),
+  checkUserKeyOwnership: jest.fn(async () => ({
+    keyInfo: { tokenId: 123n },
   })),
 }));
 
@@ -90,6 +106,8 @@ jest.mock("@/lib/supabase/server", () => {
                     single: async () => ({
                       data: {
                         status: "completed",
+                        key_claim_tx_hash: "0xgranttx",
+                        key_claim_token_id: 123,
                         milestone: {
                           lock_address:
                             "0x00000000000000000000000000000000000000aa",
@@ -159,7 +177,27 @@ describe("POST /api/milestones/claim (Phase 6)", () => {
     expect(statusCode).toBe(401);
   });
 
-  it("grants key and includes attestationUid when attestation succeeds", async () => {
+  it("grants key and returns attestation payload when EAS enabled", async () => {
+    global.__MILESTONE_CLAIM_EAS_ENABLED__ = true;
+    const { statusCode, json } = await runApi({
+      body: {
+        milestoneId: "m1",
+      },
+    });
+
+    expect(statusCode).toBe(200);
+    expect(json).toMatchObject({
+      success: true,
+      transactionHash: "0xgranttx",
+      attestationRequired: true,
+    });
+    expect(global.__MILESTONE_CLAIM_PROGRESS_UPDATE__).toEqual({
+      key_claim_tx_hash: "0xgranttx",
+      key_claim_token_id: "123",
+    });
+  });
+
+  it("persists UID on commit when attestation succeeds", async () => {
     global.__MILESTONE_CLAIM_EAS_ENABLED__ = true;
     const { statusCode, json } = await runApi({
       body: {
@@ -173,19 +211,11 @@ describe("POST /api/milestones/claim (Phase 6)", () => {
     expect(statusCode).toBe(200);
     expect(json).toMatchObject({
       success: true,
-      transactionHash: "0xgranttx",
       attestationUid: "0xmilestoneattuid",
       attestationScanUrl: "https://scan/0xmilestoneattuid",
     });
     expect(global.__MILESTONE_CLAIM_PROGRESS_UPDATE__).toEqual({
       key_claim_attestation_uid: "0xmilestoneattuid",
     });
-  });
-
-  it("returns 400 when EAS enabled but signature missing (UX requires signing)", async () => {
-    global.__MILESTONE_CLAIM_EAS_ENABLED__ = true;
-    const { statusCode, json } = await runApi({ body: { milestoneId: "m1" } });
-    expect(statusCode).toBe(400);
-    expect(json).toMatchObject({ error: "Attestation signature is required" });
   });
 });
