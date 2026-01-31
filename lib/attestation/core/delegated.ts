@@ -185,11 +185,24 @@ export async function createDelegatedAttestation(
       };
     }
 
-    // 8. Submit delegated attestation
+    // 7.5. Robust Gas and Nonce Management
+    const [nonce, feeData] = await Promise.all([
+      provider.getTransactionCount(signer.address, 'pending'),
+      provider.getFeeData(),
+    ]);
+
+    // Apply 20% padding to priority fee for faster inclusion
+    const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas
+      ? (feeData.maxPriorityFeePerGas * 120n) / 100n
+      : undefined;
+
+    // 8. Submit delegated attestation with overrides
     log.info('Submitting delegated attestation', {
       schemaUid,
       recipient,
-      attester: recipient, // User is the attester
+      attester: recipient,
+      nonce,
+      maxPriorityFee: maxPriorityFeePerGas?.toString(),
     });
 
     const transaction = await eas.attestByDelegation({
@@ -205,6 +218,10 @@ export async function createDelegatedAttestation(
       signature: { v: sigTuple.v, r: sigTuple.r, s: sigTuple.s },
       attester: recipient, // USER is the attester (not service wallet!)
       deadline: BigInt(deadline),
+    }, {
+      nonce,
+      maxPriorityFeePerGas,
+      maxFeePerGas: feeData.maxFeePerGas,
     });
 
     // 9. Wait for transaction and get real UID
