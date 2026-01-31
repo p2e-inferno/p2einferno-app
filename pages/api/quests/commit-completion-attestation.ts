@@ -7,6 +7,13 @@ import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types"
 import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 import { getUserPrimaryWallet } from "@/lib/quests/prerequisite-checker";
+import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
+import {
+  decodeAttestationDataFromDb,
+  getDecodedFieldValue,
+  normalizeBytes32,
+  normalizeUint,
+} from "@/lib/attestation/api/commit-guards";
 
 const log = getLogger("api:quests:commit-completion-attestation");
 
@@ -50,7 +57,9 @@ export default async function handler(
 
     const { data: progress, error: progressError } = await supabase
       .from("user_quest_progress")
-      .select("reward_claimed, is_completed, key_claim_attestation_uid")
+      .select(
+        "reward_claimed, is_completed, key_claim_attestation_uid, key_claim_tx_hash, key_claim_token_id",
+      )
       .eq("user_id", authUser.id)
       .eq("quest_id", questId)
       .maybeSingle();
@@ -85,6 +94,48 @@ export default async function handler(
       return res
         .status(400)
         .json({ error: "Attestation signature is required" });
+    }
+
+    const decoded = await decodeAttestationDataFromDb({
+      supabase,
+      schemaKey: "quest_completion",
+      network: getDefaultNetworkName(),
+      encodedData: attestationSignature.data,
+    });
+
+    if (!decoded) {
+      return res.status(400).json({ error: "Invalid attestation payload" });
+    }
+
+    const decodedGrantTxHash = normalizeBytes32(
+      getDecodedFieldValue(decoded, "grantTxHash"),
+    );
+    const decodedTokenId = normalizeUint(
+      getDecodedFieldValue(decoded, "keyTokenId"),
+    );
+
+    const expectedGrantTxHash = normalizeBytes32(
+      (progress as any)?.key_claim_tx_hash,
+    );
+    const expectedTokenId = normalizeUint(
+      (progress as any)?.key_claim_token_id,
+    );
+
+    if (!expectedGrantTxHash || expectedTokenId === null) {
+      return res.status(400).json({
+        error: "Grant details not recorded for this quest completion",
+      });
+    }
+
+    if (
+      !decodedGrantTxHash ||
+      !decodedTokenId ||
+      decodedGrantTxHash !== expectedGrantTxHash ||
+      decodedTokenId !== expectedTokenId
+    ) {
+      return res.status(400).json({
+        error: "Attestation payload does not match recorded grant details",
+      });
     }
 
     const attestationResult = await handleGaslessAttestation({

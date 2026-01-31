@@ -15,6 +15,12 @@ import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
 import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
+import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
+import {
+  decodeAttestationDataFromDb,
+  getDecodedFieldValue,
+  normalizeBytes32,
+} from "@/lib/attestation/api/commit-guards";
 
 const log = getLogger("api:token:withdraw:commit-attestation");
 
@@ -102,6 +108,57 @@ export async function POST(req: NextRequest) {
     }
 
     const recipient = withdrawal.wallet_address;
+
+    const decoded = await decodeAttestationDataFromDb({
+      supabase,
+      schemaKey: "dg_withdrawal",
+      network: getDefaultNetworkName(),
+      encodedData: attestationSignature.data,
+    });
+
+    if (!decoded) {
+      return NextResponse.json(
+        { success: false, error: "Invalid attestation payload" },
+        { status: 400 },
+      );
+    }
+
+    const decodedTxHashRaw = getDecodedFieldValue(
+      decoded,
+      "withdrawalTxHash",
+    );
+    const expectedTxHashRaw = withdrawal.transaction_hash;
+
+    const decodedTxHash =
+      normalizeBytes32(decodedTxHashRaw) ||
+      (typeof decodedTxHashRaw === "string"
+        ? decodedTxHashRaw.toLowerCase()
+        : null);
+    const expectedTxHash =
+      normalizeBytes32(expectedTxHashRaw) ||
+      (typeof expectedTxHashRaw === "string"
+        ? expectedTxHashRaw.toLowerCase()
+        : null);
+
+    if (!decodedTxHash || !expectedTxHash) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Withdrawal transaction hash missing for verification",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (decodedTxHash !== expectedTxHash) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Attestation payload does not match withdrawal transaction",
+        },
+        { status: 400 },
+      );
+    }
 
     const attestationResult = await handleGaslessAttestation({
       signature: attestationSignature,

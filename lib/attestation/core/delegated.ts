@@ -200,6 +200,7 @@ export async function createDelegatedAttestation(
         revocable: Boolean(revocable),
         refUID,
         data,
+        value: 0n,
       },
       signature: { v: sigTuple.v, r: sigTuple.r, s: sigTuple.s },
       attester: recipient, // USER is the attester (not service wallet!)

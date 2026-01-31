@@ -20,11 +20,6 @@ jest.mock("@/hooks/attestation/useGaslessAttestation", () => ({
   }),
 }));
 
-const mockUseWallets = jest.fn();
-jest.mock("@privy-io/react-auth", () => ({
-  useWallets: () => mockUseWallets(),
-}));
-
 jest.mock("react-hot-toast", () => {
   const toastFn: any = jest.fn();
   toastFn.loading = jest.fn(() => "toast-id");
@@ -37,23 +32,69 @@ jest.mock("react-hot-toast", () => {
   };
 });
 
-describe("useMilestoneClaim (Phase 6 UX)", () => {
+describe("useMilestoneClaim (milestone key claim proof)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     global.__TEST_EAS_ENABLED__ = false;
-    mockUseWallets.mockReturnValue({ wallets: [{ address: "0xabc" }] });
     mockSignAttestation.mockResolvedValue({ signature: "0xsig" });
-    global.fetch = jest.fn(async () => {
-      return {
-        ok: true,
-        json: async () => ({ success: true, attestationScanUrl: null }),
-      } as any;
-    }) as any;
   });
 
-  it("signs milestone_achievement with v2 schema fields", async () => {
+  it("signs milestone_achievement using server-provided grant tx + tokenId", async () => {
     global.__TEST_EAS_ENABLED__ = true;
     mockSignAttestation.mockResolvedValue({ signature: "0xsig" });
+
+    const fetchMock = jest
+      .fn()
+      .mockImplementationOnce(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            transactionHash: "0xgrant",
+            keyTokenId: "42",
+            attestationRequired: true,
+            attestationPayload: {
+              schemaKey: "milestone_achievement",
+              recipient: "0xabc",
+              schemaData: [
+                { name: "milestoneId", type: "string", value: "m1" },
+                {
+                  name: "milestoneTitle",
+                  type: "string",
+                  value: "Milestone 1",
+                },
+                { name: "userAddress", type: "address", value: "0xabc" },
+                {
+                  name: "cohortLockAddress",
+                  type: "address",
+                  value: "0x00000000000000000000000000000000000000cc",
+                },
+                {
+                  name: "milestoneLockAddress",
+                  type: "address",
+                  value: "0x00000000000000000000000000000000000000aa",
+                },
+                { name: "keyTokenId", type: "uint256", value: "42" },
+                { name: "grantTxHash", type: "bytes32", value: "0xgrant" },
+                { name: "achievementDate", type: "uint256", value: "123" },
+                { name: "xpEarned", type: "uint256", value: "123" },
+                { name: "skillLevel", type: "string", value: "" },
+              ],
+            },
+          }),
+        } as any;
+      })
+      .mockImplementationOnce(async () => {
+        return {
+          ok: true,
+          json: async () => ({
+            success: true,
+            attestationUid: "0xuid",
+            attestationScanUrl: "https://scan/0xuid",
+          }),
+        } as any;
+      });
+    global.fetch = fetchMock as any;
 
     const { result } = renderHook(() =>
       useMilestoneClaim({
@@ -74,45 +115,57 @@ describe("useMilestoneClaim (Phase 6 UX)", () => {
     expect(mockSignAttestation).toHaveBeenCalledWith(
       expect.objectContaining({
         schemaKey: "milestone_achievement",
-        schemaData: [
-          { name: "milestoneId", type: "string", value: "m1" },
-          { name: "milestoneTitle", type: "string", value: "Milestone 1" },
-          { name: "userAddress", type: "address", value: "0xabc" },
-          {
-            name: "cohortLockAddress",
-            type: "address",
-            value: "0x0000000000000000000000000000000000000000",
-          },
-          {
-            name: "milestoneLockAddress",
-            type: "address",
-            value: "0x00000000000000000000000000000000000000aa",
-          },
-          { name: "keyTokenId", type: "uint256", value: 0n },
-          {
-            name: "grantTxHash",
-            type: "bytes32",
-            value:
-              "0x0000000000000000000000000000000000000000000000000000000000000000",
-          },
-          {
-            name: "achievementDate",
-            type: "uint256",
-            value: expect.any(BigInt),
-          },
-          { name: "xpEarned", type: "uint256", value: 123n },
-          { name: "skillLevel", type: "string", value: "" },
-        ],
+        recipient: "0xabc",
       }),
     );
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(toast.success).toHaveBeenCalled();
   });
 
-  it("does not call API when user rejects signature (claim cancelled)", async () => {
+  it("shows success but marks proof cancelled when user rejects proof signature", async () => {
     global.__TEST_EAS_ENABLED__ = true;
     mockSignAttestation.mockRejectedValue({
       code: 4001,
       message: "User rejected",
     });
+
+    const fetchMock = jest.fn().mockImplementationOnce(async () => {
+      return {
+        ok: true,
+        json: async () => ({
+          success: true,
+          transactionHash: "0xgrant",
+          keyTokenId: "42",
+          attestationRequired: true,
+          attestationPayload: {
+            schemaKey: "milestone_achievement",
+            recipient: "0xabc",
+            schemaData: [
+              { name: "milestoneId", type: "string", value: "m1" },
+              { name: "milestoneTitle", type: "string", value: "Milestone 1" },
+              { name: "userAddress", type: "address", value: "0xabc" },
+              {
+                name: "cohortLockAddress",
+                type: "address",
+                value: "0x00000000000000000000000000000000000000cc",
+              },
+              {
+                name: "milestoneLockAddress",
+                type: "address",
+                value: "0x00000000000000000000000000000000000000aa",
+              },
+              { name: "keyTokenId", type: "uint256", value: "42" },
+              { name: "grantTxHash", type: "bytes32", value: "0xgrant" },
+              { name: "achievementDate", type: "uint256", value: "123" },
+              { name: "xpEarned", type: "uint256", value: "123" },
+              { name: "skillLevel", type: "string", value: "" },
+            ],
+          },
+        }),
+      } as any;
+    });
+    global.fetch = fetchMock as any;
 
     const { result } = renderHook(() =>
       useMilestoneClaim({
@@ -125,9 +178,12 @@ describe("useMilestoneClaim (Phase 6 UX)", () => {
       await result.current.claimMilestoneKey();
     });
 
-    expect(global.fetch).not.toHaveBeenCalled();
-    expect(toast.error).toHaveBeenCalledWith("Claim cancelled", {
-      id: "toast-id",
-    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(toast.success).toHaveBeenCalled();
+
+    const rendered = (toast.success as any).mock.calls[0][0];
+    expect(JSON.stringify(rendered)).toContain(
+      "Completion proof cancelled — claim completed.",
+    );
   });
 });

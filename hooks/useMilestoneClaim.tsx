@@ -2,7 +2,6 @@ import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
-import { useWallets } from "@privy-io/react-auth";
 import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
 
 const log = getLogger("hooks:useMilestoneClaim");
@@ -30,7 +29,6 @@ export const useMilestoneClaim = ({
   onSuccess,
 }: UseMilestoneClaimProps) => {
   const [isClaiming, setIsClaiming] = useState(false);
-  const { wallets } = useWallets();
   const { signAttestation, isSigning } = useGaslessAttestation();
 
   const isUserRejected = (err: any): boolean => {
@@ -61,73 +59,6 @@ export const useMilestoneClaim = ({
 
     try {
       const easEnabled = isEASEnabled();
-      let attestationSignature: any = null;
-
-      // UX: when EAS is enabled, signing is required. Canceling the signature == canceling the claim.
-      if (easEnabled) {
-        const wallet = wallets?.[0];
-        if (!wallet?.address) {
-          throw new Error("Wallet not connected");
-        }
-
-        try {
-          const userAddress = wallet.address;
-          const achievementDate = BigInt(Math.floor(Date.now() / 1000));
-          const xpEarned = BigInt(
-            milestone?.user_progress?.reward_amount ??
-              milestone?.total_reward ??
-              0,
-          );
-          const cohortLockAddress =
-            "0x0000000000000000000000000000000000000000";
-          const milestoneLockAddress =
-            typeof milestone?.lock_address === "string" && milestone.lock_address
-              ? milestone.lock_address
-              : "0x0000000000000000000000000000000000000000";
-          const keyTokenId = 0n;
-          const grantTxHash =
-            "0x0000000000000000000000000000000000000000000000000000000000000000";
-
-          attestationSignature = await signAttestation({
-            schemaKey: "milestone_achievement",
-            recipient: userAddress,
-            schemaData: [
-              { name: "milestoneId", type: "string", value: milestone.id },
-              {
-                name: "milestoneTitle",
-                type: "string",
-                value: milestone.name,
-              },
-              { name: "userAddress", type: "address", value: userAddress },
-              {
-                name: "cohortLockAddress",
-                type: "address",
-                value: cohortLockAddress,
-              },
-              {
-                name: "milestoneLockAddress",
-                type: "address",
-                value: milestoneLockAddress,
-              },
-              { name: "keyTokenId", type: "uint256", value: keyTokenId },
-              { name: "grantTxHash", type: "bytes32", value: grantTxHash },
-              {
-                name: "achievementDate",
-                type: "uint256",
-                value: achievementDate,
-              },
-              { name: "xpEarned", type: "uint256", value: xpEarned },
-              { name: "skillLevel", type: "string", value: "" },
-            ],
-          });
-        } catch (err: any) {
-          if (isUserRejected(err)) {
-            throw new Error("Claim cancelled");
-          }
-          throw err;
-        }
-      }
-
       const response = await fetch("/api/milestones/claim", {
         method: "POST",
         headers: {
@@ -136,7 +67,6 @@ export const useMilestoneClaim = ({
         },
         body: JSON.stringify({
           milestoneId: milestone.id,
-          attestationSignature,
         }),
       });
 
@@ -149,14 +79,48 @@ export const useMilestoneClaim = ({
         return;
       }
 
-      const scanUrl = data.attestationScanUrl;
+      let attestationScanUrl: string | null | undefined = null;
+      let proofCancelled = false;
+
+      if (easEnabled && data.attestationRequired && data.attestationPayload) {
+        try {
+          const signature = await signAttestation({
+            schemaKey: data.attestationPayload.schemaKey,
+            recipient: data.attestationPayload.recipient,
+            schemaData: data.attestationPayload.schemaData,
+          });
+
+          const commitResp = await fetch("/api/milestones/claim", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              milestoneId: milestone.id,
+              attestationSignature: signature,
+            }),
+          });
+          const commitJson = await commitResp.json().catch(() => ({}));
+          attestationScanUrl = commitJson?.attestationScanUrl || null;
+        } catch (err: any) {
+          if (isUserRejected(err)) {
+            proofCancelled = true;
+          } else {
+            throw err;
+          }
+        }
+      }
+
       toast.success(
         <div className="text-sm leading-relaxed">
           Milestone key granted successfully!
-          {scanUrl && (
+          {proofCancelled && (
+            <div className="text-xs mt-1 text-gray-300">
+              Completion proof cancelled — claim completed.
+            </div>
+          )}
+          {attestationScanUrl && (
             <div className="text-xs mt-1 break-all">
               <a
-                href={scanUrl}
+                href={attestationScanUrl}
                 target="_blank"
                 rel="noreferrer"
                 className="text-cyan-500 underline"

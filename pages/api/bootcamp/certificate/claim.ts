@@ -11,8 +11,19 @@ import type {
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
+import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
+import {
+  decodeAttestationDataFromDb,
+  getDecodedFieldValue,
+  normalizeBytes32,
+} from "@/lib/attestation/api/commit-guards";
+import { checkUserKeyOwnership } from "@/lib/services/user-key-service";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
+import { extractTokenTransfers } from "@/lib/blockchain/shared/transaction-utils";
 
 const log = getLogger("api:certificate-claim");
+const ZERO_BYTES32 = `0x${"0".repeat(64)}`;
+const ZERO_ADDRESS = `0x${"0".repeat(40)}`;
 
 async function computeTotalEarnedRewards(params: {
   supabase: ReturnType<typeof createAdminClient>;
@@ -75,9 +86,12 @@ function buildBootcampCompletionSchemaData(params: {
   bootcampId: string;
   bootcampTitle: string;
   userAddress: string;
+  cohortLockAddress: string;
+  certificateLockAddress: string;
+  certificateTokenId: bigint;
+  certificateTxHashBytes32: string;
   completionDateUnix: number;
   totalEarnedRewards: number;
-  certificateTxHash: string;
 }): SchemaFieldData[] {
   return [
     { name: "cohortId", type: "string", value: params.cohortId },
@@ -85,6 +99,26 @@ function buildBootcampCompletionSchemaData(params: {
     { name: "bootcampId", type: "string", value: params.bootcampId },
     { name: "bootcampTitle", type: "string", value: params.bootcampTitle },
     { name: "userAddress", type: "address", value: params.userAddress },
+    {
+      name: "cohortLockAddress",
+      type: "address",
+      value: params.cohortLockAddress,
+    },
+    {
+      name: "certificateLockAddress",
+      type: "address",
+      value: params.certificateLockAddress,
+    },
+    {
+      name: "certificateTokenId",
+      type: "uint256",
+      value: params.certificateTokenId.toString(),
+    },
+    {
+      name: "certificateTxHash",
+      type: "bytes32",
+      value: params.certificateTxHashBytes32,
+    },
     {
       name: "completionDate",
       type: "uint256",
@@ -94,11 +128,6 @@ function buildBootcampCompletionSchemaData(params: {
       name: "totalXpEarned",
       type: "uint256",
       value: String(params.totalEarnedRewards),
-    },
-    {
-      name: "certificateTxHash",
-      type: "string",
-      value: params.certificateTxHash,
     },
   ];
 }
@@ -196,6 +225,7 @@ export default async function handler(
         cohorts:cohort_id ( 
           id, 
           name,
+          lock_address,
           bootcamp_program_id,
           bootcamp_programs:bootcamp_program_id ( id, name, lock_address )
         )
@@ -229,6 +259,7 @@ export default async function handler(
       cohorts: {
         id: string;
         name: string;
+        lock_address: string | null;
         bootcamp_program_id: string;
         bootcamp_programs: {
           id: string;
@@ -285,6 +316,79 @@ export default async function handler(
       const recipient = profile.wallet_address || "";
       if (!recipient) {
         return res.status(400).json({ error: "Wallet not configured" });
+      }
+
+      log.debug("Bootcamp certificate attestation commit received", {
+        enrollmentId: row.id,
+        cohortId,
+        userId: profile.privy_user_id,
+        schemaKey: "bootcamp_completion",
+        network: getDefaultNetworkName(),
+        hasExistingUid: Boolean(existingAttestationUid),
+      });
+
+      const decoded = await decodeAttestationDataFromDb({
+        supabase,
+        schemaKey: "bootcamp_completion",
+        network: getDefaultNetworkName(),
+        encodedData: attestationSignature.data,
+      });
+
+      if (!decoded) {
+        log.warn("Bootcamp certificate commit failed to decode payload", {
+          enrollmentId: row.id,
+          cohortId,
+          userId: profile.privy_user_id,
+          schemaKey: "bootcamp_completion",
+          network: getDefaultNetworkName(),
+        });
+        return res.status(400).json({ error: "Invalid attestation payload" });
+      }
+
+      const decodedTxHashRaw = getDecodedFieldValue(
+        decoded,
+        "certificateTxHash",
+      );
+      const expectedTxHashRaw = row.certificate_tx_hash;
+
+      const decodedTxHash =
+        normalizeBytes32(decodedTxHashRaw) ||
+        (typeof decodedTxHashRaw === "string"
+          ? decodedTxHashRaw.toLowerCase()
+          : null);
+      const expectedTxHash =
+        normalizeBytes32(expectedTxHashRaw) ||
+        (typeof expectedTxHashRaw === "string"
+          ? expectedTxHashRaw.toLowerCase()
+          : null);
+
+      if (!decodedTxHash || !expectedTxHash) {
+        log.warn(
+          "Bootcamp certificate commit missing tx hash for verification",
+          {
+            enrollmentId: row.id,
+            cohortId,
+            userId: profile.privy_user_id,
+            decodedTxHash: decodedTxHash || null,
+            expectedTxHash: expectedTxHash || null,
+          },
+        );
+        return res.status(400).json({
+          error: "Certificate transaction hash missing for verification",
+        });
+      }
+
+      if (decodedTxHash !== expectedTxHash) {
+        log.warn("Bootcamp certificate commit payload mismatch", {
+          enrollmentId: row.id,
+          cohortId,
+          userId: profile.privy_user_id,
+          decodedTxHash,
+          expectedTxHash,
+        });
+        return res.status(400).json({
+          error: "Attestation payload does not match certificate transaction",
+        });
       }
 
       const attestationResult = await handleGaslessAttestation({
@@ -384,8 +488,10 @@ export default async function handler(
         ? Math.floor(new Date(completionDateIso).getTime() / 1000)
         : Math.floor(Date.now() / 1000);
 
-      const certificateTxHash =
+      const certificateTxHashRaw =
         (fresh as any)?.certificate_tx_hash || (result as any)?.txHash || "";
+      const certificateTxHashBytes32 =
+        normalizeBytes32(certificateTxHashRaw) || ZERO_BYTES32;
 
       let totalEarnedRewards = 0;
       try {
@@ -408,6 +514,59 @@ export default async function handler(
       const cohortName = row?.cohorts?.name || "";
       const bootcampId = row?.cohorts?.bootcamp_program_id || "";
       const bootcampTitle = program?.name || "";
+      const cohortLockAddress = row?.cohorts?.lock_address || ZERO_ADDRESS;
+      const certificateLockAddress = lockAddress;
+
+      let certificateTokenId = 0n;
+      try {
+        const publicClient = createPublicClientUnified();
+        const keyCheck = await checkUserKeyOwnership(
+          publicClient,
+          profile.privy_user_id,
+          certificateLockAddress,
+        );
+        if (keyCheck?.hasValidKey && keyCheck.keyInfo?.tokenId != null) {
+          certificateTokenId = keyCheck.keyInfo.tokenId;
+        }
+      } catch (e: any) {
+        log.warn("Failed to load certificate tokenId via key ownership check", {
+          enrollmentId: row.id,
+          cohortId,
+          lockAddress: certificateLockAddress,
+          error: e?.message || String(e),
+        });
+      }
+
+      if (
+        certificateTokenId === 0n &&
+        certificateTxHashBytes32 !== ZERO_BYTES32
+      ) {
+        try {
+          const publicClient = createPublicClientUnified();
+          const receipt = await publicClient.waitForTransactionReceipt({
+            hash: certificateTxHashBytes32 as `0x${string}`,
+            confirmations: 1,
+          });
+
+          const transfers = extractTokenTransfers(receipt);
+          const minted = transfers.find(
+            (t) =>
+              t.to.toLowerCase() === recipient.toLowerCase() &&
+              t.from.toLowerCase() ===
+                "0x0000000000000000000000000000000000000000",
+          );
+          if (minted) {
+            certificateTokenId = minted.tokenId;
+          }
+        } catch (e: any) {
+          log.warn("Failed to infer certificate tokenId from tx receipt", {
+            enrollmentId: row.id,
+            cohortId,
+            txHash: certificateTxHashBytes32,
+            error: e?.message || String(e),
+          });
+        }
+      }
 
       const schemaData = buildBootcampCompletionSchemaData({
         cohortId,
@@ -415,9 +574,12 @@ export default async function handler(
         bootcampId,
         bootcampTitle,
         userAddress: recipient,
+        cohortLockAddress,
+        certificateLockAddress,
+        certificateTokenId,
+        certificateTxHashBytes32,
         completionDateUnix,
         totalEarnedRewards,
-        certificateTxHash,
       });
 
       return res.status(200).json({

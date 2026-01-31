@@ -30,6 +30,21 @@ jest.mock("@/lib/attestation/api/helpers", () => ({
 
 jest.mock("@/lib/attestation/core/network-config", () => ({
   buildEasScanLink: jest.fn(),
+  getDefaultNetworkName: jest.fn(() => "base-sepolia"),
+}));
+
+jest.mock("@/lib/attestation/api/commit-guards", () => ({
+  decodeAttestationDataFromDb: jest.fn(async () => [
+    {
+      name: "withdrawalTxHash",
+      value:
+        "0x1111111111111111111111111111111111111111111111111111111111111111",
+    },
+  ]),
+  getDecodedFieldValue: (decoded: any[], field: string) =>
+    decoded.find((item) => item.name === field)?.value,
+  normalizeBytes32: (value: any) =>
+    typeof value === "string" ? value.toLowerCase() : null,
 }));
 
 const { POST } = require("@/app/api/token/withdraw/commit-attestation/route");
@@ -55,7 +70,7 @@ global.__WITHDRAW_COMMIT_EXISTING_UID__ = null;
 
 describe("POST /api/token/withdraw/commit-attestation (Phase 9)", () => {
   beforeEach(() => {
-    jest.resetAllMocks();
+    jest.clearAllMocks();
     getPrivyUserFromNextRequest.mockResolvedValue({ id: "privy-user-1" });
     isEASEnabled.mockReturnValue(true);
     handleGaslessAttestation.mockResolvedValue({
@@ -77,7 +92,8 @@ describe("POST /api/token/withdraw/commit-attestation (Phase 9)", () => {
         user_id: "privy-user-1",
         wallet_address: "0x00000000000000000000000000000000000000bb",
         status: "completed",
-        transaction_hash: "0xwithdtx",
+        transaction_hash:
+          "0x1111111111111111111111111111111111111111111111111111111111111111",
         attestation_uid: global.__WITHDRAW_COMMIT_EXISTING_UID__,
       },
       error: null,

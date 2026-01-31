@@ -6,6 +6,12 @@ import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
 import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
+import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
+import {
+  decodeAttestationDataFromDb,
+  getDecodedFieldValue,
+  normalizeBytes32,
+} from "@/lib/attestation/api/commit-guards";
 
 const log = getLogger("api:subscriptions:commit-renewal-attestation");
 
@@ -77,7 +83,9 @@ export default async function handler(
 
     const { data: attempt, error: attemptError } = await supabase
       .from("subscription_renewal_attempts")
-      .select("id, user_id, status, attestation_uid")
+      .select(
+        "id, user_id, status, attestation_uid, lock_address, transaction_hash",
+      )
       .eq("id", renewalAttemptId)
       .eq("user_id", privy.id)
       .maybeSingle();
@@ -129,6 +137,67 @@ export default async function handler(
         attestationUid: null,
         attestationScanUrl: null,
         error: "Attestation signature is required",
+      });
+    }
+
+    const decoded = await decodeAttestationDataFromDb({
+      supabase,
+      schemaKey: "xp_renewal",
+      network: getDefaultNetworkName(),
+      encodedData: attestationSignature.data,
+    });
+
+    if (!decoded) {
+      return res.status(400).json({
+        success: false,
+        attestationUid: null,
+        attestationScanUrl: null,
+        error: "Invalid attestation payload",
+      });
+    }
+
+    const decodedTxHash = normalizeBytes32(
+      getDecodedFieldValue(decoded, "renewalTxHash"),
+    );
+    const decodedLockAddressRaw = getDecodedFieldValue(
+      decoded,
+      "subscriptionLockAddress",
+    );
+    const decodedLockAddress =
+      typeof decodedLockAddressRaw === "string"
+        ? decodedLockAddressRaw.toLowerCase()
+        : null;
+
+    const expectedTxHash = normalizeBytes32((attempt as any)?.transaction_hash);
+    const expectedLockAddress =
+      typeof (attempt as any)?.lock_address === "string"
+        ? ((attempt as any).lock_address as string).toLowerCase()
+        : null;
+
+    if (!expectedTxHash || !expectedLockAddress) {
+      return res.status(400).json({
+        success: false,
+        attestationUid: null,
+        attestationScanUrl: null,
+        error: "Renewal details not recorded for verification",
+      });
+    }
+
+    if (!decodedTxHash || decodedTxHash !== expectedTxHash) {
+      return res.status(400).json({
+        success: false,
+        attestationUid: null,
+        attestationScanUrl: null,
+        error: "Attestation payload does not match renewal transaction",
+      });
+    }
+
+    if (!decodedLockAddress || decodedLockAddress !== expectedLockAddress) {
+      return res.status(400).json({
+        success: false,
+        attestationUid: null,
+        attestationScanUrl: null,
+        error: "Attestation payload does not match subscription lock",
       });
     }
 
