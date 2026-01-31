@@ -11,6 +11,7 @@ import {
   Play,
   Coins,
   Zap,
+  Megaphone,
 } from "lucide-react";
 
 const adminModules = [
@@ -86,6 +87,14 @@ const adminModules = [
     href: "/admin/subscriptions/config",
     color: "from-rose-600 to-rose-700",
     buttonText: "Configure Subscriptions",
+  },
+  {
+    title: "Leads",
+    description: "Manage marketing leads and starter kit downloads",
+    icon: Megaphone,
+    href: "/admin/leads",
+    color: "from-pink-600 to-pink-700",
+    buttonText: "Manage Leads",
   },
 ];
 

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { sendEmail, getStarterKitEmail } from "@/lib/email";
 
 const log = getLogger("api:leads");
 
@@ -72,6 +73,41 @@ export default async function handler(
       return res
         .status(500)
         .json({ success: false, error: "Failed to save lead" });
+    }
+
+    // Send Starter Kit Email if applicable
+    if (intent === "starter_kit") {
+      try {
+        const appUrl =
+          process.env.NEXT_PUBLIC_APP_URL ||
+          process.env.APP_URL ||
+          "http://localhost:3000";
+        const pdfUrl = `${appUrl}/P2E-INFERNO-Web3-Starter-Kit.pdf`;
+
+        // Fetch the PDF from the public URL
+        const pdfRes = await fetch(pdfUrl);
+        if (!pdfRes.ok) {
+          log.error("Failed to fetch starter kit PDF", {
+            url: pdfUrl,
+            status: pdfRes.status,
+          });
+        } else {
+          const pdfBuffer = await pdfRes.arrayBuffer();
+
+          const emailData = getStarterKitEmail({ name });
+          await sendEmail({
+            to: email,
+            ...emailData,
+            attachment: {
+              filename: "P2E-INFERNO-Web3-Starter-Kit.pdf",
+              data: pdfBuffer,
+            },
+          });
+          log.info("Sent starter kit email", { email });
+        }
+      } catch (emailError) {
+        log.error("Failed to send starter kit email", { error: emailError });
+      }
     }
 
     return res.status(200).json({ success: true });

@@ -11,6 +11,11 @@ export interface EmailOptions {
   html?: string;
   tags?: string[];
   testMode?: boolean;
+  attachment?: {
+    filename: string;
+    data: Buffer | Blob | ArrayBuffer | string;
+    contentType?: string;
+  };
 }
 
 export interface EmailResult {
@@ -70,6 +75,25 @@ export async function sendEmail(
   if (html) form.append("html", html);
   tags.forEach((tag) => form.append("o:tag", tag));
   if (testMode || envTestMode) form.append("o:testmode", "yes");
+
+  if (options.attachment) {
+    const { filename, data } = options.attachment;
+    // Normalize data to Blob for FormData
+    let blob: Blob;
+
+    if (typeof data === 'string') {
+      blob = new Blob([data]);
+    } else if (data instanceof Buffer) {
+      blob = new Blob([data as any]);
+    } else if (data instanceof ArrayBuffer) {
+      blob = new Blob([data]);
+    } else {
+      blob = data as Blob;
+    }
+
+    // cast to any to avoid TS issues with FormData vs Undici types if strict
+    form.append("attachment", blob as any, filename);
+  }
 
   try {
     const res = await fetch(`${apiUrl}/v3/${domain}/messages`, {
