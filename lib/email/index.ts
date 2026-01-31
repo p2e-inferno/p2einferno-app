@@ -10,10 +10,12 @@ export {
   getRenewalEmail,
   getWithdrawalEmail,
   getWelcomeEmail,
+  getStarterKitEmail,
   type PaymentSuccessParams,
   type RenewalParams,
   type WithdrawalParams,
   type WelcomeParams,
+  type StarterKitParams,
 } from "./templates";
 
 export {

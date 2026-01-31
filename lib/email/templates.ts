@@ -210,3 +210,39 @@ export function getWelcomeEmail(params: WelcomeParams) {
     html: wrapHtml("Welcome", body),
   };
 }
+
+export interface StarterKitParams {
+  name?: string | null;
+}
+
+export function getStarterKitEmail(params: StarterKitParams) {
+  const { name } = params;
+
+  const body = `
+    <h1 style="margin:0 0 8px;font-size:24px;color:${BRAND_DARK};">Here is your Web3 Starter Kit!</h1>
+    <p style="margin:0 0 20px;color:${MUTED};font-size:14px;line-height:22px;">
+      Hi ${name || "there"},
+    </p>
+    <p style="margin:0 0 20px;color:${MUTED};font-size:14px;line-height:22px;">
+      Thanks for requesting the P2E Inferno Web3 Starter Kit. We've attached the guide as a PDF to this email.
+    </p>
+    <p style="margin:0 0 20px;color:${MUTED};font-size:14px;line-height:22px;">
+      This kit covers the essentials to get you started in Web3.0.
+    </p>
+    <div style="background:${ACCENT};border-radius:12px;padding:16px 18px;margin:16px 0;">
+      <p style="margin:0 0 8px;font-size:14px;color:${BRAND_DARK};font-weight:600;">Want to go deeper?</p>
+      <p style="margin:0;font-size:14px;color:${BRAND_DARK};">
+        Check out our upcoming Bootcamps to learn AI, Blockchain and Emerging Technogies.
+      </p>
+    </div>
+    <a href="${getBaseUrl()}/bootcamps" style="display:inline-block;background:${BRAND_COLOR};color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">
+      View Bootcamps
+    </a>
+  `;
+
+  return {
+    subject: "Your P2E Inferno Web3 Starter Kit",
+    text: `Hi ${name || "there"}, please find your Web3 Starter Kit attached.`,
+    html: wrapHtml("Web3 Starter Kit", body),
+  };
+}

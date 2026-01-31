@@ -78,11 +78,16 @@ export const LeadMagnetForm: React.FC<LeadMagnetFormProps> = ({
   };
 
   if (status === "success") {
+    const isWaitlist = defaultIntent.includes("waitlist");
     return (
       <div className="rounded-xl border border-border/60 bg-card/60 p-4 text-center">
-        <p className="text-sm text-white font-semibold">You’re in!</p>
+        <p className="text-sm text-white font-semibold">
+          {isWaitlist ? "You’re on the list!" : "You’re in!"}
+        </p>
         <p className="text-xs text-faded-grey mt-1">
-          Check your inbox for the Starter Kit.
+          {isWaitlist
+            ? "We’ll notify you when spots open up."
+            : "Check your inbox for the Starter Kit."}
         </p>
       </div>
     );

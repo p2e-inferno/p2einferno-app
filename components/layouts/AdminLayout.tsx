@@ -19,6 +19,7 @@ import {
   Zap,
   ShieldAlert,
   FileCode2,
+  Megaphone,
 } from "lucide-react";
 import { getLogger } from "@/lib/utils/logger";
 
@@ -43,6 +44,7 @@ const adminNavItems = [
   },
   { name: "CSP Reports", href: "/admin/csp-reports", icon: ShieldAlert },
   { name: "Applications", href: "/admin/applications", icon: FileText },
+  { name: "Leads", href: "/admin/leads", icon: Megaphone },
   { name: "Draft Recovery", href: "/admin/draft-recovery", icon: FileText },
   { name: "EAS Schemas", href: "/admin/eas-schemas", icon: FileCode2 },
 ];
