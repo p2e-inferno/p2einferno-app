@@ -1,6 +1,7 @@
-import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 import { getLogger } from "@/lib/utils/logger";
 import { resolveSchemaUIDFromEnv, type SchemaKey } from "@/lib/attestation/core/config";
+import { getDefaultNetworkName } from "../core/network-config";
 
 const log = getLogger("attestation:schema-resolver");
 
@@ -12,34 +13,6 @@ type CacheEntry = {
 };
 
 const cache = new Map<string, CacheEntry>();
-
-const getSupabaseUrl = (): string | null =>
-  process.env.NEXT_PUBLIC_SUPABASE_URL || null;
-
-const getSupabaseAnonKey = (): string | null =>
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || null;
-
-let publicSupabaseClient:
-  | ReturnType<typeof createSupabaseClient>
-  | null
-  | undefined;
-
-const getPublicSupabaseClient = () => {
-  if (publicSupabaseClient !== undefined) return publicSupabaseClient;
-  const url = getSupabaseUrl();
-  const anonKey = getSupabaseAnonKey();
-  if (!url || !anonKey) {
-    publicSupabaseClient = null;
-    return publicSupabaseClient;
-  }
-  publicSupabaseClient = createSupabaseClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  return publicSupabaseClient;
-};
-
-const getDefaultNetworkName = (): string =>
-  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
 
 const getCacheKey = (schemaKey: SchemaKey, network: string): string =>
   `${schemaKey}:${network}`;
@@ -70,10 +43,6 @@ export const resolveSchemaUID = async (
   }
 
   try {
-    const supabase = getPublicSupabaseClient();
-    if (!supabase) {
-      throw new Error("Missing Supabase public env vars");
-    }
     const { data, error } = await supabase
       .from("attestation_schemas")
       .select("schema_uid")
@@ -105,8 +74,20 @@ export const resolveSchemaUID = async (
   }
 
   const fallback = resolveSchemaUIDFromEnv(schemaKey);
-  setCachedValue(cacheKey, fallback || null);
-  return fallback || null;
+
+  // Fail-fast: If not found in DB AND no fallback in env, this is a failure
+  if (!fallback) {
+    const errorMsg = `Critical: Schema UID for '${schemaKey}' not resolved on network '${resolvedNetwork}'. ` +
+      "Please ensure it is added to the attestation_schemas table or configured in environment variables.";
+    log.error(errorMsg);
+
+    // We cache null so we don't spam the DB, but we throw for the caller
+    setCachedValue(cacheKey, null);
+    throw new Error(errorMsg);
+  }
+
+  setCachedValue(cacheKey, fallback);
+  return fallback;
 };
 
 export const __clearSchemaResolverCacheForTests = (): void => {

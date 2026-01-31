@@ -27,8 +27,7 @@ import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("checkin:service");
 
-const getDefaultNetworkName = (): string =>
-  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
+import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
 
 let supabaseClient = supabase;
 
@@ -51,7 +50,7 @@ export class DailyCheckinService {
     private multiplierStrategy: MultiplierStrategy,
     private xpCalculator: XPCalculatorStrategy,
     private xpUpdater: XPUpdaterStrategy,
-  ) {}
+  ) { }
 
   /**
    * Check if user can perform a check-in today
@@ -284,8 +283,8 @@ export class DailyCheckinService {
         if (!resolvedSchemaUidForCheckin) {
           throw new AttestationError(
             "Daily check-in schema UID not configured. " +
-              "Set it in the DB (attestation_schemas.schema_key='daily_checkin' for this network) " +
-              "or via NEXT_PUBLIC_DAILY_CHECKIN_SCHEMA_UID.",
+            "Set it in the DB (attestation_schemas.schema_key='daily_checkin' for this network) " +
+            "or via NEXT_PUBLIC_DAILY_CHECKIN_SCHEMA_UID.",
             { userAddress, resolvedNetwork },
           );
         }
@@ -333,9 +332,9 @@ export class DailyCheckinService {
         // Optional attestation for server API to persist when EAS is enabled
         attestation:
           attestationResult.attestationUid &&
-          isEASEnabled() &&
-          resolvedSchemaUidForCheckin
-          ? {
+            isEASEnabled() &&
+            resolvedSchemaUidForCheckin
+            ? {
               uid: attestationResult.attestationUid,
               schemaUid: resolvedSchemaUidForCheckin,
               attester: wallet.address,
@@ -343,7 +342,7 @@ export class DailyCheckinService {
               data: checkinData,
               expirationTime: undefined as number | undefined,
             }
-          : undefined,
+            : undefined,
       };
 
       log.debug("Updating user XP", {
@@ -564,7 +563,7 @@ export class DailyCheckinService {
         .in("id", Array.from(new Set(checkins.map((c) => c.user_profile_id))));
 
       const walletAddresses = userProfiles.data?.map(p => p.wallet_address) || [];
-      
+
       // Calculate average streak (simplified)
       const streaks = await Promise.all(
         walletAddresses.map((address) =>
