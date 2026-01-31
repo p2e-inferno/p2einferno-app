@@ -104,9 +104,7 @@ export default async function handler(
     });
 
     if (!decoded) {
-      return res
-        .status(400)
-        .json({ error: "Invalid attestation payload" });
+      return res.status(400).json({ error: "Invalid attestation payload" });
     }
 
     const decodedGrantTxHash = normalizeBytes32(

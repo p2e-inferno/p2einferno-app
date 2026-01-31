@@ -83,7 +83,9 @@ export default async function handler(
 
     const { data: attempt, error: attemptError } = await supabase
       .from("subscription_renewal_attempts")
-      .select("id, user_id, status, attestation_uid, lock_address, transaction_hash")
+      .select(
+        "id, user_id, status, attestation_uid, lock_address, transaction_hash",
+      )
       .eq("id", renewalAttemptId)
       .eq("user_id", privy.id)
       .maybeSingle();
@@ -166,9 +168,7 @@ export default async function handler(
         ? decodedLockAddressRaw.toLowerCase()
         : null;
 
-    const expectedTxHash = normalizeBytes32(
-      (attempt as any)?.transaction_hash,
-    );
+    const expectedTxHash = normalizeBytes32((attempt as any)?.transaction_hash);
     const expectedLockAddress =
       typeof (attempt as any)?.lock_address === "string"
         ? ((attempt as any).lock_address as string).toLowerCase()

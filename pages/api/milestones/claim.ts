@@ -194,9 +194,7 @@ export default async function handler(
       });
 
       if (!decoded) {
-        return res
-          .status(400)
-          .json({ error: "Invalid attestation payload" });
+        return res.status(400).json({ error: "Invalid attestation payload" });
       }
 
       const decodedGrantTxHash = normalizeBytes32(
@@ -315,7 +313,10 @@ export default async function handler(
     // After grant: extract tokenId from receipt (quest completion pattern).
     let keyTokenId = 0n;
     const transactionHash = grantResult.transactionHash;
-    if (transactionHash && typeof publicClient?.waitForTransactionReceipt === "function") {
+    if (
+      transactionHash &&
+      typeof publicClient?.waitForTransactionReceipt === "function"
+    ) {
       try {
         const receipt = await publicClient.waitForTransactionReceipt({
           hash: transactionHash as `0x${string}`,
@@ -372,8 +373,10 @@ export default async function handler(
     }
 
     const cohortId = milestoneRow?.cohort_id as string | null | undefined;
-    let cohortLockAddress =
-      (milestoneRow as any)?.cohort?.lock_address as string | null | undefined;
+    let cohortLockAddress = (milestoneRow as any)?.cohort?.lock_address as
+      | string
+      | null
+      | undefined;
 
     if (!cohortLockAddress && cohortId) {
       const { data: cohortRow } = await supabase
