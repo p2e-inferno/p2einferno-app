@@ -1,6 +1,6 @@
-import { createAdminClient } from "@/lib/supabase/server";
+import { supabase } from "@/lib/supabase";
 import { getLogger } from "@/lib/utils/logger";
-import { EAS_CONFIG } from "@/lib/attestation/core/config";
+import { EAS_CONFIG, isEASEnabled } from "@/lib/attestation/core/config";
 
 const log = getLogger("attestation:network-config");
 
@@ -79,52 +79,71 @@ const buildFallbackConfig = (): EasNetworkConfig => ({
   sourceCommit: null,
 });
 
-const loadFromDb = async (): Promise<EasNetworkConfig[] | null> => {
+const loadFromDb = async (): Promise<EasNetworkConfig[]> => {
   try {
-    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("eas_networks")
       .select("*")
       .order("name");
+
     if (error) {
-      log.warn("Failed to load eas_networks from DB", { error: error.message });
-      return null;
+      log.error("Failed to load eas_networks from DB", {
+        error: error.message,
+        code: error.code,
+      });
+      throw new Error(`Database error loading networks: ${error.message}`);
     }
+
+    if (!data || data.length === 0) {
+      log.warn("No networks found in eas_networks table");
+      return [];
+    }
+
     return (data || []).map(mapRow);
   } catch (error: any) {
-    log.warn("Failed to load eas_networks from DB", {
+    log.error("Exception loading eas_networks from DB", {
       error: error?.message || "unknown error",
     });
-    return null;
+    throw error;
   }
 };
 
 const getCachedNetworks = async (
   bypassCache?: boolean,
 ): Promise<EasNetworkConfig[]> => {
-  if (bypassCache) {
-    const data = await loadFromDb();
-    if (data && data.length > 0) {
-      cacheState = { data, expiresAt: Date.now() + CACHE_TTL_MS };
-      return data;
-    }
-  }
   const now = Date.now();
-  if (cacheState && cacheState.expiresAt > now) {
+  if (!bypassCache && cacheState && cacheState.expiresAt > now) {
     return cacheState.data;
   }
+
   const data = await loadFromDb();
   if (data && data.length > 0) {
     cacheState = { data, expiresAt: now + CACHE_TTL_MS };
     return data;
   }
+
+  // Fail-fast: If EAS is enabled but we can't find ANY networks, that's a configuration error.
+  if (isEASEnabled()) {
+    throw new Error(
+      "Critical: EAS is enabled but no networks were found in the database.",
+    );
+  }
+
+  // If EAS is disabled, we can return empty or a skeleton, 
+  // but for safety, we'll return the fallback ONLY in local/disabled mode.
   const fallback = buildFallbackConfig();
-  cacheState = { data: [fallback], expiresAt: now + CACHE_TTL_MS };
   return [fallback];
 };
 
-export const getDefaultNetworkName = (): string =>
-  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || EAS_CONFIG.NETWORK;
+export const getDefaultNetworkName = (): string => {
+  const envNetwork = process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK;
+  if (envNetwork) return envNetwork.toLowerCase();
+
+  log.warn("NEXT_PUBLIC_BLOCKCHAIN_NETWORK is not set, defaulting to internal config", {
+    default: EAS_CONFIG.NETWORK
+  });
+  return EAS_CONFIG.NETWORK;
+};
 
 export const getAllNetworks = async (options?: {
   includeDisabled?: boolean;
@@ -150,11 +169,24 @@ export const resolveNetworkConfig = async (
   name?: string,
   options?: { includeDisabled?: boolean },
 ): Promise<EasNetworkConfig> => {
-  const targetName = name || getDefaultNetworkName();
-  const network =
-    (await getNetworkConfig(targetName, options)) ||
-    (await getNetworkConfig(EAS_CONFIG.NETWORK, { includeDisabled: true }));
-  return network || buildFallbackConfig();
+  const targetName = (name || getDefaultNetworkName()).toLowerCase();
+  const includeDisabled = options?.includeDisabled ?? false;
+
+  const networks = await getAllNetworks({ includeDisabled });
+  const network = networks.find((n) => n.name.toLowerCase() === targetName);
+
+  if (network) return network;
+
+  // Fail-fast: If the requested network is missing, do NOT silently fall back to Sepolia.
+  const errorMsg = `Critical: Network configuration for '${targetName}' not found. ` +
+    "Please ensure this network is enabled in the eas_networks table.";
+
+  log.error(errorMsg, {
+    requested: targetName,
+    available: networks.map(n => n.name)
+  });
+
+  throw new Error(errorMsg);
 };
 
 export const buildEasScanLink = async (

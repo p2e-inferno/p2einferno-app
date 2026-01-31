@@ -19,8 +19,7 @@ import {
 
 const log = getLogger("lib:attestation:service");
 
-const getDefaultNetworkName = (): string =>
-  process.env.NEXT_PUBLIC_BLOCKCHAIN_NETWORK || "base-sepolia";
+import { getDefaultNetworkName } from "./network-config";
 
 export class AttestationService {
   private eas: EAS | null = null;
@@ -374,7 +373,7 @@ export class AttestationService {
       log.error("Error encoding attestation data", { error });
       throw new Error(
         "Failed to encode attestation data: " +
-          (error instanceof Error ? error.message : "Unknown error"),
+        (error instanceof Error ? error.message : "Unknown error"),
       );
     }
   }
