@@ -1138,7 +1138,7 @@ export default function QuestForm({
 
               {!showAutoLockCreation && (
                 <p className="text-sm text-gray-400 mt-1">
-                  Optional: Unlock Protocol lock address for quest completion
+                  Unlock Protocol lock address for quest completion
                   certificates
                 </p>
               )}
@@ -1188,7 +1188,7 @@ export default function QuestForm({
               </div>
             </div>
             <p className="text-sm text-gray-400 -mt-2 ml-6">
-              Users must complete GoodDollar face verification to participate in
+              Users must complete GoodDollar verification to participate in
               this quest.
             </p>
           </div>

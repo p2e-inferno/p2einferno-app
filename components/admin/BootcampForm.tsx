@@ -844,7 +844,7 @@ export default function BootcampForm({
 
             {!showAutoLockCreation && (
               <p className="text-sm text-gray-400 mt-1">
-                Optional: Unlock Protocol lock address for bootcamp completion
+                Unlock Protocol lock address for bootcamp completion
                 certificates
               </p>
             )}

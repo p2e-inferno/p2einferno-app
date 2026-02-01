@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import Toggle from "@/components/ui/toggle";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Button } from "@/components/ui/button";
 import {
@@ -689,22 +690,31 @@ export default function QuestTaskForm({
             </Label>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <input
-              type="checkbox"
-              id={`admin-review-${index}`}
-              checked={localTask.requires_admin_review || false}
-              onChange={(e) =>
-                handleChange("requires_admin_review", e.target.checked)
-              }
-              className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
-            />
-            <Label
-              htmlFor={`admin-review-${index}`}
-              className="text-white cursor-pointer"
-            >
-              Requires Admin Review
-            </Label>
+          {/* Admin Review Toggle */}
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <label
+                  htmlFor={`admin-review-${index}`}
+                  className="text-sm font-medium text-gray-300 cursor-pointer"
+                >
+                  Requires Admin Review
+                </label>
+                <p className="text-xs text-gray-400 mt-1">
+                  When enabled, submissions for this task will require manual
+                  admin review and approval
+                </p>
+              </div>
+              <div className="ml-4">
+                <Toggle
+                  checked={localTask.requires_admin_review || false}
+                  onCheckedChange={(checked) =>
+                    handleChange("requires_admin_review", checked)
+                  }
+                  ariaLabel="Requires Admin Review"
+                />
+              </div>
+            </div>
           </div>
         </div>
       )}

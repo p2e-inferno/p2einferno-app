@@ -57,8 +57,8 @@ export default function LobbyPage() {
         typeof message === "string" && message.length > 0
           ? message
           : verification === "success"
-            ? "Face verification completed successfully"
-            : "Face verification failed";
+            ? "Gooddollar verification completed successfully"
+            : "Gooddollar verification failed";
 
       if (verification === "success") {
         toast.success(msg);

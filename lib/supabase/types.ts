@@ -195,6 +195,7 @@ export interface MilestoneTask {
   description?: string;
   reward_amount: number;
   order_index: number;
+  requires_admin_review?: boolean;
   created_at: string;
   updated_at: string;
 }

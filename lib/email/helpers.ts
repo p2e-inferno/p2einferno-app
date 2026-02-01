@@ -117,3 +117,140 @@ export async function getUserEmailContextById(
     return null;
   }
 }
+
+export interface SubmissionReviewContext {
+  taskId: string;
+  taskTitle: string;
+  userName: string;
+  submissionType: string;
+  systemType: "milestone" | "quest";
+}
+
+/**
+ * Fetch submission context for milestone task submissions.
+ * Returns null if submission, task, or user not found.
+ */
+export async function getMilestoneSubmissionContext(
+  supabase: SupabaseClient,
+  submissionId: string,
+  userId: string,
+): Promise<SubmissionReviewContext | null> {
+  try {
+    // Fetch submission with task (has FK relationship)
+    const { data, error } = await supabase
+      .from("task_submissions")
+      .select(
+        `
+        id,
+        submission_type,
+        task_id,
+        user_id,
+        task:milestone_tasks!task_id (
+          id,
+          title
+        )
+      `,
+      )
+      .eq("id", submissionId)
+      .eq("user_id", userId)
+      .single();
+
+    if (error || !data) {
+      log.warn("Failed to fetch milestone submission context", {
+        submissionId,
+        userId,
+        error,
+      });
+      return null;
+    }
+
+    const task = Array.isArray(data.task) ? data.task[0] : data.task;
+
+    if (!task) {
+      log.warn("Task not found for milestone submission", { submissionId });
+      return null;
+    }
+
+    // Fetch user profile separately (no FK relationship from task_submissions to user_profiles)
+    const { data: userProfile, error: userError } = await supabase
+      .from("user_profiles")
+      .select("display_name")
+      .eq("privy_user_id", data.user_id)
+      .maybeSingle();
+
+    if (userError || !userProfile) {
+      log.warn("Failed to fetch user profile for milestone submission", {
+        userId: data.user_id,
+        error: userError,
+      });
+      return null;
+    }
+
+    return {
+      taskId: data.task_id,
+      taskTitle: task.title,
+      userName: userProfile.display_name || "User",
+      submissionType: data.submission_type,
+      systemType: "milestone",
+    };
+  } catch (err) {
+    log.error("Exception fetching milestone submission context", {
+      submissionId,
+      userId,
+      err,
+    });
+    return null;
+  }
+}
+
+/**
+ * Fetch submission context for quest task submissions.
+ * Returns null if task or user not found.
+ */
+export async function getQuestSubmissionContext(
+  supabase: SupabaseClient,
+  taskId: string,
+  userId: string,
+): Promise<SubmissionReviewContext | null> {
+  try {
+    const { data: task, error: taskError } = await supabase
+      .from("quest_tasks")
+      .select("id, title, task_type")
+      .eq("id", taskId)
+      .single();
+
+    if (taskError || !task) {
+      log.warn("Failed to fetch quest task", { taskId, error: taskError });
+      return null;
+    }
+
+    const { data: user, error: userError } = await supabase
+      .from("user_profiles")
+      .select("display_name")
+      .eq("privy_user_id", userId)
+      .single();
+
+    if (userError || !user) {
+      log.warn("Failed to fetch user profile for quest", {
+        userId,
+        error: userError,
+      });
+      return null;
+    }
+
+    return {
+      taskId: task.id,
+      taskTitle: task.title,
+      userName: user.display_name || "User",
+      submissionType: task.task_type,
+      systemType: "quest",
+    };
+  } catch (err) {
+    log.error("Exception fetching quest submission context", {
+      taskId,
+      userId,
+      err,
+    });
+    return null;
+  }
+}
