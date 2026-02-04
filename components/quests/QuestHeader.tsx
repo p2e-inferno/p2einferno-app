@@ -1,7 +1,7 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Flame, Coins, Sparkles } from "lucide-react"; // Icons used in the header
+import { Coins, Sparkles } from "lucide-react";
 import type { QuestHeaderProps } from "./types";
 import { RichText } from "@/components/common/RichText";
 
@@ -38,9 +38,21 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
       : "Start Quest";
 
   return (
-    <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl p-6 sm:p-8 border border-gray-700 mb-8">
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 md:gap-6 mb-6">
-        <div className="flex-1 min-w-0">
+    <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl overflow-hidden border border-gray-700 mb-8">
+      {quest.image_url && (
+        <div className="relative w-full h-48 sm:h-56 md:h-64">
+          <Image
+            src={quest.image_url}
+            alt={quest.title}
+            fill
+            className="object-cover"
+            priority
+          />
+        </div>
+      )}
+
+      <div className="p-6 sm:p-8">
+        <div className="mb-6">
           <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-3 sm:mb-4 flex items-center break-words">
             {quest.title}
             {isQuestCompleted && (
@@ -52,23 +64,6 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
             className="text-base sm:text-lg text-gray-400 leading-relaxed break-words"
           />
         </div>
-
-        <div className="md:ml-8 w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-lg overflow-hidden bg-gradient-to-br from-orange-900/20 to-red-900/20 flex-shrink-0 self-start md:self-auto mt-2 md:mt-0">
-          {quest.image_url ? (
-            <Image
-              src={quest.image_url}
-              alt={quest.title}
-              width={128}
-              height={128}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Flame className="w-16 h-16 text-orange-500/50" />
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* Progress Section */}
       <div className="space-y-4">
@@ -144,6 +139,7 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
           {isClaimingReward ? "Claiming..." : rewardLabel}
         </button>
       )}
+      </div>
     </div>
   );
 };
