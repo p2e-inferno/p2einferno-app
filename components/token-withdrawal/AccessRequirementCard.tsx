@@ -122,7 +122,12 @@ export function AccessRequirementCard() {
     <>
       <div className="p-6 bg-gradient-to-br from-indigo-500/10 via-transparent to-orange-500/5 border border-indigo-500/20 rounded-2xl relative overflow-hidden backdrop-blur-sm">
         <div className="absolute top-0 right-0 p-4 opacity-10">
-          <AlertCircle className="w-24 h-24 text-indigo-400 rotate-12" />
+          <AlertCircle
+            aria-hidden="true"
+            focusable="false"
+            role="presentation"
+            className="w-24 h-24 text-indigo-400 rotate-12"
+          />
         </div>
 
         <div className="relative z-10">

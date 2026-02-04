@@ -119,6 +119,17 @@ export async function getUserEmailContextById(
 }
 
 export interface SubmissionReviewContext {
+  /**
+   * System-specific submission identifier.
+   * - milestone: task_submissions.id
+   * - quest: user_task_completions.id
+   */
+  submissionId?: string;
+  /**
+   * A stable, attempt-unique key suitable for email deduplication.
+   * For quests, this should change on resubmissions (e.g. completed_at timestamp).
+   */
+  submissionAttemptKey?: string;
   taskId: string;
   taskTitle: string;
   userName: string;
@@ -187,6 +198,8 @@ export async function getMilestoneSubmissionContext(
     }
 
     return {
+      submissionId: data.id,
+      submissionAttemptKey: data.id,
       taskId: data.task_id,
       taskTitle: task.title,
       userName: userProfile.display_name || "User",
@@ -228,7 +241,7 @@ export async function getQuestSubmissionContext(
       .from("user_profiles")
       .select("display_name")
       .eq("privy_user_id", userId)
-      .single();
+      .maybeSingle();
 
     if (userError || !user) {
       log.warn("Failed to fetch user profile for quest", {
@@ -238,7 +251,27 @@ export async function getQuestSubmissionContext(
       return null;
     }
 
+    const { data: completion, error: completionError } = await supabase
+      .from("user_task_completions")
+      .select("id, completed_at")
+      .eq("task_id", taskId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (completionError) {
+      log.warn("Failed to fetch quest completion for dedup", {
+        taskId,
+        userId,
+        error: completionError,
+      });
+    }
+
+    const submissionId = completion?.id;
+    const submissionAttemptKey = completion?.completed_at || completion?.id;
+
     return {
+      submissionId,
+      submissionAttemptKey,
       taskId: task.id,
       taskTitle: task.title,
       userName: user.display_name || "User",

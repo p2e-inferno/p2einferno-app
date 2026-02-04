@@ -707,6 +707,7 @@ export default function QuestTaskForm({
               </div>
               <div className="ml-4">
                 <Toggle
+                  id={`admin-review-${index}`}
                   checked={localTask.requires_admin_review || false}
                   onCheckedChange={(checked) =>
                     handleChange("requires_admin_review", checked)

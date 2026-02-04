@@ -230,9 +230,12 @@ describe("Admin Notification Service", () => {
     const testTaskId = "task-123";
     const testUserId = "user-456";
     const testQuestId = "quest-789";
+    const testAttemptKey = "2026-02-04T00:00:00.000Z";
 
     it("sends email successfully when context is found", async () => {
       const mockContext = {
+        submissionId: "completion-123",
+        submissionAttemptKey: testAttemptKey,
         taskId: testTaskId,
         taskTitle: "Quest Task",
         userName: "Quest User",
@@ -265,7 +268,7 @@ describe("Admin Notification Service", () => {
         "admin_review_notification",
         testTaskId,
         "admin@test.com",
-        `quest_review_${testTaskId}_${testUserId}`,
+        `quest_review_${testTaskId}_${testUserId}_${testAttemptKey}`,
         expect.any(Function),
       );
     });
@@ -286,6 +289,8 @@ describe("Admin Notification Service", () => {
 
     it("uses correct dedup key format", async () => {
       const mockContext = {
+        submissionId: "completion-456",
+        submissionAttemptKey: testAttemptKey,
         taskId: testTaskId,
         taskTitle: "Quest Task",
         userName: "Quest User",
@@ -308,7 +313,7 @@ describe("Admin Notification Service", () => {
         expect.any(String),
         expect.any(String),
         expect.any(String),
-        `quest_review_${testTaskId}_${testUserId}`,
+        `quest_review_${testTaskId}_${testUserId}_${testAttemptKey}`,
         expect.any(Function),
       );
     });

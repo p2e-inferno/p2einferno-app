@@ -232,7 +232,7 @@ export function getStarterKitEmail(params: StarterKitParams) {
     <div style="background:${ACCENT};border-radius:12px;padding:16px 18px;margin:16px 0;">
       <p style="margin:0 0 8px;font-size:14px;color:${BRAND_DARK};font-weight:600;">Want to go deeper?</p>
       <p style="margin:0;font-size:14px;color:${BRAND_DARK};">
-        Check out our available Bootcamps to learn new skills in AI, Blockchain and Emerging Technogies.
+        Check out our available Bootcamps to learn new skills in AI, Blockchain and Emerging Technologies.
       </p>
     </div>
     <a href="${getBaseUrl()}/bootcamps" style="display:inline-block;background:${BRAND_COLOR};color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">

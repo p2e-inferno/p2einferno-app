@@ -159,7 +159,17 @@ export async function sendQuestReviewNotification(
 
     // Send with deduplication
     const adminEmail = getAdminReviewEmail();
-    const dedupKey = `quest_review_${taskId}_${userId}`;
+    const attemptKey = context.submissionAttemptKey || context.submissionId;
+    const dedupKey = attemptKey
+      ? `quest_review_${taskId}_${userId}_${attemptKey}`
+      : `quest_review_${taskId}_${userId}`;
+
+    if (!attemptKey) {
+      log.warn("Quest review dedup missing attempt key; falling back to legacy", {
+        taskId,
+        userId,
+      });
+    }
 
     const result = await sendEmailWithDedup(
       "admin_review_notification",
