@@ -65,80 +65,80 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
           />
         </div>
 
-      {/* Progress Section */}
-      <div className="space-y-4">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-          <span className="text-gray-400">Quest Progress</span>
-          <span className="text-xl sm:text-2xl font-bold text-orange-400">
-            {progressPercentage}%
-          </span>
-        </div>
-
-        <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
-          <div
-            className="bg-gradient-to-r from-orange-500 to-red-500 h-full rounded-full transition-all duration-500"
-            style={{ width: `${progressPercentage}%` }}
-            aria-valuenow={progressPercentage}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            role="progressbar"
-            aria-label="Quest progress"
-          />
-        </div>
-
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
-          <div className="text-gray-400">
-            {tasksCompletedCount} of {totalTasksCount} tasks completed
-          </div>
-          <div className="flex items-center text-yellow-400">
-            <Coins className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
-            <span className="font-bold text-lg sm:text-xl">
-              {quest.total_reward} DG Total
+        {/* Progress Section */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+            <span className="text-gray-400">Quest Progress</span>
+            <span className="text-xl sm:text-2xl font-bold text-orange-400">
+              {progressPercentage}%
             </span>
           </div>
+
+          <div className="w-full bg-gray-700 rounded-full h-4 overflow-hidden">
+            <div
+              className="bg-gradient-to-r from-orange-500 to-red-500 h-full rounded-full transition-all duration-500"
+              style={{ width: `${progressPercentage}%` }}
+              aria-valuenow={progressPercentage}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              role="progressbar"
+              aria-label="Quest progress"
+            />
+          </div>
+
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
+            <div className="text-gray-400">
+              {tasksCompletedCount} of {totalTasksCount} tasks completed
+            </div>
+            <div className="flex items-center text-yellow-400">
+              <Coins className="w-5 h-5 sm:w-6 sm:h-6 mr-2" />
+              <span className="font-bold text-lg sm:text-xl">
+                {quest.total_reward} DG Total
+              </span>
+            </div>
+          </div>
         </div>
-      </div>
 
-      {/* Start Quest Button - Conditionally rendered if onStartQuest is provided */}
-      {onStartQuest && !isQuestStarted && (
-        <button
-          onClick={onStartQuest}
-          disabled={startDisabled}
-          className="mt-6 w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3 sm:py-4 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed"
-        >
-          {startButtonLabel}
-        </button>
-      )}
-      {onStartQuest && !isQuestStarted && !canStartQuest && (
-        <p className="mt-2 text-sm text-yellow-400">
-          {prerequisiteQuest ? (
-            <>
-              Complete{" "}
-              <Link
-                href={`/lobby/quests/${prerequisiteQuest.id}`}
-                className="underline hover:text-yellow-300 transition-colors"
-              >
-                {prerequisiteQuest.title}
-              </Link>{" "}
-              before starting this quest.
-            </>
-          ) : (
-            "Complete the prerequisite quest before starting."
-          )}
-        </p>
-      )}
+        {/* Start Quest Button - Conditionally rendered if onStartQuest is provided */}
+        {onStartQuest && !isQuestStarted && (
+          <button
+            onClick={onStartQuest}
+            disabled={startDisabled}
+            className="mt-6 w-full bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-3 sm:py-4 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 transform hover:scale-105 disabled:opacity-75 disabled:cursor-not-allowed"
+          >
+            {startButtonLabel}
+          </button>
+        )}
+        {onStartQuest && !isQuestStarted && !canStartQuest && (
+          <p className="mt-2 text-sm text-yellow-400">
+            {prerequisiteQuest ? (
+              <>
+                Complete{" "}
+                <Link
+                  href={`/lobby/quests/${prerequisiteQuest.id}`}
+                  className="underline hover:text-yellow-300 transition-colors"
+                >
+                  {prerequisiteQuest.title}
+                </Link>{" "}
+                before starting this quest.
+              </>
+            ) : (
+              "Complete the prerequisite quest before starting."
+            )}
+          </p>
+        )}
 
-      {onClaimReward && isQuestCompleted && (
-        <button
-          onClick={onClaimReward}
-          disabled={Boolean(
-            isClaimingReward || hasClaimedReward || !canClaimReward,
-          )}
-          className="mt-4 w-full border border-green-500 text-green-300 font-semibold py-3 sm:py-4 px-6 rounded-lg hover:bg-green-500/10 transition-all duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
-        >
-          {isClaimingReward ? "Claiming..." : rewardLabel}
-        </button>
-      )}
+        {onClaimReward && isQuestCompleted && (
+          <button
+            onClick={onClaimReward}
+            disabled={Boolean(
+              isClaimingReward || hasClaimedReward || !canClaimReward,
+            )}
+            className="mt-4 w-full border border-green-500 text-green-300 font-semibold py-3 sm:py-4 px-6 rounded-lg hover:bg-green-500/10 transition-all duration-300 disabled:opacity-75 disabled:cursor-not-allowed"
+          >
+            {isClaimingReward ? "Claiming..." : rewardLabel}
+          </button>
+        )}
       </div>
     </div>
   );

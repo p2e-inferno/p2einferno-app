@@ -20,11 +20,14 @@ export function SubscriptionBadge({
 }: SubscriptionBadgeProps) {
   const { hasValidKey, expiresAt, isLoading, error } = useDGNationKey();
 
-  const baseClasses = "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md border transition-all duration-300";
+  const baseClasses =
+    "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md border transition-all duration-300";
 
   if (isLoading) {
     return (
-      <div className={`${baseClasses} bg-white/5 border-white/10 text-white/50 animate-pulse`}>
+      <div
+        className={`${baseClasses} bg-white/5 border-white/10 text-white/50 animate-pulse`}
+      >
         <span>Loading...</span>
       </div>
     );
@@ -32,7 +35,9 @@ export function SubscriptionBadge({
 
   if (error) {
     return (
-      <div className={`${baseClasses} bg-red-500/10 border-red-500/20 text-red-400`}>
+      <div
+        className={`${baseClasses} bg-red-500/10 border-red-500/20 text-red-400`}
+      >
         <div className="w-1.5 h-1.5 rounded-full bg-red-400 mr-2 shadow-[0_0_8px_rgba(248,113,113,0.6)]" />
         Error
       </div>
@@ -41,7 +46,9 @@ export function SubscriptionBadge({
 
   if (!hasValidKey) {
     return (
-      <div className={`${baseClasses} bg-white/5 border-white/10 text-white/60`}>
+      <div
+        className={`${baseClasses} bg-white/5 border-white/10 text-white/60`}
+      >
         <div className="w-1.5 h-1.5 rounded-full bg-white/40 mr-2" />
         {compact ? "No Access" : "DG Nation Membership Required"}
       </div>
@@ -50,7 +57,9 @@ export function SubscriptionBadge({
 
   // User has valid key
   return (
-    <div className={`${baseClasses} bg-green-500/10 border-green-500/20 text-green-400 group hover:bg-green-500/20 hover:border-green-500/30`}>
+    <div
+      className={`${baseClasses} bg-green-500/10 border-green-500/20 text-green-400 group hover:bg-green-500/20 hover:border-green-500/30`}
+    >
       <div className="relative flex items-center mr-2">
         <div className="w-1.5 h-1.5 rounded-full bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.6)] group-hover:scale-110 transition-transform" />
         <div className="absolute inset-0 w-1.5 h-1.5 rounded-full bg-green-400 animate-ping opacity-75" />
@@ -66,4 +75,3 @@ export function SubscriptionBadge({
     </div>
   );
 }
-

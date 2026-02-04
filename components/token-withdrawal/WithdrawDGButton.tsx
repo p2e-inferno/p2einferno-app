@@ -78,23 +78,30 @@ export function WithdrawDGButton({
       {!isLoading && (
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 px-4 py-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Balance</span>
+            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider">
+              Balance
+            </span>
             <span
-              className={`text-lg font-bold ${xpBalance >= limits.minAmount
-                ? "text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.4)]"
-                : "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]"
-                }`}
+              className={`text-lg font-bold ${
+                xpBalance >= limits.minAmount
+                  ? "text-green-400 drop-shadow-[0_0_8px_rgba(74,222,128,0.4)]"
+                  : "text-amber-400 drop-shadow-[0_0_8px_rgba(251,191,36,0.4)]"
+              }`}
             >
-              {xpBalance.toLocaleString()} <span className="text-xs opacity-70">xDG</span>
+              {xpBalance.toLocaleString()}{" "}
+              <span className="text-xs opacity-70">xDG</span>
             </span>
           </div>
 
           <div className="hidden sm:block w-px h-8 bg-white/10" />
 
           <div className="flex items-center gap-2">
-            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider">Min Required</span>
+            <span className="text-gray-400 text-xs font-semibold uppercase tracking-wider">
+              Min Required
+            </span>
             <span className="text-lg font-bold text-gray-200">
-              {limits.minAmount.toLocaleString()} <span className="text-xs opacity-70">xDG</span>
+              {limits.minAmount.toLocaleString()}{" "}
+              <span className="text-xs opacity-70">xDG</span>
             </span>
           </div>
 
@@ -118,4 +125,3 @@ export function WithdrawDGButton({
     </div>
   );
 }
-

@@ -130,7 +130,9 @@ export function AccessRequirementCard() {
             DG Nation Membership Required
           </h3>
           <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-md">
-            You need an active DG Nation membership NFT to pull out DG tokens. This is a recurring subscription NFT that provides access to exclusive features.
+            You need an active DG Nation membership NFT to pull out DG tokens.
+            This is a recurring subscription NFT that provides access to
+            exclusive features.
           </p>
 
           <div className="flex flex-wrap gap-3">
@@ -143,7 +145,6 @@ export function AccessRequirementCard() {
           </div>
         </div>
       </div>
-
 
       {/* Purchase Confirmation Modal */}
       {showPurchaseModal && (

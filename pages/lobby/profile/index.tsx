@@ -277,7 +277,10 @@ const ProfilePage = () => {
               <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-6 mb-8">
                 <div className="max-w-xl">
                   <h2 className="text-2xl sm:text-3xl font-black text-white mb-3 tracking-tight">
-                    Withdraw <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-indigo-300">DG Tokens</span>
+                    Withdraw{" "}
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-indigo-300">
+                      DG Tokens
+                    </span>
                   </h2>
                   <p className="text-gray-400 text-base leading-relaxed">
                     Pull out your earned DG tokens to your wallet
