@@ -6,7 +6,8 @@ const RETURN_URL_KEY = "gooddollar:returnUrl";
 const DEFAULT_RETURN_URL = "/lobby";
 const LOADING_MESSAGE = "Processing verification...";
 const DEFAULT_SUCCESS_MESSAGE = "Gooddollar verification completed";
-const DEFAULT_ERROR_MESSAGE = "Gooddollar verification failed. Please try again.";
+const DEFAULT_ERROR_MESSAGE =
+  "Gooddollar verification failed. Please try again.";
 
 // Extract pure functions for better testability
 const getStorageValue = (key: string, fallback: string): string => {

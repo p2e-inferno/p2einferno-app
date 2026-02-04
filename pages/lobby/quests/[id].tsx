@@ -656,15 +656,46 @@ const QuestDetailsPage = () => {
   const canClaimQuestReward = activationRewardClaimable || xpRewardClaimable;
   const hasClaimedQuestReward = Boolean(questProgressInfo?.reward_claimed);
   const canStartQuest = quest?.can_start !== false;
+  const prerequisiteQuest = quest?.prerequisite_quest || null;
   const prerequisiteWarningMessage = (() => {
     if (!quest || quest.can_start !== false) {
       return null;
     }
+    const prereqName = prerequisiteQuest?.title;
+    const prereqLink = prerequisiteQuest
+      ? `/lobby/quests/${prerequisiteQuest.id}`
+      : null;
     switch (quest.prerequisite_state) {
       case "missing_completion":
-        return "Complete the prerequisite quest before starting this quest.";
+        return prereqLink ? (
+          <>
+            Complete{" "}
+            <Link
+              href={prereqLink}
+              className="underline hover:text-yellow-300 transition-colors"
+            >
+              {prereqName}
+            </Link>{" "}
+            before starting this quest.
+          </>
+        ) : (
+          "Complete the prerequisite quest before starting this quest."
+        );
       case "missing_key":
-        return "You need an active key from the prerequisite quest to continue.";
+        return prereqLink ? (
+          <>
+            You need an active key from{" "}
+            <Link
+              href={prereqLink}
+              className="underline hover:text-yellow-300 transition-colors"
+            >
+              {prereqName}
+            </Link>{" "}
+            to continue.
+          </>
+        ) : (
+          "You need an active key from the prerequisite quest to continue."
+        );
       default:
         return "Prerequisite requirements are not met yet.";
     }
@@ -700,6 +731,7 @@ const QuestDetailsPage = () => {
             onStartQuest={!isQuestStarted ? handleStartQuest : undefined} // Only pass if not started
             isLoadingStartQuest={processingTask === "start_quest"}
             canStartQuest={canStartQuest}
+            prerequisiteQuest={prerequisiteQuest}
             canClaimReward={canClaimQuestReward}
             hasClaimedReward={hasClaimedQuestReward}
             onClaimReward={

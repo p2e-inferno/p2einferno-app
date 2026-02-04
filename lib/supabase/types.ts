@@ -101,6 +101,7 @@ export interface Quest {
   transferability_secured?: boolean | null;
   transferability_failure_reason?: string | null;
   prerequisite_quest_id?: string | null;
+  prerequisite_quest?: { id: string; title: string } | null;
   prerequisite_quest_lock_address?: string | null;
   requires_prerequisite_key?: boolean;
   reward_type: "xdg" | "activation";
@@ -263,11 +264,11 @@ export interface UserTaskProgress {
 
 export interface EnhancedMilestoneTask extends MilestoneTask {
   task_type:
-  | "file_upload"
-  | "url_submission"
-  | "contract_interaction"
-  | "text_submission"
-  | "external_verification";
+    | "file_upload"
+    | "url_submission"
+    | "contract_interaction"
+    | "text_submission"
+    | "external_verification";
   submission_requirements?: any;
   validation_criteria?: any;
   requires_admin_review: boolean;

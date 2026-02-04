@@ -95,7 +95,9 @@ export function useFaceVerificationAction(onVerified?: () => void) {
       window.location.href = fvLink;
     } catch (error) {
       log.error("Failed to initiate gooddollar verification", { error });
-      toast.error("Failed to initiate gooddollar verification. Please try again.");
+      toast.error(
+        "Failed to initiate gooddollar verification. Please try again.",
+      );
       setIsLoading(false);
     }
   }, [sdk, walletAddress, user, onVerified]);

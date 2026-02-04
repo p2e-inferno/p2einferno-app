@@ -1,5 +1,6 @@
 import React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Flame, Coins, Sparkles } from "lucide-react"; // Icons used in the header
 import type { QuestHeaderProps } from "./types";
 import { RichText } from "@/components/common/RichText";
@@ -14,6 +15,7 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
   onStartQuest,
   isLoadingStartQuest,
   canStartQuest = true,
+  prerequisiteQuest,
   canClaimReward,
   hasClaimedReward,
   onClaimReward,
@@ -114,7 +116,20 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
       )}
       {onStartQuest && !isQuestStarted && !canStartQuest && (
         <p className="mt-2 text-sm text-yellow-400">
-          Complete the prerequisite quest before starting.
+          {prerequisiteQuest ? (
+            <>
+              Complete{" "}
+              <Link
+                href={`/lobby/quests/${prerequisiteQuest.id}`}
+                className="underline hover:text-yellow-300 transition-colors"
+              >
+                {prerequisiteQuest.title}
+              </Link>{" "}
+              before starting this quest.
+            </>
+          ) : (
+            "Complete the prerequisite quest before starting."
+          )}
         </p>
       )}
 

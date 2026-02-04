@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import ImageUpload from "@/components/ui/image-upload";
 import QuestTaskForm from "@/components/admin/QuestTaskForm";
+import Toggle from "@/components/ui/toggle";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import { PlusCircle, Coins, Save, X, Shield } from "lucide-react";
@@ -1138,59 +1139,51 @@ export default function QuestForm({
 
               {!showAutoLockCreation && (
                 <p className="text-sm text-gray-400 mt-1">
-                  Unlock Protocol lock address for quest completion
-                  certificates
+                  Unlock Protocol lock address for quest completion certificates
                 </p>
               )}
             </div>
 
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="is_active"
+            <div className="md:col-span-2 flex items-center justify-between">
+              <Label className="text-white">Quest is Active</Label>
+              <Toggle
                 checked={formData.is_active}
-                onChange={(e) =>
-                  setFormData({ ...formData, is_active: e.target.checked })
+                onCheckedChange={(checked) =>
+                  setFormData({ ...formData, is_active: checked })
                 }
-                className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
                 disabled={isSubmitting}
+                ariaLabel="Quest is Active"
               />
-              <Label htmlFor="is_active" className="text-white cursor-pointer">
-                Quest is Active
-              </Label>
             </div>
 
             {/* GoodDollar Verification Requirement */}
-            <div className="flex items-center space-x-3">
-              <input
-                type="checkbox"
-                id="requires_gooddollar_verification"
-                role="switch"
-                aria-label="Requires Verification"
-                checked={formData.requires_gooddollar_verification}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    requires_gooddollar_verification: e.target.checked,
-                  })
-                }
-                className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
-                disabled={isSubmitting}
-              />
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-green-400" />
-                <Label
-                  htmlFor="requires_gooddollar_verification"
-                  className="text-white cursor-pointer"
-                >
-                  Requires Gooddollar Verification
-                </Label>
+            <div className="md:col-span-2 flex items-center justify-between">
+              <div className="flex-1">
+                <div className="flex items-center gap-2">
+                  <Shield className="w-4 h-4 text-green-400" />
+                  <Label className="text-white">
+                    Requires Gooddollar Verification
+                  </Label>
+                </div>
+                <p className="text-sm text-gray-400 mt-1 ml-6">
+                  Users must complete GoodDollar verification to participate in
+                  this quest.
+                </p>
+              </div>
+              <div className="ml-4">
+                <Toggle
+                  checked={formData.requires_gooddollar_verification}
+                  onCheckedChange={(checked) =>
+                    setFormData({
+                      ...formData,
+                      requires_gooddollar_verification: checked,
+                    })
+                  }
+                  disabled={isSubmitting}
+                  ariaLabel="Requires Gooddollar Verification"
+                />
               </div>
             </div>
-            <p className="text-sm text-gray-400 -mt-2 ml-6">
-              Users must complete GoodDollar verification to participate in
-              this quest.
-            </p>
           </div>
         </div>
 
