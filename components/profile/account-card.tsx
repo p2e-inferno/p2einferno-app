@@ -40,6 +40,11 @@ export const AccountCard = ({
               {account.linked && (
                 <CheckCircle2 className="w-5 h-5 text-green-500 ml-2" />
               )}
+              {account.isEmbedded && (
+                <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-400 font-medium">
+                  Embedded
+                </span>
+              )}
             </h3>
             <p className="text-gray-400 text-sm mb-2 break-words">
               {account.description}
@@ -65,7 +70,7 @@ export const AccountCard = ({
 
         {/* Action Button */}
         <div className="sm:ml-4 self-stretch sm:self-auto text-center sm:text-right">
-          {account.linked ? (
+          {account.linked && !account.isEmbedded ? (
             <button
               onClick={onUnlink}
               className="inline-flex items-center text-red-400 hover:text-red-300 transition-colors"
@@ -73,10 +78,10 @@ export const AccountCard = ({
               <Unlink className="w-5 h-5 mr-1" />
               Unlink
             </button>
-          ) : (
+          ) : (!account.linked || account.isEmbedded) ? (
             <button
               onClick={onLink}
-              disabled={isLinking || account.type === "wallet"}
+              disabled={isLinking}
               className="bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-2 px-5 sm:px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center"
             >
               {isLinking ? (
@@ -84,11 +89,11 @@ export const AccountCard = ({
               ) : (
                 <>
                   <LinkIcon className="w-4 h-4 mr-2" />
-                  Link Account
+                  {account.isEmbedded ? "Link External Wallet" : "Link Account"}
                 </>
               )}
             </button>
-          )}
+          ) : null}
         </div>
       </div>
 
