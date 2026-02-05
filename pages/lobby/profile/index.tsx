@@ -33,6 +33,7 @@ const ProfilePage = () => {
     user,
     linkEmail,
     unlinkEmail,
+    linkWallet,
     linkFarcaster,
     unlinkFarcaster,
     unlinkWallet,
@@ -59,20 +60,47 @@ const ProfilePage = () => {
   }>({ open: false, address: null });
 
   /**
-   * Updates the linked accounts array based on current user data
+   * Updates the linked accounts array based on current user data.
+   * Wallets are derived from linkedAccounts so that embedded wallets
+   * (walletClientType 'privy'/'privy-v2') are flagged and external
+   * wallets are individually unlinkable.
    */
   const updateLinkedAccounts = useCallback(() => {
     if (!user) return;
 
-    const accounts: LinkedAccount[] = [
-      {
+    const walletAccounts: LinkedAccount[] = user.linkedAccounts
+      .filter((account) => account.type === "wallet")
+      .map((account) => {
+        const wallet = account as { address?: string; walletClientType?: string };
+        const isEmbedded =
+          wallet.walletClientType === "privy" ||
+          wallet.walletClientType === "privy-v2";
+        return {
+          type: "wallet",
+          linked: true,
+          address: wallet.address,
+          isEmbedded,
+          icon: <Wallet className="w-6 h-6" />,
+          name: isEmbedded ? "Embedded Wallet" : "Web3 Wallet",
+          description: isEmbedded
+            ? "Managed by Privy — cannot be unlinked"
+            : "Your gateway to the decentralized world",
+        };
+      });
+
+    // If no wallets at all, show a single unlinked placeholder
+    if (walletAccounts.length === 0) {
+      walletAccounts.push({
         type: "wallet",
-        linked: !!user.wallet,
-        address: user.wallet?.address,
+        linked: false,
         icon: <Wallet className="w-6 h-6" />,
         name: "Web3 Wallet",
         description: "Your gateway to the decentralized world",
-      },
+      });
+    }
+
+    const accounts: LinkedAccount[] = [
+      ...walletAccounts,
       {
         type: "email",
         linked: !!user.email,
@@ -109,6 +137,9 @@ const ProfilePage = () => {
 
     try {
       switch (type) {
+        case "wallet":
+          linkWallet();
+          break;
         case "email":
           await linkEmail();
           break;
@@ -211,17 +242,20 @@ const ProfilePage = () => {
     );
   }
 
-  // Calculate profile stats using live data
-  const linkedCount = linkedAccounts.filter((acc) => acc.linked).length;
+  // Calculate profile stats by category so multiple wallets don't skew the percentage
+  const categories = ["wallet", "email", "farcaster"];
+  const linkedCategories = categories.filter((cat) =>
+    linkedAccounts.some((acc) => acc.type === cat && acc.linked),
+  ).length;
   const completionPercentage = Math.round(
-    (linkedCount / linkedAccounts.length) * 100,
+    (linkedCategories / categories.length) * 100,
   );
 
   const profileStats: ProfileStats = {
     questsCompleted: dashboardData.stats.questsCompleted,
     dgEarned: dashboardData.profile.experience_points,
-    accountsLinked: linkedCount,
-    totalAccounts: linkedAccounts.length,
+    accountsLinked: linkedCategories,
+    totalAccounts: categories.length,
   };
 
   return (

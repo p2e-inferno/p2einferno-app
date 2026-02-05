@@ -20,7 +20,7 @@ export const LinkedAccountsSection = ({
 
       {accounts.map((account) => (
         <AccountCard
-          key={account.type}
+          key={account.address || account.type}
           account={account}
           isLinking={linking === account.type}
           onLink={() => onLinkAccount(account.type)}

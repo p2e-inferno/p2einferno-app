@@ -5,6 +5,7 @@ export interface LinkedAccount {
   linked: boolean;
   address?: string;
   username?: string;
+  isEmbedded?: boolean;
   icon: ReactNode;
   name: string;
   description: string;
