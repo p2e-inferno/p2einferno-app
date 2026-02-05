@@ -3,6 +3,7 @@ import {
   getRenewalEmail,
   getWithdrawalEmail,
   getWelcomeEmail,
+  getAdminReviewNotificationEmail,
 } from "@/lib/email/templates";
 
 describe("Email Templates", () => {
@@ -62,6 +63,74 @@ describe("Email Templates", () => {
 
       expect(result.text).toContain("Hi John");
       expect(result.html).toContain("Hi John");
+    });
+  });
+
+  describe("getAdminReviewNotificationEmail", () => {
+    const testParams = {
+      taskTitle: "Deploy Smart Contract",
+      userName: "Alice Smith",
+      submissionType: "url",
+      reviewUrl: "http://localhost:3000/admin/cohorts/tasks/123/submissions",
+    };
+
+    it("returns subject, text, and html", () => {
+      const result = getAdminReviewNotificationEmail(testParams);
+
+      expect(result.subject).toBe(
+        "New Submission Requires Review: Deploy Smart Contract",
+      );
+      expect(result.text).toContain("Deploy Smart Contract");
+      expect(result.text).toContain("Alice Smith");
+      expect(result.text).toContain("url");
+      expect(result.html).toContain("New Submission Requires Review");
+      expect(result.html).toContain("Deploy Smart Contract");
+    });
+
+    it("includes all required information in HTML", () => {
+      const result = getAdminReviewNotificationEmail(testParams);
+
+      expect(result.html).toContain("Deploy Smart Contract");
+      expect(result.html).toContain("Alice Smith");
+      expect(result.html).toContain("url");
+      expect(result.html).toContain(
+        "http://localhost:3000/admin/cohorts/tasks/123/submissions",
+      );
+      expect(result.html).toContain("Review Submission");
+    });
+
+    it("includes review URL in both text and html", () => {
+      const result = getAdminReviewNotificationEmail(testParams);
+
+      expect(result.text).toContain(
+        "http://localhost:3000/admin/cohorts/tasks/123/submissions",
+      );
+      expect(result.html).toContain(
+        "http://localhost:3000/admin/cohorts/tasks/123/submissions",
+      );
+    });
+
+    it("handles different submission types", () => {
+      const contractParams = {
+        ...testParams,
+        submissionType: "contract_interaction",
+      };
+      const result = getAdminReviewNotificationEmail(contractParams);
+
+      expect(result.text).toContain("contract_interaction");
+      expect(result.html).toContain("contract_interaction");
+    });
+
+    it("includes task title in subject line", () => {
+      const params = {
+        ...testParams,
+        taskTitle: "Complete KYC Verification",
+      };
+      const result = getAdminReviewNotificationEmail(params);
+
+      expect(result.subject).toBe(
+        "New Submission Requires Review: Complete KYC Verification",
+      );
     });
   });
 });

@@ -9,6 +9,7 @@ import {
   getUserPrimaryWallet,
 } from "@/lib/quests/prerequisite-checker";
 import { registerQuestTransaction } from "@/lib/quests/verification/replay-prevention";
+import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
 
 const log = getLogger("api:quests:complete-task");
 
@@ -261,6 +262,18 @@ export default async function handler(
     if (completionError) {
       log.error("Error completing task:", completionError);
       return res.status(500).json({ error: "Failed to complete task" });
+    }
+
+    // Send admin notification if review required
+    if (task.requires_admin_review && initialStatus === "pending") {
+      sendQuestReviewNotification(taskId, effectiveUserId, questId).catch(
+        (err) =>
+          log.error("Failed to send quest review email", {
+            err,
+            taskId,
+            userId: effectiveUserId,
+          }),
+      );
     }
 
     // Update quest progress only if task is completed (not pending review)

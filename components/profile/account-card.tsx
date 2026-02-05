@@ -66,15 +66,13 @@ export const AccountCard = ({
         {/* Action Button */}
         <div className="sm:ml-4 self-stretch sm:self-auto text-center sm:text-right">
           {account.linked ? (
-            account.type !== "wallet" && (
-              <button
-                onClick={onUnlink}
-                className="inline-flex items-center text-red-400 hover:text-red-300 transition-colors"
-              >
-                <Unlink className="w-5 h-5 mr-1" />
-                Unlink
-              </button>
-            )
+            <button
+              onClick={onUnlink}
+              className="inline-flex items-center text-red-400 hover:text-red-300 transition-colors"
+            >
+              <Unlink className="w-5 h-5 mr-1" />
+              Unlink
+            </button>
           ) : (
             <button
               onClick={onLink}

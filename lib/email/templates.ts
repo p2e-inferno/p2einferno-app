@@ -232,7 +232,7 @@ export function getStarterKitEmail(params: StarterKitParams) {
     <div style="background:${ACCENT};border-radius:12px;padding:16px 18px;margin:16px 0;">
       <p style="margin:0 0 8px;font-size:14px;color:${BRAND_DARK};font-weight:600;">Want to go deeper?</p>
       <p style="margin:0;font-size:14px;color:${BRAND_DARK};">
-        Check out our upcoming Bootcamps to learn AI, Blockchain and Emerging Technogies.
+        Check out our available Bootcamps to learn new skills in AI, Blockchain and Emerging Technologies.
       </p>
     </div>
     <a href="${getBaseUrl()}/bootcamps" style="display:inline-block;background:${BRAND_COLOR};color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">
@@ -244,5 +244,44 @@ export function getStarterKitEmail(params: StarterKitParams) {
     subject: "Your P2E Inferno Web3 Starter Kit",
     text: `Hi ${name || "there"}, please find your Web3 Starter Kit attached.`,
     html: wrapHtml("Web3 Starter Kit", body),
+  };
+}
+
+export interface AdminReviewNotificationParams {
+  taskTitle: string;
+  userName: string;
+  submissionType: string;
+  reviewUrl: string;
+}
+
+export function getAdminReviewNotificationEmail(
+  params: AdminReviewNotificationParams,
+) {
+  const { taskTitle, userName, submissionType, reviewUrl } = params;
+
+  const body = `
+    <h1 style="margin:0 0 8px;font-size:24px;color:${BRAND_DARK};">New Submission Requires Review</h1>
+    <p style="margin:0 0 20px;color:${MUTED};font-size:14px;line-height:22px;">
+      A user has submitted a task that requires manual review.
+    </p>
+    <div style="background:${ACCENT};border-radius:12px;padding:16px 18px;margin:16px 0;">
+      <p style="margin:0 0 8px;font-size:12px;color:${MUTED};text-transform:uppercase;letter-spacing:0.06em;">Task</p>
+      <p style="margin:0 0 14px;font-size:18px;color:${BRAND_DARK};font-weight:600;">${taskTitle}</p>
+      <p style="margin:0 0 6px;font-size:14px;color:${BRAND_DARK};">
+        <strong>User:</strong> ${userName}
+      </p>
+      <p style="margin:0;font-size:14px;color:${BRAND_DARK};">
+        <strong>Type:</strong> ${submissionType}
+      </p>
+    </div>
+    <a href="${reviewUrl}" style="display:inline-block;background:${BRAND_COLOR};color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:600;font-size:14px;">
+      Review Submission
+    </a>
+  `;
+
+  return {
+    subject: `New Submission Requires Review: ${taskTitle}`,
+    text: `New submission requires review. Task: ${taskTitle}, User: ${userName}, Type: ${submissionType}. Review at: ${reviewUrl}`,
+    html: wrapHtml("Submission Review Required", body),
   };
 }

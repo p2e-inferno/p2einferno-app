@@ -40,6 +40,7 @@ import {
   effectiveTransferabilityForSave,
 } from "@/lib/blockchain/shared/grant-state";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
+import Toggle from "@/components/ui/toggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
 import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
@@ -62,6 +63,7 @@ interface TaskForm {
   contract_network?: string;
   contract_address?: string;
   contract_method?: string;
+  requires_admin_review?: boolean;
   _isFromDatabase?: boolean; // Track if task came from database
 }
 
@@ -194,6 +196,7 @@ export default function MilestoneFormEnhanced({
       reward_amount: 0,
       order_index: 0,
       task_type: "file_upload",
+      requires_admin_review: true,
       contract_network: "",
       contract_address: "",
       contract_method: "",
@@ -389,6 +392,7 @@ export default function MilestoneFormEnhanced({
           reward_amount: task.reward_amount,
           order_index: task.order_index,
           task_type: task.task_type || "file_upload",
+          requires_admin_review: task.requires_admin_review ?? true,
           contract_network: task.contract_network || "",
           contract_address: task.contract_address || "",
           contract_method: task.contract_method || "",
@@ -434,6 +438,7 @@ export default function MilestoneFormEnhanced({
         reward_amount: 0,
         order_index: prev.length,
         task_type: "file_upload",
+        requires_admin_review: true,
         contract_network: "",
         contract_address: "",
         contract_method: "",
@@ -1104,6 +1109,7 @@ export default function MilestoneFormEnhanced({
           description: task.description || "",
           reward_amount: task.reward_amount,
           task_type: task.task_type,
+          requires_admin_review: task.requires_admin_review ?? true,
           contract_network:
             task.task_type === "contract_interaction"
               ? task.contract_network
@@ -1139,6 +1145,7 @@ export default function MilestoneFormEnhanced({
           description: task.description || "",
           reward_amount: task.reward_amount,
           task_type: task.task_type,
+          requires_admin_review: task.requires_admin_review ?? true,
           contract_network:
             task.task_type === "contract_interaction"
               ? task.contract_network
@@ -1436,6 +1443,37 @@ export default function MilestoneFormEnhanced({
                     </div>
                   </div>
 
+                  {/* Admin Review Toggle */}
+                  <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <label
+                          htmlFor={`admin-review-toggle-${task.id}`}
+                          className="text-sm font-medium text-gray-300 cursor-pointer"
+                        >
+                          Requires Admin Review
+                        </label>
+                        <p className="text-xs text-gray-400 mt-1">
+                          When enabled, submissions for this task will require
+                          manual admin review and approval
+                        </p>
+                      </div>
+                      <div className="ml-4">
+                        <Toggle
+                          checked={task.requires_admin_review ?? true}
+                          onCheckedChange={(checked) =>
+                            updateTask(
+                              task.id,
+                              "requires_admin_review",
+                              checked,
+                            )
+                          }
+                          ariaLabel="Requires Admin Review"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Contract Interaction Fields - Only show for contract_interaction tasks */}
                   {task.task_type === "contract_interaction" && (
                     <div className="bg-blue-900/20 border border-blue-700/50 rounded-lg p-4">
@@ -1641,7 +1679,7 @@ export default function MilestoneFormEnhanced({
             <p className="text-sm text-gray-400">
               {!isEditing && showAutoLockCreation
                 ? "Lock address will be automatically generated during milestone creation"
-                : "Optional: Unlock Protocol lock address for milestone NFT badges"}
+                : "Unlock Protocol lock address for milestone NFT badges"}
             </p>
           </div>
         </div>

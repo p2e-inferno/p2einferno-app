@@ -1049,7 +1049,7 @@ export default function CohortForm({
 
             {!showAutoLockCreation && (
               <p className="text-sm text-gray-400 mt-1">
-                Optional: Unlock Protocol lock address for cohort access NFTs
+                Unlock Protocol lock address for cohort access NFTs
               </p>
             )}
           </div>

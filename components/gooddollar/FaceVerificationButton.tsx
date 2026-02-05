@@ -65,7 +65,7 @@ export function useFaceVerificationAction(onVerified?: () => void) {
 
       // Get display name for face verification UI
       const displayName = getDisplayNameSync(user);
-      log.info("Initiating face verification", {
+      log.info("Initiating gooddollar verification", {
         displayName,
         address: walletAddress,
       });
@@ -94,8 +94,10 @@ export function useFaceVerificationAction(onVerified?: () => void) {
       }
       window.location.href = fvLink;
     } catch (error) {
-      log.error("Failed to initiate face verification", { error });
-      toast.error("Failed to initiate face verification. Please try again.");
+      log.error("Failed to initiate gooddollar verification", { error });
+      toast.error(
+        "Failed to initiate gooddollar verification. Please try again.",
+      );
       setIsLoading(false);
     }
   }, [sdk, walletAddress, user, onVerified]);

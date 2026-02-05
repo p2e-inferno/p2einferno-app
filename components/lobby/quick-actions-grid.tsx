@@ -22,7 +22,7 @@ class FaceVerificationCardBoundary extends React.Component<
     this.setState({ hasError: true });
     // Hide the card if the verify button blows up but surface the error for debugging.
     // eslint-disable-next-line no-console
-    console.error("Face verification card failed to render", {
+    console.error("Gooddollar verification card failed to render", {
       error,
       errorInfo,
     });
@@ -267,7 +267,7 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
               />
               <h3 className="font-bold text-lg">Verify Identity</h3>
             </div>
-            <p className="text-sm text-faded-grey">Face verification</p>
+            <p className="text-sm text-faded-grey">Gooddollar verification</p>
           </div>
           <div className="flex items-center justify-between text-blue-400 font-medium">
             <span>

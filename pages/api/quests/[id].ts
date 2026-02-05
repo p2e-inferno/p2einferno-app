@@ -37,6 +37,7 @@ export default async function handler(
       .select(
         `
         *,
+        prerequisite_quest:prerequisite_quest_id (id, title),
         quest_tasks!quest_tasks_quest_id_fkey (
           id,
           title,

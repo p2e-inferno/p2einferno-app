@@ -34,6 +34,7 @@ export interface QuestHeaderProps {
   onStartQuest?: () => void;
   isLoadingStartQuest?: boolean;
   canStartQuest?: boolean;
+  prerequisiteQuest?: { id: string; title: string } | null;
   canClaimReward?: boolean;
   hasClaimedReward?: boolean;
   onClaimReward?: () => void;

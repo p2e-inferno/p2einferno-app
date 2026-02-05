@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils/wallet-change";
 
 interface ToggleProps {
+  id?: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
   disabled?: boolean;
@@ -9,6 +10,7 @@ interface ToggleProps {
 }
 
 export default function Toggle({
+  id,
   checked,
   onCheckedChange,
   disabled = false,
@@ -17,6 +19,7 @@ export default function Toggle({
 }: ToggleProps) {
   return (
     <button
+      id={id}
       type="button"
       onClick={() => onCheckedChange(!checked)}
       disabled={disabled}

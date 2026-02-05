@@ -5,7 +5,8 @@
 
 import { SupabaseClient } from "@supabase/supabase-js";
 import { getLogger } from "@/lib/utils/logger";
-import { checkKeyOwnership } from "@/lib/unlock/lockUtils";
+import { checkUserKeyOwnership } from "@/lib/services/user-key-service";
+import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { getReadOnlyProvider } from "@/lib/blockchain/provider";
 import { ethers } from "ethers";
 import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
@@ -26,7 +27,7 @@ export interface QuestPrerequisiteData {
 
 /**
  * Check if a user meets the prerequisites for a quest
- * 
+ *
  * @param supabase - Supabase client for DB queries
  * @param userId - User's Privy ID
  * @param userWalletAddress - User's primary wallet address (for on-chain checks)
@@ -36,7 +37,7 @@ export interface QuestPrerequisiteData {
 export async function checkQuestPrerequisites(
   supabase: SupabaseClient,
   userId: string,
-  userWalletAddress: string | null,
+  _userWalletAddress: string | null,
   questPrereqs: QuestPrerequisiteData,
 ): Promise<PrerequisiteCheckResult> {
   const {
@@ -84,23 +85,23 @@ export async function checkQuestPrerequisites(
     }
   }
 
-  // Check on-chain key ownership if required
+  // Check on-chain key ownership across all linked wallets if required
   if (requires_prerequisite_key && prerequisite_quest_lock_address) {
-    if (!userWalletAddress) {
-      return {
-        canProceed: false,
-        reason: "Wallet address required to verify key ownership",
-        prerequisiteState: "missing_key",
-      };
-    }
-
     try {
-      const hasKey = await checkKeyOwnership(
+      const publicClient = createPublicClientUnified();
+      const keyCheck = await checkUserKeyOwnership(
+        publicClient,
+        userId,
         prerequisite_quest_lock_address,
-        userWalletAddress,
       );
 
-      if (!hasKey) {
+      if (!keyCheck.hasValidKey) {
+        log.info("Prerequisite key not found across linked wallets", {
+          userId,
+          checkedAddresses: keyCheck.checkedAddresses,
+          prerequisite_quest_lock_address,
+          errors: keyCheck.errors,
+        });
         return {
           canProceed: false,
           reason:
@@ -111,7 +112,7 @@ export async function checkQuestPrerequisites(
     } catch (error) {
       log.error("Error checking prerequisite key ownership", {
         error,
-        userWalletAddress,
+        userId,
         prerequisite_quest_lock_address,
       });
       return {

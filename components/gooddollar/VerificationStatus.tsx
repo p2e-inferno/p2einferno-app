@@ -64,7 +64,7 @@ export function VerificationStatus() {
           <span className="font-medium">Verification Expired</span>
         </div>
         <p className="text-sm text-gray-300">
-          Your face verification has expired. Please re-verify to maintain
+          Your gooddollar verification has expired. Please re-verify to maintain
           access.
         </p>
         <FaceVerificationButton className="w-full" variant="outline" />
@@ -80,7 +80,7 @@ export function VerificationStatus() {
         <span className="font-medium">Verify Your Identity</span>
       </div>
       <p className="text-sm text-gray-300">
-        Complete GoodDollar face verification to unlock full access.
+        Complete GoodDollar verification to unlock full access.
       </p>
       <FaceVerificationButton className="w-full" />
     </div>

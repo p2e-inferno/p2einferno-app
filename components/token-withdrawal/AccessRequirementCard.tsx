@@ -120,23 +120,34 @@ export function AccessRequirementCard() {
 
   return (
     <>
-      <div className="mb-6 p-4 bg-gray-800 border border-gray-700 rounded-lg">
-        <h3 className="font-medium text-blue-400">
-          DG Nation Membership Required
-        </h3>
-        <p className="mt-1 text-sm text-gray-300">
-          You need an active DG Nation membership NFT to pull out DG tokens.
-          This is a recurring subscription NFT that provides access to exclusive
-          features.
-        </p>
+      <div className="p-6 bg-gradient-to-br from-indigo-500/10 via-transparent to-orange-500/5 border border-indigo-500/20 rounded-2xl relative overflow-hidden backdrop-blur-sm">
+        <div className="absolute top-0 right-0 p-4 opacity-10">
+          <AlertCircle
+            aria-hidden="true"
+            focusable="false"
+            role="presentation"
+            className="w-24 h-24 text-indigo-400 rotate-12"
+          />
+        </div>
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          <button
-            onClick={handleOpenPurchaseModal}
-            className="inline-flex items-center px-3 py-1.5 border border-blue-500 text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            View Pricing & Purchase
-          </button>
+        <div className="relative z-10">
+          <h3 className="text-lg font-black text-white mb-2 tracking-tight uppercase">
+            DG Nation Membership Required
+          </h3>
+          <p className="text-gray-400 text-sm leading-relaxed mb-6 max-w-md">
+            You need an active DG Nation membership NFT to pull out DG tokens.
+            This is a recurring subscription NFT that provides access to
+            exclusive features.
+          </p>
+
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={handleOpenPurchaseModal}
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-indigo-600/20 active:scale-95 transition-all"
+            >
+              View Pricing & Purchase
+            </button>
+          </div>
         </div>
       </div>
 

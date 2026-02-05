@@ -243,7 +243,7 @@ export default function MilestoneForm({
             className={inputClass}
           />
           <p className="text-sm text-gray-400 mt-1">
-            Optional: Unlock Protocol lock address for milestone NFT badges
+            Unlock Protocol lock address for milestone NFT badges
           </p>
         </div>
       </div>

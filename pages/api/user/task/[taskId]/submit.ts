@@ -4,6 +4,7 @@ import { getPrivyUser } from "@/lib/auth/privy";
 import { getMilestoneTimingInfo } from "@/lib/utils/milestone-utils";
 import type { ApiResponse } from "@/lib/helpers/api";
 import { getLogger } from "@/lib/utils/logger";
+import { sendMilestoneReviewNotification } from "@/lib/email/admin-notifications";
 
 const log = getLogger("api:user:task:[taskId]:submit");
 
@@ -98,6 +99,7 @@ export default async function handler(
         reward_amount,
         task_type,
         submission_requirements,
+        requires_admin_review,
         milestone:milestone_id (
           id,
           cohort_id,
@@ -224,6 +226,17 @@ export default async function handler(
         throw new Error(`Failed to update submission: ${updateErr.message}`);
       }
       submission = updated;
+
+      // Send admin notification if review required
+      if (task.requires_admin_review) {
+        sendMilestoneReviewNotification(updated.id, user.id, taskId).catch(
+          (err) =>
+            log.error("Failed to send milestone review email", {
+              err,
+              submissionId: updated.id,
+            }),
+        );
+      }
     }
     // If user has a failed or retry submission, update it instead of creating new
     else if (
@@ -252,6 +265,17 @@ export default async function handler(
         throw new Error(`Failed to update submission: ${updateErr.message}`);
       }
       submission = updated;
+
+      // Send admin notification if review required
+      if (task.requires_admin_review) {
+        sendMilestoneReviewNotification(updated.id, user.id, taskId).catch(
+          (err) =>
+            log.error("Failed to send milestone review email", {
+              err,
+              submissionId: updated.id,
+            }),
+        );
+      }
     }
     // Create new submission if no existing submission
     else {
@@ -281,6 +305,17 @@ export default async function handler(
         );
       }
       submission = created;
+
+      // Send admin notification if review required
+      if (task.requires_admin_review) {
+        sendMilestoneReviewNotification(created.id, user.id, taskId).catch(
+          (err) =>
+            log.error("Failed to send milestone review email", {
+              err,
+              submissionId: created.id,
+            }),
+        );
+      }
     }
 
     // Determine response status: 200 for updates, 201 for new creations
