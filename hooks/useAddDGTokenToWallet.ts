@@ -4,6 +4,7 @@ import { base } from "viem/chains";
 import { toast } from "react-hot-toast";
 import { ensureCorrectNetwork } from "@/lib/blockchain/shared/network-utils";
 import { getLogger } from "@/lib/utils/logger";
+import { isEmbeddedWallet } from "@/lib/utils/wallet-address";
 
 const log = getLogger("hooks:useAddDGTokenToWallet");
 
@@ -23,11 +24,11 @@ export function useAddDGTokenToWallet() {
   const activeWallet = wallets?.[0];
   // Privy embedded wallets auto-discover tokens by balance — watchAssets is not
   // supported and not needed.  Only expose the action for injected / external wallets.
-  const isEmbedded = (activeWallet as any)?.walletClientType === "privy";
-  const isAvailable = !isEmbedded && !!activeWallet;
+  const embedded = isEmbeddedWallet((activeWallet as any)?.walletClientType);
+  const isAvailable = !embedded && !!activeWallet;
 
   const addToken = useCallback(async () => {
-    if (!activeWallet || isEmbedded) return;
+    if (!activeWallet || embedded) return;
 
     const dgTokenAddress =
       process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET;
@@ -88,7 +89,7 @@ export function useAddDGTokenToWallet() {
     } finally {
       setIsLoading(false);
     }
-  }, [activeWallet, isEmbedded]);
+  }, [activeWallet, embedded]);
 
   return { addToken, isAvailable, isLoading };
 }

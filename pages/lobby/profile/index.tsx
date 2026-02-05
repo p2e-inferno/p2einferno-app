@@ -13,6 +13,7 @@ import {
 } from "@/components/profile";
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { getLogger } from "@/lib/utils/logger";
+import { isEmbeddedWallet } from "@/lib/utils/wallet-address";
 import { WithdrawDGButton } from "@/components/token-withdrawal/WithdrawDGButton";
 import { WithdrawalHistoryTable } from "@/components/token-withdrawal/WithdrawalHistoryTable";
 import { SubscriptionBadge } from "@/components/token-withdrawal/SubscriptionBadge";
@@ -68,36 +69,36 @@ const ProfilePage = () => {
   const updateLinkedAccounts = useCallback(() => {
     if (!user) return;
 
-    const walletAccounts: LinkedAccount[] = user.linkedAccounts
-      .filter((account) => account.type === "wallet")
-      .map((account) => {
-        const wallet = account as { address?: string; walletClientType?: string };
-        const isEmbedded =
-          wallet.walletClientType === "privy" ||
-          wallet.walletClientType === "privy-v2";
-        return {
-          type: "wallet",
-          linked: true,
-          address: wallet.address,
-          isEmbedded,
-          icon: <Wallet className="w-6 h-6" />,
-          name: isEmbedded ? "Embedded Wallet" : "Web3 Wallet",
-          description: isEmbedded
-            ? "Managed by Privy — cannot be unlinked"
-            : "Your gateway to the decentralized world",
-        };
-      });
+    // Show primary wallet only (not all linked wallets)
+    const primaryWallet = user.linkedAccounts.find(
+      (account) => account.type === "wallet"
+    ) as { address?: string; walletClientType?: string } | undefined;
 
-    // If no wallets at all, show a single unlinked placeholder
-    if (walletAccounts.length === 0) {
-      walletAccounts.push({
-        type: "wallet",
-        linked: false,
-        icon: <Wallet className="w-6 h-6" />,
-        name: "Web3 Wallet",
-        description: "Your gateway to the decentralized world",
-      });
-    }
+    const walletAccounts: LinkedAccount[] = primaryWallet
+      ? [
+          {
+            type: "wallet",
+            linked: true,
+            address: primaryWallet.address,
+            isEmbedded: isEmbeddedWallet(primaryWallet.walletClientType),
+            icon: <Wallet className="w-6 h-6" />,
+            name: isEmbeddedWallet(primaryWallet.walletClientType)
+              ? "Embedded Wallet"
+              : "Web3 Wallet",
+            description: isEmbeddedWallet(primaryWallet.walletClientType)
+              ? "Managed by Privy — cannot be unlinked"
+              : "Your gateway to the decentralized world",
+          },
+        ]
+      : [
+          {
+            type: "wallet",
+            linked: false,
+            icon: <Wallet className="w-6 h-6" />,
+            name: "Web3 Wallet",
+            description: "Your gateway to the decentralized world",
+          },
+        ];
 
     const accounts: LinkedAccount[] = [
       ...walletAccounts,
