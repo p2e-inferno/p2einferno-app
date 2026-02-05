@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/utils/privyUtils";
 import { getLogger } from "@/lib/utils/logger";
+import { isExternalWallet } from "@/lib/utils/wallet-address";
 import { getVerificationStrategy } from "@/lib/quests/verification/registry";
 import {
   checkQuestPrerequisites,
@@ -224,6 +225,26 @@ export default async function handler(
       verificationData = {
         fid: farcasterAccount.fid,
         username: farcasterAccount.username,
+      };
+    }
+
+    if (task?.task_type === "link_wallet") {
+      // Verify external wallet linkage via Privy server SDK and use server-trusted data
+      const privy = createPrivyClient();
+      const profile: any = await privy.getUserById(effectiveUserId);
+      const externalWallet = profile?.linkedAccounts?.find(
+        (a: any) =>
+          a?.type === "wallet" && isExternalWallet(a?.walletClientType),
+      );
+      if (!externalWallet) {
+        return res.status(400).json({
+          error:
+            "External wallet not linked. Please link an Ethereum wallet to complete this quest.",
+        });
+      }
+      verificationData = {
+        walletAddress: externalWallet.address,
+        walletClientType: externalWallet.walletClientType,
       };
     }
 

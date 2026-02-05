@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useSessionSigners, WalletWithMetadata } from "@privy-io/react-auth";
 import { useMessageSigning } from "@/hooks/useMessageSigning";
 import { getLogger } from "@/lib/utils/logger";
+import { isEmbeddedWallet } from "@/lib/utils/wallet-address";
 
 const log = getLogger("WalletCard");
 
@@ -69,7 +70,7 @@ export default function WalletCard({ wallet }: WalletCardProps) {
   return (
     <div className="flex flex-col gap-4 p-4 border border-gray-200 rounded-lg">
       <div className="text-sm text-violet-700">
-        {wallet.walletClientType === "privy" ? "Embedded " : ""}Wallet:{" "}
+        {isEmbeddedWallet(wallet.walletClientType) ? "Embedded " : ""}Wallet:{" "}
         {wallet.address.slice(0, 6)}...
         {wallet.address.slice(-4)}
       </div>
