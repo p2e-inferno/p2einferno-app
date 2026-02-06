@@ -1,9 +1,7 @@
-import { useMemo, useEffect, useRef } from "react";
+import { useMemo } from "react";
 import { type User, useWallets } from "@privy-io/react-auth";
 import { getLogger } from "@/lib/utils/logger";
 import { selectLinkedWallet } from "@/lib/utils/wallet-selection";
-import { isExternalWallet } from "@/lib/utils/wallet-address";
-import toast from "react-hot-toast";
 
 const log = getLogger("hooks:detect-connected-wallet-address");
 
@@ -20,10 +18,11 @@ const log = getLogger("hooks:detect-connected-wallet-address");
  *
  * Device-aware: On mobile without MetaMask, this will automatically fall back to
  * embedded wallet instead of trying to use unavailable MetaMask.
+ *
+ * Note: Fallback notifications are handled by useSmartWalletSelection to avoid duplicates.
  */
 export function useDetectConnectedWalletAddress(user?: User | null) {
   const { wallets } = useWallets();
-  const hasShownFallbackToast = useRef(false);
 
   const walletAddress = useMemo(() => {
     const linkedWallet = selectLinkedWallet(user, wallets);
@@ -47,53 +46,6 @@ export function useDetectConnectedWalletAddress(user?: User | null) {
 
     return linkedWallet.address;
   }, [user, wallets]);
-
-  // Detect when we fell back from external to embedded wallet
-  useEffect(() => {
-    if (!user?.linkedAccounts || !walletAddress) return;
-
-    // Check if user has any linked external wallets
-    const linkedExternalWallets = user.linkedAccounts.filter(
-      (account) =>
-        account.type === "wallet" && isExternalWallet((account as any).walletClientType)
-    );
-
-    // Get the selected wallet info to check if it's embedded
-    const selectedWallet = selectLinkedWallet(user, wallets);
-    const selectedIsEmbedded = selectedWallet
-      ? !isExternalWallet(selectedWallet.walletClientType)
-      : false;
-
-    // If we have linked external wallets but selected an embedded one, we fell back
-    if (
-      linkedExternalWallets.length > 0 &&
-      selectedIsEmbedded &&
-      !hasShownFallbackToast.current
-    ) {
-      hasShownFallbackToast.current = true;
-
-      toast.success(
-        "Using embedded wallet — your external wallet is not available on this device",
-        {
-          duration: 10000,
-          icon: "ℹ️",
-          style: {
-            cursor: "pointer",
-          },
-        }
-      );
-
-      log.info("Showed fallback notification", {
-        linkedExternalCount: linkedExternalWallets.length,
-        selectedWallet: walletAddress,
-      });
-    }
-
-    // Reset the flag if external wallet becomes available again
-    if (linkedExternalWallets.length > 0 && !selectedIsEmbedded) {
-      hasShownFallbackToast.current = false;
-    }
-  }, [user, wallets, walletAddress]);
 
   return {
     walletAddress,

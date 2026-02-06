@@ -68,7 +68,21 @@ export function selectLinkedWallet(
     }
   }
 
-  // Priority 2: Fallback to any linked wallet (embedded - always available)
+  // Priority 2: Fallback to embedded wallet first (always available), then any linked wallet
+  // First try to find an embedded wallet
+  const embeddedWallet = walletAccounts.find(
+    (account) => account.address && !isExternalWallet(account.walletClientType)
+  );
+
+  if (embeddedWallet?.address) {
+    return {
+      address: embeddedWallet.address,
+      walletClientType: embeddedWallet.walletClientType,
+      connectorType: embeddedWallet.connectorType,
+    };
+  }
+
+  // Fallback to any linked wallet if no embedded wallet exists
   const anyWallet = walletAccounts.find((account) => account.address);
 
   if (anyWallet?.address) {

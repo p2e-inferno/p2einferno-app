@@ -4,6 +4,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { selectLinkedWallet } from "@/lib/utils/wallet-selection";
 import { isExternalWallet } from "@/lib/utils/wallet-address";
 import toast from "react-hot-toast";
+import { CHAIN_ID } from "@/lib/blockchain/config";
 
 const log = getLogger("client:smart-wallet");
 
@@ -36,7 +37,7 @@ export const useSmartWalletSelection = () => {
         walletClientType: linkedWallet.walletClientType || "privy",
         connectorType: linkedWallet.connectorType || (isExternal ? "injected" : "embedded"),
         type: "ethereum" as const,
-        chainId: "eip155:84532",
+        chainId: `eip155:${CHAIN_ID}`,
       };
     }
 
@@ -60,10 +61,11 @@ export const useSmartWalletSelection = () => {
     if (!user?.linkedAccounts || !selectedWallet) return;
 
     // Check if user has any linked external wallets
-    const linkedExternalWallets = user.linkedAccounts.filter(
-      (account) =>
-        account.type === "wallet" && isExternalWallet((account as any).walletClientType)
-    );
+    const linkedExternalWallets = user.linkedAccounts.filter((account) => {
+      if (account.type !== "wallet") return false;
+      const walletAccount = account as { walletClientType?: string };
+      return isExternalWallet(walletAccount.walletClientType);
+    });
 
     // Check if selected wallet is embedded
     const selectedIsEmbedded = !isExternalWallet(selectedWallet.walletClientType);
