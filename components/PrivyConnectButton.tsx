@@ -8,7 +8,7 @@ import {
 } from "./CustomDropdown";
 import { WalletDetailsModal } from "./WalletDetailsModal";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
-import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { formatWalletAddress } from "@/lib/utils/wallet-address";
 import { getLogger } from "@/lib/utils/logger";
 import {
@@ -54,8 +54,9 @@ export function PrivyConnectButton() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // Use the consistent wallet address detection hook
-  const { walletAddress } = useDetectConnectedWalletAddress(user);
+  // Use smart wallet selection to prioritize external wallets over embedded
+  const selectedWallet = useSmartWalletSelection();
+  const walletAddress = selectedWallet?.address || null;
 
   // Use the wallet balances hook
   // Only enable when menu is open AND modal is closed (modal has its own instance)
