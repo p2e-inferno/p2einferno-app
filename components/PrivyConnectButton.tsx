@@ -9,7 +9,10 @@ import {
 import { WalletDetailsModal } from "./WalletDetailsModal";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
-import { formatWalletAddress } from "@/lib/utils/wallet-address";
+import {
+  formatWalletAddress,
+  isExternalWallet,
+} from "@/lib/utils/wallet-address";
 import { getLogger } from "@/lib/utils/logger";
 import {
   User,
@@ -66,6 +69,11 @@ export function PrivyConnectButton() {
 
   // Format the wallet address consistently
   const shortAddress = formatWalletAddress(walletAddress);
+
+  // Determine wallet type for badge
+  const walletIsExternal = selectedWallet?.walletClientType
+    ? isExternalWallet(selectedWallet.walletClientType)
+    : false;
 
   const handleViewWalletDetails = () => {
     setShowWalletModal(true);
@@ -131,9 +139,20 @@ export function PrivyConnectButton() {
         onOpenChange={setIsMenuOpen}
       >
         <CustomDropdownLabel>
-          <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">My Wallet</p>
-            <p className="text-xs leading-none text-muted-foreground">
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center gap-2.5">
+              <p className="text-base font-semibold leading-none">My Wallet</p>
+              <span
+                className={`text-xs px-2 py-1 rounded-md font-semibold ${
+                  walletIsExternal
+                    ? "bg-blue-500/10 text-blue-500"
+                    : "bg-purple-500/10 text-purple-500"
+                }`}
+              >
+                {walletIsExternal ? "External" : "Embedded"}
+              </span>
+            </div>
+            <p className="text-sm leading-none text-muted-foreground font-mono">
               {shortAddress}
             </p>
           </div>

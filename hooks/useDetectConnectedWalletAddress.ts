@@ -1,78 +1,54 @@
-import { useState, useEffect } from "react";
-import { type User } from "@privy-io/react-auth";
+import { useMemo } from "react";
+import { type User, useWallets } from "@privy-io/react-auth";
 import { getLogger } from "@/lib/utils/logger";
+import { selectLinkedWallet } from "@/lib/utils/wallet-selection";
 
 const log = getLogger("hooks:detect-connected-wallet-address");
 
 /**
  * Hook that provides consistent wallet address detection across all components.
  *
- * Uses the same prioritization logic:
- * 1. Connected provider address (from window.ethereum)
- * 2. Privy user wallet address
+ * Uses the same prioritization logic as useSmartWalletSelection:
+ * 1. External wallet that is BOTH linked AND available on current device
+ * 2. Any linked wallet from user.linkedAccounts (embedded wallet)
  * 3. null if no wallet available
  *
- * This ensures all components (PrivyConnectButton, AdminAccessRequired, useLockManagerAdminAuth)
- * are checking the exact same wallet address and prevents auth inconsistencies.
+ * This ensures all components use only wallets that are actually linked to the user's
+ * Privy account, preventing security issues from unlinked browser wallets.
+ *
+ * Device-aware: On mobile without MetaMask, this will automatically fall back to
+ * embedded wallet instead of trying to use unavailable MetaMask.
+ *
+ * Note: Fallback notifications are handled by useSmartWalletSelection to avoid duplicates.
  */
 export function useDetectConnectedWalletAddress(user?: User | null) {
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
+  const { wallets } = useWallets();
 
-  // Track connected wallet address via window.ethereum
-  useEffect(() => {
-    let isMounted = true;
+  const walletAddress = useMemo(() => {
+    const linkedWallet = selectLinkedWallet(user, wallets);
 
-    const readProviderAddress = async () => {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const accounts: string[] | undefined = await (
-            window as any
-          ).ethereum.request({
-            method: "eth_accounts",
-          });
-          if (isMounted) {
-            let addr: string | null = null;
-            if (Array.isArray(accounts) && accounts.length > 0) {
-              addr = accounts[0] as string;
-            }
-            setConnectedAddress(addr ?? null);
-            log.debug(`Connected address updated: ${addr}`);
-          }
-        } catch (err) {
-          log.warn("Unable to fetch accounts from provider", err);
-        }
-      }
-    };
-
-    readProviderAddress();
-
-    // Also update whenever accounts change
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const handler = (accounts: string[]) => {
-        let addr: string | null = null;
-        if (Array.isArray(accounts) && accounts.length > 0) {
-          addr = accounts[0] as string;
-        }
-        setConnectedAddress(addr ?? null);
-        log.debug(`Wallet account changed to: ${addr}`);
-      };
-      (window as any).ethereum.on("accountsChanged", handler);
-      return () => {
-        (window as any).ethereum.removeListener("accountsChanged", handler);
-        isMounted = false;
-      };
+    if (!linkedWallet) {
+      log.debug("No wallet found in linked accounts");
+      return null;
     }
 
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+    const isExternal = linkedWallet.walletClientType
+      ? linkedWallet.walletClientType !== "privy" &&
+        linkedWallet.walletClientType !== "privy-v2"
+      : false;
 
-  // Return the wallet address using consistent prioritization
-  const walletAddress = connectedAddress || user?.wallet?.address || null;
+    log.debug(
+      `Found ${isExternal ? "external" : "embedded"} wallet from linked accounts`,
+      {
+        address: linkedWallet.address,
+      }
+    );
+
+    return linkedWallet.address;
+  }, [user, wallets]);
 
   return {
     walletAddress,
-    connectedAddress, // For components that need the raw provider address
+    connectedAddress: walletAddress, // Deprecated: kept for backward compatibility
   };
 }

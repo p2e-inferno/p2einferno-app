@@ -100,22 +100,22 @@ export default function CohortListPage() {
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-gray-800">
-              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 w-full">
+              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
                 Name
               </th>
-              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 whitespace-nowrap">
                 Bootcamp
               </th>
-              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 whitespace-nowrap">
                 Duration
               </th>
-              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 whitespace-nowrap">
                 Participants
               </th>
-              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+              <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 whitespace-nowrap">
                 Status
               </th>
-              <th className="py-3 px-4 text-right text-sm font-medium text-gray-400">
+              <th className="py-3 px-4 text-right text-sm font-medium text-gray-400 whitespace-nowrap">
                 Actions
               </th>
             </tr>
@@ -146,20 +146,20 @@ export default function CohortListPage() {
                     />
                   </div>
                 </td>
-                <td className="py-4 px-4 text-sm text-white">
+                <td className="py-4 px-4 text-sm text-white whitespace-nowrap">
                   {cohort.bootcamp_program?.name || "Unknown Bootcamp"}
                 </td>
-                <td className="py-4 px-4 text-sm text-white">
+                <td className="py-4 px-4 text-sm text-white whitespace-nowrap">
                   {formatDate(cohort.start_date)} -{" "}
                   {formatDate(cohort.end_date)}
                 </td>
-                <td className="py-4 px-4 text-sm text-white">
+                <td className="py-4 px-4 text-sm text-white whitespace-nowrap">
                   {cohort.current_participants} / {cohort.max_participants}
                 </td>
-                <td className="py-4 px-4 text-sm text-white">
+                <td className="py-4 px-4 text-sm text-white whitespace-nowrap">
                   {getStatusBadge(cohort.status)}
                 </td>
-                <td className="py-4 px-4 text-right">
+                <td className="py-4 px-4 text-right whitespace-nowrap">
                   <div className="flex justify-end space-x-2">
                     <Link href={`/admin/cohorts/${cohort.id}`}>
                       <Button

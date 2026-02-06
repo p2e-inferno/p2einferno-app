@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { ethers } from "ethers";
 import { getLogger } from "@/lib/utils/logger";
 import {
@@ -10,6 +9,7 @@ import { createPublicClientUnified } from "@/lib/blockchain/config";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
 import type { Address } from "viem";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("hooks:useWalletBalances");
 
@@ -70,11 +70,11 @@ export interface WalletBalance {
 interface UseWalletBalancesOptions {
   enabled?: boolean; // gate RPC usage and polling
   pollIntervalMs?: number; // default 30s
+  walletAddress?: string | null; // optional override address
 }
 
 export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
-  const { enabled = true, pollIntervalMs = 30000 } = options;
-  const { user } = usePrivy();
+  const { enabled = true, pollIntervalMs = 30000, walletAddress: overrideAddress } = options;
   const [balances, setBalances] = useState<WalletBalance>({
     eth: { balance: "0", formatted: "0.0000", loading: true },
     usdc: { balance: "0", formatted: "0.00", loading: true, symbol: "USDC" },
@@ -82,72 +82,14 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
     up: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: true, symbol: "UP" },
   });
   const [error, setError] = useState<string | null>(null);
-  const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
 
-  // Get the connected wallet address from provider (same logic as PrivyConnectButton)
-  useEffect(() => {
-    if (!enabled) {
-      // When disabled, avoid touching provider and present non-loading zeros
-      setConnectedAddress(null);
-      setBalances({
-        eth: { balance: "0", formatted: "0.0000", loading: false },
-        usdc: { balance: "0", formatted: "0.00", loading: false, symbol: "USDC" },
-        dg: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: false, symbol: "DG" },
-        up: { balance: "0", formatted: "0.00", fullFormatted: "0.00", loading: false, symbol: "UP" },
-      });
-      return;
-    }
-    let isMounted = true;
-
-    const readProviderAddress = async () => {
-      if (typeof window !== "undefined" && (window as any).ethereum) {
-        try {
-          const accounts: string[] | undefined = await (
-            window as any
-          ).ethereum.request({
-            method: "eth_accounts",
-          });
-          if (isMounted) {
-            let addr: string | null = null;
-            if (Array.isArray(accounts) && accounts.length > 0) {
-              addr = accounts[0] as string;
-            }
-            setConnectedAddress(addr ?? null);
-          }
-        } catch (err) {
-          log.warn("Unable to fetch accounts from provider", { error: err });
-        }
-      }
-    };
-
-    readProviderAddress();
-
-    // Also update whenever accounts change
-    if (typeof window !== "undefined" && (window as any).ethereum) {
-      const handler = (accounts: string[]) => {
-        let addr: string | null = null;
-        if (Array.isArray(accounts) && accounts.length > 0) {
-          addr = accounts[0] as string;
-        }
-        setConnectedAddress(addr ?? null);
-      };
-      (window as any).ethereum.on("accountsChanged", handler);
-      return () => {
-        (window as any).ethereum.removeListener("accountsChanged", handler);
-        isMounted = false;
-      };
-    }
-
-    return () => {
-      isMounted = false;
-    };
-  }, [enabled]);
-
-  // Use the same address resolution logic as PrivyConnectButton
-  const walletAddress = connectedAddress || user?.wallet?.address || null;
+  // Use centralized wallet selection logic from useSmartWalletSelection
+  const selectedWallet = useSmartWalletSelection();
+  const walletAddress = overrideAddress ?? selectedWallet?.address ?? null;
 
   useEffect(() => {
     if (!enabled || !walletAddress) {
+      // When disabled or no wallet, present non-loading zeros
       setBalances({
         eth: { balance: "0", formatted: "0.0000", loading: false },
         usdc: { balance: "0", formatted: "0.00", loading: false, symbol: "USDC" },

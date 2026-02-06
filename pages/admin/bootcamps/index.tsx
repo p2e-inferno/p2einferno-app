@@ -123,22 +123,22 @@ export default function BootcampsPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-gray-800">
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 w-full">
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
                   Name
                 </th>
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 whitespace-nowrap">
                   Duration
                 </th>
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 whitespace-nowrap">
                   Max Reward
                 </th>
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 whitespace-nowrap">
                   Price
                 </th>
-                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400">
+                <th className="py-3 px-4 text-left text-sm font-medium text-gray-400 whitespace-nowrap">
                   Registration
                 </th>
-                <th className="py-3 px-4 text-right text-sm font-medium text-gray-400">
+                <th className="py-3 px-4 text-right text-sm font-medium text-gray-400 whitespace-nowrap">
                   Actions
                 </th>
               </tr>
@@ -171,19 +171,19 @@ export default function BootcampsPage() {
                       />
                     </div>
                   </td>
-                  <td className="py-4 px-4 text-sm text-white">
+                  <td className="py-4 px-4 text-sm text-white whitespace-nowrap">
                     {bootcamp.duration_weeks} weeks
                   </td>
-                  <td className="py-4 px-4 text-sm text-white">
+                  <td className="py-4 px-4 text-sm text-white whitespace-nowrap">
                     {bootcamp.max_reward_dgt?.toLocaleString() || 0} DG
                   </td>
-                  <td className="py-4 px-4 text-sm text-white">
+                  <td className="py-4 px-4 text-sm text-white whitespace-nowrap">
                     Contact for pricing
                   </td>
-                  <td className="py-4 px-4 text-sm text-white">
+                  <td className="py-4 px-4 text-sm text-white whitespace-nowrap">
                     Open Registration
                   </td>
-                  <td className="py-4 px-4 text-right">
+                  <td className="py-4 px-4 text-right whitespace-nowrap">
                     <div className="flex justify-end space-x-2">
                       <Link href={`/admin/bootcamps/${bootcamp.id}`}>
                         <Button
