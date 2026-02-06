@@ -78,7 +78,7 @@ export const AccountCard = ({
               <Unlink className="w-5 h-5 mr-1" />
               Unlink
             </button>
-          ) : (!account.linked || account.isEmbedded) ? (
+          ) : !account.linked || account.isEmbedded ? (
             <button
               onClick={onLink}
               disabled={isLinking}

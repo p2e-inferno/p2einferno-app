@@ -71,7 +71,7 @@ const ProfilePage = () => {
 
     // Show primary wallet only (not all linked wallets)
     const primaryWallet = user.linkedAccounts.find(
-      (account) => account.type === "wallet"
+      (account) => account.type === "wallet",
     ) as { address?: string; walletClientType?: string } | undefined;
 
     const walletAccounts: LinkedAccount[] = primaryWallet
