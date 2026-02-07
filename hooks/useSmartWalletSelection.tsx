@@ -1,12 +1,19 @@
-import { useMemo, useEffect, useRef } from "react";
-import { useWallets, useUser } from "@privy-io/react-auth";
+import { useMemo, useEffect } from "react";
+import { useWallets, useUser, usePrivy } from "@privy-io/react-auth";
 import { getLogger } from "@/lib/utils/logger";
 import { selectLinkedWallet } from "@/lib/utils/wallet-selection";
 import { isExternalWallet } from "@/lib/utils/wallet-address";
 import toast from "react-hot-toast";
 import { CHAIN_ID } from "@/lib/blockchain/config";
+import { WalletFallbackToast } from "@/components/ui/wallet-fallback-toast";
 
 const log = getLogger("client:smart-wallet");
+
+// Shared state across all hook instances to prevent duplicate toasts
+const fallbackToastState = {
+  hasShown: false,
+  toastId: null as string | null,
+};
 
 /**
  * Smart wallet selection hook that prioritizes external wallets over embedded ones
@@ -16,7 +23,7 @@ const log = getLogger("client:smart-wallet");
 export const useSmartWalletSelection = () => {
   const { wallets } = useWallets();
   const { user } = useUser();
-  const hasShownFallbackToast = useRef(false);
+  const { ready } = usePrivy();
 
   const selectedWallet = useMemo(() => {
     log.debug("Available wallets", { wallets });
@@ -58,6 +65,9 @@ export const useSmartWalletSelection = () => {
 
   // Detect when we fell back from external to embedded wallet
   useEffect(() => {
+    // Don't evaluate until wallets array has been populated (prevents false positives during init)
+    if (wallets.length === 0) return;
+    if (!ready) return;
     if (!user?.linkedAccounts || !selectedWallet) return;
 
     // Check if user has any linked external wallets
@@ -74,22 +84,18 @@ export const useSmartWalletSelection = () => {
     if (
       linkedExternalWallets.length > 0 &&
       selectedIsEmbedded &&
-      !hasShownFallbackToast.current
+      !fallbackToastState.hasShown
     ) {
-      hasShownFallbackToast.current = true;
+      fallbackToastState.hasShown = true;
 
-      toast.success(
-        "Using embedded wallet — your external wallet is not available on this device",
+      fallbackToastState.toastId = toast.custom(
+        (t) => <WalletFallbackToast toastId={t.id} />,
         {
           duration: 10000,
-          icon: "ℹ️",
-          style: {
-            cursor: "pointer",
-          },
         }
       );
 
-      log.info("Showed fallback notification", {
+      log.info("Showed fallback notification (shared state)", {
         linkedExternalCount: linkedExternalWallets.length,
         selectedWallet: selectedWallet.address,
       });
@@ -97,9 +103,10 @@ export const useSmartWalletSelection = () => {
 
     // Reset the flag if external wallet becomes available again
     if (linkedExternalWallets.length > 0 && !selectedIsEmbedded) {
-      hasShownFallbackToast.current = false;
+      fallbackToastState.hasShown = false;
+      fallbackToastState.toastId = null;
     }
-  }, [user?.linkedAccounts, selectedWallet]);
+  }, [wallets, ready, user?.linkedAccounts, selectedWallet]);
 
   return selectedWallet;
 };

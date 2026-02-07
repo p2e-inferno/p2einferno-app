@@ -80,3 +80,33 @@ export function formatCurrency(amount: number, currency: Currency): string {
 
   return formatters[currency].format(amount);
 }
+
+/**
+ * Format currency for display with smart decimal handling
+ * Shows decimals only when they're non-zero (e.g., $9.99, ₦1,500.25)
+ * Hides decimals for whole numbers (e.g., $10, ₦1,500)
+ */
+export function formatCurrencyCompact(
+  amount: number,
+  currency: Currency,
+): string {
+  // Check if amount has decimals
+  const hasDecimals = amount % 1 !== 0;
+
+  const formatters = {
+    NGN: new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
+      minimumFractionDigits: hasDecimals ? 2 : 0,
+      maximumFractionDigits: 2,
+    }),
+    USD: new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      minimumFractionDigits: hasDecimals ? 2 : 0,
+      maximumFractionDigits: 2,
+    }),
+  };
+
+  return formatters[currency].format(amount);
+}

@@ -6,13 +6,14 @@ import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
 import {
   Clock,
   Users,
-  Trophy,
+  DollarSign,
   Calendar,
   Flame,
   ChevronRight,
   Sparkles,
 } from "lucide-react";
 import { RichText } from "@/components/common/RichText";
+import { formatCurrencyCompact } from "@/lib/utils/payment-utils";
 
 interface BootcampWithCohorts extends BootcampProgram {
   cohorts: Cohort[];
@@ -125,24 +126,28 @@ export function BootcampCard({ bootcamp }: BootcampCardProps) {
           />
         </div>
 
-        {/* Key Metrics - Remove pricing section */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-8 mt-auto pt-4">
-          <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 text-center border border-faded-grey/20">
+        {/* Key Metrics */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-8 mt-auto pt-4">
+          <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 text-center border border-faded-grey/20">
             <Clock className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
             <div className="text-xl font-bold">{bootcamp.duration_weeks}</div>
             <div className="text-sm text-faded-grey">Weeks</div>
           </div>
-          <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 text-center border border-faded-grey/20">
-            <Trophy className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
-            <div className="text-xl font-bold">
-              {bootcamp.max_reward_dgt > 1000
-                ? `${Math.round(bootcamp.max_reward_dgt / 1000)}k`
-                : bootcamp.max_reward_dgt.toLocaleString()}
+          <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 text-center border border-faded-grey/20">
+            <DollarSign className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
+            <div className="text-lg font-extrabold">
+              {activeCohort?.naira_amount
+                ? formatCurrencyCompact(activeCohort.naira_amount, "NGN")
+                : "TBD"}
             </div>
-            <div className="text-sm text-faded-grey">Max DG</div>
+            <div className="text-sm text-faded-grey">
+              {activeCohort?.usdt_amount
+                ? `or ${formatCurrencyCompact(activeCohort.usdt_amount, "USD")}`
+                : "Price"}
+            </div>
           </div>
           {activeCohort && (
-            <div className="bg-background/60 backdrop-blur-sm rounded-lg p-4 text-center border border-faded-grey/20">
+            <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 text-center border border-faded-grey/20">
               <Users className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
               <div className="text-xl font-bold">{spotsRemaining}</div>
               <div className="text-sm text-faded-grey">Spots Left</div>
