@@ -118,8 +118,24 @@ export function Bootcamps() {
     );
   }
 
-  // Get bootcamps with cohorts (active bootcamps)
-  const activeBootcamps = bootcamps.filter((b) => b.cohorts.length > 0);
+  // Get bootcamps with cohorts and sort by cohort priority
+  const activeBootcamps = bootcamps
+    .filter((b) => b.cohorts.length > 0)
+    .sort((a, b) => {
+      // Priority: open > upcoming > closed
+      const getPriority = (bootcamp: BootcampWithCohorts) => {
+        const hasOpenCohort = bootcamp.cohorts.some((c) => c.status === "open");
+        const hasUpcomingCohort = bootcamp.cohorts.some(
+          (c) => c.status === "upcoming",
+        );
+
+        if (hasOpenCohort) return 0; // Highest priority
+        if (hasUpcomingCohort) return 1; // Medium priority
+        return 2; // Lowest priority (closed)
+      };
+
+      return getPriority(a) - getPriority(b);
+    });
 
   return (
     <section id="bootcamps" className="py-16 md:py-24 bg-background">

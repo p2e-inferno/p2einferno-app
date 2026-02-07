@@ -6,10 +6,18 @@ import { Button } from "@/components/ui/button";
 import { NetworkError } from "@/components/ui/network-error";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MainLayout } from "@/components/layouts/MainLayout";
-import { Clock, Users, Trophy, Calendar, ChevronRight } from "lucide-react";
+import {
+  Clock,
+  Users,
+  Trophy,
+  Calendar,
+  ChevronRight,
+  DollarSign,
+} from "lucide-react";
 import { getCohortRegistrationStatus } from "@/lib/utils/registration-validation";
 import { getLogger } from "@/lib/utils/logger";
 import { usePrivy } from "@privy-io/react-auth";
+import { formatCurrencyCompact } from "@/lib/utils/payment-utils";
 
 const log = getLogger("bootcamp:[id]");
 
@@ -319,7 +327,23 @@ export default function BootcampPage({ bootcampId }: BootcampPageProps) {
                         </div>
 
                         {/* Cohort Stats */}
-                        <div className="grid grid-cols-2 gap-3 mb-6">
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
+                          <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 text-center border border-faded-grey/20">
+                            <DollarSign className="w-4 h-4 text-flame-yellow mx-auto mb-1" />
+                            <div className="text-sm font-extrabold">
+                              {cohort.naira_amount
+                                ? formatCurrencyCompact(
+                                    cohort.naira_amount,
+                                    "NGN",
+                                  )
+                                : "TBD"}
+                            </div>
+                            <div className="text-[10px] text-faded-grey">
+                              {cohort.usdt_amount
+                                ? `or ${formatCurrencyCompact(cohort.usdt_amount, "USD")}`
+                                : "Price"}
+                            </div>
+                          </div>
                           <div className="bg-background/60 backdrop-blur-sm rounded-lg p-3 text-center border border-faded-grey/20">
                             <Users className="w-4 h-4 text-flame-yellow mx-auto mb-1" />
                             <div className="text-lg font-bold">

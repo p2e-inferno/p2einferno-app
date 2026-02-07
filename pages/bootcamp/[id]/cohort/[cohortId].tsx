@@ -17,10 +17,12 @@ import {
   Flame,
   ChevronRight,
   CheckCircle,
+  DollarSign,
 } from "lucide-react";
 import { calculateTimeRemaining } from "@/lib/utils/registration-validation";
 import { useCohortDetails } from "@/hooks/useCohortDetails";
 import { RichText } from "@/components/common/RichText";
+import { formatCurrencyCompact } from "@/lib/utils/payment-utils";
 
 interface CohortPageProps {
   bootcampId: string;
@@ -196,7 +198,7 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
             />
 
             {/* Key Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 max-w-5xl mx-auto mb-12">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-w-6xl mx-auto mb-12">
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
                 <Calendar className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
                 <div className="text-2xl font-bold">
@@ -220,6 +222,19 @@ export default function CohortPage({ bootcampId, cohortId }: CohortPageProps) {
                   {bootcamp.max_reward_dgt.toLocaleString()}
                 </div>
                 <div className="text-sm text-faded-grey">Max DG Rewards</div>
+              </div>
+              <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                <DollarSign className="w-6 h-6 text-flame-yellow mx-auto mb-2" />
+                <div className="text-xl font-extrabold">
+                  {cohort.naira_amount
+                    ? formatCurrencyCompact(cohort.naira_amount, "NGN")
+                    : "TBD"}
+                </div>
+                <div className="text-xs text-faded-grey">
+                  {cohort.usdt_amount
+                    ? `or ${formatCurrencyCompact(cohort.usdt_amount, "USD")}`
+                    : "Price"}
+                </div>
               </div>
               <div className="bg-white/10 backdrop-blur-sm rounded-lg p-4 border border-white/20">
                 <Users className="w-6 h-6 text-flame-yellow mx-auto mb-2" />

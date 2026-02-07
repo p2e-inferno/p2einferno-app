@@ -34,7 +34,7 @@ export function Carousel({
   const childCount = childrenArray.length;
 
   // Determine if we should loop based on content count
-  const shouldLoop = childCount > 3 && options.loop !== false;
+  const shouldLoop = childCount >= 3 && options.loop !== false;
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: shouldLoop,
@@ -42,10 +42,10 @@ export function Carousel({
     slidesToScroll: options.slidesToScroll ?? 1,
     breakpoints: {
       "(min-width: 768px)": {
-        slidesToScroll: Math.min(2, childCount),
+        slidesToScroll: options.slidesToScroll ?? Math.min(2, childCount),
       },
       "(min-width: 1024px)": {
-        slidesToScroll: Math.min(3, childCount),
+        slidesToScroll: options.slidesToScroll ?? Math.min(3, childCount),
       },
       ...options.breakpoints,
     },
@@ -99,19 +99,20 @@ export function Carousel({
       <div className="overflow-hidden" ref={emblaRef}>
         <div className="flex">
           {React.Children.map(children, (child, index) => {
-            // Dynamic classes based on child count
+            // Dynamic classes based on child count with min-width to prevent squishing
             let flexClasses = "min-w-0 pl-4";
 
             if (childCount === 1) {
               // Single item: take full width and center
               flexClasses += " flex-[0_0_100%]";
             } else if (childCount === 2) {
-              // Two items: 100% on mobile, 50% on md+
-              flexClasses += " flex-[0_0_100%] md:flex-[0_0_50%]";
-            } else {
-              // Three or more items: normal responsive behavior
+              // Two items: 100% on mobile, 50% on md+ with min-width
               flexClasses +=
-                " flex-[0_0_100%] md:flex-[0_0_50%] lg:flex-[0_0_33.333%]";
+                " flex-[0_0_100%] md:flex-[0_0_50%] md:min-w-[400px]";
+            } else {
+              // Three or more items: use flex-auto with fixed width for overflow detection
+              // Mobile: full width, Desktop: fixed 420px ensures overflow and enables scrolling
+              flexClasses += " flex-[0_0_100%] md:flex-[0_0_auto] md:w-[420px]";
             }
 
             return (
@@ -123,7 +124,7 @@ export function Carousel({
         </div>
       </div>
 
-      {showArrows && childCount > 3 && (
+      {showArrows && (
         <div className="flex justify-between mt-8">
           <Button
             variant="outline"
@@ -147,7 +148,7 @@ export function Carousel({
         </div>
       )}
 
-      {showDots && scrollSnaps.length > 1 && childCount > 3 && (
+      {showDots && scrollSnaps.length > 1 && (
         <div className="flex justify-center gap-2 mt-6">
           {scrollSnaps.map((_, index) => (
             <button
