@@ -12,6 +12,15 @@ type UploadResponse = {
   error?: string;
 };
 
+// Allow larger request body for base64-encoded file uploads (2MB file = ~2.7MB base64)
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "3mb",
+    },
+  },
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<UploadResponse>,
@@ -42,10 +51,10 @@ export default async function handler(
     }
 
     const fileBuffer = Buffer.from(file, "base64");
-    if (fileBuffer.length > 20 * 1024 * 1024) {
+    if (fileBuffer.length > 2 * 1024 * 1024) {
       return res
         .status(400)
-        .json({ success: false, error: "File size must be less than 20MB" });
+        .json({ success: false, error: "File size must be less than 2MB" });
     }
 
     const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
