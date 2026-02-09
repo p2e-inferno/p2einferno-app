@@ -226,8 +226,7 @@ export default function QuestTaskForm({
     } else if (taskType === "submit_proof") {
       updated.input_validation = "file";
       updated.input_label = "Upload Proof";
-      updated.input_placeholder =
-        "Upload a file as proof (image, PDF, document)";
+      updated.input_placeholder = "Upload a file as proof (image or PDF)";
     }
 
     setLocalTask(updated);

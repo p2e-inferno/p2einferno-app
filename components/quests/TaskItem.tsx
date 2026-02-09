@@ -25,6 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { DeployLockTaskForm } from "./DeployLockTaskForm";
 import { RichText } from "@/components/common/RichText";
+import { validateFile } from "@/lib/utils/validation";
 
 import type { QuestTask, UserTaskCompletion } from "@/lib/supabase/types";
 import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
@@ -165,6 +166,14 @@ const TaskItem: React.FC<TaskItemProps> = ({
   }, [canEdit, completion?.submission_data, isFileUpload, task.id]);
 
   const handleFileUpload = async (file: File) => {
+    // Client-side validation before expensive operations
+    const validation = validateFile(file);
+    if (!validation.isValid) {
+      toast.error(validation.error || "Invalid file");
+      setImagePreview(null);
+      return;
+    }
+
     try {
       setUploading(true);
 
@@ -428,7 +437,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                             }}
                             disabled={uploading}
                             className="hidden"
-                            accept="image/*,application/pdf,text/plain,.zip,.doc,.docx"
+                            accept="image/*,application/pdf"
                           />
                           {uploading ? (
                             <div className="flex flex-col items-center space-y-2">
@@ -442,7 +451,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                                 Click to upload or drag and drop
                               </p>
                               <p className="text-xs text-gray-500">
-                                Images, PDFs, Documents (max 2MB)
+                                Images and PDFs (max 2MB)
                               </p>
                             </div>
                           )}
