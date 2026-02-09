@@ -155,6 +155,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
         if (typeof submissionData === "string") {
           setUploadedFileUrl(submissionData);
           setUploadedFileName("Previously uploaded file");
+
+          // Show preview for image URLs
+          if (submissionData.match(/\.(jpe?g|png|gif|webp)(\?|$)/i)) {
+            setImagePreview(submissionData);
+          }
         }
       } else {
         // For text inputs, submission_data is the text value
@@ -336,8 +341,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
     <div
       key={task.id}
       className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-lg p-4 sm:p-6 border transition-all duration-300 ${isCompleted
-          ? "border-green-500/50"
-          : "border-gray-700 hover:border-orange-500/50"
+        ? "border-green-500/50"
+        : "border-gray-700 hover:border-orange-500/50"
         }`}
     >
       <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
@@ -400,10 +405,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
                       {!uploadedFileUrl ? (
                         <div
                           className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${uploading
-                              ? "border-orange-500/50 bg-orange-500/10"
-                              : isDragging
-                                ? "border-orange-500 bg-orange-500/20"
-                                : "border-gray-600 hover:border-orange-500/50 hover:bg-gray-800/50"
+                            ? "border-orange-500/50 bg-orange-500/10"
+                            : isDragging
+                              ? "border-orange-500 bg-orange-500/20"
+                              : "border-gray-600 hover:border-orange-500/50 hover:bg-gray-800/50"
                             }`}
                           onClick={() =>
                             !uploading &&
