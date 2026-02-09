@@ -19,3 +19,58 @@ export function isValidUuid(value: string): boolean {
 export function escapeIlike(str: string): string {
   return str.replace(/[%_\\]/g, "\\$&");
 }
+
+/**
+ * File upload validation constants and utilities
+ */
+
+/** Maximum file size: 2MB in bytes */
+export const MAX_FILE_SIZE = 2 * 1024 * 1024;
+
+/** Allowed MIME types for file uploads (matches Supabase bucket policy) */
+export const ALLOWED_FILE_TYPES = [
+  // Images
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  // Documents
+  "application/pdf",
+];
+
+export interface FileValidationResult {
+  isValid: boolean;
+  error?: string;
+}
+
+/**
+ * Validates a file's type and size against allowed constraints
+ * @param file - The file to validate
+ * @param maxSize - Maximum file size in bytes (default: 2MB)
+ * @returns Validation result with isValid flag and optional error message
+ */
+export function validateFile(
+  file: File,
+  maxSize: number = MAX_FILE_SIZE,
+): FileValidationResult {
+  // Validate file type (use ALLOWED_FILE_TYPES as single source of truth)
+  if (!ALLOWED_FILE_TYPES.includes(file.type)) {
+    return {
+      isValid: false,
+      error: "Invalid file type. Please upload an image or PDF.",
+    };
+  }
+
+  // Validate file size
+  if (file.size > maxSize) {
+    const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+    const maxSizeMB = (maxSize / 1024 / 1024).toFixed(0);
+    return {
+      isValid: false,
+      error: `File size exceeds ${maxSizeMB}MB limit. Your file is ${fileSizeMB}MB.`,
+    };
+  }
+
+  return { isValid: true };
+}

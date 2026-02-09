@@ -86,15 +86,15 @@ export default async function handler(
       .eq("task_id", taskId)
       .single();
 
-    // Allow resubmission only if status is 'retry' or 'failed'
+    // Allow resubmission if status is 'retry', 'failed', or 'pending' (edit before review)
     if (existingCompletion) {
-      const canResubmit = ["retry", "failed"].includes(
+      const canResubmit = ["retry", "failed", "pending"].includes(
         existingCompletion.submission_status,
       );
 
       if (!canResubmit) {
         return res.status(400).json({
-          error: "Task already completed or under review",
+          error: "Task already completed",
           currentStatus: existingCompletion.submission_status,
         });
       }
@@ -285,8 +285,12 @@ export default async function handler(
       return res.status(500).json({ error: "Failed to complete task" });
     }
 
-    // Send admin notification if review required
-    if (task.requires_admin_review && initialStatus === "pending") {
+    // Send admin notification if review required (only on NEW submissions, not updates)
+    if (
+      task.requires_admin_review &&
+      initialStatus === "pending" &&
+      !existingCompletion
+    ) {
       sendQuestReviewNotification(taskId, effectiveUserId, questId).catch(
         (err) =>
           log.error("Failed to send quest review email", {

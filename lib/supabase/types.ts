@@ -140,7 +140,8 @@ export type InputValidationType =
   | "text"
   | "email"
   | "number"
-  | "textarea";
+  | "textarea"
+  | "file";
 
 export interface QuestTask {
   id: string;

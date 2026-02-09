@@ -146,6 +146,7 @@ const validationOptions: { value: InputValidationType; label: string }[] = [
   { value: "email", label: "Email" },
   { value: "number", label: "Number" },
   { value: "textarea", label: "Long Text" },
+  { value: "file", label: "File Upload" },
 ];
 
 export default function QuestTaskForm({
@@ -222,6 +223,10 @@ export default function QuestTaskForm({
       updated.input_validation = "textarea";
       updated.input_label = "Your Response";
       updated.input_placeholder = "Enter your response here...";
+    } else if (taskType === "submit_proof") {
+      updated.input_validation = "file";
+      updated.input_label = "Upload Proof";
+      updated.input_placeholder = "Upload a file as proof (image or PDF)";
     }
 
     setLocalTask(updated);
