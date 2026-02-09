@@ -167,6 +167,33 @@ export async function grantKeyToUser(
       };
     }
 
+    // Validate that the lock address is a contract on the target network
+    const bytecode = await publicClient.getBytecode({
+      address: lockAddress as Address,
+    });
+
+    if (!bytecode || bytecode === "0x") {
+      const networkName = walletClient.chain?.name || "current network";
+      const errorMsg = `No contract exists at ${lockAddress} on ${networkName}. This address may be from a different network.`;
+      log.error("Lock address validation failed", {
+        lockAddress,
+        networkName,
+        chainId: walletClient.chain?.id,
+        userId,
+      });
+      return {
+        success: false,
+        transactionHash: null,
+        error: errorMsg,
+      };
+    }
+
+    log.debug("Lock contract validation passed", {
+      lockAddress,
+      networkName: walletClient.chain?.name,
+      chainId: walletClient.chain?.id,
+    });
+
     // Grant the key using wallet client
     const keyManagers = getKeyManagersForContext(
       targetWallet as Address,
