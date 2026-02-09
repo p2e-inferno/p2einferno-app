@@ -121,6 +121,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const isFileUpload = task.input_validation === "file";
 
@@ -218,6 +219,41 @@ const TaskItem: React.FC<TaskItemProps> = ({
     }
   };
 
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!uploading) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set dragging to false if we're leaving the drop zone itself, not a child element
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    if (uploading) return;
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0 && files[0]) {
+      handleFileUpload(files[0]);
+    }
+  };
+
   const clearUpload = () => {
     setUploadedFileUrl(null);
     setUploadedFileName(null);
@@ -311,9 +347,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
           {isCompleted ? (
             <CheckCircle2 className="w-8 h-8 text-green-500 mr-4 mt-1" />
           ) : (
-            <div className="mr-4 mt-1">
-              {getTaskIcon(task.task_type, false)}
-            </div>
+            getTaskIcon(task.task_type, false)
           )}
 
           {/* Task Info */}
@@ -370,7 +404,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
                           className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
                             uploading
                               ? "border-orange-500/50 bg-orange-500/10"
-                              : "border-gray-600 hover:border-orange-500/50 hover:bg-gray-800/50"
+                              : isDragging
+                                ? "border-orange-500 bg-orange-500/20"
+                                : "border-gray-600 hover:border-orange-500/50 hover:bg-gray-800/50"
                           }`}
                           onClick={() =>
                             !uploading &&
@@ -378,6 +414,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
                               .getElementById(`file-input-${task.id}`)
                               ?.click()
                           }
+                          onDragOver={handleDragOver}
+                          onDragEnter={handleDragEnter}
+                          onDragLeave={handleDragLeave}
+                          onDrop={handleDrop}
                         >
                           <input
                             id={`file-input-${task.id}`}
