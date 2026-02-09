@@ -296,11 +296,13 @@ export default async function handler(
       const raw = grantResult.error || "";
       const errorMessage = raw.includes("LOCK_MANAGER_PRIVATE_KEY")
         ? "Server is not configured for on-chain grants yet. Please try again later."
-        : raw.toLowerCase().includes("no wallet")
-          ? "No wallet found. Please connect a wallet to claim your milestone key."
-          : raw.toLowerCase().includes("already has a valid key")
-            ? "You already have a key for this milestone."
-            : "Failed to grant key on-chain. Please try again or contact support.";
+        : raw.toLowerCase().includes("no contract exists")
+          ? "This milestone's lock address is not valid on the current network. Please contact support."
+          : raw.toLowerCase().includes("no wallet")
+            ? "No wallet found. Please connect a wallet to claim your milestone key."
+            : raw.toLowerCase().includes("already has a valid key")
+              ? "You already have a key for this milestone."
+              : "Failed to grant key on-chain. Please try again or contact support.";
       return res
         .status(500)
         .json({ error: errorMessage, details: grantResult.error });
