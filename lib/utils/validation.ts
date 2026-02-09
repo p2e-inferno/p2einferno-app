@@ -29,13 +29,12 @@ export const MAX_FILE_SIZE = 2 * 1024 * 1024;
 
 /** Allowed MIME types for file uploads (matches Supabase bucket policy) */
 export const ALLOWED_FILE_TYPES = [
-  // Images (also allow any image/* via startsWith check)
+  // Images
   "image/jpeg",
   "image/jpg",
   "image/png",
   "image/gif",
   "image/webp",
-  "image/svg+xml",
   // Documents
   "application/pdf",
 ];
@@ -55,11 +54,8 @@ export function validateFile(
   file: File,
   maxSize: number = MAX_FILE_SIZE,
 ): FileValidationResult {
-  // Validate file type
-  const isValidType =
-    file.type.startsWith("image/") || ALLOWED_FILE_TYPES.includes(file.type);
-
-  if (!isValidType) {
+  // Validate file type (use ALLOWED_FILE_TYPES as single source of truth)
+  if (!ALLOWED_FILE_TYPES.includes(file.type)) {
     return {
       isValid: false,
       error: "Invalid file type. Please upload an image or PDF.",
