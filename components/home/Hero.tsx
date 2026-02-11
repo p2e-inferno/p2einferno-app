@@ -88,7 +88,7 @@ export function Hero() {
                 className="bg-steel-red hover:bg-steel-red/90 text-white"
                 disabled={!ready}
               >
-                {ready ? "Connect Wallet" : "Loading..."}
+                {ready ? "Get Started" : "Loading..."}
               </Button>
             )}
           </div>
