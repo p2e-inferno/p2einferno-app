@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { User, Mail, Wallet, Share2, Plus } from "lucide-react";
 import { toast } from "react-hot-toast";
 
@@ -14,6 +14,7 @@ import {
 import { useDashboardData } from "@/hooks/useDashboardData";
 import { getLogger } from "@/lib/utils/logger";
 import { isEmbeddedWallet } from "@/lib/utils/wallet-address";
+import { selectLinkedWallet } from "@/lib/utils/wallet-selection";
 import { WithdrawDGButton } from "@/components/token-withdrawal/WithdrawDGButton";
 import { WithdrawalHistoryTable } from "@/components/token-withdrawal/WithdrawalHistoryTable";
 import { SubscriptionBadge } from "@/components/token-withdrawal/SubscriptionBadge";
@@ -24,6 +25,29 @@ import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
 
 const log = getLogger("lobby:profile:index");
+
+/**
+ * Extract a user-facing error message from a Privy (or generic) error.
+ */
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === "object") {
+    // Check for error.error (Privy API error format)
+    if (
+      "error" in error &&
+      typeof (error as Record<string, unknown>).error === "string"
+    ) {
+      return (error as Record<string, unknown>).error as string;
+    }
+    // Fallback to error.message (standard Error format)
+    if (
+      "message" in error &&
+      typeof (error as Record<string, unknown>).message === "string"
+    ) {
+      return (error as Record<string, unknown>).message as string;
+    }
+  }
+  return fallback;
+}
 
 /**
  * ProfilePage - Main profile management page for users
@@ -39,6 +63,7 @@ const ProfilePage = () => {
     unlinkFarcaster,
     unlinkWallet,
   } = usePrivy();
+  const { wallets } = useWallets();
   const {
     data: dashboardData,
     loading: dashboardLoading,
@@ -62,43 +87,71 @@ const ProfilePage = () => {
 
   /**
    * Updates the linked accounts array based on current user data.
-   * Wallets are derived from linkedAccounts so that embedded wallets
-   * (walletClientType 'privy'/'privy-v2') are flagged and external
-   * wallets are individually unlinkable.
+   * Uses device-aware wallet selection to determine which wallet is active and available.
+   * Shows all linked wallets with availability status.
    */
   const updateLinkedAccounts = useCallback(() => {
     if (!user) return;
 
-    // Show primary wallet only (not all linked wallets)
-    const primaryWallet = user.linkedAccounts.find(
-      (account) => account.type === "wallet",
-    ) as { address?: string; walletClientType?: string } | undefined;
+    // Use device-aware wallet selection to determine the active wallet
+    const activeWallet = selectLinkedWallet(user, wallets);
 
-    const walletAccounts: LinkedAccount[] = primaryWallet
-      ? [
-          {
-            type: "wallet",
-            linked: true,
-            address: primaryWallet.address,
-            isEmbedded: isEmbeddedWallet(primaryWallet.walletClientType),
-            icon: <Wallet className="w-6 h-6" />,
-            name: isEmbeddedWallet(primaryWallet.walletClientType)
-              ? "Embedded Wallet"
-              : "Web3 Wallet",
-            description: isEmbeddedWallet(primaryWallet.walletClientType)
-              ? "Managed by Privy — cannot be unlinked"
-              : "Your gateway to the decentralized world",
-          },
-        ]
-      : [
-          {
-            type: "wallet",
-            linked: false,
-            icon: <Wallet className="w-6 h-6" />,
-            name: "Web3 Wallet",
-            description: "Your gateway to the decentralized world",
-          },
-        ];
+    // Get all wallet accounts from user.linkedAccounts
+    const allWalletAccounts = user.linkedAccounts.filter(
+      (account) => account.type === "wallet",
+    ) as Array<{
+      address?: string;
+      walletClientType?: string;
+      connectorType?: string;
+    }>;
+
+    let walletAccounts: LinkedAccount[] = [];
+
+    if (allWalletAccounts.length > 0) {
+      // Process each wallet to determine availability
+      walletAccounts = allWalletAccounts.map((wallet) => {
+        const embedded = isEmbeddedWallet(wallet.walletClientType);
+
+        // Check if this wallet is available on the current device
+        // Embedded wallets are always available, external wallets must be in the wallets array
+        const isAvailable =
+          embedded ||
+          wallets.some(
+            (w) => w.address?.toLowerCase() === wallet.address?.toLowerCase(),
+          );
+
+        // Check if this is the active wallet
+        const isActive =
+          activeWallet?.address?.toLowerCase() ===
+          wallet.address?.toLowerCase();
+
+        return {
+          type: "wallet",
+          linked: true,
+          address: wallet.address,
+          walletClientType: wallet.walletClientType,
+          isEmbedded: embedded,
+          isAvailable,
+          isActive,
+          icon: <Wallet className="w-6 h-6" />,
+          name: embedded ? "Embedded Wallet" : "Web3 Wallet",
+          description: embedded
+            ? "Managed by Privy — cannot be unlinked"
+            : "Your gateway to the decentralized world",
+        };
+      });
+    } else {
+      // No wallet linked yet
+      walletAccounts = [
+        {
+          type: "wallet",
+          linked: false,
+          icon: <Wallet className="w-6 h-6" />,
+          name: "Web3 Wallet",
+          description: "Your gateway to the decentralized world",
+        },
+      ];
+    }
 
     const accounts: LinkedAccount[] = [
       ...walletAccounts,
@@ -121,17 +174,20 @@ const ProfilePage = () => {
     ];
 
     setLinkedAccounts(accounts);
-  }, [user]);
+  }, [user, wallets]);
 
-  // Update linked accounts when user data changes
+  // Update linked accounts when user data or available wallets change
+  // updateLinkedAccounts already depends on [user, wallets], so we only need it in deps
   useEffect(() => {
     if (user) {
       updateLinkedAccounts();
     }
-  }, [user, user?.email, user?.farcaster, user?.wallet, updateLinkedAccounts]);
+  }, [user, updateLinkedAccounts]);
 
   /**
    * Handles linking of accounts through Privy
+   * For wallets, Privy will automatically update user.linkedAccounts when linking completes,
+   * triggering the useEffect that calls updateLinkedAccounts()
    */
   const handleLinkAccount = async (type: string) => {
     setLinking(type);
@@ -139,22 +195,32 @@ const ProfilePage = () => {
     try {
       switch (type) {
         case "wallet":
+          // linkWallet() opens modal and returns immediately (void)
+          // Privy will update user.linkedAccounts when modal completes
+          // Our useEffect watching [user, wallets] will handle the refresh
           linkWallet();
+          // Clear linking state after a delay since we can't detect modal close
+          setTimeout(() => setLinking(null), 3000);
           break;
         case "email":
-          await linkEmail();
+          // linkEmail() also returns void immediately
+          linkEmail();
+          // Privy updates user.email when complete, triggering useEffect
+          setTimeout(() => setLinking(null), 2000);
           break;
         case "farcaster":
-          await linkFarcaster();
+          // linkFarcaster() also returns void immediately
+          linkFarcaster();
+          // Privy updates user.farcaster when complete, triggering useEffect
+          setTimeout(() => setLinking(null), 2000);
           break;
         default:
           toast.error("Cannot link this account type");
+          setLinking(null);
       }
-      refetch(); // Refresh dashboard data after linking
     } catch (error) {
       log.error("Error linking account:", error);
       toast.error("Failed to initiate account linking");
-    } finally {
       setLinking(null);
     }
   };
@@ -194,7 +260,7 @@ const ProfilePage = () => {
       refetch();
     } catch (error) {
       log.error("Error unlinking account:", error);
-      toast.error("Failed to unlink account");
+      toast.error(extractErrorMessage(error, "Failed to unlink account"));
     }
   };
 
@@ -210,7 +276,7 @@ const ProfilePage = () => {
       refetch();
     } catch (error) {
       log.error("Error unlinking wallet:", error);
-      toast.error("Failed to unlink wallet");
+      toast.error(extractErrorMessage(error, "Failed to unlink wallet"));
     } finally {
       setUnlinkWalletModal({ open: false, address: null });
     }
@@ -259,12 +325,16 @@ const ProfilePage = () => {
     totalAccounts: categories.length,
   };
 
+  // Get active wallet address using device-aware selection (same as dropdown/cards)
+  const activeWallet = selectLinkedWallet(user, wallets);
+  const displayAddress = activeWallet?.address || user.wallet?.address;
+
   return (
     <LobbyLayout>
       <div className="min-h-screen p-4 sm:p-8">
         <div className="max-w-4xl mx-auto">
           <ProfileHeader
-            userAddress={user.wallet?.address}
+            userAddress={displayAddress}
             completionPercentage={completionPercentage}
             profileStats={profileStats}
           />

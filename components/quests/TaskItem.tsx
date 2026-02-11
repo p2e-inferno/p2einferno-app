@@ -340,10 +340,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
   return (
     <div
       key={task.id}
-      className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-lg p-4 sm:p-6 border transition-all duration-300 ${isCompleted
-        ? "border-green-500/50"
-        : "border-gray-700 hover:border-orange-500/50"
-        }`}
+      className={`bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-lg p-4 sm:p-6 border transition-all duration-300 ${
+        isCompleted
+          ? "border-green-500/50"
+          : "border-gray-700 hover:border-orange-500/50"
+      }`}
     >
       <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
         <div className="flex items-start flex-1 min-w-0">
@@ -357,8 +358,9 @@ const TaskItem: React.FC<TaskItemProps> = ({
           {/* Task Info */}
           <div className="flex-1 min-w-0">
             <h3
-              className={`text-xl font-bold mb-2 ${isCompleted ? "text-green-400" : "text-white"
-                }`}
+              className={`text-xl font-bold mb-2 ${
+                isCompleted ? "text-green-400" : "text-white"
+              }`}
             >
               <span className="break-words">{task.title}</span>
             </h3>
@@ -404,12 +406,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     <div className="space-y-3">
                       {!uploadedFileUrl ? (
                         <div
-                          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${uploading
-                            ? "border-orange-500/50 bg-orange-500/10"
-                            : isDragging
-                              ? "border-orange-500 bg-orange-500/20"
-                              : "border-gray-600 hover:border-orange-500/50 hover:bg-gray-800/50"
-                            }`}
+                          className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+                            uploading
+                              ? "border-orange-500/50 bg-orange-500/10"
+                              : isDragging
+                                ? "border-orange-500 bg-orange-500/20"
+                                : "border-gray-600 hover:border-orange-500/50 hover:bg-gray-800/50"
+                          }`}
                           onClick={() =>
                             !uploading &&
                             document

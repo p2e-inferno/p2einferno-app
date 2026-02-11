@@ -15,6 +15,30 @@ export interface AvailableWallet {
 }
 
 /**
+ * Extract all wallet addresses from a Privy user object (client-side).
+ * This is the client-side equivalent of the server-side getUserWalletAddresses function.
+ *
+ * @param user Privy user object from useUser() hook
+ * @returns Array of wallet address strings (empty array if no wallets)
+ *
+ * @example
+ * const { user } = useUser();
+ * const addresses = getWalletAddressesFromUser(user);
+ * // ["0xabc...", "0xdef..."]
+ */
+export function getWalletAddressesFromUser(user?: User | null): string[] {
+  if (!user?.linkedAccounts) {
+    return [];
+  }
+
+  return user.linkedAccounts
+    .filter((account): account is Extract<typeof account, { type: "wallet"; address: string }> =>
+      account.type === "wallet" && !!account.address
+    )
+    .map((account) => account.address);
+}
+
+/**
  * Shared wallet selection logic with device-awareness.
  * This is the single source of truth for wallet prioritization across the app.
  *

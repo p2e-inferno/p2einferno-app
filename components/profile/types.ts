@@ -6,6 +6,9 @@ export interface LinkedAccount {
   address?: string;
   username?: string;
   isEmbedded?: boolean;
+  isAvailable?: boolean; // Is the wallet available on current device
+  isActive?: boolean; // Is this the currently active/in-use wallet
+  walletClientType?: string; // The wallet client type from Privy
   icon: ReactNode;
   name: string;
   description: string;

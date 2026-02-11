@@ -7,9 +7,15 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { LeadMagnetModal } from "@/components/marketing/LeadMagnetModal";
-import { Sparkles, Code2, PenTool, Gamepad2, Bot } from "lucide-react";
+import { Sparkles, Brain, Code2, PenTool, Gamepad2, Bot } from "lucide-react";
 
-type PersonaKey = "beginner" | "developer" | "creator" | "gamer" | "frontier";
+type PersonaKey =
+  | "beginner"
+  | "ai_creator"
+  | "developer"
+  | "creator"
+  | "gamer"
+  | "frontier";
 
 interface Persona {
   key: PersonaKey;
@@ -33,6 +39,18 @@ const personas: Persona[] = [
     status: "live",
     ctaLabel: "👉 View Infernal Sparks Bootcamp",
     icon: Sparkles,
+  },
+  {
+    key: "ai_creator",
+    title: "AI Creator Bootcamp",
+    hero: "Master AI as a non-technical professional. Harness the power of generative AI to 10x your productivity and creativity.",
+    learn:
+      "Learn: Master prompting, generate professional images/videos, and automate business tasks without writing code.",
+    perfect:
+      "Perfect For: Entrepreneurs, artists, content creators, and professionals seeking a competitive edge.",
+    status: "coming",
+    ctaLabel: "👉 Join AI Track Waitlist",
+    icon: Brain,
   },
   {
     key: "developer",

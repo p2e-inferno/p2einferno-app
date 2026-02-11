@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useState } from "react";
 import { useWallets, useUser, usePrivy } from "@privy-io/react-auth";
 import { getLogger } from "@/lib/utils/logger";
 import { selectLinkedWallet } from "@/lib/utils/wallet-selection";
@@ -13,6 +13,7 @@ const log = getLogger("client:smart-wallet");
 const fallbackToastState = {
   hasShown: false,
   toastId: null as string | null,
+  checkStartTime: 0,
 };
 
 /**
@@ -63,10 +64,32 @@ export const useSmartWalletSelection = () => {
     return null;
   }, [wallets, user]);
 
-  // Detect when we fell back from external to embedded wallet
+  // Track initialization state for delayed toast
+  const [initializationComplete, setInitializationComplete] = useState(false);
+
+  // Mark initialization as complete after a delay (allows mobile wallet providers to inject)
+  // Only runs once when Privy becomes ready to avoid timer reset on wallet changes
   useEffect(() => {
-    // Don't evaluate until wallets array has been populated (prevents false positives during init)
-    if (wallets.length === 0) return;
+    if (!ready) return;
+
+    // Start the check timer when Privy is ready
+    if (fallbackToastState.checkStartTime === 0) {
+      fallbackToastState.checkStartTime = Date.now();
+    }
+
+    // Wait 2.5 seconds before marking initialization complete
+    // This gives mobile wallet providers time to inject
+    const timer = setTimeout(() => {
+      setInitializationComplete(true);
+    }, 2500);
+
+    return () => clearTimeout(timer);
+  }, [ready]); // Only depend on ready, not wallets.length to avoid timer resets
+
+  // Detect when we fell back from external to embedded wallet (with delay for mobile)
+  useEffect(() => {
+    // Don't evaluate until initialization is complete
+    if (!initializationComplete) return;
     if (!ready) return;
     if (!user?.linkedAccounts || !selectedWallet) return;
 
@@ -95,18 +118,26 @@ export const useSmartWalletSelection = () => {
         }
       );
 
-      log.info("Showed fallback notification (shared state)", {
+      log.info("Showed fallback notification after delay (shared state)", {
         linkedExternalCount: linkedExternalWallets.length,
         selectedWallet: selectedWallet.address,
+        delayMs: Date.now() - fallbackToastState.checkStartTime,
       });
     }
 
     // Reset the flag if external wallet becomes available again
     if (linkedExternalWallets.length > 0 && !selectedIsEmbedded) {
+      if (fallbackToastState.hasShown) {
+        log.info("External wallet became available, dismissing fallback toast");
+        if (fallbackToastState.toastId) {
+          toast.dismiss(fallbackToastState.toastId);
+        }
+      }
       fallbackToastState.hasShown = false;
       fallbackToastState.toastId = null;
+      fallbackToastState.checkStartTime = 0;
     }
-  }, [wallets, ready, user?.linkedAccounts, selectedWallet]);
+  }, [initializationComplete, wallets, ready, user?.linkedAccounts, selectedWallet]);
 
   return selectedWallet;
 };
