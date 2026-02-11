@@ -5,6 +5,7 @@ import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useIdentitySDK } from "@/lib/gooddollar/use-identity-sdk";
 import { isVerificationExpired } from "@/lib/gooddollar/identity-sdk";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
+import { getUserWalletAddresses } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { useRef } from "react";
 
@@ -23,10 +24,11 @@ export interface VerificationStatus {
  * Hook to check GoodDollar face verification status
  * Polls on-chain whitelist contract and checks expiry
  *
- * Wallet / user detection:
- * - Uses Privy auth as the source of truth for user state
- * - Uses useDetectConnectedWalletAddress to determine the active wallet
- *   (aligned with PrivyConnectButton + admin auth patterns)
+ * Multi-wallet verification:
+ * - Checks ALL linked wallets from Privy for verification status
+ * - Returns verified if ANY wallet is whitelisted (per-person verification)
+ * - Aligns with GoodDollar's sybil resistance (one person, one verification)
+ * - Cache keyed by user ID for consistent status across wallet switches
  */
 export function useGoodDollarVerification() {
   const { ready, authenticated } = usePrivy();
@@ -36,9 +38,9 @@ export function useGoodDollarVerification() {
   const reconciliationAttempted = useRef(false);
 
   const query = useQuery<VerificationStatus>({
-    queryKey: ["gooddollar-verification", walletAddress],
+    queryKey: ["gooddollar-verification", user?.id],
     queryFn: async () => {
-      if (!ready || !authenticated || !walletAddress || !sdk) {
+      if (!ready || !authenticated || !user?.id || !sdk) {
         return {
           isWhitelisted: false,
           isExpired: false,
@@ -48,73 +50,109 @@ export function useGoodDollarVerification() {
       }
 
       try {
-        const normalizedAddress = walletAddress.toLowerCase() as `0x${string}`;
+        // Fetch all linked wallets for the user
+        const walletAddresses = await getUserWalletAddresses(user.id);
 
-        // Check on-chain whitelist status
-        const { isWhitelisted } = await sdk.getWhitelistedRoot(
-          normalizedAddress
-        );
-
-        // Get expiry data if whitelisted
-        let expiresAt: Date | undefined;
-        let needsReVerification = false;
-
-        let reconcileStatus: "pending" | "ok" | "error" | undefined;
-
-        if (isWhitelisted) {
-          reconcileStatus = "pending";
-          // Attempt to reconcile DB state when on-chain is verified
-          if (!reconciliationAttempted.current) {
-            reconciliationAttempted.current = true;
-            try {
-              const response = await fetch("/api/gooddollar/verify-callback", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  status: "success",
-                  wallet: normalizedAddress,
-                }),
-              });
-              const data = await response.json();
-              reconcileStatus = data?.success ? "ok" : "error";
-            } catch (reconcileError) {
-              reconcileStatus = "error";
-              log.warn("Reconcile attempt failed", {
-                address: normalizedAddress,
-                error: reconcileError,
-              });
-            }
-          } else {
-            reconcileStatus = "ok";
-          }
-
-          try {
-            const expiryData = await sdk.getIdentityExpiryData(
-              normalizedAddress
-            );
-            // Calculate expiry timestamp from lastAuthenticated and authPeriod
-            const expiryTimestampMs =
-              Number(expiryData.lastAuthenticated) * 1000 +
-              Number(expiryData.authPeriod) * 24 * 60 * 60 * 1000;
-            expiresAt = new Date(expiryTimestampMs);
-            needsReVerification = isVerificationExpired(expiryTimestampMs);
-          } catch (error) {
-            log.warn("Failed to get expiry data", {
-              address: normalizedAddress,
-              error,
-            });
-          }
+        if (walletAddresses.length === 0) {
+          log.info("No wallets found for user", { userId: user.id });
+          return {
+            isWhitelisted: false,
+            isExpired: false,
+            needsReVerification: false,
+            reconcileStatus: undefined,
+          };
         }
 
-        log.info("Verification status checked", {
-          address: normalizedAddress,
-          isWhitelisted,
+        log.info("Checking GoodDollar verification across all wallets", {
+          userId: user.id,
+          walletCount: walletAddresses.length,
+          wallets: walletAddresses,
+        });
+
+        // Check all wallets in parallel for whitelist status
+        const checkResults = await Promise.all(
+          walletAddresses.map(async (address) => {
+            try {
+              const normalizedAddress = address.toLowerCase() as `0x${string}`;
+              const { isWhitelisted } = await sdk.getWhitelistedRoot(normalizedAddress);
+              return { address: normalizedAddress, isWhitelisted, error: null };
+            } catch (error) {
+              log.warn("Failed to check whitelist for wallet", { address, error });
+              return { address: address.toLowerCase() as `0x${string}`, isWhitelisted: false, error };
+            }
+          })
+        );
+
+        // Find first verified wallet
+        const verifiedWallet = checkResults.find((result) => result.isWhitelisted);
+
+        // If no wallet is verified, return not verified
+        if (!verifiedWallet) {
+          log.info("No verified wallets found", { userId: user.id, checkedCount: walletAddresses.length });
+          return {
+            isWhitelisted: false,
+            isExpired: false,
+            needsReVerification: false,
+            reconcileStatus: undefined,
+          };
+        }
+
+        // Wallet is verified - proceed with expiry check and reconciliation
+        const normalizedAddress = verifiedWallet.address;
+        let expiresAt: Date | undefined;
+        let needsReVerification = false;
+        let reconcileStatus: "pending" | "ok" | "error" | undefined;
+
+        reconcileStatus = "pending";
+        // Attempt to reconcile DB state when on-chain is verified
+        if (!reconciliationAttempted.current) {
+          reconciliationAttempted.current = true;
+          try {
+            const response = await fetch("/api/gooddollar/verify-callback", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                status: "success",
+                wallet: normalizedAddress,
+              }),
+            });
+            const data = await response.json();
+            reconcileStatus = data?.success ? "ok" : "error";
+          } catch (reconcileError) {
+            reconcileStatus = "error";
+            log.warn("Reconcile attempt failed", {
+              address: normalizedAddress,
+              error: reconcileError,
+            });
+          }
+        } else {
+          reconcileStatus = "ok";
+        }
+
+        // Get expiry data for the verified wallet
+        try {
+          const expiryData = await sdk.getIdentityExpiryData(normalizedAddress);
+          const expiryTimestampMs =
+            Number(expiryData.lastAuthenticated) * 1000 +
+            Number(expiryData.authPeriod) * 24 * 60 * 60 * 1000;
+          expiresAt = new Date(expiryTimestampMs);
+          needsReVerification = isVerificationExpired(expiryTimestampMs);
+        } catch (error) {
+          log.warn("Failed to get expiry data", {
+            address: normalizedAddress,
+            error,
+          });
+        }
+
+        log.info("Verification status checked - verified wallet found", {
+          verifiedAddress: normalizedAddress,
+          totalWallets: walletAddresses.length,
           expiresAt,
           needsReVerification,
         });
 
         return {
-          isWhitelisted,
+          isWhitelisted: true,
           isExpired: needsReVerification,
           expiresAt,
           lastChecked: new Date(),
@@ -123,7 +161,7 @@ export function useGoodDollarVerification() {
         };
       } catch (error) {
         log.error("Failed to check verification status", {
-          address: walletAddress,
+          userId: user?.id,
           error,
         });
         return {
@@ -134,7 +172,7 @@ export function useGoodDollarVerification() {
         };
       }
     },
-    enabled: !!walletAddress && !!sdk && ready && authenticated,
+    enabled: !!user?.id && !!sdk && ready && authenticated,
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
     retry: 2,
@@ -146,7 +184,8 @@ export function useGoodDollarVerification() {
     // Temporary debug for UI state investigation
     // eslint-disable-next-line no-console
     console.log("[useGoodDollarVerification] State", {
-      walletAddress,
+      userId: user?.id,
+      currentConnectedWallet: walletAddress,
       isWhitelisted: query.data.isWhitelisted,
       needsReVerification: query.data.needsReVerification,
       expiresAt: query.data.expiresAt,
