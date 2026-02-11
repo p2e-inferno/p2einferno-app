@@ -46,9 +46,9 @@ export function Hero() {
           Become Web3.0 and AI Proficient in Weeks.
         </h2>
         <p className="max-w-3xl mx-auto text-base md:text-lg text-faded-grey mb-8">
-          The most engaging way to learn about Web3.0, AI,
-          Decentralized Finance, and emerging technologies — through guided cohorts,
-          hands-on tasks, and rewards.
+          The most engaging way to learn about Web3.0, AI, Decentralized
+          Finance, and emerging technologies — through guided cohorts, hands-on
+          tasks, and rewards.
         </p>
 
         <div className="flex flex-col items-center gap-8 mb-8">

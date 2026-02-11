@@ -33,15 +33,15 @@ export const MultiWalletCard = ({
 
   // Find the active wallet (the one currently in use)
   const activeWallet = wallets.find((w) => w.isActive);
-  const embeddedWallet = wallets.find((w) => w.isEmbedded);
   const externalWallets = wallets.filter((w) => !w.isEmbedded);
 
   // If no active wallet found, use the first available one
-  const displayWallet = activeWallet || wallets.find((w) => w.linked) || wallets[0];
+  const displayWallet =
+    activeWallet || wallets.find((w) => w.linked) || wallets[0];
 
   // Other wallets to show in dropdown
   const otherWallets = wallets.filter(
-    (w) => w.address !== displayWallet?.address && w.linked
+    (w) => w.address !== displayWallet?.address && w.linked,
   );
 
   return (
@@ -57,7 +57,9 @@ export const MultiWalletCard = ({
           {/* Wallet Info */}
           <div className="flex-1 min-w-0">
             <h3 className="text-lg sm:text-xl font-bold text-white mb-1 flex items-center flex-wrap gap-2">
-              <span>{displayWallet?.isEmbedded ? "Embedded Wallet" : "Web3 Wallet"}</span>
+              <span>
+                {displayWallet?.isEmbedded ? "Embedded Wallet" : "Web3 Wallet"}
+              </span>
               {displayWallet?.linked && (
                 <CheckCircle2 className="w-5 h-5 text-green-500" />
               )}
@@ -82,15 +84,17 @@ export const MultiWalletCard = ({
               {displayWallet?.isEmbedded
                 ? "Managed by Privy — cannot be unlinked"
                 : externalWallets.length > 1
-                ? `${externalWallets.length} external wallets linked`
-                : "Your gateway to the decentralized world"}
+                  ? `${externalWallets.length} external wallets linked`
+                  : "Your gateway to the decentralized world"}
             </p>
             {displayWallet?.linked && displayWallet?.address && (
               <p className="text-gray-500 text-sm font-mono min-w-0 break-words">
                 <span className="sm:hidden">
                   {formatWalletAddress(displayWallet.address)}
                 </span>
-                <span className="hidden sm:inline">{displayWallet.address}</span>
+                <span className="hidden sm:inline">
+                  {displayWallet.address}
+                </span>
               </p>
             )}
           </div>
@@ -134,7 +138,8 @@ export const MultiWalletCard = ({
             className="flex items-center justify-between w-full text-gray-400 hover:text-white transition-colors"
           >
             <span className="text-sm font-medium">
-              {otherWallets.length} other wallet{otherWallets.length > 1 ? "s" : ""}
+              {otherWallets.length} other wallet
+              {otherWallets.length > 1 ? "s" : ""}
             </span>
             {isExpanded ? (
               <ChevronUp className="w-4 h-4" />
@@ -154,7 +159,9 @@ export const MultiWalletCard = ({
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <Circle
                         className={`w-2 h-2 ${
-                          wallet.isAvailable ? "fill-green-500 text-green-500" : "fill-gray-500 text-gray-500"
+                          wallet.isAvailable
+                            ? "fill-green-500 text-green-500"
+                            : "fill-gray-500 text-gray-500"
                         }`}
                       />
                       <span className="text-sm font-mono text-gray-300 truncate">
@@ -177,7 +184,9 @@ export const MultiWalletCard = ({
                       )}
                     </div>
                     <p className="text-xs text-gray-500">
-                      {wallet.isEmbedded ? "Embedded Wallet" : "External Wallet"}
+                      {wallet.isEmbedded
+                        ? "Embedded Wallet"
+                        : "External Wallet"}
                     </p>
                   </div>
                   {!wallet.isEmbedded && wallet.address && (

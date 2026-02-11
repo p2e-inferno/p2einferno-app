@@ -75,7 +75,7 @@ const ProfilePage = () => {
 
     // Get all wallet accounts from user.linkedAccounts
     const allWalletAccounts = user.linkedAccounts.filter(
-      (account) => account.type === "wallet"
+      (account) => account.type === "wallet",
     ) as Array<{
       address?: string;
       walletClientType?: string;
@@ -91,12 +91,16 @@ const ProfilePage = () => {
 
         // Check if this wallet is available on the current device
         // Embedded wallets are always available, external wallets must be in the wallets array
-        const isAvailable = embedded || wallets.some(
-          (w) => w.address?.toLowerCase() === wallet.address?.toLowerCase()
-        );
+        const isAvailable =
+          embedded ||
+          wallets.some(
+            (w) => w.address?.toLowerCase() === wallet.address?.toLowerCase(),
+          );
 
         // Check if this is the active wallet
-        const isActive = activeWallet?.address?.toLowerCase() === wallet.address?.toLowerCase();
+        const isActive =
+          activeWallet?.address?.toLowerCase() ===
+          wallet.address?.toLowerCase();
 
         return {
           type: "wallet",

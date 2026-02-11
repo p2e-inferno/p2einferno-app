@@ -32,8 +32,10 @@ export function getWalletAddressesFromUser(user?: User | null): string[] {
   }
 
   return user.linkedAccounts
-    .filter((account) => account.type === "wallet" && account.address)
-    .map((account) => account.address as string);
+    .filter((account): account is Extract<typeof account, { type: "wallet"; address: string }> =>
+      account.type === "wallet" && !!account.address
+    )
+    .map((account) => account.address);
 }
 
 /**

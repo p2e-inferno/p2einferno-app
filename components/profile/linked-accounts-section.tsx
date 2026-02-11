@@ -19,14 +19,15 @@ export const LinkedAccountsSection = ({
 
   // Count external wallets (non-embedded)
   const externalWallets = walletAccounts.filter(
-    (acc) => acc.linked && !acc.isEmbedded
+    (acc) => acc.linked && !acc.isEmbedded,
   );
   const hasMultipleExternalWallets = externalWallets.length > 1;
 
   // Find the primary wallet to display when not showing multi-wallet dropdown
-  const primaryWallet = walletAccounts.find((acc) => acc.isActive) ||
-                        walletAccounts.find((acc) => acc.linked) ||
-                        walletAccounts[0];
+  const primaryWallet =
+    walletAccounts.find((acc) => acc.isActive) ||
+    walletAccounts.find((acc) => acc.linked) ||
+    walletAccounts[0];
 
   return (
     <div className="space-y-6">
@@ -51,7 +52,10 @@ export const LinkedAccountsSection = ({
             isLinking={linking === "wallet"}
             onLink={() => onLinkAccount("wallet")}
             onUnlink={() =>
-              onUnlinkAccount("wallet", primaryWallet.address || primaryWallet.username)
+              onUnlinkAccount(
+                "wallet",
+                primaryWallet.address || primaryWallet.username,
+              )
             }
           />
         )
