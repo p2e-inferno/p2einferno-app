@@ -159,7 +159,7 @@ export const MultiWalletCard = ({
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <Circle
                         className={`w-2 h-2 ${
-                          wallet.isAvailable
+                          wallet.isAvailable !== false
                             ? "fill-green-500 text-green-500"
                             : "fill-gray-500 text-gray-500"
                         }`}

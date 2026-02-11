@@ -27,6 +27,29 @@ import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
 const log = getLogger("lobby:profile:index");
 
 /**
+ * Extract a user-facing error message from a Privy (or generic) error.
+ */
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === "object") {
+    // Check for error.error (Privy API error format)
+    if (
+      "error" in error &&
+      typeof (error as Record<string, unknown>).error === "string"
+    ) {
+      return (error as Record<string, unknown>).error as string;
+    }
+    // Fallback to error.message (standard Error format)
+    if (
+      "message" in error &&
+      typeof (error as Record<string, unknown>).message === "string"
+    ) {
+      return (error as Record<string, unknown>).message as string;
+    }
+  }
+  return fallback;
+}
+
+/**
  * ProfilePage - Main profile management page for users
  * Displays user information, linked accounts, and completion status
  */
@@ -237,21 +260,7 @@ const ProfilePage = () => {
       refetch();
     } catch (error) {
       log.error("Error unlinking account:", error);
-
-      // Extract specific error message from Privy error response
-      let errorMessage = "Failed to unlink account";
-      if (error && typeof error === "object") {
-        // Check for error.error (Privy API error format)
-        if ("error" in error && typeof error.error === "string") {
-          errorMessage = error.error;
-        }
-        // Fallback to error.message (standard Error format)
-        else if ("message" in error && typeof error.message === "string") {
-          errorMessage = error.message;
-        }
-      }
-
-      toast.error(errorMessage);
+      toast.error(extractErrorMessage(error, "Failed to unlink account"));
     }
   };
 
@@ -267,21 +276,7 @@ const ProfilePage = () => {
       refetch();
     } catch (error) {
       log.error("Error unlinking wallet:", error);
-
-      // Extract specific error message from Privy error response
-      let errorMessage = "Failed to unlink wallet";
-      if (error && typeof error === "object") {
-        // Check for error.error (Privy API error format)
-        if ("error" in error && typeof error.error === "string") {
-          errorMessage = error.error;
-        }
-        // Fallback to error.message (standard Error format)
-        else if ("message" in error && typeof error.message === "string") {
-          errorMessage = error.message;
-        }
-      }
-
-      toast.error(errorMessage);
+      toast.error(extractErrorMessage(error, "Failed to unlink wallet"));
     } finally {
       setUnlinkWalletModal({ open: false, address: null });
     }

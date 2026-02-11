@@ -15,7 +15,8 @@ export function Hero() {
   };
 
   const handleBootcamps = () => {
-    router.push("/#bootcamps");
+    // Use native hash navigation for proper anchor scrolling
+    window.location.href = "/#bootcamps";
   };
 
   const handleQuests = () => {

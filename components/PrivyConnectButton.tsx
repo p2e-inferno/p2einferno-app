@@ -93,11 +93,8 @@ export function PrivyConnectButton() {
   };
 
   const handleLinkWallet = () => {
-    try {
-      linkWallet(); // Returns void, no await needed
-    } catch (error) {
-      log.error("Failed to link wallet:", error);
-    }
+    // linkWallet() returns void and handles errors via modal callbacks
+    linkWallet();
   };
 
   const handleUnlinkWallet = async () => {

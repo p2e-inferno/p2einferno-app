@@ -123,8 +123,9 @@ export function Personas() {
             return (
               <Card
                 key={persona.key}
-                className={`bg-card border-border/60 h-full flex flex-col ${!isLive ? "opacity-90" : ""
-                  }`}
+                className={`bg-card border-border/60 h-full flex flex-col ${
+                  !isLive ? "opacity-90" : ""
+                }`}
               >
                 <CardHeader className="space-y-3 flex-1">
                   <div className="flex items-center justify-between gap-3">

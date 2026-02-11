@@ -35,7 +35,7 @@ export function useGoodDollarVerification() {
   const { user } = useUser();
   const { walletAddress } = useDetectConnectedWalletAddress(user);
   const sdk = useIdentitySDK();
-  const reconciliationAttempted = useRef(false);
+  const lastReconciledUserId = useRef<string | null>(null);
 
   const query = useQuery<VerificationStatus>({
     queryKey: ["gooddollar-verification", user?.id],
@@ -103,10 +103,12 @@ export function useGoodDollarVerification() {
         let needsReVerification = false;
         let reconcileStatus: "pending" | "ok" | "error" | undefined;
 
-        reconcileStatus = "pending";
         // Attempt to reconcile DB state when on-chain is verified
-        if (!reconciliationAttempted.current) {
-          reconciliationAttempted.current = true;
+        // Track reconciliation per user to handle account switches
+        const needsReconciliation = lastReconciledUserId.current !== user.id;
+
+        if (needsReconciliation) {
+          reconcileStatus = "pending";
           try {
             const response = await fetch("/api/gooddollar/verify-callback", {
               method: "POST",
@@ -118,6 +120,11 @@ export function useGoodDollarVerification() {
             });
             const data = await response.json();
             reconcileStatus = data?.success ? "ok" : "error";
+
+            // Only mark as reconciled if successful
+            if (data?.success) {
+              lastReconciledUserId.current = user.id;
+            }
           } catch (reconcileError) {
             reconcileStatus = "error";
             log.warn("Reconcile attempt failed", {
@@ -126,6 +133,7 @@ export function useGoodDollarVerification() {
             });
           }
         } else {
+          // User already reconciled, leave status from previous attempt
           reconcileStatus = "ok";
         }
 
@@ -181,9 +189,7 @@ export function useGoodDollarVerification() {
   });
 
   if (query.data) {
-    // Temporary debug for UI state investigation
-    // eslint-disable-next-line no-console
-    console.log("[useGoodDollarVerification] State", {
+    log.debug("Verification state", {
       userId: user?.id,
       currentConnectedWallet: walletAddress,
       isWhitelisted: query.data.isWhitelisted,
