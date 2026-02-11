@@ -326,12 +326,16 @@ const ProfilePage = () => {
     totalAccounts: categories.length,
   };
 
+  // Get active wallet address using device-aware selection (same as dropdown/cards)
+  const activeWallet = selectLinkedWallet(user, wallets);
+  const displayAddress = activeWallet?.address || user.wallet?.address;
+
   return (
     <LobbyLayout>
       <div className="min-h-screen p-4 sm:p-8">
         <div className="max-w-4xl mx-auto">
           <ProfileHeader
-            userAddress={user.wallet?.address}
+            userAddress={displayAddress}
             completionPercentage={completionPercentage}
             profileStats={profileStats}
           />
