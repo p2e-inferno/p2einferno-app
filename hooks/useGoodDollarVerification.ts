@@ -5,7 +5,7 @@ import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useIdentitySDK } from "@/lib/gooddollar/use-identity-sdk";
 import { isVerificationExpired } from "@/lib/gooddollar/identity-sdk";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
-import { getUserWalletAddresses } from "@/lib/auth/privy";
+import { getWalletAddressesFromUser } from "@/lib/utils/wallet-selection";
 import { getLogger } from "@/lib/utils/logger";
 import { useRef } from "react";
 
@@ -50,8 +50,8 @@ export function useGoodDollarVerification() {
       }
 
       try {
-        // Fetch all linked wallets for the user
-        const walletAddresses = await getUserWalletAddresses(user.id);
+        // Extract all linked wallet addresses from user object (client-side)
+        const walletAddresses = getWalletAddressesFromUser(user);
 
         if (walletAddresses.length === 0) {
           log.info("No wallets found for user", { userId: user.id });
