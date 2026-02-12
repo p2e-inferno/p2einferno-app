@@ -22,12 +22,14 @@ jest.mock("@/lib/auth/privy", () => ({
       return null;
     return { id: "privy-user-1" };
   }),
-  extractAndValidateWalletFromHeader: jest.fn(async ({ activeWalletHeader }: any) => {
-    if (!activeWalletHeader) {
-      throw new Error("X-Active-Wallet header is required");
-    }
-    return activeWalletHeader;
-  }),
+  extractAndValidateWalletFromHeader: jest.fn(
+    async ({ activeWalletHeader }: any) => {
+      if (!activeWalletHeader) {
+        throw new Error("X-Active-Wallet header is required");
+      }
+      return activeWalletHeader;
+    },
+  ),
 }));
 
 jest.mock("@/lib/attestation/core/config", () => ({

@@ -142,7 +142,10 @@ const QuestDetailsPage = () => {
     if (!questId) return;
     setProcessingTask("start_quest"); // Use a unique ID for start quest processing
     try {
-      const result = await startQuestRequest(questId as string);
+      const result = await startQuestRequest(
+        questId as string,
+        selectedWallet?.address,
+      );
       if (result.success) {
         toast.success("Quest started! Begin your journey!");
         await loadQuestDetails(); // Refresh data
@@ -389,6 +392,7 @@ const QuestDetailsPage = () => {
 
       const result = await claimTaskRewardRequest(completionId, {
         attestationSignature,
+        walletAddress: selectedWallet?.address,
       });
       if (result.success) {
         const scanUrl = (result as any).attestationScanUrl;
@@ -496,7 +500,10 @@ const QuestDetailsPage = () => {
         const response = await claimActivationRewardRequest<{
           message?: string;
           attestationScanUrl?: string | null;
-        }>(questId as string, { attestationSignature });
+        }>(questId as string, {
+          attestationSignature,
+          walletAddress: selectedWallet?.address,
+        });
         const scanUrl = response.attestationScanUrl;
         toast.success(
           <div className="text-sm leading-relaxed">
@@ -521,7 +528,10 @@ const QuestDetailsPage = () => {
           transactionHash?: string | null;
           keyTokenId?: string | null;
           attestationRequired?: boolean;
-        }>(questId as string, { attestationSignature: null });
+        }>(questId as string, {
+          attestationSignature: null,
+          walletAddress: selectedWallet?.address,
+        });
 
         let attestationScanUrl: string | null | undefined = null;
         let proofCancelled = false;
@@ -739,7 +749,9 @@ const QuestDetailsPage = () => {
             prerequisiteQuest={prerequisiteQuest}
             canClaimReward={canClaimQuestReward}
             hasClaimedReward={hasClaimedQuestReward}
-            onClaimReward={canClaimQuestReward ? handleQuestRewardClaim : undefined}
+            onClaimReward={
+              canClaimQuestReward ? handleQuestRewardClaim : undefined
+            }
             isClaimingReward={isClaimingQuestReward}
             isQuestKeyPending={isQuestKeyPending}
           />

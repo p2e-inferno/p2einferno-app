@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import {
   AuthorizationError,
   PrivyUnavailableError,
+  extractAndValidateWalletFromHeader,
   getPrivyUser,
   validateWalletOwnership,
 } from "@/lib/auth/privy";
@@ -435,12 +436,49 @@ export default async function handler(
     }
 
     if (req.method === "GET" || req.method === "POST") {
+      // Prefer a validated X-Active-Wallet header wallet when provided.
+      // This prevents races where a stale body walletAddress (often embedded) reaches the server first.
+      let activeWalletFromHeader: string | null = null;
+      const rawActiveWalletHeader = req.headers["x-active-wallet"];
+      if (Array.isArray(rawActiveWalletHeader)) {
+        return res
+          .status(400)
+          .json({ error: "Multiple X-Active-Wallet headers provided" });
+      }
+      try {
+        activeWalletFromHeader = await extractAndValidateWalletFromHeader({
+          userId: privyUserId,
+          activeWalletHeader: rawActiveWalletHeader,
+          context: "profile-update",
+          required: false,
+        });
+      } catch (headerErr: any) {
+        if (
+          headerErr instanceof AuthorizationError ||
+          headerErr instanceof PrivyUnavailableError
+        ) {
+          throw headerErr;
+        }
+        return res.status(400).json({
+          error:
+            headerErr instanceof Error
+              ? headerErr.message
+              : "Invalid X-Active-Wallet header",
+        });
+      }
+
       // Merge request body data (which has wallet/email info) with privyUser
       // Prefer req.body for wallet/email data as it comes from the client with full context
       const userDataForProfile = {
         ...privyUser,
         ...req.body,
         privyUserId, // Ensure we use the verified Privy user ID
+        ...(activeWalletFromHeader
+          ? {
+              walletAddress: activeWalletFromHeader,
+              wallet: { address: activeWalletFromHeader },
+            }
+          : {}),
       };
 
       const profile = await createOrUpdateUserProfile(
@@ -472,8 +510,11 @@ export default async function handler(
         );
       }
 
-      const { privy_user_id: _ignoredPrivyId, id: _ignoredId, ...safeUpdates } =
-        updates;
+      const {
+        privy_user_id: _ignoredPrivyId,
+        id: _ignoredId,
+        ...safeUpdates
+      } = updates;
 
       const { data, error } = await supabase
         .from("user_profiles")

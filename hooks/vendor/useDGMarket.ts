@@ -19,7 +19,7 @@ const log = getLogger("hooks:vendor:market");
 const VENDOR_ADDRESS = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
 
 export function useDGMarket() {
-    const { writeContract, data: hash, isPending: isWritePending } = useWriteContract();
+    const { writeContractAsync, data: hash, isPending: isWritePending } = useWriteContract();
     const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
     const {
         approveIfNeeded,
@@ -87,13 +87,14 @@ export function useDGMarket() {
 
             // Proceed with purchase
             log.info("Approval complete, executing buy", { amount: amount.toString() });
-            writeContract({
+            const txHash = await writeContractAsync({
                 address: VENDOR_ADDRESS,
                 abi: DG_TOKEN_VENDOR_ABI,
                 functionName: "buyTokens",
                 args: [amount],
             });
-            return { success: true };
+            log.info("Buy transaction submitted", { hash: txHash });
+            return { success: true, transactionHash: txHash };
         } catch (error) {
             log.error("Error in buyTokens", { error });
             return {
@@ -135,13 +136,14 @@ export function useDGMarket() {
 
             // Proceed with sale
             log.info("Approval complete, executing sell", { amount: amount.toString() });
-            writeContract({
+            const txHash = await writeContractAsync({
                 address: VENDOR_ADDRESS,
                 abi: DG_TOKEN_VENDOR_ABI,
                 functionName: "sellTokens",
                 args: [amount],
             });
-            return { success: true };
+            log.info("Sell transaction submitted", { hash: txHash });
+            return { success: true, transactionHash: txHash };
         } catch (error) {
             log.error("Error in sellTokens", { error });
             return {

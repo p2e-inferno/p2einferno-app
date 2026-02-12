@@ -320,23 +320,23 @@ export async function getPrivyUser(
 
     // If wallet addresses are requested, fetch them
     if (includeWallets) {
-      let walletAddresses: string[] = [];
       try {
-        walletAddresses = await getUserWalletAddresses(claims.userId);
+        const walletAddresses = await getUserWalletAddresses(claims.userId);
+        return {
+          ...baseUser,
+          walletAddresses,
+          wallet:
+            walletAddresses.length > 0
+              ? { address: walletAddresses[0] }
+              : undefined,
+        };
       } catch (error) {
-        log.warn("Failed to fetch wallet addresses for Privy user", {
+        log.error("Failed to fetch wallet addresses for Privy user", {
           userId: claims.userId,
           error,
         });
+        throw error;
       }
-      return {
-        ...baseUser,
-        walletAddresses,
-        wallet:
-          walletAddresses.length > 0
-            ? { address: walletAddresses[0] }
-            : undefined,
-      };
     }
 
     // The claims include userId (Privy DID). Return minimal user object

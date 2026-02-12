@@ -24,7 +24,7 @@ interface ApprovalParams {
   amount: bigint;
 }
 
-interface ApprovalResult {
+export interface ApprovalResult {
   success: boolean;
   error?: string;
   transactionHash?: string;

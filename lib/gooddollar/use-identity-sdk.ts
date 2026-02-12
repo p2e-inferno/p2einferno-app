@@ -22,8 +22,13 @@ const GOODDOLLAR_ENV = (process.env.NEXT_PUBLIC_GOODDOLLAR_ENV ||
  * Creates:
  * - Celo public client for reading GoodDollar contract data
  * - Wallet client from Privy's EIP-1193 provider for signing
+ *
+ * @returns {Object} Hook state
+ * @returns {IdentitySDK | null} sdk - The initialized SDK instance
+ * @returns {string | null} error - Error message if initialization failed
+ * @returns {boolean} loading - Whether SDK is currently initializing
  */
-export function useIdentitySDK(): any {
+export function useIdentitySDK() {
   // Get active wallet via smart selection
   const { wallets } = useWallets();
   const selectedWallet = useSmartWalletSelection();
@@ -92,9 +97,5 @@ export function useIdentitySDK(): any {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeWallet?.address]);
 
-  // Void unused state vars
-  void error;
-  void loading;
-
-  return sdk ?? null;
+  return { sdk, error, loading };
 }

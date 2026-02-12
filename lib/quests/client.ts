@@ -1,16 +1,23 @@
 interface PostOptions {
   payload?: Record<string, any>;
+  walletAddress?: string;
 }
 
 async function postQuestApi<T>(
   url: string,
-  { payload }: PostOptions = {},
+  { payload, walletAddress }: PostOptions = {},
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (walletAddress) {
+    headers["X-Active-Wallet"] = walletAddress;
+  }
+
   const response = await fetch(url, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify(payload ?? {}),
   });
 
@@ -23,8 +30,11 @@ async function postQuestApi<T>(
   return data as T;
 }
 
-export function startQuestRequest<T = any>(questId: string) {
-  return postQuestApi<T>(`/api/quests/${questId}/start`);
+export function startQuestRequest<T = any>(
+  questId: string,
+  walletAddress?: string,
+) {
+  return postQuestApi<T>(`/api/quests/${questId}/start`, { walletAddress });
 }
 
 export function completeQuestTaskRequest<T = any>(params: {
@@ -40,36 +50,39 @@ export function completeQuestTaskRequest<T = any>(params: {
 
 export function completeQuestRequest<T = any>(
   questId: string,
-  options?: { attestationSignature?: any },
+  options?: { attestationSignature?: any; walletAddress?: string },
 ) {
   return postQuestApi<T>("/api/quests/complete-quest", {
     payload: {
       questId,
       attestationSignature: options?.attestationSignature ?? null,
     },
+    walletAddress: options?.walletAddress,
   });
 }
 
 export function claimActivationRewardRequest<T = any>(
   questId: string,
-  options?: { attestationSignature?: any },
+  options?: { attestationSignature?: any; walletAddress?: string },
 ) {
   return postQuestApi<T>("/api/quests/get-trial", {
     payload: {
       questId,
       attestationSignature: options?.attestationSignature ?? null,
     },
+    walletAddress: options?.walletAddress,
   });
 }
 
 export function claimTaskRewardRequest<T = any>(
   completionId: string,
-  options?: { attestationSignature?: any },
+  options?: { attestationSignature?: any; walletAddress?: string },
 ) {
   return postQuestApi<T>("/api/quests/claim-task-reward", {
     payload: {
       completionId,
       attestationSignature: options?.attestationSignature ?? null,
     },
+    walletAddress: options?.walletAddress,
   });
 }

@@ -30,7 +30,7 @@ const mockUseWaitForTransactionReceipt = jest.fn(() => ({
   isSuccess: false,
 }));
 
-const mockUseReadContract = jest.fn((_config?: any) => ({
+const mockUseReadContract = jest.fn((_config?: any): any => ({
   data: undefined,
 }));
 

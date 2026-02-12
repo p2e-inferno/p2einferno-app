@@ -23,7 +23,7 @@ interface FaceVerificationButtonProps {
 export function useFaceVerificationAction(onVerified?: () => void) {
   const { user } = usePrivy();
   const { walletAddress } = useDetectConnectedWalletAddress(user);
-  const sdk = useIdentitySDK();
+  const { sdk } = useIdentitySDK();
   const [isLoading, setIsLoading] = useState(false);
 
   const isDisabled = isLoading || !sdk || !walletAddress || !user;

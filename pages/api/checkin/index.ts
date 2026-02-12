@@ -102,11 +102,20 @@ export default async function handler(
     } else {
       // EAS disabled or no signature - use X-Active-Wallet header
       try {
+        const activeWalletHeader = req.headers["x-active-wallet"];
+        if (Array.isArray(activeWalletHeader)) {
+          if (activeWalletHeader.length > 1) {
+            return res
+              .status(400)
+              .json({ error: "Multiple X-Active-Wallet headers provided" });
+          }
+        }
+
         const headerWallet = await extractAndValidateWalletFromHeader({
           userId: user.id,
-          activeWalletHeader: req.headers["x-active-wallet"] as
-            | string
-            | undefined,
+          activeWalletHeader: Array.isArray(activeWalletHeader)
+            ? activeWalletHeader[0]
+            : activeWalletHeader,
           context: "checkin",
           required: true,
         });

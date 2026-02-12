@@ -5,6 +5,7 @@
  * Light Up burns tokens to gain fuel and points.
  */
 
+import { useCallback } from "react";
 import { useUser } from "@privy-io/react-auth";
 import { useReadContract } from "wagmi";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
@@ -66,7 +67,7 @@ export function useDGLightUp() {
   const isLoadingConfig =
     isTokenConfigLoading || isUserStateLoading || isStageConfigLoading;
 
-  const executeLightUpTx = async (): Promise<TxResult> => {
+  const executeLightUpTx = useCallback(async (): Promise<TxResult> => {
     if (!wallet) {
       throw new Error("Wallet not connected");
     }
@@ -83,10 +84,14 @@ export function useDGLightUp() {
       chain: walletClient.chain,
     });
 
+    if (!walletClient.chain) {
+      throw new Error("Wallet chain not configured");
+    }
+
     const explorerConfig = {
-      chain: walletClient.chain!,
+      chain: walletClient.chain,
       rpcUrl: "",
-      networkName: walletClient.chain?.name ?? "Unknown",
+      networkName: walletClient.chain.name ?? "Unknown",
     };
 
     return {
@@ -105,7 +110,7 @@ export function useDGLightUp() {
         };
       },
     };
-  };
+  }, [wallet]);
 
   return {
     baseTokenAddress,
