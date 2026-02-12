@@ -5,6 +5,7 @@ import { toast } from "react-hot-toast";
 import { ensureCorrectNetwork } from "@/lib/blockchain/shared/network-utils";
 import { getLogger } from "@/lib/utils/logger";
 import { isEmbeddedWallet } from "@/lib/utils/wallet-address";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("hooks:useAddDGTokenToWallet");
 
@@ -19,12 +20,14 @@ const BASE_MAINNET_NETWORK_CONFIG = {
 
 export function useAddDGTokenToWallet() {
   const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const [isLoading, setIsLoading] = useState(false);
 
-  const activeWallet = wallets?.[0];
+  const activeWallet = wallets.find(w => w.address === selectedWallet?.address) || wallets?.[0];
+
   // Privy embedded wallets auto-discover tokens by balance — watchAssets is not
   // supported and not needed.  Only expose the action for injected / external wallets.
-  const embedded = isEmbeddedWallet((activeWallet as any)?.walletClientType);
+  const embedded = isEmbeddedWallet(activeWallet?.walletClientType);
   const isAvailable = !embedded && !!activeWallet;
 
   const addToken = useCallback(async () => {

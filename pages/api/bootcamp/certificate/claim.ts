@@ -1,5 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  extractAndValidateWalletFromHeader,
+} from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { CertificateService } from "@/lib/bootcamp-completion/certificate/service";
@@ -9,7 +12,10 @@ import type {
   SchemaFieldData,
 } from "@/lib/attestation/api/types";
 import { isEASEnabled } from "@/lib/attestation/core/config";
-import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
 import {
@@ -159,6 +165,17 @@ export default async function handler(
       return res.status(400).json({ error: "cohortId required" });
     }
 
+    // For initial grant path (no attestationSignature), validate X-Active-Wallet header early
+    // This fails fast before expensive DB queries if header is missing
+    if (!attestationSignature) {
+      const activeWalletHeader = req.headers["x-active-wallet"];
+      if (!activeWalletHeader) {
+        return res.status(400).json({
+          error: "X-Active-Wallet header is required",
+        });
+      }
+    }
+
     // Rate limiting: per-user per-cohort, configurable
     const perUserLimit = Number(process.env.CLAIM_RATE_LIMIT_PER_USER || 3);
     if (perUserLimit > 0) {
@@ -221,9 +238,9 @@ export default async function handler(
         certificate_tx_hash,
         certificate_attestation_uid,
         user_profile_id,
-        user_profiles:user_profile_id ( id, wallet_address, privy_user_id ),
-        cohorts:cohort_id ( 
-          id, 
+        user_profiles:user_profile_id ( id, privy_user_id ),
+        cohorts:cohort_id (
+          id,
           name,
           lock_address,
           bootcamp_program_id,
@@ -253,7 +270,6 @@ export default async function handler(
       user_profile_id: string;
       user_profiles: {
         id: string;
-        wallet_address: string | null;
         privy_user_id: string;
       } | null;
       cohorts: {
@@ -278,6 +294,9 @@ export default async function handler(
       return res.status(403).json({ error: "Not eligible for certificate" });
     }
 
+    // Get wallet address - extract from signature if commit path, otherwise from header or Privy
+    let walletAddress: string | null = null;
+
     const program = row?.cohorts?.bootcamp_programs;
     const lockAddress: string | undefined = program?.lock_address || undefined;
     if (!lockAddress) {
@@ -289,6 +308,18 @@ export default async function handler(
 
     const existingAttestationUid = row.certificate_attestation_uid;
     if (attestationSignature) {
+      // Extract and validate wallet from attestation signature
+      try {
+        walletAddress = await extractAndValidateWalletFromSignature({
+          userId: user.id,
+          attestationSignature,
+          context: "bootcamp-certificate-claim",
+        });
+      } catch (error: any) {
+        const status = error.message?.includes("required") ? 400 : 403;
+        return res.status(status).json({ error: error.message });
+      }
+
       if (!row.certificate_issued) {
         return res
           .status(400)
@@ -313,7 +344,7 @@ export default async function handler(
         });
       }
 
-      const recipient = profile.wallet_address || "";
+      const recipient = walletAddress || "";
       if (!recipient) {
         return res.status(400).json({ error: "Wallet not configured" });
       }
@@ -428,11 +459,30 @@ export default async function handler(
       });
     }
 
+    // Initial claim path - get wallet from X-Active-Wallet header (REQUIRED)
+    try {
+      walletAddress = await extractAndValidateWalletFromHeader({
+        userId: user.id,
+        activeWalletHeader: req.headers["x-active-wallet"] as
+          | string
+          | undefined,
+        context: "bootcamp-certificate-grant",
+        required: true, // No fallback - client must send the header
+      });
+    } catch (error: any) {
+      const status = error.message?.includes("required") ? 400 : 403;
+      return res.status(status).json({ error: error.message });
+    }
+
+    if (!walletAddress) {
+      return res.status(400).json({ error: "Wallet address is required" });
+    }
+
     const service = new CertificateService();
     const result = await service.claimCertificate({
       enrollmentId: row.id,
       userId: profile.privy_user_id,
-      userAddress: profile.wallet_address || "",
+      userAddress: walletAddress,
       cohortId,
       lockAddress,
     });
@@ -481,7 +531,7 @@ export default async function handler(
         });
       }
 
-      const recipient = profile.wallet_address || "";
+      const recipient = walletAddress || "";
       const completionDateIso =
         (fresh as any)?.completion_date || row?.completion_date || null;
       const completionDateUnix = completionDateIso

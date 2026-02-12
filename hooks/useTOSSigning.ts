@@ -3,25 +3,28 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSignMessage } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { getLogger } from "@/lib/utils/logger";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("hooks:useTOSSigning");
 
 export const useTOSSigning = () => {
   const { user } = usePrivy();
   const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const { signMessage } = useSignMessage();
 
   const signTOS = useCallback(
     async (tosVersion: string = "1.0.0") => {
-      if (!user || !wallets[0]) {
+      const activeAddress = selectedWallet?.address || wallets?.[0]?.address;
+
+      if (!user || !activeAddress) {
         toast.error("No wallet connected");
         return false;
       }
 
       try {
-        const message = `I agree to the P2E INFERNO Terms of Service dated ${
-          new Date().toISOString().split("T")[0]
-        }. I understand that I am joining a decentralized educational community as an Infernal, Forged in Fire and Fueled by Rewards.`;
+        const message = `I agree to the P2E INFERNO Terms of Service dated ${new Date().toISOString().split("T")[0]
+          }. I understand that I am joining a decentralized educational community as an Infernal, Forged in Fire and Fueled by Rewards.`;
 
         const { signature } = await signMessage({ message });
 
@@ -33,7 +36,7 @@ export const useTOSSigning = () => {
           },
           body: JSON.stringify({
             userId: user.id,
-            walletAddress: wallets[0].address,
+            walletAddress: activeAddress,
             signature,
             message,
             tosVersion,

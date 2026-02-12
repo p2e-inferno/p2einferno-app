@@ -10,8 +10,16 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { CURRENT_NETWORK } from "@/lib/blockchain/legacy/frontend-config";
-import { Copy, ExternalLink, RefreshCcw, Wallet, Download } from "lucide-react";
+import {
+  Copy,
+  ExternalLink,
+  RefreshCcw,
+  Wallet,
+  Download,
+  Plus,
+} from "lucide-react";
 import { toast } from "react-hot-toast";
+import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
 
 interface WalletDetailsModalProps {
   isOpen: boolean;
@@ -51,6 +59,12 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
 }) => {
   const { balances, loading, error, refreshBalances, networkName } =
     useWalletBalances({ enabled: isOpen });
+
+  const {
+    addToken: addDGToken,
+    isAvailable: isAddAvailable,
+    isLoading: isAddLoading,
+  } = useAddDGTokenToWallet();
 
   const shortAddress = `${walletAddress.substring(0, 8)}...${walletAddress.substring(walletAddress.length - 6)}`;
 
@@ -120,6 +134,19 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
               </div>
             </div>
           </Card>
+
+          {/* Add DG Token Action */}
+          {isAddAvailable && (
+            <Button
+              variant="outline"
+              onClick={addDGToken}
+              disabled={isAddLoading}
+              className="w-full flex items-center justify-center gap-2 bg-orange-500/5 border-orange-500/20 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300 transition-all py-6 border-dashed"
+            >
+              <Plus className="w-4 w-4 h-4" />
+              <span className="font-bold">Add DG Token to Wallet</span>
+            </Button>
+          )}
 
           {/* Balances Section */}
           <div className="space-y-3">

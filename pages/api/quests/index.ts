@@ -49,7 +49,7 @@ export default async function handler(
       `,
       )
       .eq("is_active", true)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     if (error) {
       log.error("Error fetching quests:", error);

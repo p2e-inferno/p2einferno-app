@@ -22,6 +22,9 @@ export interface QuestCardProps {
   progress: number;
   isStarted: boolean;
   isCompleted: boolean;
+  hasPendingTaskRewards?: boolean;
+  isQuestKeyPending?: boolean;
+  hasPrerequisite?: boolean;
 }
 
 export interface QuestHeaderProps {
@@ -39,6 +42,7 @@ export interface QuestHeaderProps {
   hasClaimedReward?: boolean;
   onClaimReward?: () => void;
   isClaimingReward?: boolean;
+  isQuestKeyPending?: boolean;
 }
 
 export interface TaskCardProps {

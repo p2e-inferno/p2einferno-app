@@ -25,6 +25,10 @@ export default async function handler(
   }
 
   try {
+    // Validate wallet belongs to user
+    const { validateWalletOwnership } = await import("@/lib/auth/privy");
+    await validateWalletOwnership(userId, walletAddress, "tos-signing");
+
     const supabase = createAdminClient();
 
     // Check if TOS already signed for this version

@@ -1,8 +1,8 @@
 import React from "react";
 import { toast } from "react-hot-toast";
-import { useWallets } from "@privy-io/react-auth";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 export default function MilestoneTaskClaimButton({
   taskId,
@@ -21,7 +21,7 @@ export default function MilestoneTaskClaimButton({
   endDate?: string;
   onClaimed: () => void;
 }) {
-  const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const { signAttestation, isSigning } = useGaslessAttestation();
   const [isClaiming, setIsClaiming] = React.useState(false);
   const [claimed, setClaimed] = React.useState(rewardClaimed || false);
@@ -62,10 +62,10 @@ export default function MilestoneTaskClaimButton({
       let attestationSignature: any = null;
 
       if (easEnabled) {
-        if (!wallets?.[0]?.address) {
+        if (!selectedWallet?.address) {
           throw new Error("Wallet not connected");
         }
-        const userAddress = wallets[0].address;
+        const userAddress = selectedWallet.address;
         const milestoneLockAddress =
           typeof milestone?.lock_address === "string"
             ? milestone.lock_address

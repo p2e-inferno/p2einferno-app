@@ -2,9 +2,11 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
-import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
-import { isEASEnabled } from "@/lib/attestation/core/config";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:user:task:[taskId]:claim");
@@ -102,26 +104,31 @@ export default async function handler(
       return res.status(400).json({ error: "Reward eligibility expired" });
     }
 
+    // Get wallet address from attestation signature (signed by user's current wallet)
+    // Then validate it belongs to the user's linked accounts
+    let userWalletAddress: string | null = null;
+
+    try {
+      userWalletAddress = await extractAndValidateWalletFromSignature({
+        userId: user.id,
+        attestationSignature,
+        context: "milestone-task-claim",
+      });
+    } catch (error: any) {
+      const status = error.message?.includes("required") ? 400 : 403;
+      return res.status(status).json({ error: error.message });
+    }
+
     // Optional gasless attestation (required when EAS is enabled unless graceful-degrade is configured).
     // NOTE: We do this before DB updates to avoid marking rewards claimed if the attestation is required and fails.
     const milestoneLockAddress =
       typeof milestone?.lock_address === "string"
         ? milestone.lock_address
         : null;
-    const userWalletAddress =
-      typeof profile.wallet_address === "string"
-        ? profile.wallet_address
-        : null;
 
     let rewardClaimAttestationUid: string | undefined;
     let rewardClaimAttestationTxHash: string | undefined;
     let attestationScanUrl: string | null = null;
-
-    if (isEASEnabled() && !userWalletAddress) {
-      return res.status(500).json({
-        error: "User profile wallet address not configured",
-      });
-    }
 
     if (userWalletAddress) {
       const attestationResult = await handleGaslessAttestation({

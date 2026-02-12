@@ -10,7 +10,7 @@
  * Implementation matches TeeRex's useDelegatedAttestation.ts (EAS SDK approach)
  */
 
-import { useWallets } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { ethers } from "ethers";
 import { EAS } from "@ethereum-attestation-service/eas-sdk";
 import {
@@ -55,7 +55,7 @@ export interface DelegatedAttestationCheckinSignature {
 }
 
 export const useDelegatedAttestationCheckin = () => {
-  const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const [isSigning, setIsSigning] = useState(false);
 
   const signCheckinAttestation = async (params: {
@@ -68,8 +68,7 @@ export const useDelegatedAttestationCheckin = () => {
     revocable?: boolean;
     refUID?: string;
   }): Promise<DelegatedAttestationCheckinSignature> => {
-    const wallet = wallets?.[0];
-    if (!wallet) {
+    if (!selectedWallet) {
       throw new Error("No wallet connected");
     }
 
@@ -95,7 +94,7 @@ export const useDelegatedAttestationCheckin = () => {
       });
 
       // Get ethers provider from Privy wallet
-      const provider = await (wallet as any).getEthereumProvider();
+      const provider = await (selectedWallet as any).getEthereumProvider();
       if (!provider) {
         throw new Error("Failed to get Ethereum provider from wallet");
       }

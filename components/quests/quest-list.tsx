@@ -15,14 +15,34 @@ export const QuestList = ({
 }: QuestListProps) => {
   // Generate quest data with progress
   const questsWithProgress = quests.map((quest) => {
-    const progress = getQuestCompletionPercentage(quest);
+    const progressPercentage = getQuestCompletionPercentage(quest);
     const questProgressData = userProgress.find((p) => p.quest_id === quest.id);
+
+    // Calculate if any task rewards in this quest are pending
+    const questTasksCompletions = _completedTasks.filter(
+      (c) => c.quest_id === quest.id,
+    );
+    const hasPendingTaskRewards = questTasksCompletions.some(
+      (c) => !c.reward_claimed,
+    );
+
+    const tasksFinished = progressPercentage === 100;
+    const keyClaimed = Boolean(questProgressData?.reward_claimed);
+    const hasKeyReward = Boolean(quest.lock_address);
+
+    const isQuestKeyPending = tasksFinished && hasKeyReward && !keyClaimed;
+    const isCompleted = tasksFinished && (!hasKeyReward || keyClaimed);
 
     return {
       quest,
-      progress,
+      progress: progressPercentage,
       isStarted: !!questProgressData,
-      isCompleted: progress === 100,
+      isCompleted,
+      hasPendingTaskRewards,
+      isQuestKeyPending,
+      hasPrerequisite: Boolean(
+        quest.prerequisite_quest_id || quest.prerequisite_quest_lock_address,
+      ),
     };
   });
 
@@ -57,13 +77,24 @@ export const QuestList = ({
         {/* Quest Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {questsWithProgress.map(
-            ({ quest, progress, isStarted, isCompleted }) => (
+            ({
+              quest,
+              progress: progressPercentage,
+              isStarted,
+              isCompleted,
+              hasPendingTaskRewards,
+              isQuestKeyPending,
+              hasPrerequisite,
+            }) => (
               <QuestCard
                 key={quest.id}
                 quest={quest}
-                progress={progress}
+                progress={progressPercentage}
                 isStarted={isStarted}
                 isCompleted={isCompleted}
+                hasPendingTaskRewards={hasPendingTaskRewards}
+                isQuestKeyPending={isQuestKeyPending}
+                hasPrerequisite={hasPrerequisite}
               />
             ),
           )}

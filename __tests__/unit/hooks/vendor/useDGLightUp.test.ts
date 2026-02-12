@@ -7,8 +7,13 @@
 
 import { renderHook, act } from "@testing-library/react";
 
+process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS =
+  process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS ??
+  "0x00000000000000000000000000000000000000ff";
+
 // Mock wagmi hooks
 const mockWriteContract = jest.fn();
+const mockUseReadContract = jest.fn();
 
 const mockUseWriteContract = jest.fn(() => ({
   writeContract: mockWriteContract,
@@ -17,12 +22,33 @@ const mockUseWriteContract = jest.fn(() => ({
 }));
 
 const mockUseWaitForTransactionReceipt = jest.fn(() => ({
+  isLoading: false,
   isSuccess: false,
 }));
 
 jest.mock("wagmi", () => ({
+  useReadContract: () => mockUseReadContract(),
   useWriteContract: () => mockUseWriteContract(),
   useWaitForTransactionReceipt: () => mockUseWaitForTransactionReceipt(),
+}));
+
+const mockApproveIfNeeded = jest.fn();
+jest.mock("@/hooks/useTokenApproval", () => ({
+  useTokenApproval: () => ({
+    approveIfNeeded: mockApproveIfNeeded,
+    isApproving: false,
+    error: null,
+  }),
+}));
+
+jest.mock("@privy-io/react-auth", () => ({
+  useUser: () => ({ user: {} }),
+}));
+
+jest.mock("@/hooks/useDetectConnectedWalletAddress", () => ({
+  useDetectConnectedWalletAddress: () => ({
+    walletAddress: "0x00000000000000000000000000000000000000aa",
+  }),
 }));
 
 // Mock the ABI
@@ -44,6 +70,11 @@ describe("useDGLightUp", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockApproveIfNeeded.mockResolvedValue({ success: true });
+    mockUseReadContract.mockImplementation(() => ({
+      data: undefined,
+    }));
   });
 
   describe("Hook Export", () => {
@@ -68,6 +99,13 @@ describe("useDGLightUp", () => {
       expect(typeof result.current.isPending).toBe("boolean");
     });
 
+    it("should return isApproving state", () => {
+      const { result } = renderHook(() => useDGLightUp());
+
+      expect(result.current.isApproving).toBeDefined();
+      expect(typeof result.current.isApproving).toBe("boolean");
+    });
+
     it("should return isSuccess state", () => {
       const { result } = renderHook(() => useDGLightUp());
 
@@ -83,13 +121,41 @@ describe("useDGLightUp", () => {
   });
 
   describe("lightUp", () => {
-    it("should call writeContract with lightUp function", () => {
+    it("should call approveIfNeeded then writeContract with lightUp function", async () => {
+      mockUseReadContract.mockImplementation(() => ({
+        data: {
+          baseToken: "0x0000000000000000000000000000000000000001",
+        },
+      }));
+      // getUserState
+      mockUseReadContract
+        .mockImplementationOnce(() => ({
+          data: {
+            baseToken: "0x0000000000000000000000000000000000000001",
+          },
+        }))
+        .mockImplementationOnce(() => ({
+          data: {
+            stage: 1,
+          },
+        }))
+        .mockImplementationOnce(() => ({
+          data: {
+            burnAmount: 10n,
+          },
+        }));
+
       const { result } = renderHook(() => useDGLightUp());
 
-      act(() => {
-        result.current.lightUp();
+      await act(async () => {
+        await result.current.lightUp();
       });
 
+      expect(mockApproveIfNeeded).toHaveBeenCalledWith({
+        tokenAddress: "0x0000000000000000000000000000000000000001",
+        spenderAddress: process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS,
+        amount: 10n,
+      });
       expect(mockWriteContract).toHaveBeenCalledWith(
         expect.objectContaining({
           functionName: "lightUp",
@@ -97,11 +163,28 @@ describe("useDGLightUp", () => {
       );
     });
 
-    it("should not require any arguments", () => {
+    it("should not require any arguments", async () => {
+      mockUseReadContract
+        .mockImplementationOnce(() => ({
+          data: {
+            baseToken: "0x0000000000000000000000000000000000000001",
+          },
+        }))
+        .mockImplementationOnce(() => ({
+          data: {
+            stage: 1,
+          },
+        }))
+        .mockImplementationOnce(() => ({
+          data: {
+            burnAmount: 10n,
+          },
+        }));
+
       const { result } = renderHook(() => useDGLightUp());
 
-      act(() => {
-        result.current.lightUp();
+      await act(async () => {
+        await result.current.lightUp();
       });
 
       expect(mockWriteContract).toHaveBeenCalledWith(
@@ -141,6 +224,7 @@ describe("useDGLightUp", () => {
   describe("isSuccess State", () => {
     it("should be false initially", () => {
       mockUseWaitForTransactionReceipt.mockReturnValue({
+        isLoading: false,
         isSuccess: false,
       });
 
@@ -156,6 +240,7 @@ describe("useDGLightUp", () => {
         isPending: false,
       });
       mockUseWaitForTransactionReceipt.mockReturnValue({
+        isLoading: false,
         isSuccess: true,
       });
 

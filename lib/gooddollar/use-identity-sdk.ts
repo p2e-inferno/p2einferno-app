@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useWallets } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { celo } from "wagmi/chains";
 import { createPublicClient, createWalletClient, custom, http } from "viem";
 import { IdentitySDK, type contractEnv } from "@goodsdks/citizen-sdk";
@@ -23,9 +24,13 @@ const GOODDOLLAR_ENV = (process.env.NEXT_PUBLIC_GOODDOLLAR_ENV ||
  * - Wallet client from Privy's EIP-1193 provider for signing
  */
 export function useIdentitySDK(): any {
-  // Get wallets from Privy (same as BlockchainPayment component)
+  // Get active wallet via smart selection
   const { wallets } = useWallets();
-  const activeWallet = wallets[0]; // First wallet is the active one
+  const selectedWallet = useSmartWalletSelection();
+
+  // Find the full connected wallet object that matches the selected address
+  // This ensures we have access to getEthereumProvider()
+  const activeWallet = wallets.find(w => w.address === selectedWallet?.address) || wallets[0];
 
   const [sdk, setSdk] = useState<IdentitySDK | null>(null);
   const [error, setError] = useState<string | null>(null);

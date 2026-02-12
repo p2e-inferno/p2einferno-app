@@ -10,9 +10,11 @@ import {
   AttestationResult,
   CreateAttestationParams,
 } from "@/lib/attestation";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 export const useAttestations = () => {
   const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const [isLoading, setIsLoading] = useState(false);
   const attestationService = new AttestationService();
 
@@ -24,7 +26,7 @@ export const useAttestations = () => {
   ): Promise<AttestationResult> => {
     setIsLoading(true);
     try {
-      const wallet = wallets[0];
+      const wallet = wallets.find(w => w.address === selectedWallet?.address) || wallets[0];
       if (!wallet) {
         throw new Error("No wallet connected");
       }
@@ -56,7 +58,7 @@ export const useAttestations = () => {
   ): Promise<AttestationResult> => {
     setIsLoading(true);
     try {
-      const wallet = wallets[0];
+      const wallet = wallets.find(w => w.address === selectedWallet?.address) || wallets[0];
       if (!wallet) {
         throw new Error("No wallet connected");
       }
@@ -84,7 +86,7 @@ export const useAttestations = () => {
    * Get attestations for current user
    */
   const getUserAttestations = async (schemaUid?: string) => {
-    const wallet = wallets[0];
+    const wallet = wallets.find(w => w.address === selectedWallet?.address) || wallets[0];
     if (!wallet?.address) {
       return [];
     }

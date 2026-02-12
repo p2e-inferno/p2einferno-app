@@ -11,7 +11,7 @@ import { Flame } from "lucide-react";
 import { useDGVendorAccess } from "@/hooks/vendor/useDGVendorAccess";
 
 export default function LightUpButton() {
-  const { lightUp, isPending, isSuccess, hash } = useDGLightUp();
+  const { lightUp, isPending, isApproving, isSuccess, hash } = useDGLightUp();
   const { isKeyHolder, isPaused } = useDGVendorAccess();
 
   const blockedReason = !isKeyHolder
@@ -36,7 +36,12 @@ export default function LightUpButton() {
         disabled={isPending || !!blockedReason}
         className="w-full rounded-xl bg-gradient-to-r from-orange-500 to-red-500 font-semibold text-black hover:from-orange-600 hover:to-red-600"
       >
-        {isPending ? (
+        {isApproving ? (
+          <span className="flex items-center gap-2">
+            <span className="animate-spin">🔥</span>
+            Approving...
+          </span>
+        ) : isPending ? (
           <span className="flex items-center gap-2">
             <span className="animate-spin">🔥</span>
             Burning...

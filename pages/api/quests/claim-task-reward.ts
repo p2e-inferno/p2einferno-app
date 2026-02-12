@@ -2,9 +2,11 @@ import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { getPrivyUser } from "@/lib/auth/privy";
-import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
-import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:quests:claim-task-reward");
@@ -79,7 +81,7 @@ export default async function handler(
 
     const { data: userProfile, error: profileError } = await supabase
       .from("user_profiles")
-      .select("id, wallet_address")
+      .select("id")
       .eq("privy_user_id", userId)
       .maybeSingle();
 
@@ -90,15 +92,19 @@ export default async function handler(
         .json({ error: "Failed to load user profile for claim" });
     }
 
-    const userWalletAddress =
-      typeof userProfile.wallet_address === "string"
-        ? userProfile.wallet_address
-        : null;
+    // Get wallet address from attestation signature (signed by user's current wallet)
+    // Then validate it belongs to the user's linked accounts
+    let userWalletAddress: string | null = null;
 
-    if (isEASEnabled() && !userWalletAddress) {
-      return res.status(500).json({
-        error: "User profile wallet address not configured",
+    try {
+      userWalletAddress = await extractAndValidateWalletFromSignature({
+        userId,
+        attestationSignature,
+        context: "quest-claim",
       });
+    } catch (error: any) {
+      const status = error.message?.includes("required") ? 400 : 403;
+      return res.status(status).json({ error: error.message });
     }
 
     let rewardClaimAttestationUid: string | undefined;

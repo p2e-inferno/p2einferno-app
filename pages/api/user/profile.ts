@@ -54,6 +54,26 @@ async function createOrUpdateUserProfile(
   const email = userData.email?.address || userData.email || null;
   const walletAddress =
     userData.wallet?.address || userData.walletAddress || null;
+
+  // If a wallet address is provided, validate ownership against Privy
+  if (walletAddress) {
+    try {
+      const { validateWalletOwnership } = await import("@/lib/auth/privy");
+      await validateWalletOwnership(
+        privyUserId,
+        walletAddress,
+        "profile-update",
+      );
+    } catch (error) {
+      // If validation fails, do not update the wallet address, or throw error?
+      // For profile sync, we might want to throw to prevent bad data.
+      throw new Error(
+        `Wallet ownership validation failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
   const linkedWallets =
     userData.linkedWallets ||
     userData.linkedAccounts

@@ -4,9 +4,11 @@ import { getPrivyUser } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
-import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
-import { getUserPrimaryWallet } from "@/lib/quests/prerequisite-checker";
 import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
 import {
   decodeAttestationDataFromDb,
@@ -48,12 +50,24 @@ export default async function handler(
       });
     }
 
-    const supabase = createAdminClient();
-    const userWallet = await getUserPrimaryWallet(supabase, authUser.id);
-
-    if (!userWallet) {
-      return res.status(400).json({ error: "Wallet not found" });
+    // Extract and validate wallet from attestation signature
+    let userWallet: string;
+    try {
+      const wallet = await extractAndValidateWalletFromSignature({
+        userId: authUser.id,
+        attestationSignature: attestationSignature ?? null,
+        context: "quest-completion-commit",
+      });
+      if (!wallet) {
+        return res.status(400).json({ error: "Wallet is required" });
+      }
+      userWallet = wallet;
+    } catch (error: any) {
+      const status = error.message?.includes("required") ? 400 : 403;
+      return res.status(status).json({ error: error.message });
     }
+
+    const supabase = createAdminClient();
 
     const { data: progress, error: progressError } = await supabase
       .from("user_quest_progress")

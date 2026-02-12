@@ -70,6 +70,109 @@ export async function getUserWalletAddresses(
 }
 
 /**
+ * Validate that a wallet address belongs to a user's linked accounts
+ * Shared validation logic for wallet ownership verification across all server-side flows
+ */
+export async function validateWalletOwnership(
+  userId: string,
+  walletAddress: string,
+  context: string,
+): Promise<string> {
+  const userWalletAddresses = await getUserWalletAddresses(userId);
+
+  const walletBelongsToUser = userWalletAddresses.some(
+    (addr) => addr.toLowerCase() === walletAddress.toLowerCase(),
+  );
+
+  if (!walletBelongsToUser) {
+    log.error("Wallet address does not belong to user", {
+      context,
+      userId,
+      walletAddress,
+      userWallets: userWalletAddresses,
+    });
+    throw new Error("Wallet address does not belong to your account");
+  }
+
+  log.info("Wallet validated for user", {
+    context,
+    userId,
+    walletAddress,
+    totalLinkedWallets: userWalletAddresses.length,
+  });
+
+  return walletAddress;
+}
+
+/**
+ * Extract and validate wallet address from X-Active-Wallet header
+ *
+ * Multi-wallet support for non-attestation flows:
+ * - Extracts the wallet address from the X-Active-Wallet header (sent by useSmartWalletSelection)
+ * - Validates this wallet belongs to the authenticated user's linked accounts
+ * - Returns the validated wallet address for use in sessions, grants, etc.
+ *
+ * This complements extractAndValidateWalletFromSignature() for flows that don't use attestations
+ * (e.g., admin session creation, grants without attestations, etc.)
+ *
+ * @param params - Validation parameters
+ * @param params.userId - Privy user ID (e.g., "did:privy:...")
+ * @param params.activeWalletHeader - Value from X-Active-Wallet header (or null if not provided)
+ * @param params.context - Context for logging (e.g., "admin-session", "grant-key")
+ * @param params.required - Whether to throw error if header not provided (default: true)
+ *
+ * @returns Validated wallet address
+ * @throws Error if required but header not provided or wallet doesn't belong to user
+ *
+ * @example
+ * const userWalletAddress = await extractAndValidateWalletFromHeader({
+ *   userId: authUser.id,
+ *   activeWalletHeader: req.headers['x-active-wallet'],
+ *   context: "admin-session",
+ *   required: true
+ * });
+ */
+export async function extractAndValidateWalletFromHeader(params: {
+  userId: string;
+  activeWalletHeader: string | null | undefined;
+  context: string;
+  required?: boolean;
+}): Promise<string | null> {
+  const { userId, activeWalletHeader, context, required = true } = params;
+
+  // If header not provided
+  if (!activeWalletHeader) {
+    if (required) {
+      log.error("X-Active-Wallet header required but not provided", {
+        context,
+        userId,
+      });
+      throw new Error("X-Active-Wallet header is required");
+    }
+    log.debug("X-Active-Wallet header not provided, skipping validation", {
+      context,
+    });
+    return null;
+  }
+
+  // Extract wallet address from header
+  const headerWallet = activeWalletHeader.trim();
+
+  // Basic format validation
+  if (!headerWallet.match(/^0x[a-fA-F0-9]{40}$/)) {
+    log.error("Invalid wallet address format in X-Active-Wallet header", {
+      context,
+      userId,
+      headerWallet,
+    });
+    throw new Error("Invalid wallet address format");
+  }
+
+  // Validate wallet ownership using shared helper
+  return await validateWalletOwnership(userId, headerWallet, context);
+}
+
+/**
  * Get authenticated Privy user from API request
  * @param req NextApiRequest object
  * @param includeWallets Whether to include wallet addresses (requires additional API call)

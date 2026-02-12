@@ -14,6 +14,7 @@ import {
   getSchemaStatistics,
 } from "@/lib/attestation";
 import { getLogger } from "@/lib/utils/logger";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("hooks:attestation:queries");
 
@@ -58,7 +59,8 @@ export const useUserAttestations = (
   },
 ) => {
   const { wallets } = useWallets();
-  const address = userAddress || wallets[0]?.address;
+  const selectedWallet = useSmartWalletSelection();
+  const address = userAddress || selectedWallet?.address || wallets[0]?.address;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: attestationQueryKeys.userAttestations(address, {
@@ -146,7 +148,8 @@ export const useSchemaAttestations = (schemaUid: string, limit?: number) => {
  */
 export const useUserAttestationStats = (userAddress?: string) => {
   const { wallets } = useWallets();
-  const address = userAddress || wallets[0]?.address;
+  const selectedWallet = useSmartWalletSelection();
+  const address = userAddress || selectedWallet?.address || wallets[0]?.address;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: attestationQueryKeys.userStats(address),

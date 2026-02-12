@@ -12,6 +12,9 @@ export const QuestCard = ({
   progress,
   isStarted,
   isCompleted,
+  hasPendingTaskRewards,
+  isQuestKeyPending,
+  hasPrerequisite,
 }: QuestCardProps) => {
   return (
     <Link href={`/lobby/quests/${quest.id}`} className="group relative">
@@ -28,23 +31,42 @@ export const QuestCard = ({
             />
           </div>
 
-          {/* Status Badge */}
-          {isCompleted && (
-            <div className="absolute top-2 right-2 bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center">
-              <Sparkles className="w-4 h-4 mr-1" />
-              Completed
-            </div>
-          )}
-          {isStarted && !isCompleted && (
-            <div className="absolute top-2 right-2 bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-              In Progress
-            </div>
-          )}
-          {!isStarted && (
-            <div className="absolute top-2 right-2 bg-gray-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-              New Quest
-            </div>
-          )}
+          {/* Status Badges */}
+          <div className="absolute top-2 right-2 flex flex-col gap-2 items-end">
+            {isCompleted && (
+              <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center shadow-lg shadow-green-500/20">
+                <Sparkles className="w-4 h-4 mr-1" />
+                Completed
+              </div>
+            )}
+            {isQuestKeyPending && (
+              <div className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center animate-pulse shadow-lg shadow-blue-500/20">
+                <ChevronRight className="w-4 h-4 mr-1" />
+                Claim Key
+              </div>
+            )}
+            {hasPendingTaskRewards && (
+              <div className="bg-cyan-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center animate-pulse shadow-lg shadow-cyan-500/20">
+                <Coins className="w-4 h-4 mr-1" />
+                Claim Reward
+              </div>
+            )}
+            {isStarted && !isCompleted && !isQuestKeyPending && (
+              <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg shadow-orange-500/20">
+                In Progress
+              </div>
+            )}
+            {!isStarted && (
+              <div className="bg-gray-600 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
+                New Quest
+              </div>
+            )}
+            {hasPrerequisite && (
+              <div className="bg-gray-800/80 backdrop-blur-sm border border-gray-600 text-gray-300 px-3 py-1 rounded-full text-xs font-medium">
+                Prerequisite Required
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Quest Info */}

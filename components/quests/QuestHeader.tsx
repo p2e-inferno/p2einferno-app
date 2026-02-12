@@ -20,15 +20,20 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
   hasClaimedReward,
   onClaimReward,
   isClaimingReward,
+  isQuestKeyPending,
 }) => {
   const rewardLabel =
     quest.reward_type === "activation"
       ? hasClaimedReward
         ? "Trial Claimed"
-        : "Claim Trial Access"
+        : isQuestKeyPending
+          ? "Claim Trial Access"
+          : "Trial Ready"
       : hasClaimedReward
         ? "Quest Completed"
-        : "Complete Quest";
+        : isQuestKeyPending
+          ? "Claim Quest Key"
+          : "Complete Quest";
   const startDisabled =
     !isQuestStarted && (!canStartQuest || Boolean(isLoadingStartQuest));
   const startButtonLabel = !canStartQuest
@@ -128,7 +133,7 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
           </p>
         )}
 
-        {onClaimReward && isQuestCompleted && (
+        {onClaimReward && (isQuestCompleted || isQuestKeyPending) && (
           <button
             onClick={onClaimReward}
             disabled={Boolean(

@@ -23,7 +23,10 @@ import {
 } from "viem";
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
-import { getPrivyUserFromNextRequest } from "@/lib/auth/privy";
+import {
+  getPrivyUserFromNextRequest,
+  validateWalletOwnership,
+} from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import {
   transferDGTokens,
@@ -73,6 +76,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Missing required fields" },
         { status: 400 },
+      );
+    }
+
+    // Validate wallet address belongs to authenticated user
+    try {
+      await validateWalletOwnership(user.id, walletAddress, "dg-withdrawal");
+    } catch (error: any) {
+      log.error("Wallet validation failed for withdrawal", {
+        userId: user.id,
+        walletAddress,
+        error: error.message,
+      });
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status: 403 },
       );
     }
 

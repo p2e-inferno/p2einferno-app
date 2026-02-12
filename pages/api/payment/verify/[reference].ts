@@ -180,6 +180,25 @@ async function grantKeyToUserForPayment(
       return { success: false, error: "Invalid user wallet address" };
     }
 
+    // Validate that the user still owns this wallet before minting
+    try {
+      const { validateWalletOwnership } = await import("@/lib/auth/privy");
+      await validateWalletOwnership(
+        userProfile.privy_user_id,
+        userProfile.wallet_address,
+        "payment-key-grant",
+      );
+    } catch (validationError: any) {
+      log.error(
+        `Wallet ownership validation failed for user ${userProfile.privy_user_id}`,
+        { error: validationError },
+      );
+      return {
+        success: false,
+        error: `Wallet ownership validation failed: ${validationError.message}`,
+      };
+    }
+
     log.info(
       `Granting key to user ${userProfile.wallet_address} for cohort ${cohort.name} (${cohort.lock_address})`,
     );

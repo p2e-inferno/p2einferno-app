@@ -1,5 +1,8 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  extractAndValidateWalletFromHeader,
+} from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import { grantKeyToUser } from "@/lib/services/user-key-service";
 import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
@@ -12,7 +15,10 @@ import type {
   DelegatedAttestationSignature,
   SchemaFieldData,
 } from "@/lib/attestation/api/types";
-import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 import { checkUserKeyOwnership } from "@/lib/services/user-key-service";
 import { extractTokenTransfers } from "@/lib/blockchain/shared/transaction-utils";
@@ -98,12 +104,23 @@ export default async function handler(
         .json({ error: "Bad Request: milestoneId is required." });
     }
 
+    // For initial grant path (no attestationSignature), validate X-Active-Wallet header early
+    // This fails fast before expensive DB queries if header is missing
+    if (!attestationSignature) {
+      const activeWalletHeader = req.headers["x-active-wallet"];
+      if (!activeWalletHeader) {
+        return res.status(400).json({
+          error: "X-Active-Wallet header is required",
+        });
+      }
+    }
+
     const supabase = createAdminClient();
 
     // 1. Fetch user profile to get the internal user_profile_id
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("id, wallet_address")
+      .select("id")
       .eq("privy_user_id", user.id)
       .single();
 
@@ -111,10 +128,8 @@ export default async function handler(
       return res.status(404).json({ error: "User profile not found." });
     }
 
-    const walletAddress =
-      typeof (profile as any)?.wallet_address === "string"
-        ? ((profile as any).wallet_address as string)
-        : null;
+    // Get wallet address - extract from signature if commit path, otherwise from header or Privy
+    let walletAddress: string | null = null;
 
     // 2. Verify the milestone is actually completed in the database for this user
     const { data: milestoneProgress } = await supabase
@@ -166,6 +181,18 @@ export default async function handler(
 
     // Commit-only path: client sends attestationSignature after a successful claim
     if (attestationSignature) {
+      // Extract and validate wallet from attestation signature
+      try {
+        walletAddress = await extractAndValidateWalletFromSignature({
+          userId: user.id,
+          attestationSignature,
+          context: "milestone-achievement-claim",
+        });
+      } catch (error: any) {
+        const status = error.message?.includes("required") ? 400 : 403;
+        return res.status(status).json({ error: error.message });
+      }
+
       if (!isEASEnabled()) {
         return res.status(200).json({
           success: true,
@@ -267,6 +294,21 @@ export default async function handler(
         attestationUid: uid,
         attestationScanUrl,
       });
+    }
+
+    // Initial grant path - get wallet from X-Active-Wallet header (REQUIRED)
+    try {
+      walletAddress = await extractAndValidateWalletFromHeader({
+        userId: user.id,
+        activeWalletHeader: req.headers["x-active-wallet"] as
+          | string
+          | undefined,
+        context: "milestone-grant",
+        required: true, // No fallback - client must send the header
+      });
+    } catch (error: any) {
+      const status = error.message?.includes("required") ? 400 : 403;
+      return res.status(status).json({ error: error.message });
     }
 
     // 3. Create wallet client and grant the key

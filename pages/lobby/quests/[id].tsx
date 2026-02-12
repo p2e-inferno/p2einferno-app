@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "react-hot-toast";
-import { useWallets } from "@privy-io/react-auth";
 import {
   claimActivationRewardRequest,
   completeQuestRequest,
@@ -20,6 +19,7 @@ import {
 } from "@/lib/quests/client";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 // Import the new components
 import QuestHeader from "@/components/quests/QuestHeader";
@@ -44,7 +44,7 @@ const QuestDetailsPage = () => {
   const router = useRouter();
   const { id: questId } = router.query; // Renamed for clarity
   const { user } = usePrivy();
-  const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const { signAttestation } = useGaslessAttestation();
   // useQuests hook is not directly used here anymore for rendering, but its functions might be (or similar logic)
   // For this refactor, we'll keep the existing data fetching and action functions within this page,
@@ -318,11 +318,11 @@ const QuestDetailsPage = () => {
       let attestationSignature: any = null;
 
       if (easEnabled) {
-        if (!wallets?.[0]?.address) {
+        if (!selectedWallet?.address) {
           throw new Error("Wallet not connected");
         }
 
-        const userAddress = wallets[0].address;
+        const userAddress = selectedWallet.address;
         const questLockAddress =
           typeof questData?.quest?.lock_address === "string"
             ? questData.quest.lock_address
@@ -439,8 +439,7 @@ const QuestDetailsPage = () => {
       // For standard quests, the signature must be created after the key grant so we can include
       // the real tokenId + grant tx hash in the schema data.
       if (easEnabled && questData.quest.reward_type === "activation") {
-        const wallet = wallets?.[0];
-        const userAddress = wallet?.address;
+        const userAddress = selectedWallet?.address;
         if (!userAddress) {
           throw new Error("Wallet not connected");
         }
@@ -527,8 +526,7 @@ const QuestDetailsPage = () => {
         let proofCancelled = false;
 
         if (isEASEnabled() && response.attestationRequired) {
-          const wallet = wallets?.[0];
-          const userAddress = wallet?.address;
+          const userAddress = selectedWallet?.address;
           if (!userAddress) {
             throw new Error("Wallet not connected");
           }
@@ -647,14 +645,20 @@ const QuestDetailsPage = () => {
   const { quest, progress: questProgressInfo } = questData; // Assuming 'progress' here is the quest_user_progress record
   const isQuestStarted = !!questProgressInfo;
   const questCompleted = Boolean(questProgressInfo?.is_completed);
-  const isQuestCompleted = questCompleted || progress === 100;
+  const hasClaimedQuestReward = Boolean(questProgressInfo?.reward_claimed);
+  const isQuestCompleted =
+    (questCompleted || progress === 100) &&
+    (!quest?.lock_address || hasClaimedQuestReward);
+  const isQuestKeyPending =
+    (questCompleted || progress === 100) &&
+    quest?.lock_address &&
+    !hasClaimedQuestReward;
   const isActivationQuest = quest?.reward_type === "activation";
   const activationRewardClaimable =
     isActivationQuest && questCompleted && !questProgressInfo?.reward_claimed;
   const xpRewardClaimable =
     !isActivationQuest && questCompleted && !questProgressInfo?.reward_claimed;
   const canClaimQuestReward = activationRewardClaimable || xpRewardClaimable;
-  const hasClaimedQuestReward = Boolean(questProgressInfo?.reward_claimed);
   const canStartQuest = quest?.can_start !== false;
   const prerequisiteQuest = quest?.prerequisite_quest || null;
   const prerequisiteWarningMessage = (() => {
@@ -735,9 +739,12 @@ const QuestDetailsPage = () => {
             canClaimReward={canClaimQuestReward}
             hasClaimedReward={hasClaimedQuestReward}
             onClaimReward={
-              isQuestCompleted ? handleQuestRewardClaim : undefined
+              questCompleted || progress === 100
+                ? handleQuestRewardClaim
+                : undefined
             }
             isClaimingReward={isClaimingQuestReward}
+            isQuestKeyPending={isQuestKeyPending}
           />
 
           {isQuestStarted && tasksWithCompletion.length > 0 && (
