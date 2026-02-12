@@ -36,14 +36,14 @@ export function Hero() {
       </div>
 
       <div className="relative z-10 container mx-auto text-center px-4">
-        <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold font-heading mb-6 tracking-tight">
-          Master Web3.0 and AI Skills
+        <h1 className="text-2xl md:text-5xl lg:text-6xl font-bold font-heading mb-6 tracking-tight">
+          Master Web3.0 and AI
           <br />
           Through Gamified Bootcamps,
           <br />
           Quests & Rewards
         </h1>
-        <h2 className="text-xl md:text-2xl lg:text-3xl font-bold font-heading mb-6 text-flame-yellow">
+        <h2 className="text-lg md:text-2xl lg:text-3xl font-bold font-heading mb-6 text-flame-yellow">
           Become Web3.0 and AI Proficient in Weeks.
         </h2>
         <p className="max-w-3xl mx-auto text-base md:text-lg text-faded-grey mb-8">
