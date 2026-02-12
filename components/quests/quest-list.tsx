@@ -23,7 +23,7 @@ export const QuestList = ({
       (c) => c.quest_id === quest.id,
     );
     const hasPendingTaskRewards = questTasksCompletions.some(
-      (c) => !c.reward_claimed,
+      (c) => c.submission_status === "completed" && !c.reward_claimed,
     );
 
     const tasksFinished = progressPercentage === 100;

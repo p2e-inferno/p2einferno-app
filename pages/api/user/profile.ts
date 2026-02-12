@@ -1,6 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  AuthorizationError,
+  PrivyUnavailableError,
+  getPrivyUser,
+  validateWalletOwnership,
+} from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import {
   sendEmail,
@@ -58,13 +63,18 @@ async function createOrUpdateUserProfile(
   // If a wallet address is provided, validate ownership against Privy
   if (walletAddress) {
     try {
-      const { validateWalletOwnership } = await import("@/lib/auth/privy");
       await validateWalletOwnership(
         privyUserId,
         walletAddress,
         "profile-update",
       );
     } catch (error) {
+      if (
+        error instanceof AuthorizationError ||
+        error instanceof PrivyUnavailableError
+      ) {
+        throw error;
+      }
       // If validation fails, do not update the wallet address, or throw error?
       // For profile sync, we might want to throw to prevent bad data.
       throw new Error(
@@ -447,11 +457,27 @@ export default async function handler(
       });
     } else if (req.method === "PUT") {
       // Update user profile
-      const updates = req.body;
+      const updates = req.body || {};
+      const walletAddress =
+        updates.wallet_address ||
+        updates.walletAddress ||
+        updates.wallet?.address ||
+        null;
+
+      if (walletAddress) {
+        await validateWalletOwnership(
+          privyUserId,
+          walletAddress,
+          "profile-update",
+        );
+      }
+
+      const { privy_user_id: _ignoredPrivyId, id: _ignoredId, ...safeUpdates } =
+        updates;
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .update(updates)
+        .update(safeUpdates)
         .eq("privy_user_id", privyUserId)
         .select()
         .single();
@@ -473,6 +499,16 @@ export default async function handler(
       name: error.name,
       fullError: error,
     });
+
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    if (error instanceof PrivyUnavailableError) {
+      return res.status(503).json({
+        error: "Privy API unavailable while validating wallet ownership",
+      });
+    }
 
     // Return 409 Conflict for duplicate email/wallet errors
     if (

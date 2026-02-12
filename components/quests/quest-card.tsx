@@ -56,7 +56,7 @@ export const QuestCard = ({
                 In Progress
               </div>
             )}
-            {!isStarted && (
+            {!isStarted && !isCompleted && (
               <div className="bg-gray-600 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
                 New Quest
               </div>

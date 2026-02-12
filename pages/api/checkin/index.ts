@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import {
   getPrivyUser,
   extractAndValidateWalletFromHeader,
+  validateWalletOwnership,
 } from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
@@ -88,7 +89,6 @@ export default async function handler(
 
     if (attestationSignature?.recipient) {
       // Validate the recipient wallet belongs to this user
-      const { validateWalletOwnership } = await import("@/lib/auth/privy");
       try {
         await validateWalletOwnership(
           user.id,

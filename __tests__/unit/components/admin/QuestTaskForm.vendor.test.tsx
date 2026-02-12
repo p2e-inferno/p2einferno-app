@@ -6,8 +6,16 @@
  */
 
 import React from "react";
+import QuestTaskForm from "@/components/admin/QuestTaskForm";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+// Mock RichTextEditor (tiptap) for test environment
+jest.mock("@/components/ui/rich-text-editor", () => ({
+  RichTextEditor: ({ value, onChange }: any) => (
+    <textarea value={value} onChange={(e) => onChange(e.target.value)} />
+  ),
+}));
 
 // Mock Select components
 jest.mock("@/components/ui/select", () => ({
@@ -42,17 +50,6 @@ jest.mock("@/lib/blockchain/shared/vendor-constants", () => ({
 }));
 
 describe("QuestTaskForm - Vendor Task Types", () => {
-  let QuestTaskForm: any;
-
-  beforeAll(async () => {
-    try {
-      const mod = await import("@/components/admin/QuestTaskForm");
-      QuestTaskForm = mod.default;
-    } catch {
-      // Expected to fail until implemented
-    }
-  });
-
   const defaultProps = {
     task: { tempId: "test-1", task_type: "link_email" as const },
     index: 0,

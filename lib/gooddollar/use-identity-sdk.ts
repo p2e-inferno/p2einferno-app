@@ -30,7 +30,9 @@ export function useIdentitySDK(): any {
 
   // Find the full connected wallet object that matches the selected address
   // This ensures we have access to getEthereumProvider()
-  const activeWallet = wallets.find(w => w.address === selectedWallet?.address) || wallets[0];
+  const activeWallet = selectedWallet
+    ? wallets.find((w) => w.address === selectedWallet.address)
+    : null;
 
   const [sdk, setSdk] = useState<IdentitySDK | null>(null);
   const [error, setError] = useState<string | null>(null);

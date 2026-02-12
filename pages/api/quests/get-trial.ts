@@ -253,11 +253,13 @@ export default async function handler(
     } else {
       // Initial grant path: Use X-Active-Wallet header
       try {
+        const rawHeader = req.headers["x-active-wallet"];
+        const normalizedHeader = Array.isArray(rawHeader)
+          ? rawHeader[0]
+          : rawHeader;
         const headerWallet = await extractAndValidateWalletFromHeader({
           userId: userId!,
-          activeWalletHeader: req.headers["x-active-wallet"] as
-            | string
-            | undefined,
+          activeWalletHeader: normalizedHeader,
           context: "quest-trial-grant",
           required: true,
         });

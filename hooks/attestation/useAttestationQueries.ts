@@ -4,7 +4,6 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useWallets } from "@privy-io/react-auth";
 import {
   getUserAttestations,
   getAttestationsBySchema,
@@ -58,9 +57,8 @@ export const useUserAttestations = (
     autoRefresh?: boolean;
   },
 ) => {
-  const { wallets } = useWallets();
   const selectedWallet = useSmartWalletSelection();
-  const address = userAddress || selectedWallet?.address || wallets[0]?.address;
+  const address = userAddress || selectedWallet?.address;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: attestationQueryKeys.userAttestations(address, {
@@ -147,9 +145,8 @@ export const useSchemaAttestations = (schemaUid: string, limit?: number) => {
  * console.log(stats.dailyCheckinStreak); // 5
  */
 export const useUserAttestationStats = (userAddress?: string) => {
-  const { wallets } = useWallets();
   const selectedWallet = useSmartWalletSelection();
-  const address = userAddress || selectedWallet?.address || wallets[0]?.address;
+  const address = userAddress || selectedWallet?.address;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: attestationQueryKeys.userStats(address),

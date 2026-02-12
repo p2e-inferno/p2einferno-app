@@ -266,7 +266,7 @@ export async function extractAndValidateWalletFromSignature(params: {
   }
 
   // Extract wallet address from signature (the wallet that signed it)
-  const signatureWallet = attestationSignature.recipient;
+  const signatureWallet = attestationSignature.attester;
 
   // Validate wallet ownership using shared helper
   return await validateWalletOwnership(userId, signatureWallet, context);

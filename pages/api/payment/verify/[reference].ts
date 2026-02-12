@@ -16,6 +16,10 @@ import {
   getPaymentEmailContext,
   sendEmailWithDedup,
 } from "@/lib/email";
+import {
+  validateWalletOwnership,
+  PrivyUnavailableError,
+} from "@/lib/auth/privy";
 
 const log = getLogger("api:payment:verify:[reference]");
 
@@ -182,17 +186,23 @@ async function grantKeyToUserForPayment(
 
     // Validate that the user still owns this wallet before minting
     try {
-      const { validateWalletOwnership } = await import("@/lib/auth/privy");
       await validateWalletOwnership(
         userProfile.privy_user_id,
         userProfile.wallet_address,
         "payment-key-grant",
       );
     } catch (validationError: any) {
-      log.error(
-        `Wallet ownership validation failed for user ${userProfile.privy_user_id}`,
-        { error: validationError },
-      );
+      if (validationError instanceof PrivyUnavailableError) {
+        log.error(
+          `Privy API unavailable while validating wallet ownership for user ${userProfile.privy_user_id}`,
+          { error: validationError },
+        );
+      } else {
+        log.error(
+          `Wallet ownership validation failed for user ${userProfile.privy_user_id}`,
+          { error: validationError },
+        );
+      }
       return {
         success: false,
         error: `Wallet ownership validation failed: ${validationError.message}`,

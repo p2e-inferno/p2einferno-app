@@ -11,6 +11,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePrivyWriteWallet } from "@/hooks/unlock/usePrivyWriteWallet";
 import { createViemFromPrivyWallet } from "@/lib/blockchain/providers/privy-viem";
 import { ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
+import { getBlockExplorerUrl } from "@/lib/blockchain/shared/network-utils";
+import type { TxResult } from "@/lib/transaction-stepper/types";
 import { getLogger } from "@/lib/utils/logger";
 import type { Address } from "viem";
 
@@ -76,7 +78,7 @@ export function useTokenApproval() {
       publicClient: any,
       tokenAddress: Address,
       ownerAddress: Address,
-      spenderAddress: Address
+      spenderAddress: Address,
     ): Promise<bigint> => {
       const allowance = await publicClient.readContract({
         address: tokenAddress,
@@ -87,36 +89,40 @@ export function useTokenApproval() {
 
       return (allowance as bigint) || 0n;
     },
-    []
+    [],
   );
 
   /**
    * Approve token spending for a spender contract
    * Automatically checks allowance first and only approves if needed
    */
-  const approveIfNeeded = useCallback(
-    async (params: ApprovalParams): Promise<ApprovalResult> => {
+  const approveIfNeededTx = useCallback(
+    async (params: ApprovalParams): Promise<TxResult> => {
       if (!wallet) {
         const errorMessage = "Wallet not connected";
         safeSetError(errorMessage);
-        return { success: false, error: errorMessage };
+        throw new Error(errorMessage);
       }
 
       if (!hasPrivyWalletMethods(wallet)) {
         const errorMessage = "Wallet does not support token approvals";
         safeSetError(errorMessage);
-        return { success: false, error: errorMessage };
+        throw new Error(errorMessage);
       }
 
       safeSetIsApproving(true);
       safeSetError(null);
 
       try {
-        // Create fresh viem clients per operation
-        const { walletClient, publicClient } = await createViemFromPrivyWallet(wallet);
+        const { walletClient, publicClient } =
+          await createViemFromPrivyWallet(wallet);
         const userAddress = wallet.address as Address;
+        const explorerConfig = {
+          chain: walletClient.chain!,
+          rpcUrl: "",
+          networkName: walletClient.chain?.name ?? "Unknown",
+        };
 
-        // Check current allowance
         log.info("Checking allowance", {
           token: params.tokenAddress,
           spender: params.spenderAddress,
@@ -127,7 +133,7 @@ export function useTokenApproval() {
           publicClient,
           params.tokenAddress,
           userAddress,
-          params.spenderAddress
+          params.spenderAddress,
         );
 
         log.info("Current allowance", {
@@ -135,11 +141,10 @@ export function useTokenApproval() {
           required: params.amount.toString(),
         });
 
-        // If allowance is sufficient, no need to approve
         if (allowance >= params.amount) {
           log.info("Allowance sufficient, skipping approval");
           safeSetIsApproving(false);
-          return { success: true };
+          return { data: { skipped: true } };
         }
 
         const sendApprove = async (amount: bigint) => {
@@ -159,47 +164,68 @@ export function useTokenApproval() {
           });
 
           log.info("Approval transaction sent", { hash: txHash });
-
-          await publicClient.waitForTransactionReceipt({ hash: txHash });
-
-          log.info("Approval transaction confirmed", { hash: txHash });
           return txHash;
         };
 
+        let approveTx: `0x${string}`;
         try {
-          const approveTx = await sendApprove(params.amount);
-          safeSetIsApproving(false);
-          return { success: true, transactionHash: approveTx };
+          approveTx = await sendApprove(params.amount);
         } catch (err) {
           /**
            * Some ERC20s (notably USDT-style) require setting allowance to 0
            * before setting it to a new non-zero value.
            */
           if (allowance > 0n && params.amount > 0n) {
-            log.warn("Direct approval failed; attempting 0-then-approve fallback", {
-              token: params.tokenAddress,
-              spender: params.spenderAddress,
-              allowance: allowance.toString(),
-              required: params.amount.toString(),
-              error: err,
-            });
+            log.warn(
+              "Direct approval failed; attempting 0-then-approve fallback",
+              {
+                token: params.tokenAddress,
+                spender: params.spenderAddress,
+                allowance: allowance.toString(),
+                required: params.amount.toString(),
+                error: err,
+              },
+            );
 
             const resetTx = await sendApprove(0n);
+            await publicClient.waitForTransactionReceipt({
+              hash: resetTx,
+              timeout: 180_000,
+            });
             log.info("Reset approval confirmed", { hash: resetTx });
 
-            const approveTx = await sendApprove(params.amount);
-            safeSetIsApproving(false);
-            return { success: true, transactionHash: approveTx };
+            approveTx = await sendApprove(params.amount);
+          } else {
+            throw err;
           }
-
-          throw err;
         }
+
+        return {
+          transactionHash: approveTx,
+          transactionUrl: getBlockExplorerUrl(approveTx, explorerConfig),
+          waitForConfirmation: async () => {
+            try {
+              const receipt = await publicClient.waitForTransactionReceipt({
+                hash: approveTx,
+                timeout: 180_000,
+              });
+              log.info("Approval transaction confirmed", { hash: approveTx });
+              return {
+                transactionHash: approveTx,
+                transactionUrl: getBlockExplorerUrl(approveTx, explorerConfig),
+                receipt,
+              };
+            } finally {
+              safeSetIsApproving(false);
+            }
+          },
+        };
       } catch (err: unknown) {
         const errorMsg = getErrorMessage(err);
         log.error("Approval error", { error: err, params });
         safeSetError(errorMsg);
         safeSetIsApproving(false);
-        return { success: false, error: errorMsg };
+        throw new Error(errorMsg);
       }
     },
     [
@@ -209,11 +235,31 @@ export function useTokenApproval() {
       hasPrivyWalletMethods,
       safeSetError,
       safeSetIsApproving,
-    ]
+    ],
+  );
+
+  const approveIfNeeded = useCallback(
+    async (params: ApprovalParams): Promise<ApprovalResult> => {
+      try {
+        const tx = await approveIfNeededTx(params);
+        if (!tx.transactionHash || !tx.waitForConfirmation) {
+          return { success: true };
+        }
+
+        await tx.waitForConfirmation();
+        return { success: true, transactionHash: tx.transactionHash };
+      } catch (err: any) {
+        const errorMsg = err?.message || "Token approval failed";
+        safeSetError(errorMsg);
+        return { success: false, error: errorMsg };
+      }
+    },
+    [approveIfNeededTx, safeSetError],
   );
 
   return {
     approveIfNeeded,
+    approveIfNeededTx,
     isApproving,
     error,
   };

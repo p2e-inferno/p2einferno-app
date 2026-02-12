@@ -143,7 +143,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
               disabled={isAddLoading}
               className="w-full flex items-center justify-center gap-2 bg-orange-500/5 border-orange-500/20 text-orange-400 hover:bg-orange-500/10 hover:text-orange-300 transition-all py-6 border-dashed"
             >
-              <Plus className="w-4 w-4 h-4" />
+              <Plus className="w-4 h-4" />
               <span className="font-bold">Add DG Token to Wallet</span>
             </Button>
           )}

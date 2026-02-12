@@ -32,6 +32,7 @@ const getPrivyClient = () => {
  */
 export async function getUserWalletAddresses(
   userId: string,
+  options?: { allowEmptyOnError?: boolean },
 ): Promise<string[]> {
   try {
     const privy = getPrivyClient();
@@ -61,9 +62,19 @@ export async function getUserWalletAddresses(
 
     return walletAddresses;
   } catch (error) {
+    const allowEmptyOnError = options?.allowEmptyOnError ?? true;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (!allowEmptyOnError && isNetworkError(error)) {
+      throw new PrivyUnavailableError(
+        "Privy API unavailable while fetching wallet addresses",
+        { userId, error: errorMessage },
+      );
+    }
+
     log.warn(
       "Error fetching user wallet addresses from Privy API, falling back to empty array",
-      { error: error instanceof Error ? error.message : error },
+      { error: errorMessage },
     );
     return [];
   }
@@ -78,7 +89,9 @@ export async function validateWalletOwnership(
   walletAddress: string,
   context: string,
 ): Promise<string> {
-  const userWalletAddresses = await getUserWalletAddresses(userId);
+  const userWalletAddresses = await getUserWalletAddresses(userId, {
+    allowEmptyOnError: false,
+  });
 
   const walletBelongsToUser = userWalletAddresses.some(
     (addr) => addr.toLowerCase() === walletAddress.toLowerCase(),
@@ -91,7 +104,9 @@ export async function validateWalletOwnership(
       walletAddress,
       userWallets: userWalletAddresses,
     });
-    throw new Error("Wallet address does not belong to your account");
+    throw new AuthorizationError(
+      "Wallet address does not belong to your account",
+    );
   }
 
   log.info("Wallet validated for user", {
@@ -102,6 +117,23 @@ export async function validateWalletOwnership(
   });
 
   return walletAddress;
+}
+
+export class AuthorizationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthorizationError";
+  }
+}
+
+export class PrivyUnavailableError extends Error {
+  public readonly context?: Record<string, unknown>;
+
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message);
+    this.name = "PrivyUnavailableError";
+    this.context = context;
+  }
 }
 
 /**
@@ -288,7 +320,15 @@ export async function getPrivyUser(
 
     // If wallet addresses are requested, fetch them
     if (includeWallets) {
-      const walletAddresses = await getUserWalletAddresses(claims.userId);
+      let walletAddresses: string[] = [];
+      try {
+        walletAddresses = await getUserWalletAddresses(claims.userId);
+      } catch (error) {
+        log.warn("Failed to fetch wallet addresses for Privy user", {
+          userId: claims.userId,
+          error,
+        });
+      }
       return {
         ...baseUser,
         walletAddresses,

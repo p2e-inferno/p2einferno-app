@@ -21,7 +21,11 @@ const VENDOR_ADDRESS = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}
 export function useDGMarket() {
     const { writeContract, data: hash, isPending: isWritePending } = useWriteContract();
     const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
-    const { approveIfNeeded, isApproving: isApprovingToken } = useTokenApproval();
+    const {
+        approveIfNeeded,
+        isApproving: isApprovingToken,
+        error: approvalError,
+    } = useTokenApproval();
 
     const { data: exchangeRate } = useReadContract({
         address: VENDOR_ADDRESS,
@@ -59,7 +63,7 @@ export function useDGMarket() {
     const buyTokens = async (amount: bigint) => {
         if (!tokenConfig?.baseToken) {
             log.error("Cannot buy: base token address not available");
-            return;
+            return { success: false, error: "Base token address not available" };
         }
 
         try {
@@ -78,7 +82,7 @@ export function useDGMarket() {
 
             if (!approvalResult.success) {
                 log.error("Token approval failed", { error: approvalResult.error });
-                return;
+                return approvalResult;
             }
 
             // Proceed with purchase
@@ -89,8 +93,13 @@ export function useDGMarket() {
                 functionName: "buyTokens",
                 args: [amount],
             });
+            return { success: true };
         } catch (error) {
             log.error("Error in buyTokens", { error });
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : "Buy failed",
+            };
         }
     };
 
@@ -102,7 +111,7 @@ export function useDGMarket() {
     const sellTokens = async (amount: bigint) => {
         if (!tokenConfig?.swapToken) {
             log.error("Cannot sell: swap token address not available");
-            return;
+            return { success: false, error: "Swap token address not available" };
         }
 
         try {
@@ -121,7 +130,7 @@ export function useDGMarket() {
 
             if (!approvalResult.success) {
                 log.error("Token approval failed", { error: approvalResult.error });
-                return;
+                return approvalResult;
             }
 
             // Proceed with sale
@@ -132,8 +141,13 @@ export function useDGMarket() {
                 functionName: "sellTokens",
                 args: [amount],
             });
+            return { success: true };
         } catch (error) {
             log.error("Error in sellTokens", { error });
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : "Sell failed",
+            };
         }
     };
 
@@ -150,6 +164,7 @@ export function useDGMarket() {
         sellTokens,
         isPending: isWritePending || isConfirming || isApprovingToken,
         isApproving: isApprovingToken,
+        approvalError,
         isSuccess: isConfirmed,
         hash,
     };

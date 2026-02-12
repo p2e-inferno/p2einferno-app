@@ -427,6 +427,7 @@ const QuestDetailsPage = () => {
   const handleQuestRewardClaim = async () => {
     if (!questId || !questData?.quest) return;
     if (!canClaimQuestReward) {
+      toast.error("Quest reward is not ready to claim yet.");
       return;
     }
     setIsClaimingQuestReward(true);
@@ -738,11 +739,7 @@ const QuestDetailsPage = () => {
             prerequisiteQuest={prerequisiteQuest}
             canClaimReward={canClaimQuestReward}
             hasClaimedReward={hasClaimedQuestReward}
-            onClaimReward={
-              questCompleted || progress === 100
-                ? handleQuestRewardClaim
-                : undefined
-            }
+            onClaimReward={canClaimQuestReward ? handleQuestRewardClaim : undefined}
             isClaimingReward={isClaimingQuestReward}
             isQuestKeyPending={isQuestKeyPending}
           />

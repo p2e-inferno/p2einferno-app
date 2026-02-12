@@ -27,7 +27,7 @@
 5. ✅ **XP Renewal** - 2/2 fixed
 6. ✅ **Check-ins** - 2/2 fixed
 7. ✅ **Token Withdrawal** - 3/3 fixed (client hook verified + 2 server endpoints)
-8. 🔍 **Various Hooks** - 0/7 fixed
+8. 🔍 **Various Hooks** - 7/7 fixed
 
 ---
 
@@ -232,6 +232,6 @@ For each fixed code path, test:
 
 ## 📝 Notes
 
-- **Admin Session Issue**: Most likely caused by client sending wrong wallet in `X-Active-Wallet` header. Need to trace where this header is set.
+- **Admin Session Issue**: Resolved. Root cause and fix documented in **Phase 1** (incorrect `X-Active-Wallet` source).
 - **Signature-based validation**: Only applicable to attestation flows where client signs. Other flows may legitimately use DB wallet.
 - **Database wallet_address field**: Consider deprecating or making it read-only, populated by Privy webhooks for reference only.

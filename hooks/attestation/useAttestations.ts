@@ -11,6 +11,9 @@ import {
   CreateAttestationParams,
 } from "@/lib/attestation";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("hooks:useAttestations");
 
 export const useAttestations = () => {
   const { wallets } = useWallets();
@@ -38,7 +41,7 @@ export const useAttestations = () => {
 
       return result;
     } catch (error) {
-      console.error("Error creating attestation:", error);
+      log.error("Error creating attestation:", error);
       return {
         success: false,
         error:
@@ -71,7 +74,7 @@ export const useAttestations = () => {
 
       return result;
     } catch (error) {
-      console.error("Error revoking attestation:", error);
+      log.error("Error revoking attestation:", error);
       return {
         success: false,
         error:

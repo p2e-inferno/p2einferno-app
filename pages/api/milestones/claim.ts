@@ -298,11 +298,20 @@ export default async function handler(
 
     // Initial grant path - get wallet from X-Active-Wallet header (REQUIRED)
     try {
+      const activeWalletHeader = req.headers["x-active-wallet"];
+      if (Array.isArray(activeWalletHeader)) {
+        if (activeWalletHeader.length > 1) {
+          return res
+            .status(400)
+            .json({ error: "Multiple X-Active-Wallet headers provided" });
+        }
+      }
+
       walletAddress = await extractAndValidateWalletFromHeader({
         userId: user.id,
-        activeWalletHeader: req.headers["x-active-wallet"] as
-          | string
-          | undefined,
+        activeWalletHeader: Array.isArray(activeWalletHeader)
+          ? activeWalletHeader[0]
+          : activeWalletHeader,
         context: "milestone-grant",
         required: true, // No fallback - client must send the header
       });
