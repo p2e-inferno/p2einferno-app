@@ -34,7 +34,7 @@ export function useGoodDollarVerification() {
   const { ready, authenticated } = usePrivy();
   const { user } = useUser();
   const { walletAddress } = useDetectConnectedWalletAddress(user);
-  const sdk = useIdentitySDK();
+  const { sdk } = useIdentitySDK();
   const lastReconciledUserId = useRef<string | null>(null);
 
   const query = useQuery<VerificationStatus>({

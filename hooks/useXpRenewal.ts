@@ -11,7 +11,7 @@ import { getLogger } from "@/lib/utils/logger";
 import toast from "react-hot-toast";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
-import { useWallets } from "@privy-io/react-auth";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("hook:useXpRenewal");
 
@@ -33,7 +33,7 @@ export interface XpRenewalState {
 
 export const useXpRenewal = () => {
   const queryClient = useQueryClient();
-  const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const { signAttestation } = useGaslessAttestation();
   const [state, setState] = useState<XpRenewalState>({
     isLoading: false,
@@ -134,11 +134,10 @@ export const useXpRenewal = () => {
         let attestationScanUrl: string | null | undefined = null;
 
         if (isEASEnabled() && data?.data?.attestationRequired) {
-          const wallet = wallets?.[0];
-          const userAddress = wallet?.address;
-          if (!userAddress) {
+          if (!selectedWallet?.address) {
             throw new Error("Wallet not connected");
           }
+          const userAddress = selectedWallet.address;
 
           const payload = data?.data?.attestationPayload;
           const renewalAttemptId = data?.data?.renewalAttemptId;
@@ -287,7 +286,7 @@ export const useXpRenewal = () => {
         toast.error(errorMsg);
       }
     },
-    [queryClient, wallets, signAttestation],
+    [queryClient, selectedWallet, signAttestation],
   );
 
   /**

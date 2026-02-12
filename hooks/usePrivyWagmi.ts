@@ -6,6 +6,7 @@
 import { useEffect } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useConnection } from "wagmi";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("hooks:privy-wagmi");
@@ -38,10 +39,11 @@ const log = getLogger("hooks:privy-wagmi");
 export function usePrivyWagmi() {
   const { authenticated, ready } = usePrivy();
   const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const { address: wagmiAddress, isConnected } = useConnection();
 
-  // Get active wallet (first wallet is default active in Privy)
-  const activeWallet = wallets[0];
+  // Get active wallet via smart selection
+  const activeWallet = selectedWallet;
   const privyAddress = activeWallet?.address;
 
   // Sync status

@@ -1,5 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  extractAndValidateWalletFromHeader,
+  validateWalletOwnership,
+} from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
@@ -68,7 +72,7 @@ export default async function handler(
     // Verify the profile belongs to this Privy user
     const { data: profile, error: profErr } = await supabase
       .from("user_profiles")
-      .select("id, privy_user_id, experience_points, wallet_address")
+      .select("id, privy_user_id, experience_points")
       .eq("id", userProfileId)
       .single();
     if (profErr || !profile) {
@@ -78,15 +82,58 @@ export default async function handler(
       return res.status(403).json({ error: "Forbidden" });
     }
 
+    // Extract and validate wallet address
+    // If attestationSignature is provided (EAS enabled), use its recipient
+    // Otherwise (EAS disabled), use X-Active-Wallet header
+    let userWalletAddress: string;
+
+    if (attestationSignature?.recipient) {
+      // Validate the recipient wallet belongs to this user
+      try {
+        await validateWalletOwnership(
+          user.id,
+          attestationSignature.recipient,
+          "checkin",
+        );
+        userWalletAddress = attestationSignature.recipient;
+      } catch (error: any) {
+        return res.status(403).json({ error: error.message });
+      }
+    } else {
+      // EAS disabled or no signature - use X-Active-Wallet header
+      try {
+        const activeWalletHeader = req.headers["x-active-wallet"];
+        if (Array.isArray(activeWalletHeader)) {
+          if (activeWalletHeader.length > 1) {
+            return res
+              .status(400)
+              .json({ error: "Multiple X-Active-Wallet headers provided" });
+          }
+        }
+
+        const headerWallet = await extractAndValidateWalletFromHeader({
+          userId: user.id,
+          activeWalletHeader: Array.isArray(activeWalletHeader)
+            ? activeWalletHeader[0]
+            : activeWalletHeader,
+          context: "checkin",
+          required: true,
+        });
+        if (!headerWallet) {
+          return res.status(400).json({ error: "X-Active-Wallet is required" });
+        }
+        userWalletAddress = headerWallet;
+      } catch (error: any) {
+        const status = error.message?.includes("required") ? 400 : 403;
+        return res.status(status).json({ error: error.message });
+      }
+    }
+
     // Server-authoritative: ignore client xpAmount and compute using the same logic as the service preview.
     // NOTE: Do NOT call checkinService.performCheckin() here; it can recurse back into /api/checkin via xpUpdater.
-    const canCheckin = await checkinService.canCheckinToday(
-      profile.wallet_address,
-    );
+    const canCheckin = await checkinService.canCheckinToday(userWalletAddress);
     if (!canCheckin) {
-      const preview = await checkinService.getCheckinPreview(
-        profile.wallet_address,
-      );
+      const preview = await checkinService.getCheckinPreview(userWalletAddress);
       return res.status(409).json({
         success: false,
         error: "Already checked in today",
@@ -96,9 +143,7 @@ export default async function handler(
       });
     }
 
-    const preview = await checkinService.getCheckinPreview(
-      profile.wallet_address,
-    );
+    const preview = await checkinService.getCheckinPreview(userWalletAddress);
     const xpEarned = preview.breakdown.totalXP;
     const newStreak = preview.nextStreak;
     const breakdown = preview.breakdown;
@@ -130,21 +175,9 @@ export default async function handler(
 
     if (easEnabled && attestationSignature && !attestation) {
       try {
-        // Bind delegated attestation to the profile wallet to prevent mismatched XP/attestation.
-        if (
-          typeof attestationSignature.recipient === "string" &&
-          attestationSignature.recipient.toLowerCase() !==
-            (profile.wallet_address || "").toLowerCase()
-        ) {
-          return res.status(400).json({
-            error:
-              "attestationSignature.recipient must match profile wallet address",
-          });
-        }
-
         log.info("Creating delegated check-in attestation", {
           userProfileId,
-          recipient: attestationSignature.recipient,
+          recipient: userWalletAddress,
         });
 
         // Resolve schema UID from DB or env

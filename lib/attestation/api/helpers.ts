@@ -10,6 +10,7 @@ import { isEASEnabled, type SchemaKey } from "@/lib/attestation/core/config";
 import { resolveSchemaUID } from "@/lib/attestation/schemas/network-resolver";
 import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
 import { getLogger } from "@/lib/utils/logger";
+import { validateWalletOwnership } from "@/lib/auth/privy";
 import type {
   DelegatedAttestationSignature,
   GaslessAttestationResult,
@@ -21,9 +22,7 @@ const log = getLogger("lib:attestation:api:helpers");
  * Check if EAS failures should gracefully degrade (action succeeds without attestation)
  * This can be configured per-schema or globally via environment variables
  */
-function shouldGracefullyDegradeEASFailures(
-  schemaKey?: SchemaKey
-): boolean {
+function shouldGracefullyDegradeEASFailures(schemaKey?: SchemaKey): boolean {
   // Check schema-specific flag first (e.g., MILESTONE_EAS_GRACEFUL_DEGRADE)
   if (schemaKey) {
     const schemaSpecificKey = `${schemaKey.toUpperCase()}_EAS_GRACEFUL_DEGRADE`;
@@ -104,9 +103,7 @@ export async function handleGaslessAttestation(params: {
   try {
     // Validate signature recipient matches expected user address
     // This prevents mismatched attestations (e.g., XP awarded to one user but attested to another)
-    if (
-      signature.recipient.toLowerCase() !== recipient.toLowerCase()
-    ) {
+    if (signature.recipient.toLowerCase() !== recipient.toLowerCase()) {
       const message = `Signature recipient (${signature.recipient}) does not match expected recipient (${recipient})`;
       log.error(message, { schemaKey });
       return {
@@ -119,7 +116,7 @@ export async function handleGaslessAttestation(params: {
     const resolvedNetwork = network || getDefaultNetworkName();
     const resolvedSchemaUid = await resolveSchemaUID(
       schemaKey,
-      resolvedNetwork
+      resolvedNetwork,
     );
 
     if (!resolvedSchemaUid) {
@@ -218,4 +215,59 @@ export async function handleGaslessAttestation(params: {
       };
     }
   }
+}
+
+/**
+ * Extract and validate wallet address from attestation signature
+ *
+ * Multi-wallet support:
+ * - Extracts the wallet address from the signature (the wallet that signed it)
+ * - Validates this wallet belongs to the authenticated user's linked accounts
+ * - Returns the validated wallet address for use in attestations
+ *
+ * This ensures attestations are created for the user's currently connected wallet,
+ * not stale database values, supporting users who switch between linked wallets.
+ *
+ * @param params - Validation parameters
+ * @param params.userId - Privy user ID (e.g., "did:privy:...")
+ * @param params.attestationSignature - Client-provided attestation signature (or null if not provided)
+ * @param params.context - Context for logging (e.g., "quest-claim", "milestone-claim")
+ *
+ * @returns Validated wallet address
+ * @throws Error if EAS is enabled but signature not provided or wallet doesn't belong to user
+ *
+ * @example
+ * const userWalletAddress = await extractAndValidateWalletFromSignature({
+ *   userId: authUser.id,
+ *   attestationSignature,
+ *   context: "quest-claim"
+ * });
+ */
+export async function extractAndValidateWalletFromSignature(params: {
+  userId: string;
+  attestationSignature: DelegatedAttestationSignature | null | undefined;
+  context: string;
+}): Promise<string | null> {
+  const { userId, attestationSignature, context } = params;
+
+  // If EAS is disabled, no wallet validation needed
+  if (!isEASEnabled()) {
+    log.debug("EAS disabled, skipping wallet validation", { context });
+    return null;
+  }
+
+  // When EAS is enabled, signature is required
+  if (!attestationSignature) {
+    log.error("Attestation signature required but not provided", {
+      context,
+      userId,
+    });
+    throw new Error("Attestation signature is required to claim rewards");
+  }
+
+  // Extract wallet address from signature (the wallet that signed it)
+  const signatureWallet = attestationSignature.attester;
+
+  // Validate wallet ownership using shared helper
+  return await validateWalletOwnership(userId, signatureWallet, context);
 }

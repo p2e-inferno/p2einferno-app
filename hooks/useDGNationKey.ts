@@ -7,9 +7,9 @@
 
 import { useState, useEffect } from 'react';
 import { createViemPublicClient } from '@/lib/blockchain/providers/privy-viem';
-import { useWallets } from '@privy-io/react-auth';
 import { abi as lockAbi } from '@/constants/public_lock_abi';
 import { getLogger } from '@/lib/utils/logger';
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger('hooks:useDGNationKey');
 
@@ -27,7 +27,7 @@ export interface DGNationKeyInfo {
  * Reusable across components for access control
  */
 export function useDGNationKey() {
-  const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const [keyInfo, setKeyInfo] = useState<DGNationKeyInfo>({
     hasValidKey: false,
     tokenId: null,
@@ -37,7 +37,7 @@ export function useDGNationKey() {
     error: null
   });
 
-  const activeWallet = wallets?.[0]?.address;
+  const activeWallet = selectedWallet?.address;
   const lockAddress = process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
 
   useEffect(() => {

@@ -10,9 +10,14 @@ import {
   AttestationResult,
   CreateAttestationParams,
 } from "@/lib/attestation";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("hooks:useAttestations");
 
 export const useAttestations = () => {
   const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const [isLoading, setIsLoading] = useState(false);
   const attestationService = new AttestationService();
 
@@ -24,7 +29,7 @@ export const useAttestations = () => {
   ): Promise<AttestationResult> => {
     setIsLoading(true);
     try {
-      const wallet = wallets[0];
+      const wallet = wallets.find(w => w.address === selectedWallet?.address) || wallets[0];
       if (!wallet) {
         throw new Error("No wallet connected");
       }
@@ -36,7 +41,7 @@ export const useAttestations = () => {
 
       return result;
     } catch (error) {
-      console.error("Error creating attestation:", error);
+      log.error("Error creating attestation:", error);
       return {
         success: false,
         error:
@@ -56,7 +61,7 @@ export const useAttestations = () => {
   ): Promise<AttestationResult> => {
     setIsLoading(true);
     try {
-      const wallet = wallets[0];
+      const wallet = wallets.find(w => w.address === selectedWallet?.address) || wallets[0];
       if (!wallet) {
         throw new Error("No wallet connected");
       }
@@ -69,7 +74,7 @@ export const useAttestations = () => {
 
       return result;
     } catch (error) {
-      console.error("Error revoking attestation:", error);
+      log.error("Error revoking attestation:", error);
       return {
         success: false,
         error:
@@ -84,7 +89,7 @@ export const useAttestations = () => {
    * Get attestations for current user
    */
   const getUserAttestations = async (schemaUid?: string) => {
-    const wallet = wallets[0];
+    const wallet = wallets.find(w => w.address === selectedWallet?.address) || wallets[0];
     if (!wallet?.address) {
       return [];
     }

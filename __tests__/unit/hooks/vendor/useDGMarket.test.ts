@@ -7,6 +7,16 @@
 
 import { renderHook, act } from "@testing-library/react";
 
+// Mock token approval hook
+const mockApproveIfNeeded = jest.fn(async () => ({ success: true }));
+jest.mock("@/hooks/useTokenApproval", () => ({
+  useTokenApproval: () => ({
+    approveIfNeeded: mockApproveIfNeeded,
+    isApproving: false,
+    error: null,
+  }),
+}));
+
 // Mock wagmi hooks
 const mockWriteContract = jest.fn();
 const mockUseWriteContract = jest.fn(() => ({
@@ -20,7 +30,7 @@ const mockUseWaitForTransactionReceipt = jest.fn(() => ({
   isSuccess: false,
 }));
 
-const mockUseReadContract = jest.fn((_config?: any) => ({
+const mockUseReadContract = jest.fn((_config?: any): any => ({
   data: undefined,
 }));
 
@@ -49,6 +59,25 @@ describe("useDGMarket", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockUseReadContract.mockImplementation((config: any) => {
+      if (config?.functionName === "getTokenConfig") {
+        return {
+          data: {
+            baseToken: "0x0000000000000000000000000000000000000001",
+            swapToken: "0x0000000000000000000000000000000000000002",
+          },
+        };
+      }
+      if (config?.functionName === "getStageConstants") {
+        return {
+          data: {
+            minBuyAmount: 1000n,
+            minSellAmount: 5000n,
+          },
+        };
+      }
+      return { data: undefined };
+    });
   });
 
   describe("Hook Export", () => {
@@ -120,11 +149,11 @@ describe("useDGMarket", () => {
   });
 
   describe("buyTokens", () => {
-    it("should call writeContract with buyTokens function", () => {
+    it("should call writeContract with buyTokens function", async () => {
       const { result } = renderHook(() => useDGMarket());
 
-      act(() => {
-        result.current.buyTokens(1000n);
+      await act(async () => {
+        await result.current.buyTokens(1000n);
       });
 
       expect(mockWriteContract).toHaveBeenCalledWith(
@@ -135,11 +164,11 @@ describe("useDGMarket", () => {
       );
     });
 
-    it("should accept bigint amount", () => {
+    it("should accept bigint amount", async () => {
       const { result } = renderHook(() => useDGMarket());
 
-      act(() => {
-        result.current.buyTokens(5000000n);
+      await act(async () => {
+        await result.current.buyTokens(5000000n);
       });
 
       expect(mockWriteContract).toHaveBeenCalledWith(
@@ -178,11 +207,11 @@ describe("useDGMarket", () => {
   });
 
   describe("sellTokens", () => {
-    it("should call writeContract with sellTokens function", () => {
+    it("should call writeContract with sellTokens function", async () => {
       const { result } = renderHook(() => useDGMarket());
 
-      act(() => {
-        result.current.sellTokens(500n);
+      await act(async () => {
+        await result.current.sellTokens(500n);
       });
 
       expect(mockWriteContract).toHaveBeenCalledWith(

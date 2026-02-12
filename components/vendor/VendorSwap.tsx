@@ -32,6 +32,7 @@ export default function VendorSwap() {
     buyTokens,
     sellTokens,
     isPending,
+    isApproving,
     exchangeRate,
     feeConfig,
     minBuyAmount,
@@ -361,11 +362,13 @@ export default function VendorSwap() {
             : "bg-slate-700 hover:bg-slate-600 text-slate-50"
         }`}
       >
-        {isPending
-          ? "Processing..."
-          : mode === "buy"
-            ? `Buy ${swapSymbol}`
-            : `Sell ${swapSymbol}`}
+        {isApproving
+          ? "Approving..."
+          : isPending
+            ? "Processing..."
+            : mode === "buy"
+              ? `Buy ${swapSymbol}`
+              : `Sell ${swapSymbol}`}
       </Button>
     </div>
   );

@@ -1,6 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  AuthorizationError,
+  PrivyUnavailableError,
+  extractAndValidateWalletFromHeader,
+  getPrivyUser,
+  validateWalletOwnership,
+} from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import {
   sendEmail,
@@ -54,6 +60,31 @@ async function createOrUpdateUserProfile(
   const email = userData.email?.address || userData.email || null;
   const walletAddress =
     userData.wallet?.address || userData.walletAddress || null;
+
+  // If a wallet address is provided, validate ownership against Privy
+  if (walletAddress) {
+    try {
+      await validateWalletOwnership(
+        privyUserId,
+        walletAddress,
+        "profile-update",
+      );
+    } catch (error) {
+      if (
+        error instanceof AuthorizationError ||
+        error instanceof PrivyUnavailableError
+      ) {
+        throw error;
+      }
+      // If validation fails, do not update the wallet address, or throw error?
+      // For profile sync, we might want to throw to prevent bad data.
+      throw new Error(
+        `Wallet ownership validation failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
+      );
+    }
+  }
   const linkedWallets =
     userData.linkedWallets ||
     userData.linkedAccounts
@@ -405,12 +436,49 @@ export default async function handler(
     }
 
     if (req.method === "GET" || req.method === "POST") {
+      // Prefer a validated X-Active-Wallet header wallet when provided.
+      // This prevents races where a stale body walletAddress (often embedded) reaches the server first.
+      let activeWalletFromHeader: string | null = null;
+      const rawActiveWalletHeader = req.headers["x-active-wallet"];
+      if (Array.isArray(rawActiveWalletHeader)) {
+        return res
+          .status(400)
+          .json({ error: "Multiple X-Active-Wallet headers provided" });
+      }
+      try {
+        activeWalletFromHeader = await extractAndValidateWalletFromHeader({
+          userId: privyUserId,
+          activeWalletHeader: rawActiveWalletHeader,
+          context: "profile-update",
+          required: false,
+        });
+      } catch (headerErr: any) {
+        if (
+          headerErr instanceof AuthorizationError ||
+          headerErr instanceof PrivyUnavailableError
+        ) {
+          throw headerErr;
+        }
+        return res.status(400).json({
+          error:
+            headerErr instanceof Error
+              ? headerErr.message
+              : "Invalid X-Active-Wallet header",
+        });
+      }
+
       // Merge request body data (which has wallet/email info) with privyUser
       // Prefer req.body for wallet/email data as it comes from the client with full context
       const userDataForProfile = {
         ...privyUser,
         ...req.body,
         privyUserId, // Ensure we use the verified Privy user ID
+        ...(activeWalletFromHeader
+          ? {
+              walletAddress: activeWalletFromHeader,
+              wallet: { address: activeWalletFromHeader },
+            }
+          : {}),
       };
 
       const profile = await createOrUpdateUserProfile(
@@ -427,11 +495,30 @@ export default async function handler(
       });
     } else if (req.method === "PUT") {
       // Update user profile
-      const updates = req.body;
+      const updates = req.body || {};
+      const walletAddress =
+        updates.wallet_address ||
+        updates.walletAddress ||
+        updates.wallet?.address ||
+        null;
+
+      if (walletAddress) {
+        await validateWalletOwnership(
+          privyUserId,
+          walletAddress,
+          "profile-update",
+        );
+      }
+
+      const {
+        privy_user_id: _ignoredPrivyId,
+        id: _ignoredId,
+        ...safeUpdates
+      } = updates;
 
       const { data, error } = await supabase
         .from("user_profiles")
-        .update(updates)
+        .update(safeUpdates)
         .eq("privy_user_id", privyUserId)
         .select()
         .single();
@@ -453,6 +540,16 @@ export default async function handler(
       name: error.name,
       fullError: error,
     });
+
+    if (error instanceof AuthorizationError) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    if (error instanceof PrivyUnavailableError) {
+      return res.status(503).json({
+        error: "Privy API unavailable while validating wallet ownership",
+      });
+    }
 
     // Return 409 Conflict for duplicate email/wallet errors
     if (

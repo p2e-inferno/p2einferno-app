@@ -22,6 +22,14 @@ jest.mock("@/lib/auth/privy", () => ({
       return null;
     return { id: "privy-user-1" };
   }),
+  extractAndValidateWalletFromHeader: jest.fn(
+    async ({ activeWalletHeader }: any) => {
+      if (!activeWalletHeader) {
+        throw new Error("X-Active-Wallet header is required");
+      }
+      return activeWalletHeader;
+    },
+  ),
 }));
 
 jest.mock("@/lib/attestation/core/config", () => ({
@@ -36,6 +44,9 @@ jest.mock("@/lib/attestation/api/helpers", () => ({
       return { success: false, error: "chain down" };
     }
     return { success: true, uid: "0xmilestoneattuid", txHash: "0xatttx" };
+  }),
+  extractAndValidateWalletFromSignature: jest.fn(async () => {
+    return "0x00000000000000000000000000000000000000bb";
   }),
 }));
 
@@ -142,10 +153,15 @@ import handler from "@/pages/api/milestones/claim";
 async function runApi(params: {
   method?: string;
   body?: any;
+  headers?: Record<string, string>;
 }): Promise<{ statusCode: number; json: any }> {
   const { req, res } = createMocks({
     method: (params.method ?? "POST") as any,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-active-wallet": "0x00000000000000000000000000000000000000bb",
+      ...(params.headers ?? {}),
+    },
     body: params.body ?? {},
   });
 
@@ -203,6 +219,7 @@ describe("POST /api/milestones/claim (Phase 6)", () => {
       body: {
         milestoneId: "m1",
         attestationSignature: {
+          attester: "0x00000000000000000000000000000000000000bb",
           recipient: "0x00000000000000000000000000000000000000bb",
         },
       },

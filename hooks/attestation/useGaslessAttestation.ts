@@ -28,6 +28,8 @@ import type {
 } from "@/lib/attestation/api/types";
 import { ensureWalletOnChainId } from "@/lib/blockchain/shared/ensure-wallet-network";
 
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+
 const log = getLogger("hooks:useGaslessAttestation");
 
 const isUserRejectedError = (err: any): boolean => {
@@ -109,6 +111,7 @@ const resolveSchemaDefinition = async (
 
 export const useGaslessAttestation = () => {
   const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const [isSigning, setIsSigning] = useState(false);
 
   const signAttestation = async (params: {
@@ -122,9 +125,9 @@ export const useGaslessAttestation = () => {
     refUID?: string; // Reference UID for linked attestations
   }): Promise<DelegatedAttestationSignature> => {
     const wallet =
-      wallets?.find(
-        (w: any) => w?.walletClientType && w.walletClientType !== "privy",
-      ) || wallets?.[0];
+      wallets?.find((w) => w.address === selectedWallet?.address) ||
+      wallets?.[0];
+
     if (!wallet) {
       throw new Error("No wallet connected");
     }
@@ -209,8 +212,8 @@ export const useGaslessAttestation = () => {
         if (expectedNormalized !== actualNormalized) {
           throw new Error(
             `Schema definition mismatch for '${params.schemaKey}' on '${networkName}'. ` +
-              `Expected: ${expectedSchema} ` +
-              `Got: ${schemaString}`,
+            `Expected: ${expectedSchema} ` +
+            `Got: ${schemaString}`,
           );
         }
       }

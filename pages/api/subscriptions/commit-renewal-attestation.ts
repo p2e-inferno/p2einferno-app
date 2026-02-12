@@ -4,7 +4,10 @@ import { getPrivyUser } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
-import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
 import {
@@ -41,13 +44,8 @@ export default async function handler(
   }
 
   try {
-    const privyResult = await getPrivyUser(req, true);
-    if (
-      !privyResult ||
-      !privyResult.id ||
-      !("wallet" in privyResult) ||
-      !privyResult.wallet?.address
-    ) {
+    const user = await getPrivyUser(req);
+    if (!user?.id) {
       return res.status(401).json({
         success: false,
         attestationUid: null,
@@ -76,8 +74,32 @@ export default async function handler(
       });
     }
 
-    const privy = privyResult as any;
-    const recipient = privy.wallet.address as string;
+    // Extract and validate wallet from attestation signature
+    let recipient: string;
+    try {
+      const wallet = await extractAndValidateWalletFromSignature({
+        userId: user.id,
+        attestationSignature: attestationSignature ?? null,
+        context: "xp-renewal-commit",
+      });
+      if (!wallet) {
+        return res.status(400).json({
+          success: false,
+          attestationUid: null,
+          attestationScanUrl: null,
+          error: "Wallet is required",
+        });
+      }
+      recipient = wallet;
+    } catch (error: any) {
+      const status = error.message?.includes("required") ? 400 : 403;
+      return res.status(status).json({
+        success: false,
+        attestationUid: null,
+        attestationScanUrl: null,
+        error: error.message,
+      });
+    }
 
     const supabase = createAdminClient();
 
@@ -87,13 +109,13 @@ export default async function handler(
         "id, user_id, status, attestation_uid, lock_address, transaction_hash",
       )
       .eq("id", renewalAttemptId)
-      .eq("user_id", privy.id)
+      .eq("user_id", user.id)
       .maybeSingle();
 
     if (attemptError) {
       log.error("Failed to fetch renewal attempt for attestation commit", {
         renewalAttemptId,
-        userId: privy.id,
+        userId: user.id,
         error: attemptError,
       });
       return res.status(500).json({
@@ -223,12 +245,12 @@ export default async function handler(
       .from("subscription_renewal_attempts")
       .update({ attestation_uid: uid })
       .eq("id", renewalAttemptId)
-      .eq("user_id", privy.id);
+      .eq("user_id", user.id);
 
     if (updateError) {
       log.error("Failed to persist renewal attestation UID", {
         renewalAttemptId,
-        userId: privy.id,
+        userId: user.id,
         uid,
         error: updateError,
       });

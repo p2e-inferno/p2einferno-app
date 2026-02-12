@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { issueAdminSession, setAdminCookie } from '@/lib/auth/admin-session';
-import { getPrivyUserFromNextRequest, getUserWalletAddresses } from '@/lib/auth/privy';
+import { getPrivyUserFromNextRequest, getUserWalletAddresses, extractAndValidateWalletFromHeader } from '@/lib/auth/privy';
 import { checkMultipleWalletsForAdminKey, checkDevelopmentAdminAddress } from '@/lib/auth/admin-key-checker';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_SESSION_TTL_SECONDS, ADMIN_RPC_TIMEOUT_MS } from '@/lib/app-config/admin';
@@ -95,7 +95,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
-    const primaryWallet = walletAddresses[0];
+    // Extract active wallet from X-Active-Wallet header (sent by useSmartWalletSelection on client)
+    // This ensures session is created with the user's currently selected wallet
+    // REQUIRED - fail fast if header not provided to prevent silent wallet mismatches
+    let primaryWallet: string;
+    try {
+      const headerWallet = await extractAndValidateWalletFromHeader({
+        userId: user.id,
+        activeWalletHeader: req.headers.get('x-active-wallet') || undefined,
+        context: 'admin-session',
+        required: true, // No fallback - client must send the header
+      });
+
+      if (!headerWallet) {
+        return NextResponse.json({ error: 'No valid wallet found' }, { status: 400 });
+      }
+
+      primaryWallet = headerWallet;
+    } catch (error: any) {
+      const status = error.message?.includes('required') ? 400 : 403;
+      log.error('Wallet validation failed for admin session', { error: error.message });
+      return NextResponse.json({ error: error.message }, { status });
+    }
+
     const { token, exp } = await issueAdminSession({ did: user.id, wallet: primaryWallet, roles: ['admin'], locks: adminLockAddress ? [adminLockAddress] : [] }, ADMIN_SESSION_TTL_SECONDS);
 
     const response = NextResponse.json({ ok: true, exp }, { status: 200 });

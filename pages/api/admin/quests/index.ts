@@ -37,7 +37,7 @@ async function getQuests(res: NextApiResponse, supabase: any) {
     const { data: questsData, error: questsError } = await supabase
       .from("quests")
       .select("*, quest_tasks(*)")
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: true });
 
     if (questsError) throw questsError;
 

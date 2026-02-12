@@ -43,9 +43,10 @@ export const usePrivyWriteWallet = (): ConnectedWallet | null => {
       }
 
       const match = findMatchingWallet((candidate as any)?.address, wallets);
-      if (match) return match;
+      if (match && hasPrivyWalletMethods(match)) return match;
     }
 
-    return wallets[0] ?? null;
+    const firstPrivyWallet = wallets.find((w) => hasPrivyWalletMethods(w));
+    return firstPrivyWallet ?? null;
   }, [smartWallet, wallets]);
 };

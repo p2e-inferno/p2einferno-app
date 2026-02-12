@@ -32,6 +32,7 @@ const getPrivyClient = () => {
  */
 export async function getUserWalletAddresses(
   userId: string,
+  options?: { allowEmptyOnError?: boolean },
 ): Promise<string[]> {
   try {
     const privy = getPrivyClient();
@@ -61,12 +62,146 @@ export async function getUserWalletAddresses(
 
     return walletAddresses;
   } catch (error) {
+    const allowEmptyOnError = options?.allowEmptyOnError ?? true;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+
+    if (!allowEmptyOnError && isNetworkError(error)) {
+      throw new PrivyUnavailableError(
+        "Privy API unavailable while fetching wallet addresses",
+        { userId, error: errorMessage },
+      );
+    }
+
     log.warn(
       "Error fetching user wallet addresses from Privy API, falling back to empty array",
-      { error: error instanceof Error ? error.message : error },
+      { error: errorMessage },
     );
     return [];
   }
+}
+
+/**
+ * Validate that a wallet address belongs to a user's linked accounts
+ * Shared validation logic for wallet ownership verification across all server-side flows
+ */
+export async function validateWalletOwnership(
+  userId: string,
+  walletAddress: string,
+  context: string,
+): Promise<string> {
+  const userWalletAddresses = await getUserWalletAddresses(userId, {
+    allowEmptyOnError: false,
+  });
+
+  const walletBelongsToUser = userWalletAddresses.some(
+    (addr) => addr.toLowerCase() === walletAddress.toLowerCase(),
+  );
+
+  if (!walletBelongsToUser) {
+    log.error("Wallet address does not belong to user", {
+      context,
+      userId,
+      walletAddress,
+      userWallets: userWalletAddresses,
+    });
+    throw new AuthorizationError(
+      "Wallet address does not belong to your account",
+    );
+  }
+
+  log.info("Wallet validated for user", {
+    context,
+    userId,
+    walletAddress,
+    totalLinkedWallets: userWalletAddresses.length,
+  });
+
+  return walletAddress;
+}
+
+export class AuthorizationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthorizationError";
+  }
+}
+
+export class PrivyUnavailableError extends Error {
+  public readonly context?: Record<string, unknown>;
+
+  constructor(message: string, context?: Record<string, unknown>) {
+    super(message);
+    this.name = "PrivyUnavailableError";
+    this.context = context;
+  }
+}
+
+/**
+ * Extract and validate wallet address from X-Active-Wallet header
+ *
+ * Multi-wallet support for non-attestation flows:
+ * - Extracts the wallet address from the X-Active-Wallet header (sent by useSmartWalletSelection)
+ * - Validates this wallet belongs to the authenticated user's linked accounts
+ * - Returns the validated wallet address for use in sessions, grants, etc.
+ *
+ * This complements extractAndValidateWalletFromSignature() for flows that don't use attestations
+ * (e.g., admin session creation, grants without attestations, etc.)
+ *
+ * @param params - Validation parameters
+ * @param params.userId - Privy user ID (e.g., "did:privy:...")
+ * @param params.activeWalletHeader - Value from X-Active-Wallet header (or null if not provided)
+ * @param params.context - Context for logging (e.g., "admin-session", "grant-key")
+ * @param params.required - Whether to throw error if header not provided (default: true)
+ *
+ * @returns Validated wallet address
+ * @throws Error if required but header not provided or wallet doesn't belong to user
+ *
+ * @example
+ * const userWalletAddress = await extractAndValidateWalletFromHeader({
+ *   userId: authUser.id,
+ *   activeWalletHeader: req.headers['x-active-wallet'],
+ *   context: "admin-session",
+ *   required: true
+ * });
+ */
+export async function extractAndValidateWalletFromHeader(params: {
+  userId: string;
+  activeWalletHeader: string | null | undefined;
+  context: string;
+  required?: boolean;
+}): Promise<string | null> {
+  const { userId, activeWalletHeader, context, required = true } = params;
+
+  // If header not provided
+  if (!activeWalletHeader) {
+    if (required) {
+      log.error("X-Active-Wallet header required but not provided", {
+        context,
+        userId,
+      });
+      throw new Error("X-Active-Wallet header is required");
+    }
+    log.debug("X-Active-Wallet header not provided, skipping validation", {
+      context,
+    });
+    return null;
+  }
+
+  // Extract wallet address from header
+  const headerWallet = activeWalletHeader.trim();
+
+  // Basic format validation
+  if (!headerWallet.match(/^0x[a-fA-F0-9]{40}$/)) {
+    log.error("Invalid wallet address format in X-Active-Wallet header", {
+      context,
+      userId,
+      headerWallet,
+    });
+    throw new Error("Invalid wallet address format");
+  }
+
+  // Validate wallet ownership using shared helper
+  return await validateWalletOwnership(userId, headerWallet, context);
 }
 
 /**
@@ -185,15 +320,23 @@ export async function getPrivyUser(
 
     // If wallet addresses are requested, fetch them
     if (includeWallets) {
-      const walletAddresses = await getUserWalletAddresses(claims.userId);
-      return {
-        ...baseUser,
-        walletAddresses,
-        wallet:
-          walletAddresses.length > 0
-            ? { address: walletAddresses[0] }
-            : undefined,
-      };
+      try {
+        const walletAddresses = await getUserWalletAddresses(claims.userId);
+        return {
+          ...baseUser,
+          walletAddresses,
+          wallet:
+            walletAddresses.length > 0
+              ? { address: walletAddresses[0] }
+              : undefined,
+        };
+      } catch (error) {
+        log.error("Failed to fetch wallet addresses for Privy user", {
+          userId: claims.userId,
+          error,
+        });
+        throw error;
+      }
     }
 
     // The claims include userId (Privy DID). Return minimal user object

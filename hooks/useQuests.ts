@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy } from "@privy-io/react-auth";
 import { toast } from "react-hot-toast";
 import { getLogger } from "@/lib/utils/logger";
 import {
@@ -9,6 +9,7 @@ import {
 } from "@/lib/quests/client";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import type {
   Quest,
   UserQuestProgress,
@@ -19,7 +20,7 @@ const log = getLogger("hooks:useQuests");
 
 export const useQuests = () => {
   const { user, ready, authenticated } = usePrivy();
-  const { wallets } = useWallets();
+  const selectedWallet = useSmartWalletSelection();
   const { signAttestation, isSigning } = useGaslessAttestation();
   const [quests, setQuests] = useState<Quest[]>([]);
   const [userProgress, setUserProgress] = useState<UserQuestProgress[]>([]);
@@ -186,11 +187,10 @@ export const useQuests = () => {
         let proofCancelled = false;
 
         if (isEASEnabled() && data.attestationRequired) {
-          const wallet = wallets?.[0];
-          const userAddress = wallet?.address;
-          if (!userAddress) {
+          if (!selectedWallet?.address) {
             throw new Error("Wallet not connected");
           }
+          const userAddress = selectedWallet.address;
 
           const quest = quests.find((q) => q.id === questId);
           const questLockAddress =
@@ -282,7 +282,7 @@ export const useQuests = () => {
       user?.id,
       authenticated,
       fetchUserProgress,
-      wallets,
+      selectedWallet?.address,
       quests,
       signAttestation,
     ],
@@ -301,11 +301,10 @@ export const useQuests = () => {
         let attestationSignature: any = null;
 
         if (easEnabled) {
-          const wallet = wallets?.[0];
-          const userAddress = wallet?.address;
-          if (!userAddress) {
+          if (!selectedWallet?.address) {
             throw new Error("Wallet not connected");
           }
+          const userAddress = selectedWallet.address;
 
           const quest = quests.find((q) => q.id === questId);
           const questLockAddress =
@@ -388,7 +387,7 @@ export const useQuests = () => {
       user?.id,
       authenticated,
       fetchUserProgress,
-      wallets,
+      selectedWallet?.address,
       quests,
       signAttestation,
     ],

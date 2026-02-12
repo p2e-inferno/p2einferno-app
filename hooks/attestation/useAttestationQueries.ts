@@ -4,7 +4,6 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { useWallets } from "@privy-io/react-auth";
 import {
   getUserAttestations,
   getAttestationsBySchema,
@@ -14,6 +13,7 @@ import {
   getSchemaStatistics,
 } from "@/lib/attestation";
 import { getLogger } from "@/lib/utils/logger";
+import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("hooks:attestation:queries");
 
@@ -57,8 +57,8 @@ export const useUserAttestations = (
     autoRefresh?: boolean;
   },
 ) => {
-  const { wallets } = useWallets();
-  const address = userAddress || wallets[0]?.address;
+  const selectedWallet = useSmartWalletSelection();
+  const address = userAddress || selectedWallet?.address;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: attestationQueryKeys.userAttestations(address, {
@@ -145,8 +145,8 @@ export const useSchemaAttestations = (schemaUid: string, limit?: number) => {
  * console.log(stats.dailyCheckinStreak); // 5
  */
 export const useUserAttestationStats = (userAddress?: string) => {
-  const { wallets } = useWallets();
-  const address = userAddress || wallets[0]?.address;
+  const selectedWallet = useSmartWalletSelection();
+  const address = userAddress || selectedWallet?.address;
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: attestationQueryKeys.userStats(address),

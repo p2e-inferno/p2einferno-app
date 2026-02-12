@@ -12,7 +12,10 @@
 
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  extractAndValidateWalletFromHeader,
+} from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
@@ -23,7 +26,6 @@ import {
   hasValidKey,
 } from "@/lib/blockchain/services/grant-key-service";
 import { getKeyManagersForContext } from "@/lib/helpers/key-manager-utils";
-import { getUserPrimaryWallet } from "@/lib/quests/prerequisite-checker";
 import { ethers } from "ethers";
 import type { Address } from "viem";
 import { getReadOnlyProvider } from "@/lib/blockchain/provider";
@@ -31,7 +33,10 @@ import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { evaluateTrialEligibility } from "@/lib/quests/trial-eligibility";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
-import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:quests:get-trial");
@@ -100,6 +105,19 @@ export default async function handler(
       });
     }
     userId = authUser.id;
+
+    // For initial grant path (no attestationSignature), validate X-Active-Wallet header early
+    // This fails fast before expensive DB queries if header is missing
+    if (!attestationSignature) {
+      const activeWalletHeader = req.headers["x-active-wallet"];
+      if (!activeWalletHeader) {
+        return res.status(400).json({
+          success: false,
+          message: "X-Active-Wallet header is required",
+          error: "X-Active-Wallet header is required",
+        });
+      }
+    }
 
     log.info("Trial claim attempt initiated", {
       userId,
@@ -204,22 +222,71 @@ export default async function handler(
       });
     }
 
-    // Get user's wallet address
-    const userWalletAddress = await getUserPrimaryWallet(supabase, userId!);
-    if (!userWalletAddress || !isValidEthereumAddress(userWalletAddress)) {
+    // Get and validate user's wallet address
+    // Two-path approach: extract from attestation signature or X-Active-Wallet header
+    let userWalletAddress: string;
+
+    if (attestationSignature) {
+      // Commit path: Extract wallet from attestation signature
+      try {
+        const wallet = await extractAndValidateWalletFromSignature({
+          userId: userId!,
+          attestationSignature,
+          context: "quest-trial-claim",
+        });
+        if (!wallet) {
+          return res.status(400).json({
+            success: false,
+            message: "Wallet is required",
+            error: "Wallet is required",
+          });
+        }
+        userWalletAddress = wallet;
+      } catch (error: any) {
+        const status = error.message?.includes("required") ? 400 : 403;
+        return res.status(status).json({
+          success: false,
+          message: error.message,
+          error: error.message,
+        });
+      }
+    } else {
+      // Initial grant path: Use X-Active-Wallet header
+      try {
+        const rawHeader = req.headers["x-active-wallet"];
+        const normalizedHeader = Array.isArray(rawHeader)
+          ? rawHeader[0]
+          : rawHeader;
+        const headerWallet = await extractAndValidateWalletFromHeader({
+          userId: userId!,
+          activeWalletHeader: normalizedHeader,
+          context: "quest-trial-grant",
+          required: true,
+        });
+        if (!headerWallet) {
+          return res.status(400).json({
+            success: false,
+            message: "X-Active-Wallet header is required",
+            error: "X-Active-Wallet header is required",
+          });
+        }
+        userWalletAddress = headerWallet;
+      } catch (error: any) {
+        const status = error.message?.includes("required") ? 400 : 403;
+        return res.status(status).json({
+          success: false,
+          message: error.message,
+          error: error.message,
+        });
+      }
+    }
+
+    if (!isValidEthereumAddress(userWalletAddress)) {
       log.error("Invalid user wallet address", { userId, userWalletAddress });
       return res.status(400).json({
         success: false,
-        message: "Wallet not found",
-        error: "No valid wallet address found for your account",
-      });
-    }
-
-    if (isEASEnabled() && !attestationSignature) {
-      return res.status(400).json({
-        success: false,
-        message: "Attestation signature is required",
-        error: "Attestation signature is required",
+        message: "Invalid wallet address",
+        error: "Invalid wallet address",
       });
     }
 

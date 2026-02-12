@@ -13,7 +13,10 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
-import { handleGaslessAttestation } from "@/lib/attestation/api/helpers";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
 import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
 import {
@@ -107,7 +110,45 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const recipient = withdrawal.wallet_address;
+    // Extract and validate wallet from attestation signature
+    let userWallet: string;
+    try {
+      const extractedWallet = await extractAndValidateWalletFromSignature({
+        userId: user.id,
+        attestationSignature,
+        context: "dg-withdrawal-commit",
+      });
+
+      if (!extractedWallet) {
+        return NextResponse.json(
+          { success: false, error: "Failed to extract wallet from signature" },
+          { status: 400 },
+        );
+      }
+
+      userWallet = extractedWallet;
+    } catch (error: any) {
+      const status = error.message?.includes("required") ? 400 : 403;
+      return NextResponse.json(
+        { success: false, error: error.message },
+        { status },
+      );
+    }
+
+    // Validate extracted wallet matches the withdrawal's wallet address
+    const expectedWallet = withdrawal.wallet_address;
+    if (
+      !expectedWallet ||
+      userWallet.toLowerCase() !== expectedWallet.toLowerCase()
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Attestation wallet does not match withdrawal wallet",
+        },
+        { status: 400 },
+      );
+    }
 
     const decoded = await decodeAttestationDataFromDb({
       supabase,
@@ -163,7 +204,7 @@ export async function POST(req: NextRequest) {
     const attestationResult = await handleGaslessAttestation({
       signature: attestationSignature,
       schemaKey: "dg_withdrawal",
-      recipient,
+      recipient: userWallet,
       gracefulDegrade: true,
     });
 

@@ -10,6 +10,7 @@ import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalle
 import { useReadContract, useWriteContract } from "wagmi";
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
 import { USER_STAGE_LABELS } from "@/lib/blockchain/shared/vendor-constants";
+import type { StageConfigStruct, UserStateStruct } from "@/lib/blockchain/shared/vendor-types";
 
 const VENDOR_ADDRESS = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
 
@@ -21,15 +22,6 @@ export interface UserState {
   dailySoldAmount: bigint;
   dailyWindowStart: bigint;
 }
-
-type UserStateStruct = {
-  stage: number;
-  points: bigint;
-  fuel: bigint;
-  lastStage3MaxSale: bigint;
-  dailySoldAmount: bigint;
-  dailyWindowStart: bigint;
-};
 
 export function useDGProfile() {
   const { user } = useUser();
@@ -82,17 +74,6 @@ export function useDGProfile() {
     args: [nextStage],
     query: { enabled: !isMaxStage },
   });
-
-  type StageConfigStruct = {
-    burnAmount: bigint;
-    upgradePointsThreshold: bigint;
-    upgradeFuelThreshold: bigint;
-    fuelRate: bigint;
-    pointsAwarded: bigint;
-    qualifyingBuyThreshold: bigint;
-    maxSellBps: bigint;
-    dailyLimitMultiplier: bigint;
-  };
 
   const nextStageConfig = nextStageConfigRaw as StageConfigStruct | undefined;
 
