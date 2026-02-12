@@ -43,7 +43,7 @@ export function Hero() {
           <br />
           Quests & Rewards
         </h1>
-        <h2 className="text-xl md:text-2xl lg:text-3xl font-bold font-heading mb-6 text-flame-yellow">
+        <h2 className="text-lg md:text-2xl lg:text-3xl font-bold font-heading mb-6 text-flame-yellow">
           Become Web3.0 and AI Proficient in Weeks.
         </h2>
         <p className="max-w-3xl mx-auto text-base md:text-lg text-faded-grey mb-8">
