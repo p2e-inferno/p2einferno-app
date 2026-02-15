@@ -5,6 +5,7 @@ import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
 import { getLogger } from '@/lib/utils/logger';
 import { ADMIN_CACHE_TAGS } from '@/lib/app-config/admin';
 import { validateVendorTaskConfig } from '@/lib/quests/vendor-task-config';
+import { broadcastTelegramNotification } from '@/lib/notifications/telegram';
 
 const log = getLogger('api:quests');
 
@@ -223,6 +224,18 @@ export async function POST(req: NextRequest) {
     if (fetchError) throw fetchError;
 
     invalidateQuestCache({ id: quest.id });
+
+    // Fire-and-forget: broadcast Telegram notification for active quests
+    if (is_active) {
+      broadcastTelegramNotification(
+        supabase,
+        'New quest available!',
+        `"${title}" is now live — check it out and start earning rewards.`,
+        `/lobby/quests/${quest.id}`,
+        'quest_created',
+      ).catch((err) => log.warn('Telegram broadcast failed', { questId: quest.id, error: err }));
+    }
+
     return NextResponse.json({ success: true, data: fullQuest, quest: fullQuest }, { status: 201 });
   } catch (error: any) {
     const errorMessage = error?.message || String(error);

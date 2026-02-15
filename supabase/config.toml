@@ -272,6 +272,11 @@ redirect_uri = ""
 # or any other third-party OIDC providers.
 url = ""
 
+[functions.send-telegram-notification]
+# Called by pg_net from database trigger - no user context, no JWT available.
+# Low-risk: can only send Telegram messages, no DB access.
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 inspector_port = 54327
