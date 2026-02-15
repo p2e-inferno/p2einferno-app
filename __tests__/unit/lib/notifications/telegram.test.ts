@@ -268,4 +268,29 @@ describe("broadcastTelegramNotification", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("sends only to TELEGRAM_TEST_CHAT_ID when set (dev mode)", async () => {
+    process.env.TELEGRAM_TEST_CHAT_ID = "99999";
+    const supabase = mockSupabase([
+      { telegram_chat_id: 111 },
+      { telegram_chat_id: 222 },
+    ]);
+
+    await broadcastTelegramNotification(
+      supabase,
+      "New quest!",
+      "Check it out",
+      "/lobby/quests/abc",
+    );
+
+    // Should send exactly one message to the test chat, not query DB
+    expect(supabase.from).not.toHaveBeenCalled();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: expect.stringContaining('"chat_id":99999'),
+      }),
+    );
+  });
 });

@@ -108,6 +108,17 @@ export async function broadcastTelegramNotification(
   type = "quest_created",
 ): Promise<void> {
   try {
+    const text = formatNotificationMessage(title, message, link, type);
+
+    // In development, only send to a single test chat to avoid spamming real users
+    const testChatId = process.env.TELEGRAM_TEST_CHAT_ID;
+    if (testChatId) {
+      log.info("Dev mode: sending broadcast to test chat only", { testChatId });
+      const result = await sendTelegramMessage(Number(testChatId), text);
+      log.info("Dev broadcast complete", { ok: result.ok, error: result.error });
+      return;
+    }
+
     const BROADCAST_LIMIT = 10000;
     const { data: users, error } = await supabase
       .from("user_profiles")
@@ -132,8 +143,6 @@ export async function broadcastTelegramNotification(
       log.info("No Telegram-enabled users for broadcast");
       return;
     }
-
-    const text = formatNotificationMessage(title, message, link, type);
 
     let sent = 0;
     let failed = 0;
