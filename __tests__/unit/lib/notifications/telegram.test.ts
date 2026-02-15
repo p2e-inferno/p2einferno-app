@@ -70,14 +70,14 @@ describe("formatNotificationMessage", () => {
     expect(result).not.toContain("View in app");
   });
 
-  it("HTML-escapes title and message content", () => {
+  it("HTML-escapes title and message content including double quotes", () => {
     const result = formatNotificationMessage(
-      "Title <script>",
+      'Title <script> "quoted"',
       "Message & stuff > 1",
       null,
       "task_completed",
     );
-    expect(result).toContain("Title &lt;script&gt;");
+    expect(result).toContain("Title &lt;script&gt; &quot;quoted&quot;");
     expect(result).toContain("Message &amp; stuff &gt; 1");
     expect(result).not.toContain("<script>");
   });

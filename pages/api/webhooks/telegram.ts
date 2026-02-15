@@ -110,18 +110,21 @@ async function handleStartCommand(
       return res.status(200).json({ ok: true });
     }
 
-    // Mark token as used
-    const { error: markError } = await supabase
+    // Mark token as used — .select().single() returns error when 0 rows updated,
+    // catching the race condition where a concurrent request already claimed this token.
+    const { data: markData, error: markError } = await supabase
       .from("telegram_activation_tokens")
       .update({ used_at: new Date().toISOString() })
       .eq("id", tokenRecord.id)
-      .is("used_at", null); // Prevent race condition: only update if still unused
+      .is("used_at", null)
+      .select("id")
+      .single();
 
-    if (markError) {
-      log.error("Failed to mark token as used", { error: markError });
+    if (markError || !markData) {
+      log.warn("Token already claimed (race condition or DB error)", { error: markError });
       await sendTelegramMessage(
         chatId,
-        "Something went wrong. Please try again from your profile page.",
+        "This activation link has already been used. If you need to re-enable notifications, visit your profile page.",
       );
       return res.status(200).json({ ok: true });
     }

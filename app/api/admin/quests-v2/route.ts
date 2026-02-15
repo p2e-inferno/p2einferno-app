@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
         'New quest available!',
         `"${title}" is now live — check it out and start earning rewards.`,
         `/lobby/quests/${quest.id}`,
-        'new_quest',
+        'quest_created',
       ).catch((err) => log.warn('Telegram broadcast failed', { questId: quest.id, error: err }));
     }
 

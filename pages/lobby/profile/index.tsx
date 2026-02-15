@@ -243,9 +243,8 @@ const ProfilePage = () => {
    * Wallet unlinking is deferred to a confirmation modal.
    */
   const handleUnlinkAccount = async (type: string, address?: string) => {
-    if (!address) return;
-
     if (type === "wallet") {
+      if (!address) return;
       const numAccounts = user?.linkedAccounts?.length ?? 0;
       if (numAccounts <= 1) {
         toast.error("Cannot unlink your only account");
@@ -258,6 +257,7 @@ const ProfilePage = () => {
     try {
       switch (type) {
         case "email":
+          if (!address) return;
           await unlinkEmail(address);
           toast.success("Email unlinked successfully");
           break;

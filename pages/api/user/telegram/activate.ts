@@ -76,11 +76,15 @@ async function handlePost(
 
   try {
     // Invalidate any existing unused tokens for this user
-    await supabase
+    const { error: invalidateError } = await supabase
       .from("telegram_activation_tokens")
       .update({ used_at: new Date().toISOString() })
       .eq("user_profile_id", profile.id)
       .is("used_at", null);
+
+    if (invalidateError) {
+      log.warn("Failed to invalidate old tokens", { error: invalidateError });
+    }
 
     // Generate a cryptographically secure token
     const token = crypto.randomBytes(32).toString("hex");

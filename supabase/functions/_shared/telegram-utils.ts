@@ -64,7 +64,8 @@ function escapeHtml(text: string): string {
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 /**
@@ -86,8 +87,9 @@ export function formatNotificationMessage(
 
   if (link) {
     const fullUrl = link.startsWith("http") ? link : `${baseUrl}${link}`;
+    const safeUrl = escapeHtml(fullUrl);
     lines.push("");
-    lines.push(`\uD83D\uDD17 <a href="${fullUrl}">View in app</a>`);
+    lines.push(`\uD83D\uDD17 <a href="${safeUrl}">View in app</a>`);
   }
 
   return lines.join("\n");

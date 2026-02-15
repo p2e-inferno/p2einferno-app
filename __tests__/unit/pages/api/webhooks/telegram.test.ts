@@ -155,8 +155,10 @@ describe("/start <token> - happy path", () => {
     const mockEqToken = jest.fn().mockReturnValue({ single: mockSingle });
     const mockSelectToken = jest.fn().mockReturnValue({ eq: mockEqToken });
 
-    // Mark token used: from().update().eq().is()
-    const mockIs = jest.fn().mockResolvedValue({ error: null });
+    // Mark token used: from().update().eq().is().select().single()
+    const mockMarkSingle = jest.fn().mockResolvedValue({ data: { id: tokenRecord.id }, error: null });
+    const mockMarkSelect = jest.fn().mockReturnValue({ single: mockMarkSingle });
+    const mockIs = jest.fn().mockReturnValue({ select: mockMarkSelect });
     const mockEqMark = jest.fn().mockReturnValue({ is: mockIs });
     const mockUpdateToken = jest.fn().mockReturnValue({ eq: mockEqMark });
 
@@ -300,7 +302,9 @@ describe("/start <token> - error cases", () => {
     const mockSelectToken = jest.fn().mockReturnValue({ eq: mockEqToken });
 
     // Mark used fails
-    const mockIs = jest.fn().mockResolvedValue({ error: { message: "update failed" } });
+    const mockMarkSingle = jest.fn().mockResolvedValue({ data: null, error: { message: "update failed" } });
+    const mockMarkSelect = jest.fn().mockReturnValue({ single: mockMarkSingle });
+    const mockIs = jest.fn().mockReturnValue({ select: mockMarkSelect });
     const mockEqMark = jest.fn().mockReturnValue({ is: mockIs });
     const mockUpdateToken = jest.fn().mockReturnValue({ eq: mockEqMark });
 
@@ -319,7 +323,7 @@ describe("/start <token> - error cases", () => {
     expect(res._getStatusCode()).toBe(200);
     expect(mockSendMessage).toHaveBeenCalledWith(
       12345,
-      expect.stringContaining("Something went wrong"),
+      expect.stringContaining("already been used"),
     );
   });
 
@@ -337,7 +341,9 @@ describe("/start <token> - error cases", () => {
     const mockSelectToken = jest.fn().mockReturnValue({ eq: mockEqToken });
 
     // Mark used succeeds
-    const mockIs = jest.fn().mockResolvedValue({ error: null });
+    const mockMarkSingle = jest.fn().mockResolvedValue({ data: { id: "token-uuid" }, error: null });
+    const mockMarkSelect = jest.fn().mockReturnValue({ single: mockMarkSingle });
+    const mockIs = jest.fn().mockReturnValue({ select: mockMarkSelect });
     const mockEqMark = jest.fn().mockReturnValue({ is: mockIs });
     const mockUpdateToken = jest.fn().mockReturnValue({ eq: mockEqMark });
 
@@ -382,7 +388,9 @@ describe("/start <token> - edge cases", () => {
     const mockEqToken = jest.fn().mockReturnValue({ single: mockSingle });
     const mockSelectToken = jest.fn().mockReturnValue({ eq: mockEqToken });
 
-    const mockIs = jest.fn().mockResolvedValue({ error: null });
+    const mockMarkSingle = jest.fn().mockResolvedValue({ data: { id: "token-uuid" }, error: null });
+    const mockMarkSelect = jest.fn().mockReturnValue({ single: mockMarkSingle });
+    const mockIs = jest.fn().mockReturnValue({ select: mockMarkSelect });
     const mockEqMark = jest.fn().mockReturnValue({ is: mockIs });
     const mockUpdateToken = jest.fn().mockReturnValue({ eq: mockEqMark });
 

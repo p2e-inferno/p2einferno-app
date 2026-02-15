@@ -15,9 +15,18 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-# Load env vars
-TELEGRAM_BOT_TOKEN="$(grep '^TELEGRAM_BOT_TOKEN=' "$ENV_FILE" | cut -d'=' -f2-)"
-TELEGRAM_WEBHOOK_SECRET="$(grep '^TELEGRAM_WEBHOOK_SECRET=' "$ENV_FILE" | cut -d'=' -f2-)"
+# Load env vars (strip optional surrounding quotes and whitespace)
+strip_quotes() {
+  local val="$1"
+  val="${val#"${val%%[![:space:]]*}"}"   # trim leading whitespace
+  val="${val%"${val##*[![:space:]]}"}"   # trim trailing whitespace
+  val="${val#\"}" ; val="${val%\"}"       # strip double quotes
+  val="${val#\'}" ; val="${val%\'}"       # strip single quotes
+  printf '%s' "$val"
+}
+
+TELEGRAM_BOT_TOKEN="$(strip_quotes "$(grep '^TELEGRAM_BOT_TOKEN=' "$ENV_FILE" | cut -d'=' -f2-)")"
+TELEGRAM_WEBHOOK_SECRET="$(strip_quotes "$(grep '^TELEGRAM_WEBHOOK_SECRET=' "$ENV_FILE" | cut -d'=' -f2-)")"
 
 if [ -z "$TELEGRAM_BOT_TOKEN" ]; then
   echo "Error: TELEGRAM_BOT_TOKEN not found in .env.local"
