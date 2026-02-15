@@ -403,10 +403,17 @@ export default function QuestForm({
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
-      return quest.quest_tasks.map((task, index) => ({
+      const sortedTasks = [...quest.quest_tasks].sort(
+        (a, b) =>
+          (a.order_index ?? Number.MAX_SAFE_INTEGER) -
+            (b.order_index ?? Number.MAX_SAFE_INTEGER) ||
+          (a.created_at || "").localeCompare(b.created_at || "") ||
+          a.id.localeCompare(b.id),
+      );
+
+      return sortedTasks.map((task) => ({
         ...task,
         tempId: `existing-${task.id}`,
-        order_index: index,
       }));
     }
     return [];

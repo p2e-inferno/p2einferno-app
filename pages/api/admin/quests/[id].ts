@@ -8,6 +8,22 @@ import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 
 const log = getLogger("api:admin:quests:[id]");
 
+function sortQuestTasks<T extends { quest_tasks?: any[] }>(quest: T): T {
+  const tasks = Array.isArray(quest?.quest_tasks) ? [...quest.quest_tasks] : [];
+  tasks.sort(
+    (a, b) =>
+      (a?.order_index ?? Number.MAX_SAFE_INTEGER) -
+        (b?.order_index ?? Number.MAX_SAFE_INTEGER) ||
+      String(a?.created_at || "").localeCompare(String(b?.created_at || "")) ||
+      String(a?.id || "").localeCompare(String(b?.id || "")),
+  );
+
+  return {
+    ...quest,
+    quest_tasks: tasks,
+  };
+}
+
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const { id } = req.query;
@@ -96,7 +112,7 @@ async function getQuest(
 
     return res.status(200).json({
       quest: {
-        ...quest,
+        ...sortQuestTasks(quest as any),
         stats: stats || null,
         pending_submissions: submissions || [],
       },
@@ -344,7 +360,7 @@ async function updateQuest(
 
       return res.status(200).json({
         success: true,
-        quest: updatedQuest,
+        quest: sortQuestTasks(updatedQuest as any),
       });
     }
 

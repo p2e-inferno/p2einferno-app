@@ -283,18 +283,27 @@ export default function AdminQuestsPage() {
 
               {/* Quest Tasks Preview */}
               <div className="flex flex-wrap gap-1 mb-3">
-                {quest.quest_tasks?.slice(0, 4).map((task) => (
-                  <div
-                    key={task.id}
-                    className="bg-gray-800 px-2 py-1 rounded-full text-xs text-gray-300 flex items-center gap-1"
-                  >
-                    <span>{getTaskTypeIcon(task.task_type)}</span>
-                    <span className="truncate max-w-20">{task.title}</span>
-                    {task.requires_admin_review && (
-                      <span className="text-orange-400">⚡</span>
-                    )}
-                  </div>
-                ))}
+                {[...(quest.quest_tasks || [])]
+                  .sort(
+                    (a, b) =>
+                      (a.order_index ?? Number.MAX_SAFE_INTEGER) -
+                        (b.order_index ?? Number.MAX_SAFE_INTEGER) ||
+                      (a.created_at || "").localeCompare(b.created_at || "") ||
+                      a.id.localeCompare(b.id),
+                  )
+                  .slice(0, 4)
+                  .map((task) => (
+                    <div
+                      key={task.id}
+                      className="bg-gray-800 px-2 py-1 rounded-full text-xs text-gray-300 flex items-center gap-1"
+                    >
+                      <span>{getTaskTypeIcon(task.task_type)}</span>
+                      <span className="truncate max-w-20">{task.title}</span>
+                      {task.requires_admin_review && (
+                        <span className="text-orange-400">⚡</span>
+                      )}
+                    </div>
+                  ))}
                 {quest.quest_tasks && quest.quest_tasks.length > 4 && (
                   <div className="bg-gray-800 px-2 py-1 rounded-full text-xs text-gray-400">
                     +{quest.quest_tasks.length - 4} more
@@ -434,18 +443,29 @@ export default function AdminQuestsPage() {
 
                     {/* Quest Tasks Preview */}
                     <div className="flex flex-wrap gap-2 mb-3">
-                      {quest.quest_tasks?.slice(0, 5).map((task) => (
-                        <div
-                          key={task.id}
-                          className="bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300 flex items-center gap-1"
-                        >
-                          <span>{getTaskTypeIcon(task.task_type)}</span>
-                          <span>{task.title}</span>
-                          {task.requires_admin_review && (
-                            <span className="text-orange-400">⚡</span>
-                          )}
-                        </div>
-                      ))}
+                      {[...(quest.quest_tasks || [])]
+                        .sort(
+                          (a, b) =>
+                            (a.order_index ?? Number.MAX_SAFE_INTEGER) -
+                              (b.order_index ?? Number.MAX_SAFE_INTEGER) ||
+                            (a.created_at || "").localeCompare(
+                              b.created_at || "",
+                            ) ||
+                            a.id.localeCompare(b.id),
+                        )
+                        .slice(0, 5)
+                        .map((task) => (
+                          <div
+                            key={task.id}
+                            className="bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-300 flex items-center gap-1"
+                          >
+                            <span>{getTaskTypeIcon(task.task_type)}</span>
+                            <span>{task.title}</span>
+                            {task.requires_admin_review && (
+                              <span className="text-orange-400">⚡</span>
+                            )}
+                          </div>
+                        ))}
                       {quest.quest_tasks && quest.quest_tasks.length > 5 && (
                         <div className="bg-gray-800 px-3 py-1 rounded-full text-xs text-gray-400">
                           +{quest.quest_tasks.length - 5} more

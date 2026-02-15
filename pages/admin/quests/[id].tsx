@@ -812,7 +812,7 @@ export default function QuestDetailsPage() {
           {/* Tasks Tab */}
           <TabsContent value="tasks" className="space-y-4">
             {quest.quest_tasks && quest.quest_tasks.length > 0 ? (
-              quest.quest_tasks
+              [...quest.quest_tasks]
                 .sort((a, b) => a.order_index - b.order_index)
                 .map((task, index) => (
                   <div

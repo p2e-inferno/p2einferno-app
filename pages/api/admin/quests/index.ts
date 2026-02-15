@@ -8,6 +8,22 @@ import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 
 const log = getLogger("api:admin:quests:index");
 
+function sortQuestTasks<T extends { quest_tasks?: any[] }>(quest: T): T {
+  const tasks = Array.isArray(quest?.quest_tasks) ? [...quest.quest_tasks] : [];
+  tasks.sort(
+    (a, b) =>
+      (a?.order_index ?? Number.MAX_SAFE_INTEGER) -
+        (b?.order_index ?? Number.MAX_SAFE_INTEGER) ||
+      String(a?.created_at || "").localeCompare(String(b?.created_at || "")) ||
+      String(a?.id || "").localeCompare(String(b?.id || "")),
+  );
+
+  return {
+    ...quest,
+    quest_tasks: tasks,
+  };
+}
+
 async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     const supabase = createAdminClient();
@@ -52,7 +68,7 @@ async function getQuests(res: NextApiResponse, supabase: any) {
     const questsWithStats = (questsData || []).map((quest: Quest) => {
       const stats = statsData?.find((s: any) => s.quest_id === quest.id);
       return {
-        ...quest,
+        ...sortQuestTasks(quest as any),
         stats: stats
           ? {
               total_users: stats.total_users || 0,
@@ -204,7 +220,7 @@ async function createQuest(
 
     if (fetchError) throw fetchError;
 
-    return res.status(201).json(fullQuest);
+    return res.status(201).json(sortQuestTasks(fullQuest as any));
   } catch (error: any) {
     log.error("Error creating quest:", error);
     return res
