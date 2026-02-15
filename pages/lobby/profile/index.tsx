@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { User, Mail, Wallet, Share2, Plus } from "lucide-react";
+import { User, Mail, Wallet, Share2, MessageCircle, Plus } from "lucide-react";
 import { toast } from "react-hot-toast";
 
 import { LobbyLayout } from "@/components/layouts/lobby-layout";
@@ -23,6 +23,7 @@ import { SubscriptionStatusCard } from "@/components/subscription";
 import { useWithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
+import { useTelegramNotifications } from "@/hooks/useTelegramNotifications";
 
 const log = getLogger("lobby:profile:index");
 
@@ -77,6 +78,7 @@ const ProfilePage = () => {
     isAvailable: isAddDGAvailable,
     isLoading: isAddDGLoading,
   } = useAddDGTokenToWallet();
+  const telegram = useTelegramNotifications();
 
   const [linkedAccounts, setLinkedAccounts] = useState<LinkedAccount[]>([]);
   const [linking, setLinking] = useState<string | null>(null);
@@ -171,10 +173,17 @@ const ProfilePage = () => {
         name: "Farcaster Account",
         description: "Connect with the Web3 social community",
       },
+      {
+        type: "telegram",
+        linked: telegram.enabled,
+        icon: <MessageCircle className="w-6 h-6" />,
+        name: "Telegram Notifications",
+        description: "Get instant quest updates via Telegram",
+      },
     ];
 
     setLinkedAccounts(accounts);
-  }, [user, wallets]);
+  }, [user, wallets, telegram.enabled]);
 
   // Update linked accounts when user data or available wallets change
   // updateLinkedAccounts already depends on [user, wallets], so we only need it in deps
@@ -213,6 +222,10 @@ const ProfilePage = () => {
           linkFarcaster();
           // Privy updates user.farcaster when complete, triggering useEffect
           setTimeout(() => setLinking(null), 2000);
+          break;
+        case "telegram":
+          await telegram.enable();
+          setLinking(null);
           break;
         default:
           toast.error("Cannot link this account type");
@@ -253,6 +266,9 @@ const ProfilePage = () => {
             await unlinkFarcaster(user.farcaster.fid);
             toast.success("Farcaster unlinked successfully");
           }
+          break;
+        case "telegram":
+          await telegram.disable();
           break;
         default:
           toast.error("Cannot unlink this account type");
