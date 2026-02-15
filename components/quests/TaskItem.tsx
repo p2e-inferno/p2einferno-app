@@ -18,6 +18,7 @@ import {
   Network,
   Upload,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Input } from "@/components/ui/input";
@@ -66,6 +67,9 @@ const getTaskIcon = (
       break;
     case "link_farcaster":
       specificIcon = <Share2 {...iconProps} />;
+      break;
+    case "link_telegram":
+      specificIcon = <MessageCircle {...iconProps} />;
       break;
     case "sign_tos":
       specificIcon = <FileSignature {...iconProps} />;

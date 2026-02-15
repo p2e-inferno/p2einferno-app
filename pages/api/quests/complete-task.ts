@@ -248,6 +248,29 @@ export default async function handler(
       };
     }
 
+    if (task?.task_type === "link_telegram") {
+      // Verify Telegram notifications are enabled via user_profiles (not Privy)
+      const { data: tgProfile, error: tgError } = await supabase
+        .from("user_profiles")
+        .select("telegram_chat_id, telegram_notifications_enabled")
+        .eq("privy_user_id", effectiveUserId)
+        .single();
+
+      if (
+        tgError ||
+        !tgProfile?.telegram_chat_id ||
+        !tgProfile?.telegram_notifications_enabled
+      ) {
+        return res.status(400).json({
+          error:
+            "Please enable Telegram notifications in your profile first.",
+        });
+      }
+      verificationData = {
+        telegramChatId: tgProfile.telegram_chat_id,
+      };
+    }
+
     // Complete the task (INSERT new or UPDATE existing for resubmission)
     let completionError;
 

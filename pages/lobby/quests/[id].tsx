@@ -199,6 +199,13 @@ const QuestDetailsPage = () => {
             result = { success: false, error: "Farcaster not linked" };
           }
           break;
+        case "link_telegram":
+          result = await completeQuestTaskRequest({
+            questId: questId as string,
+            taskId: task.id,
+            verificationData: {},
+          });
+          break;
         case "sign_tos":
           const signature = await signTOS();
           if (signature) {
