@@ -159,7 +159,8 @@ describe("sendTelegramMessage", () => {
 // ---------------------------------------------------------------------------
 describe("broadcastTelegramNotification", () => {
   function mockSupabase(users: { telegram_chat_id: number }[] | null, error: any = null) {
-    const mockNot = jest.fn().mockResolvedValue({ data: users, error });
+    const mockLimit = jest.fn().mockResolvedValue({ data: users, error });
+    const mockNot = jest.fn().mockReturnValue({ limit: mockLimit });
     const mockEq = jest.fn().mockReturnValue({ not: mockNot });
     const mockSelect = jest.fn().mockReturnValue({ eq: mockEq });
     const mockFrom = jest.fn().mockReturnValue({ select: mockSelect });

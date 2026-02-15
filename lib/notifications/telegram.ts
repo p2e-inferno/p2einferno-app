@@ -108,11 +108,20 @@ export async function broadcastTelegramNotification(
   type = "quest_created",
 ): Promise<void> {
   try {
+    const BROADCAST_LIMIT = 10000;
     const { data: users, error } = await supabase
       .from("user_profiles")
       .select("telegram_chat_id")
       .eq("telegram_notifications_enabled", true)
-      .not("telegram_chat_id", "is", null);
+      .not("telegram_chat_id", "is", null)
+      .limit(BROADCAST_LIMIT);
+
+    if (users && users.length >= BROADCAST_LIMIT) {
+      log.warn("Broadcast hit row limit — some users may not receive notifications", {
+        limit: BROADCAST_LIMIT,
+        returned: users.length,
+      });
+    }
 
     if (error) {
       log.error("Failed to query Telegram-enabled users", { error });
