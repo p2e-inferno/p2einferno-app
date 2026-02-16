@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Sets (or removes) the Telegram bot webhook using values from .env.local
 # Usage:
-#   ./scripts/setup-telegram-webhook.sh <ngrok-url>    # Register webhook
+#   ./scripts/setup-telegram-webhook.sh <ngrok-url>    # Register webhook (dev)
+#   ./scripts/setup-telegram-webhook.sh --production    # Register for production
 #   ./scripts/setup-telegram-webhook.sh --info          # Check current webhook
 #   ./scripts/setup-telegram-webhook.sh --remove        # Remove webhook
 
@@ -35,6 +36,25 @@ fi
 
 API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
 
+# --production: register production webhook
+if [ "${1:-}" = "--production" ]; then
+  if [ -z "$TELEGRAM_WEBHOOK_SECRET" ]; then
+    echo "Error: TELEGRAM_WEBHOOK_SECRET not found in .env.local"
+    exit 1
+  fi
+
+  WEBHOOK_URL="https://www.p2einferno.com/api/webhooks/telegram"
+  echo "Registering PRODUCTION webhook..."
+  echo "  URL: ${WEBHOOK_URL}"
+  echo ""
+
+  curl -s -X POST "${API}/setWebhook" \
+    -H 'Content-Type: application/json' \
+    -d "{\"url\":\"${WEBHOOK_URL}\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\",\"allowed_updates\":[\"message\"],\"drop_pending_updates\":true}" \
+    | python3 -m json.tool
+  exit 0
+fi
+
 # --info: show current webhook status
 if [ "${1:-}" = "--info" ]; then
   echo "Fetching webhook info..."
@@ -53,9 +73,10 @@ fi
 NGROK_URL="${1:-}"
 if [ -z "$NGROK_URL" ]; then
   echo "Usage:"
-  echo "  $0 <ngrok-url>    Register webhook"
-  echo "  $0 --info          Check current webhook"
-  echo "  $0 --remove        Remove webhook"
+  echo "  $0 <ngrok-url>       Register webhook (dev)"
+  echo "  $0 --production      Register production webhook"
+  echo "  $0 --info            Check current webhook"
+  echo "  $0 --remove          Remove webhook"
   exit 1
 fi
 
