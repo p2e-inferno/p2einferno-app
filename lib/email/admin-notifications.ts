@@ -7,6 +7,7 @@ import {
   getMilestoneSubmissionContext,
   getQuestSubmissionContext,
 } from "./helpers";
+import { sendAdminTelegramNotification } from "@/lib/notifications/telegram";
 
 const log = getLogger("email:admin-notifications");
 
@@ -70,6 +71,22 @@ export async function sendMilestoneReviewNotification(
     // Send with deduplication
     const adminEmail = getAdminReviewEmail();
     const dedupKey = `milestone_review_${submissionId}`;
+
+    // Telegram notification is intentionally outside email dedup: Telegram is
+    // idempotent (duplicate pings are harmless) and has no DB-backed dedup table.
+    // The email dedup safety net covers rare race conditions that don't warrant
+    // building separate Telegram dedup infrastructure.
+    sendAdminTelegramNotification(
+      "New Milestone Submission",
+      `${context.userName} submitted: ${context.taskTitle} (${context.submissionType})`,
+      reviewUrl,
+      "task_reviewed",
+    ).catch((err) =>
+      log.error("Failed to send admin Telegram notification", {
+        submissionId,
+        err,
+      }),
+    );
 
     const result = await sendEmailWithDedup(
       "admin_review_notification",
@@ -170,6 +187,19 @@ export async function sendQuestReviewNotification(
         userId,
       });
     }
+
+    // Telegram notification intentionally outside email dedup (see milestone path comment)
+    sendAdminTelegramNotification(
+      "New Quest Submission",
+      `${context.userName} submitted: ${context.taskTitle} (${context.submissionType})`,
+      reviewUrl,
+      "task_reviewed",
+    ).catch((err) =>
+      log.error("Failed to send admin Telegram notification", {
+        taskId,
+        err,
+      }),
+    );
 
     const result = await sendEmailWithDedup(
       "admin_review_notification",

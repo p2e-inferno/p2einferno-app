@@ -20,11 +20,11 @@ const TYPE_EMOJI: Record<string, string> = {
 };
 
 function escapeHtml(text: string): string {
+  // Telegram HTML only supports &lt; &gt; &amp; — no &quot;
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/>/g, "&gt;");
 }
 
 /**
@@ -176,5 +176,51 @@ export async function broadcastTelegramNotification(
     log.info("Broadcast complete", { sent, failed, total: users.length });
   } catch (error) {
     log.error("Broadcast failed", { error });
+  }
+}
+
+/**
+ * Send a Telegram notification to the admin chat for task review.
+ * Fire-and-forget: errors are logged but never thrown.
+ *
+ * Only sends if ADMIN_TELEGRAM_CHAT_ID is configured.
+ *
+ * @param title - Notification title (e.g., "New Quest Submission")
+ * @param message - Notification message (e.g., "User John submitted Task X")
+ * @param reviewUrl - Full URL to review the submission
+ * @param type - Notification type for emoji selection (defaults to 'task_reviewed')
+ * @returns Promise<boolean> - true if sent successfully, false otherwise
+ */
+export async function sendAdminTelegramNotification(
+  title: string,
+  message: string,
+  reviewUrl: string,
+  type = "task_reviewed",
+): Promise<boolean> {
+  const adminChatId = process.env.ADMIN_TELEGRAM_CHAT_ID;
+
+  // Skip silently if not configured
+  if (!adminChatId) {
+    log.debug("Admin Telegram notifications not configured (ADMIN_TELEGRAM_CHAT_ID missing)");
+    return false;
+  }
+
+  try {
+    const text = formatNotificationMessage(title, message, reviewUrl, type);
+    const result = await sendTelegramMessage(adminChatId, text);
+
+    if (result.ok) {
+      log.info("Admin Telegram notification sent", { title, type });
+      return true;
+    } else {
+      log.error("Failed to send admin Telegram notification", {
+        title,
+        error: result.error,
+      });
+      return false;
+    }
+  } catch (error) {
+    log.error("Exception in sendAdminTelegramNotification", { title, error });
+    return false;
   }
 }
