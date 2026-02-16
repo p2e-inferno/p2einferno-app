@@ -5,24 +5,9 @@ import { ensureAdminOrRespond } from "@/lib/auth/route-handlers/admin-guard";
 import { getLogger } from "@/lib/utils/logger";
 import { ADMIN_CACHE_TAGS } from "@/lib/app-config/admin";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
+import { sortQuestTasks } from "@/lib/quests/sort-tasks";
 
 const log = getLogger("api:quests:[questId]");
-
-function sortQuestTasks<T extends { quest_tasks?: any[] }>(quest: T): T {
-  const tasks = Array.isArray(quest?.quest_tasks) ? [...quest.quest_tasks] : [];
-  tasks.sort(
-    (a, b) =>
-      (a?.order_index ?? Number.MAX_SAFE_INTEGER) -
-        (b?.order_index ?? Number.MAX_SAFE_INTEGER) ||
-      String(a?.created_at || "").localeCompare(String(b?.created_at || "")) ||
-      String(a?.id || "").localeCompare(String(b?.id || "")),
-  );
-
-  return {
-    ...quest,
-    quest_tasks: tasks,
-  };
-}
 
 function invalidateQuestCache(id: string) {
   try {

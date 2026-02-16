@@ -263,7 +263,9 @@ export default async function handler(
           error: tgError,
           userId: effectiveUserId,
         });
-        return res.status(500).json({ error: "Failed to verify Telegram status" });
+        return res
+          .status(500)
+          .json({ error: "Failed to verify Telegram status" });
       }
 
       if (
@@ -271,8 +273,7 @@ export default async function handler(
         !tgProfile?.telegram_notifications_enabled
       ) {
         return res.status(400).json({
-          error:
-            "Please enable Telegram notifications in your profile first.",
+          error: "Please enable Telegram notifications in your profile first.",
         });
       }
       verificationData = {

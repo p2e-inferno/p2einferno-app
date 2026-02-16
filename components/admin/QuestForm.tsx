@@ -8,6 +8,7 @@ import ImageUpload from "@/components/ui/image-upload";
 import QuestTaskForm from "@/components/admin/QuestTaskForm";
 import Toggle from "@/components/ui/toggle";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { sortQuestTasks } from "@/lib/quests/sort-tasks";
 import { useSmartWalletSelection } from "../../hooks/useSmartWalletSelection";
 import { PlusCircle, Coins, Save, X, Shield } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -403,15 +404,9 @@ export default function QuestForm({
 
   const [tasks, setTasks] = useState<TaskWithTempId[]>(() => {
     if (quest?.quest_tasks) {
-      const sortedTasks = [...quest.quest_tasks].sort(
-        (a, b) =>
-          (a.order_index ?? Number.MAX_SAFE_INTEGER) -
-            (b.order_index ?? Number.MAX_SAFE_INTEGER) ||
-          (a.created_at || "").localeCompare(b.created_at || "") ||
-          a.id.localeCompare(b.id),
-      );
+      const sortedTasks = sortQuestTasks(quest as any).quest_tasks || [];
 
-      return sortedTasks.map((task) => ({
+      return sortedTasks.map((task: any) => ({
         ...task,
         tempId: `existing-${task.id}`,
       }));
