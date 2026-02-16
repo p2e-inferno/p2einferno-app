@@ -6,26 +6,11 @@ import { getLogger } from "@/lib/utils/logger";
 import { ADMIN_CACHE_TAGS } from "@/lib/app-config/admin";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 import { broadcastTelegramNotification } from "@/lib/notifications/telegram";
+import { sortQuestTasks } from "@/lib/quests/sort-tasks";
 
 const log = getLogger("api:quests");
 
 const DEFAULT_DG_TRIAL_DURATION_SECONDS = 7 * 24 * 60 * 60;
-
-function sortQuestTasks<T extends { quest_tasks?: any[] }>(quest: T): T {
-  const tasks = Array.isArray(quest?.quest_tasks) ? [...quest.quest_tasks] : [];
-  tasks.sort(
-    (a, b) =>
-      (a?.order_index ?? Number.MAX_SAFE_INTEGER) -
-        (b?.order_index ?? Number.MAX_SAFE_INTEGER) ||
-      String(a?.created_at || "").localeCompare(String(b?.created_at || "")) ||
-      String(a?.id || "").localeCompare(String(b?.id || "")),
-  );
-
-  return {
-    ...quest,
-    quest_tasks: tasks,
-  };
-}
 
 function invalidateQuestCache(quest?: { id?: string | null }) {
   try {
@@ -61,11 +46,11 @@ export async function GET(req: NextRequest) {
         ...sortQuestTasks(quest),
         stats: stats
           ? {
-              total_users: stats.total_users || 0,
-              completed_users: stats.completed_users || 0,
-              pending_submissions: stats.pending_submissions || 0,
-              completion_rate: stats.completion_rate || 0,
-            }
+            total_users: stats.total_users || 0,
+            completed_users: stats.completed_users || 0,
+            pending_submissions: stats.pending_submissions || 0,
+            completion_rate: stats.completion_rate || 0,
+          }
           : undefined,
       };
     });
@@ -141,8 +126,8 @@ export async function POST(req: NextRequest) {
         const rawTrialSeconds = activation_config?.trialDurationSeconds;
         const trialDurationSeconds =
           rawTrialSeconds === undefined ||
-          rawTrialSeconds === null ||
-          rawTrialSeconds === ""
+            rawTrialSeconds === null ||
+            rawTrialSeconds === ""
             ? DEFAULT_DG_TRIAL_DURATION_SECONDS
             : Number(rawTrialSeconds);
 

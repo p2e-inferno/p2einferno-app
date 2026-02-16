@@ -200,7 +200,10 @@ describe("POST - generate activation token", () => {
 
     // Second from() call should be to invalidate tokens
     expect(mockFrom).toHaveBeenNthCalledWith(2, "telegram_activation_tokens");
-    expect(invalidateEq).toHaveBeenCalledWith("user_profile_id", MOCK_PROFILE.id);
+    expect(invalidateEq).toHaveBeenCalledWith(
+      "user_profile_id",
+      MOCK_PROFILE.id,
+    );
     expect(invalidateIs).toHaveBeenCalledWith("used_at", null);
   });
 
@@ -233,7 +236,9 @@ describe("POST - generate activation token", () => {
     const invalidateEq = jest.fn().mockReturnValue({ is: invalidateIs });
     const invalidateUpdate = jest.fn().mockReturnValue({ eq: invalidateEq });
 
-    const insertFn = jest.fn().mockResolvedValue({ error: { message: "insert failed" } });
+    const insertFn = jest
+      .fn()
+      .mockResolvedValue({ error: { message: "insert failed" } });
 
     buildMockClient({ data: MOCK_PROFILE, error: null }, [
       { update: invalidateUpdate },
@@ -300,7 +305,9 @@ describe("DELETE - disable notifications", () => {
   });
 
   it("returns 500 when database update fails", async () => {
-    const updateEq = jest.fn().mockResolvedValue({ error: { message: "update failed" } });
+    const updateEq = jest
+      .fn()
+      .mockResolvedValue({ error: { message: "update failed" } });
     const updateFn = jest.fn().mockReturnValue({ eq: updateEq });
 
     buildMockClient({ data: MOCK_PROFILE, error: null }, [

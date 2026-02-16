@@ -57,7 +57,9 @@ describe("formatNotificationMessage", () => {
       "https://other.com/page",
       "task_completed",
     );
-    expect(result).toContain('<a href="https://other.com/page">View in app</a>');
+    expect(result).toContain(
+      '<a href="https://other.com/page">View in app</a>',
+    );
   });
 
   it("does not include link section when link is null", () => {
@@ -93,10 +95,18 @@ describe("formatNotificationMessage", () => {
   });
 
   it("uses correct emojis for each known notification type", () => {
-    expect(formatNotificationMessage("T", "M", null, "milestone_completed")).toContain("\uD83C\uDFC6");
-    expect(formatNotificationMessage("T", "M", null, "enrollment_created")).toContain("\uD83D\uDCDA");
-    expect(formatNotificationMessage("T", "M", null, "application_status")).toContain("\uD83D\uDCDD");
-    expect(formatNotificationMessage("T", "M", null, "task_reviewed")).toContain("\uD83D\uDCEC");
+    expect(
+      formatNotificationMessage("T", "M", null, "milestone_completed"),
+    ).toContain("\uD83C\uDFC6");
+    expect(
+      formatNotificationMessage("T", "M", null, "enrollment_created"),
+    ).toContain("\uD83D\uDCDA");
+    expect(
+      formatNotificationMessage("T", "M", null, "application_status"),
+    ).toContain("\uD83D\uDCDD");
+    expect(
+      formatNotificationMessage("T", "M", null, "task_reviewed"),
+    ).toContain("\uD83D\uDCEC");
   });
 });
 
@@ -131,7 +141,8 @@ describe("sendTelegramMessage", () => {
     fetchSpy.mockResolvedValueOnce({
       ok: false,
       status: 403,
-      text: async () => '{"description":"Forbidden: bot was blocked by the user"}',
+      text: async () =>
+        '{"description":"Forbidden: bot was blocked by the user"}',
     } as Response);
 
     const result = await sendTelegramMessage(12345, "Hello");
@@ -158,7 +169,10 @@ describe("sendTelegramMessage", () => {
 // broadcastTelegramNotification
 // ---------------------------------------------------------------------------
 describe("broadcastTelegramNotification", () => {
-  function mockSupabase(users: { telegram_chat_id: number }[] | null, error: any = null) {
+  function mockSupabase(
+    users: { telegram_chat_id: number }[] | null,
+    error: any = null,
+  ) {
     const mockLimit = jest.fn().mockResolvedValue({ data: users, error });
     const mockNot = jest.fn().mockReturnValue({ limit: mockLimit });
     const mockEq = jest.fn().mockReturnValue({ not: mockNot });
@@ -170,12 +184,7 @@ describe("broadcastTelegramNotification", () => {
   it("queries all users with telegram_notifications_enabled = true", async () => {
     const supabase = mockSupabase([]);
 
-    await broadcastTelegramNotification(
-      supabase,
-      "Title",
-      "Message",
-      null,
-    );
+    await broadcastTelegramNotification(supabase, "Title", "Message", null);
 
     expect(supabase.from).toHaveBeenCalledWith("user_profiles");
   });
@@ -208,23 +217,19 @@ describe("broadcastTelegramNotification", () => {
   });
 
   it("continues sending to remaining users if one send fails", async () => {
-    const users = [
-      { telegram_chat_id: 111 },
-      { telegram_chat_id: 222 },
-    ];
+    const users = [{ telegram_chat_id: 111 }, { telegram_chat_id: 222 }];
     const supabase = mockSupabase(users);
 
     // First send fails, second succeeds
     fetchSpy
-      .mockResolvedValueOnce({ ok: false, status: 403, text: async () => "blocked" } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+        text: async () => "blocked",
+      } as Response)
       .mockResolvedValueOnce({ ok: true, text: async () => "{}" } as Response);
 
-    await broadcastTelegramNotification(
-      supabase,
-      "Title",
-      "Msg",
-      null,
-    );
+    await broadcastTelegramNotification(supabase, "Title", "Msg", null);
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
@@ -232,12 +237,7 @@ describe("broadcastTelegramNotification", () => {
   it("handles empty user list gracefully", async () => {
     const supabase = mockSupabase([]);
 
-    await broadcastTelegramNotification(
-      supabase,
-      "Title",
-      "Msg",
-      null,
-    );
+    await broadcastTelegramNotification(supabase, "Title", "Msg", null);
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -245,12 +245,7 @@ describe("broadcastTelegramNotification", () => {
   it("handles null user list gracefully", async () => {
     const supabase = mockSupabase(null);
 
-    await broadcastTelegramNotification(
-      supabase,
-      "Title",
-      "Msg",
-      null,
-    );
+    await broadcastTelegramNotification(supabase, "Title", "Msg", null);
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -259,12 +254,7 @@ describe("broadcastTelegramNotification", () => {
     const supabase = mockSupabase(null, { message: "DB error" });
 
     // Should not throw
-    await broadcastTelegramNotification(
-      supabase,
-      "Title",
-      "Msg",
-      null,
-    );
+    await broadcastTelegramNotification(supabase, "Title", "Msg", null);
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });

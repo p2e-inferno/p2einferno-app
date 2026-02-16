@@ -103,7 +103,9 @@ async function handlePost(
 
     if (insertError) {
       log.error("Failed to create activation token", { error: insertError });
-      return res.status(500).json({ error: "Failed to generate activation link" });
+      return res
+        .status(500)
+        .json({ error: "Failed to generate activation link" });
     }
 
     const deepLink = `https://t.me/${botUsername}?start=${token}`;

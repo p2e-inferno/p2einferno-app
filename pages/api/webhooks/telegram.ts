@@ -35,7 +35,10 @@ export default async function handler(
     const expectedBuffer = Buffer.from(expectedSecret, "utf8");
 
     // timingSafeEqual requires equal-length buffers
-    if (tokenBuffer.length !== expectedBuffer.length || !timingSafeEqual(tokenBuffer, expectedBuffer)) {
+    if (
+      tokenBuffer.length !== expectedBuffer.length ||
+      !timingSafeEqual(tokenBuffer, expectedBuffer)
+    ) {
       log.warn("Webhook secret mismatch");
       return res.status(401).json({ error: "Unauthorized" });
     }
@@ -137,7 +140,9 @@ async function handleStartCommand(
       .single();
 
     if (markError || !markData) {
-      log.warn("Token already claimed (race condition or DB error)", { error: markError });
+      log.warn("Token already claimed (race condition or DB error)", {
+        error: markError,
+      });
       await sendTelegramMessage(
         chatId,
         "This activation link has already been used. If you need to re-enable notifications, visit your profile page.",

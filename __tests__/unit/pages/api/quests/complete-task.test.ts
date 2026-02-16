@@ -436,7 +436,10 @@ describe("link_telegram", () => {
   it("completes when user has telegram_chat_id and notifications enabled", async () => {
     const supabase = makeSupabase(taskConfig, {
       userProfile: {
-        data: { telegram_chat_id: 965014523, telegram_notifications_enabled: true },
+        data: {
+          telegram_chat_id: 965014523,
+          telegram_notifications_enabled: true,
+        },
         error: null,
       },
     });
@@ -459,7 +462,10 @@ describe("link_telegram", () => {
   it("stores telegramChatId in verification_data", async () => {
     const supabase = makeSupabase(taskConfig, {
       userProfile: {
-        data: { telegram_chat_id: 123456789, telegram_notifications_enabled: true },
+        data: {
+          telegram_chat_id: 123456789,
+          telegram_notifications_enabled: true,
+        },
         error: null,
       },
     });
@@ -496,7 +502,10 @@ describe("link_telegram", () => {
   it("returns 400 when telegram_notifications_enabled is false", async () => {
     const supabase = makeSupabase(taskConfig, {
       userProfile: {
-        data: { telegram_chat_id: 965014523, telegram_notifications_enabled: false },
+        data: {
+          telegram_chat_id: 965014523,
+          telegram_notifications_enabled: false,
+        },
         error: null,
       },
     });
