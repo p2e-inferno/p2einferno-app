@@ -224,8 +224,8 @@ const ProfilePage = () => {
           setTimeout(() => setLinking(null), 2000);
           break;
         case "telegram":
+          // Hook manages its own linking state internally via polling
           await telegram.enable();
-          setLinking(null);
           break;
         default:
           toast.error("Cannot link this account type");
@@ -357,7 +357,7 @@ const ProfilePage = () => {
 
           <LinkedAccountsSection
             accounts={linkedAccounts}
-            linking={linking}
+            linking={telegram.linking ? "telegram" : linking}
             onLinkAccount={handleLinkAccount}
             onUnlinkAccount={handleUnlinkAccount}
           />

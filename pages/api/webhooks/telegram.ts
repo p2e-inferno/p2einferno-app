@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { sendTelegramMessage } from "@/lib/notifications/telegram";
 import { getLogger } from "@/lib/utils/logger";
@@ -19,12 +20,27 @@ export default async function handler(
     return res.status(405).end("Method Not Allowed");
   }
 
-  // Verify Telegram webhook secret
+  // Verify Telegram webhook secret using timing-safe comparison
   const secretToken = req.headers["x-telegram-bot-api-secret-token"];
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
 
-  if (!expectedSecret || secretToken !== expectedSecret) {
+  if (!expectedSecret || typeof secretToken !== "string") {
     log.warn("Invalid or missing webhook secret");
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // Use timing-safe comparison to prevent timing attacks
+  try {
+    const tokenBuffer = Buffer.from(secretToken, "utf8");
+    const expectedBuffer = Buffer.from(expectedSecret, "utf8");
+
+    // timingSafeEqual requires equal-length buffers
+    if (tokenBuffer.length !== expectedBuffer.length || !timingSafeEqual(tokenBuffer, expectedBuffer)) {
+      log.warn("Webhook secret mismatch");
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+  } catch (error) {
+    log.warn("Webhook secret comparison failed", { error });
     return res.status(401).json({ error: "Unauthorized" });
   }
 

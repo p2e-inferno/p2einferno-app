@@ -291,7 +291,8 @@ export async function POST(req: NextRequest) {
     invalidateQuestCache({ id: quest.id });
 
     // Fire-and-forget: broadcast Telegram notification for active quests
-    if (is_active) {
+    // Use DB-confirmed is_active value instead of request body
+    if (fullQuest.is_active) {
       broadcastTelegramNotification(
         supabase,
         "New quest available!",
