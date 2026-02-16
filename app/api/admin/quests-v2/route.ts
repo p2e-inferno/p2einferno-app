@@ -1,22 +1,39 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { revalidateTag } from 'next/cache';
-import { createAdminClient } from '@/lib/supabase/server';
-import { ensureAdminOrRespond } from '@/lib/auth/route-handlers/admin-guard';
-import { getLogger } from '@/lib/utils/logger';
-import { ADMIN_CACHE_TAGS } from '@/lib/app-config/admin';
-import { validateVendorTaskConfig } from '@/lib/quests/vendor-task-config';
-import { broadcastTelegramNotification } from '@/lib/notifications/telegram';
+import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
+import { createAdminClient } from "@/lib/supabase/server";
+import { ensureAdminOrRespond } from "@/lib/auth/route-handlers/admin-guard";
+import { getLogger } from "@/lib/utils/logger";
+import { ADMIN_CACHE_TAGS } from "@/lib/app-config/admin";
+import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
+import { broadcastTelegramNotification } from "@/lib/notifications/telegram";
 
-const log = getLogger('api:quests');
+const log = getLogger("api:quests");
 
 const DEFAULT_DG_TRIAL_DURATION_SECONDS = 7 * 24 * 60 * 60;
 
+function sortQuestTasks<T extends { quest_tasks?: any[] }>(quest: T): T {
+  const tasks = Array.isArray(quest?.quest_tasks) ? [...quest.quest_tasks] : [];
+  tasks.sort(
+    (a, b) =>
+      (a?.order_index ?? Number.MAX_SAFE_INTEGER) -
+        (b?.order_index ?? Number.MAX_SAFE_INTEGER) ||
+      String(a?.created_at || "").localeCompare(String(b?.created_at || "")) ||
+      String(a?.id || "").localeCompare(String(b?.id || "")),
+  );
+
+  return {
+    ...quest,
+    quest_tasks: tasks,
+  };
+}
+
 function invalidateQuestCache(quest?: { id?: string | null }) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.questList, 'default');
-    if (quest?.id) revalidateTag(ADMIN_CACHE_TAGS.quest(String(quest.id)), 'default');
+    revalidateTag(ADMIN_CACHE_TAGS.questList, "max");
+    if (quest?.id)
+      revalidateTag(ADMIN_CACHE_TAGS.quest(String(quest.id)), "max");
   } catch (error) {
-    log.warn('quest cache revalidation failed', { error });
+    log.warn("quest cache revalidation failed", { error });
   }
 }
 
@@ -27,36 +44,42 @@ export async function GET(req: NextRequest) {
   try {
     // Fetch quests with tasks
     const { data: questsData, error: questsError } = await supabase
-      .from('quests')
-      .select('*, quest_tasks(*)')
-      .order('created_at', { ascending: false });
+      .from("quests")
+      .select("*, quest_tasks(*)")
+      .order("created_at", { ascending: false });
     if (questsError) throw questsError;
 
     // Fetch stats table
     const { data: statsData, error: statsError } = await supabase
-      .from('quest_statistics')
-      .select('*');
+      .from("quest_statistics")
+      .select("*");
     if (statsError) throw statsError;
 
     const questsWithStats = (questsData || []).map((quest: any) => {
       const stats = (statsData || []).find((s: any) => s.quest_id === quest.id);
       return {
-        ...quest,
+        ...sortQuestTasks(quest),
         stats: stats
           ? {
-            total_users: stats.total_users || 0,
-            completed_users: stats.completed_users || 0,
-            pending_submissions: stats.pending_submissions || 0,
-            completion_rate: stats.completion_rate || 0,
-          }
+              total_users: stats.total_users || 0,
+              completed_users: stats.completed_users || 0,
+              pending_submissions: stats.pending_submissions || 0,
+              completion_rate: stats.completion_rate || 0,
+            }
           : undefined,
       };
     });
 
-    return NextResponse.json({ success: true, data: questsWithStats }, { status: 200 });
+    return NextResponse.json(
+      { success: true, data: questsWithStats },
+      { status: 200 },
+    );
   } catch (error: any) {
-    log.error('quests GET error', { error });
-    return NextResponse.json({ success: false, error: error?.message || 'Failed to fetch quests' }, { status: 500 });
+    log.error("quests GET error", { error });
+    return NextResponse.json(
+      { success: false, error: error?.message || "Failed to fetch quests" },
+      { status: 500 },
+    );
   }
 }
 
@@ -91,28 +114,49 @@ export async function POST(req: NextRequest) {
       activation_config,
     } = body || {};
 
-    if (!title) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+    if (!title)
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
 
     let resolvedActivationConfig = activation_config ?? null;
 
     // Validate activation quest configuration
-    if (reward_type === 'activation') {
+    if (reward_type === "activation") {
       if (!activation_type) {
-        return NextResponse.json({ error: 'activation_type is required for activation quests' }, { status: 400 });
+        return NextResponse.json(
+          { error: "activation_type is required for activation quests" },
+          { status: 400 },
+        );
       }
-      if (activation_type === 'dg_trial') {
+      if (activation_type === "dg_trial") {
         const lockAddressValue = activation_config?.lockAddress;
         if (!lockAddressValue) {
-          return NextResponse.json({ error: 'activation_config.lockAddress is required for DG trial quests' }, { status: 400 });
+          return NextResponse.json(
+            {
+              error:
+                "activation_config.lockAddress is required for DG trial quests",
+            },
+            { status: 400 },
+          );
         }
         const rawTrialSeconds = activation_config?.trialDurationSeconds;
         const trialDurationSeconds =
-          rawTrialSeconds === undefined || rawTrialSeconds === null || rawTrialSeconds === ''
+          rawTrialSeconds === undefined ||
+          rawTrialSeconds === null ||
+          rawTrialSeconds === ""
             ? DEFAULT_DG_TRIAL_DURATION_SECONDS
             : Number(rawTrialSeconds);
 
-        if (!Number.isFinite(trialDurationSeconds) || trialDurationSeconds <= 0) {
-          return NextResponse.json({ error: 'activation_config.trialDurationSeconds must be a positive number' }, { status: 400 });
+        if (
+          !Number.isFinite(trialDurationSeconds) ||
+          trialDurationSeconds <= 0
+        ) {
+          return NextResponse.json(
+            {
+              error:
+                "activation_config.trialDurationSeconds must be a positive number",
+            },
+            { status: 400 },
+          );
         }
 
         resolvedActivationConfig = {
@@ -125,17 +169,35 @@ export async function POST(req: NextRequest) {
 
     // Harden grant flags
     const grantGrantedFinal =
-      typeof lock_manager_granted === 'boolean' ? lock_manager_granted : lock_address ? false : false;
-    const grantReasonFinal = grantGrantedFinal ? null : grant_failure_reason || null;
+      typeof lock_manager_granted === "boolean"
+        ? lock_manager_granted
+        : lock_address
+          ? false
+          : false;
+    const grantReasonFinal = grantGrantedFinal
+      ? null
+      : grant_failure_reason || null;
 
     // Harden security flags
     const maxKeysSecuredFinal =
-      typeof max_keys_secured === 'boolean' ? max_keys_secured : lock_address ? false : false;
-    const maxKeysReasonFinal = maxKeysSecuredFinal ? null : max_keys_failure_reason || null;
+      typeof max_keys_secured === "boolean"
+        ? max_keys_secured
+        : lock_address
+          ? false
+          : false;
+    const maxKeysReasonFinal = maxKeysSecuredFinal
+      ? null
+      : max_keys_failure_reason || null;
 
     const transferSecuredFinal =
-      typeof transferability_secured === 'boolean' ? transferability_secured : lock_address ? false : false;
-    const transferReasonFinal = transferSecuredFinal ? null : transferability_failure_reason || null;
+      typeof transferability_secured === "boolean"
+        ? transferability_secured
+        : lock_address
+          ? false
+          : false;
+    const transferReasonFinal = transferSecuredFinal
+      ? null
+      : transferability_failure_reason || null;
 
     // Insert quest
     const resolvedTotalReward =
@@ -164,24 +226,25 @@ export async function POST(req: NextRequest) {
       prerequisite_quest_id: prerequisite_quest_id || null,
       prerequisite_quest_lock_address: prerequisite_quest_lock_address || null,
       requires_prerequisite_key: requires_prerequisite_key || false,
-      reward_type: reward_type || 'xdg',
+      reward_type: reward_type || "xdg",
       activation_type: activation_type || null,
       activation_config: resolvedActivationConfig,
     };
 
     const { data: quest, error: questError } = await supabase
-      .from('quests')
+      .from("quests")
       .insert(insertPayload)
-      .select('*')
+      .select("*")
       .single();
 
     if (questError) {
-      log.error('Quest insert failed', {
+      log.error("Quest insert failed", {
         error: questError.message,
         code: questError.code,
         details: questError.details,
         hint: questError.hint,
-        insertPayload: reward_type === 'activation' ? insertPayload : { title, reward_type },
+        insertPayload:
+          reward_type === "activation" ? insertPayload : { title, reward_type },
       });
       throw questError;
     }
@@ -211,32 +274,44 @@ export async function POST(req: NextRequest) {
           requires_admin_review: task.requires_admin_review,
         };
       });
-      const { error: tasksError } = await supabase.from('quest_tasks').insert(questTasks);
+      const { error: tasksError } = await supabase
+        .from("quest_tasks")
+        .insert(questTasks);
       if (tasksError) throw tasksError;
     }
 
     // Fetch combined
     const { data: fullQuest, error: fetchError } = await supabase
-      .from('quests')
-      .select('*, quest_tasks(*)')
-      .eq('id', quest.id)
+      .from("quests")
+      .select("*, quest_tasks(*)")
+      .eq("id", quest.id)
       .single();
     if (fetchError) throw fetchError;
 
     invalidateQuestCache({ id: quest.id });
 
     // Fire-and-forget: broadcast Telegram notification for active quests
-    if (is_active) {
+    // Use DB-confirmed is_active value instead of request body
+    if (fullQuest.is_active) {
       broadcastTelegramNotification(
         supabase,
-        'New quest available!',
+        "New quest available!",
         `"${title}" is now live — check it out and start earning rewards.`,
         `/lobby/quests/${quest.id}`,
-        'quest_created',
-      ).catch((err) => log.warn('Telegram broadcast failed', { questId: quest.id, error: err }));
+        "quest_created",
+      ).catch((err) =>
+        log.warn("Telegram broadcast failed", {
+          questId: quest.id,
+          error: err,
+        }),
+      );
     }
 
-    return NextResponse.json({ success: true, data: fullQuest, quest: fullQuest }, { status: 201 });
+    const sortedQuest = sortQuestTasks(fullQuest as any);
+    return NextResponse.json(
+      { success: true, data: sortedQuest, quest: sortedQuest },
+      { status: 201 },
+    );
   } catch (error: any) {
     const errorMessage = error?.message || String(error);
     const errorStack = error?.stack;
@@ -249,12 +324,11 @@ export async function POST(req: NextRequest) {
       errorType: error?.constructor?.name,
     };
 
-    log.error('quests POST error', errorDetails);
+    log.error("quests POST error", errorDetails);
 
-    return NextResponse.json({
-      error: errorMessage,
-      details: error?.details || undefined,
-      hint: error?.hint || undefined,
-    }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: errorMessage },
+      { status: 500 },
+    );
   }
 }

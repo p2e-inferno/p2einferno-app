@@ -96,9 +96,18 @@ export async function sendTelegramMessage(
   }
 }
 
+// Telegram Bot API allows ~30 messages/sec to different chats.
+// We send in batches of 25 with a 1s pause between batches to stay under the limit.
+const BATCH_SIZE = 25;
+const BATCH_DELAY_MS = 1000;
+
 /**
  * Broadcast a Telegram notification to all users with notifications enabled.
  * Fire-and-forget: errors are logged but never thrown.
+ *
+ * Sends in parallel batches of 25 to respect Telegram's ~30 msgs/sec rate limit
+ * while keeping total time manageable for serverless environments.
+ * ~5 000 users ≈ 200 batches × 1s ≈ 3–4 min (within Vercel Pro 300s timeout).
  */
 export async function broadcastTelegramNotification(
   supabase: SupabaseClient,
@@ -127,16 +136,16 @@ export async function broadcastTelegramNotification(
       .not("telegram_chat_id", "is", null)
       .limit(BROADCAST_LIMIT);
 
+    if (error) {
+      log.error("Failed to query Telegram-enabled users", { error });
+      return;
+    }
+
     if (users && users.length >= BROADCAST_LIMIT) {
       log.warn("Broadcast hit row limit — some users may not receive notifications", {
         limit: BROADCAST_LIMIT,
         returned: users.length,
       });
-    }
-
-    if (error) {
-      log.error("Failed to query Telegram-enabled users", { error });
-      return;
     }
 
     if (!users || users.length === 0) {
@@ -147,17 +156,20 @@ export async function broadcastTelegramNotification(
     let sent = 0;
     let failed = 0;
 
-    for (const user of users) {
-      const result = await sendTelegramMessage(user.telegram_chat_id, text);
-      if (result.ok) {
-        sent++;
-      } else {
-        failed++;
+    for (let i = 0; i < users.length; i += BATCH_SIZE) {
+      const batch = users.slice(i, i + BATCH_SIZE);
+      const results = await Promise.all(
+        batch.map((user) => sendTelegramMessage(user.telegram_chat_id, text)),
+      );
+
+      for (const result of results) {
+        if (result.ok) sent++;
+        else failed++;
       }
 
-      // Respect Telegram rate limits (~30 msgs/sec)
-      if (users.length > 20) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
+      // Pause between batches to respect rate limits (skip after last batch)
+      if (i + BATCH_SIZE < users.length) {
+        await new Promise((resolve) => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
 

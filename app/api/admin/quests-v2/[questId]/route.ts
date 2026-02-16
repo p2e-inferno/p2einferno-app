@@ -8,10 +8,26 @@ import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 
 const log = getLogger("api:quests:[questId]");
 
+function sortQuestTasks<T extends { quest_tasks?: any[] }>(quest: T): T {
+  const tasks = Array.isArray(quest?.quest_tasks) ? [...quest.quest_tasks] : [];
+  tasks.sort(
+    (a, b) =>
+      (a?.order_index ?? Number.MAX_SAFE_INTEGER) -
+        (b?.order_index ?? Number.MAX_SAFE_INTEGER) ||
+      String(a?.created_at || "").localeCompare(String(b?.created_at || "")) ||
+      String(a?.id || "").localeCompare(String(b?.id || "")),
+  );
+
+  return {
+    ...quest,
+    quest_tasks: tasks,
+  };
+}
+
 function invalidateQuestCache(id: string) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.quest(String(id)), "default");
-    revalidateTag(ADMIN_CACHE_TAGS.questList, "default");
+    revalidateTag(ADMIN_CACHE_TAGS.quest(String(id)), "max");
+    revalidateTag(ADMIN_CACHE_TAGS.questList, "max");
   } catch (error) {
     log.warn("quest cache revalidation failed", { error, id });
   }
@@ -58,7 +74,7 @@ export async function GET(
       .order("completed_at", { ascending: false });
 
     const full = {
-      ...quest,
+      ...sortQuestTasks(quest as any),
       stats: stats || null,
       pending_submissions: submissions || [],
     };
@@ -123,7 +139,9 @@ export async function PUT(
       }
 
       // Harden security flags - ONLY if they are explicitly provided in the update
-      if (Object.prototype.hasOwnProperty.call(questFields, "max_keys_secured")) {
+      if (
+        Object.prototype.hasOwnProperty.call(questFields, "max_keys_secured")
+      ) {
         if (questFields.max_keys_secured === null) {
           questFields.max_keys_secured = false;
         }
@@ -133,7 +151,10 @@ export async function PUT(
       }
 
       if (
-        Object.prototype.hasOwnProperty.call(questFields, "transferability_secured")
+        Object.prototype.hasOwnProperty.call(
+          questFields,
+          "transferability_secured",
+        )
       ) {
         if (questFields.transferability_secured === null) {
           questFields.transferability_secured = false;
@@ -257,8 +278,9 @@ export async function PUT(
     if (finalErr) throw finalErr;
 
     invalidateQuestCache(questId);
+    const sortedQuest = sortQuestTasks(updatedQuest as any);
     return NextResponse.json(
-      { success: true, data: updatedQuest, quest: updatedQuest },
+      { success: true, data: sortedQuest, quest: sortedQuest },
       { status: 200 },
     );
   } catch (error: any) {

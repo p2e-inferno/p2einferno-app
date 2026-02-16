@@ -123,6 +123,7 @@ export type TaskType =
   | "link_email"
   | "link_wallet"
   | "link_farcaster"
+  | "link_telegram"
   | "sign_tos"
   | "submit_url"
   | "submit_text"

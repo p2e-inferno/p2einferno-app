@@ -27,6 +27,7 @@ import {
   Flame,
   Network,
   ArrowUpCircle,
+  MessageCircle,
 } from "lucide-react";
 import { useDGMarket } from "@/hooks/vendor/useDGMarket";
 import { getStageOptions } from "@/lib/blockchain/shared/vendor-constants";
@@ -70,6 +71,12 @@ const taskTypeOptions: {
     label: "Link Farcaster",
     icon: <Share2 className="w-4 h-4" />,
     description: "User connects their Farcaster account",
+  },
+  {
+    value: "link_telegram",
+    label: "Link Telegram",
+    icon: <MessageCircle className="w-4 h-4" />,
+    description: "User enables Telegram notifications",
   },
   {
     value: "sign_tos",
