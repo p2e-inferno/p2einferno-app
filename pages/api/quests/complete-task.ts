@@ -250,14 +250,23 @@ export default async function handler(
 
     if (task?.task_type === "link_telegram") {
       // Verify Telegram notifications are enabled via user_profiles (not Privy)
+      // Use maybeSingle() so "no profile" returns { data: null, error: null }
+      // instead of a PGRST116 error — cleanly separates "not found" from DB errors.
       const { data: tgProfile, error: tgError } = await supabase
         .from("user_profiles")
         .select("telegram_chat_id, telegram_notifications_enabled")
         .eq("privy_user_id", effectiveUserId)
-        .single();
+        .maybeSingle();
+
+      if (tgError) {
+        log.error("Failed to query user profile for Telegram check", {
+          error: tgError,
+          userId: effectiveUserId,
+        });
+        return res.status(500).json({ error: "Failed to verify Telegram status" });
+      }
 
       if (
-        tgError ||
         !tgProfile?.telegram_chat_id ||
         !tgProfile?.telegram_notifications_enabled
       ) {

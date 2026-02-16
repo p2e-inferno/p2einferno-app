@@ -185,6 +185,8 @@ export default function AdminQuestsPage() {
         return "👛";
       case "link_farcaster":
         return "🔗";
+      case "link_telegram":
+        return "✈️";
       case "sign_tos":
         return "📄";
       default:

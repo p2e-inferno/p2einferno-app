@@ -29,9 +29,9 @@ function sortQuestTasks<T extends { quest_tasks?: any[] }>(quest: T): T {
 
 function invalidateQuestCache(quest?: { id?: string | null }) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.questList, "default");
+    revalidateTag(ADMIN_CACHE_TAGS.questList, "max");
     if (quest?.id)
-      revalidateTag(ADMIN_CACHE_TAGS.quest(String(quest.id)), "default");
+      revalidateTag(ADMIN_CACHE_TAGS.quest(String(quest.id)), "max");
   } catch (error) {
     log.warn("quest cache revalidation failed", { error });
   }
@@ -327,11 +327,7 @@ export async function POST(req: NextRequest) {
     log.error("quests POST error", errorDetails);
 
     return NextResponse.json(
-      {
-        error: errorMessage,
-        details: error?.details || undefined,
-        hint: error?.hint || undefined,
-      },
+      { success: false, error: errorMessage },
       { status: 500 },
     );
   }

@@ -123,7 +123,7 @@ function makeSupabase(
       return {
         select: jest.fn().mockReturnValue({
           eq: jest.fn().mockReturnValue({
-            single: jest.fn().mockResolvedValue(profileResult),
+            maybeSingle: jest.fn().mockResolvedValue(profileResult),
           }),
         }),
       };
@@ -515,7 +515,7 @@ describe("link_telegram", () => {
     const supabase = makeSupabase(taskConfig, {
       userProfile: {
         data: null,
-        error: { message: "No rows found" },
+        error: null,
       },
     });
     mockCreateAdminClient.mockReturnValue(supabase as any);
@@ -526,6 +526,24 @@ describe("link_telegram", () => {
 
     expect(res._statusCode).toBe(400);
     expect(res._body.error).toContain("enable Telegram notifications");
+    expect(supabase._insertFn).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 when database query fails", async () => {
+    const supabase = makeSupabase(taskConfig, {
+      userProfile: {
+        data: null,
+        error: { message: "connection refused", code: "ECONNREFUSED" },
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase as any);
+
+    const req = makeReq({ questId: "q1", taskId: "t1" });
+    const res = makeRes();
+    await handler(req, res);
+
+    expect(res._statusCode).toBe(500);
+    expect(res._body.error).toContain("Failed to verify Telegram status");
     expect(supabase._insertFn).not.toHaveBeenCalled();
   });
 });

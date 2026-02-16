@@ -26,8 +26,8 @@ function sortQuestTasks<T extends { quest_tasks?: any[] }>(quest: T): T {
 
 function invalidateQuestCache(id: string) {
   try {
-    revalidateTag(ADMIN_CACHE_TAGS.quest(String(id)), "default");
-    revalidateTag(ADMIN_CACHE_TAGS.questList, "default");
+    revalidateTag(ADMIN_CACHE_TAGS.quest(String(id)), "max");
+    revalidateTag(ADMIN_CACHE_TAGS.questList, "max");
   } catch (error) {
     log.warn("quest cache revalidation failed", { error, id });
   }

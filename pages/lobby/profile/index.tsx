@@ -224,8 +224,10 @@ const ProfilePage = () => {
           setTimeout(() => setLinking(null), 2000);
           break;
         case "telegram":
-          // Hook manages its own linking state internally via polling
+          // Hook manages its own linking state internally via polling;
+          // clear parent state so the ternary falls through to hook state.
           await telegram.enable();
+          setLinking(null);
           break;
         default:
           toast.error("Cannot link this account type");
