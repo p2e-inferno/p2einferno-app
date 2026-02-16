@@ -43,11 +43,21 @@ if [ "${1:-}" = "--production" ]; then
     exit 1
   fi
 
+  # Validate webhook secret format (Telegram only allows A-Z, a-z, 0-9, _, -)
+  if ! [[ "$TELEGRAM_WEBHOOK_SECRET" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    echo "Error: TELEGRAM_WEBHOOK_SECRET contains invalid characters"
+    echo "Telegram only allows: A-Z, a-z, 0-9, _, -"
+    exit 1
+  fi
+
   WEBHOOK_URL="https://www.p2einferno.com/api/webhooks/telegram"
   echo "Registering PRODUCTION webhook..."
   echo "  URL: ${WEBHOOK_URL}"
+  echo "  Filter: message updates only"
+  echo "  Pending: dropped"
   echo ""
 
+  # Production: only receive message updates, drop pending updates for clean state
   curl -s -X POST "${API}/setWebhook" \
     -H 'Content-Type: application/json' \
     -d "{\"url\":\"${WEBHOOK_URL}\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\",\"allowed_updates\":[\"message\"],\"drop_pending_updates\":true}" \
@@ -85,14 +95,22 @@ if [ -z "$TELEGRAM_WEBHOOK_SECRET" ]; then
   exit 1
 fi
 
+# Validate webhook secret format (Telegram only allows A-Z, a-z, 0-9, _, -)
+if ! [[ "$TELEGRAM_WEBHOOK_SECRET" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  echo "Error: TELEGRAM_WEBHOOK_SECRET contains invalid characters"
+  echo "Telegram only allows: A-Z, a-z, 0-9, _, -"
+  exit 1
+fi
+
 # Strip trailing slash from URL
 NGROK_URL="${NGROK_URL%/}"
 WEBHOOK_URL="${NGROK_URL}/api/webhooks/telegram"
 
-echo "Registering webhook..."
+echo "Registering webhook (dev mode - all update types)..."
 echo "  URL: ${WEBHOOK_URL}"
 echo ""
 
+# Dev: receive all update types and keep pending updates for testing
 curl -s -X POST "${API}/setWebhook" \
   -H 'Content-Type: application/json' \
   -d "{\"url\":\"${WEBHOOK_URL}\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\"}" \

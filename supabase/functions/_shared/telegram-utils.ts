@@ -61,11 +61,11 @@ const TYPE_EMOJI: Record<string, string> = {
 };
 
 function escapeHtml(text: string): string {
+  // Telegram HTML only supports &lt; &gt; &amp; — no &quot;
   return text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/>/g, "&gt;");
 }
 
 /**

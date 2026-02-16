@@ -7,6 +7,7 @@ import {
   getMilestoneSubmissionContext,
   getQuestSubmissionContext,
 } from "./helpers";
+import { sendAdminTelegramNotification } from "@/lib/notifications/telegram";
 
 const log = getLogger("email:admin-notifications");
 
@@ -70,6 +71,19 @@ export async function sendMilestoneReviewNotification(
     // Send with deduplication
     const adminEmail = getAdminReviewEmail();
     const dedupKey = `milestone_review_${submissionId}`;
+
+    // Send parallel Telegram notification (fire-and-forget)
+    sendAdminTelegramNotification(
+      "New Milestone Submission",
+      `${context.userName} submitted: ${context.taskTitle} (${context.submissionType})`,
+      reviewUrl,
+      "task_reviewed",
+    ).catch((err) =>
+      log.error("Failed to send admin Telegram notification", {
+        submissionId,
+        err,
+      }),
+    );
 
     const result = await sendEmailWithDedup(
       "admin_review_notification",
@@ -170,6 +184,19 @@ export async function sendQuestReviewNotification(
         userId,
       });
     }
+
+    // Send parallel Telegram notification (fire-and-forget)
+    sendAdminTelegramNotification(
+      "New Quest Submission",
+      `${context.userName} submitted: ${context.taskTitle} (${context.submissionType})`,
+      reviewUrl,
+      "task_reviewed",
+    ).catch((err) =>
+      log.error("Failed to send admin Telegram notification", {
+        taskId,
+        err,
+      }),
+    );
 
     const result = await sendEmailWithDedup(
       "admin_review_notification",
