@@ -1,6 +1,6 @@
 # Uniswap Frontend Fee Swap Integration — Implementation Plan
 
-> **Status**: Draft v2  
+> **Status**: Draft v3 — All decisions resolved  
 > **Author**: AI Assistant  
 > **Date**: 2026-02-16  
 > **Complexity**: Medium  
@@ -34,6 +34,10 @@ Integrate Uniswap V3 token swapping (ETH/UP and ETH/USDC on Base) into the exist
 - **No custom contract deployment**: Use the existing Uniswap **Universal Router** and **Permit2** contracts already deployed on Base.
 - **Atomic fee collection**: The fee is split from the swap output in the same transaction the user signs — no separate transaction or trust assumption.
 - **Consistent with existing codebase patterns**: Use Privy wallets via `usePrivyWriteWallet`, Viem for contract interaction, and the existing `useTokenApproval` pattern.
+- **Base Mainnet only**: Uniswap pools (ETH/UP, ETH/USDC) only exist on Base Mainnet. The integration will use a dedicated Base Mainnet public client regardless of the app's `NEXT_PUBLIC_BLOCKCHAIN_NETWORK` setting.
+- **Manual Viem encoding**: No Uniswap SDK dependencies. All Universal Router calldata is encoded manually using Viem's `encodeAbiParameters` / `encodePacked` — this avoids peer dependency conflicts and SDK breaking changes.
+- **Tabbed UI**: The Uniswap swap will be integrated as a tab within the existing Vendor card, not as a separate card.
+- **Two hardcoded pairs**: ETH ↔ UP and ETH ↔ USDC only. Not extensible for MVP.
 
 ### Why Universal Router (Not SwapRouter02)
 The existing `uniswap-buyer` scripts use `SwapRouter02` (`0x2626664c...`). This router calls `exactInputSingle` which sends ALL output to a single `recipient`. There is **no built-in way to split output** to both the user AND a fee wallet without a custom contract.
@@ -57,7 +61,8 @@ All three happen in **one atomic transaction**.
 | Wallet Hooks | Wagmi `^3.0.1` + Privy `@privy-io/react-auth ^2.12.0` |
 | Write Transactions | `usePrivyWriteWallet()` → `createViemFromPrivyWallet()` → `walletClient.writeContract()` |
 | Token Approval | `useTokenApproval` hook (ERC20 `approve` via Privy wallet) |
-| Network | Base Sepolia (default, `NEXT_PUBLIC_BLOCKCHAIN_NETWORK`), Base Mainnet supported |
+| Network | Base Sepolia (default dev), Base Mainnet (production). **Uniswap integration targets Base Mainnet only.** |
+| Base Mainnet Client | `createPublicClientForChain(base)` — creates a dedicated Base Mainnet read client using the app's configured Alchemy/Infura RPC URLs, independent of `NEXT_PUBLIC_BLOCKCHAIN_NETWORK`. This is the same pattern used by the address/network dropdown component. |
 | Styling | Tailwind CSS |
 
 ### What the `uniswap-buyer` Code Provides (Reference Only)
@@ -73,8 +78,9 @@ The scripts in `~/Documents/projects/uniswap-buyer` are **backend scripts** usin
 | `ethers.Wallet(PKEY)` | `usePrivyWriteWallet()` → Privy-managed wallet |
 | `ethers.Contract().exactInputSingle()` | `walletClient.writeContract()` or `walletClient.sendTransaction()` |
 | `SwapRouter02` | **Universal Router** (for fee splitting) |
-| Direct `approve()` calls | **Permit2** flow (one-time approve to Permit2, then off-chain signatures) OR traditional ERC20 approvals |
+| Direct `approve()` calls | **Permit2** flow (one-time ERC20 approve to Permit2, then Permit2.approve to Universal Router) |
 | Server-side, blocks until receipt | Client-side, async with loading states |
+| Any chain | **Base Mainnet only** — uses `createPublicClientForChain(base)` for reads |
 
 ---
 
@@ -92,21 +98,7 @@ The scripts in `~/Documents/projects/uniswap-buyer` are **backend scripts** usin
 | ETH/UP Pool | `0x9EF81F4E2F2f15Ff1c0C3f8c9ECc636580025242` | From uniswap-buyer |
 | ETH/USDC Pool | `0xd0b53D9277642d899DF5C87A3966A349A798F224` | From uniswap-buyer |
 
-### Base Sepolia (Chain ID: 84532) — Development
-| Contract | Address | Notes |
-|---|---|---|
-| Universal Router | `0x492E6456D9528771018DeB9E87ef7750EF184104` | Verify on testnet explorer |
-| Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` | Same canonical address |
-| QuoterV2 | TBD — verify deployment | May differ from mainnet |
-| WETH | `0x4200000000000000000000000000000000000006` | Same address on Base Sepolia |
-| ETH/UP Pool | TBD — may not exist on Sepolia | Likely need to test on mainnet fork |
-| ETH/USDC Pool | TBD — verify existence | |
-
-> **⚠️ CRITICAL**: Your app defaults to `BASE_SEPOLIA`. The Uniswap pools (ETH/UP, ETH/USDC) may **not** exist on Sepolia. You will likely need to:
-> 1. Test against a **Base Mainnet fork** (using Alchemy/Infura forking), OR
-> 2. Deploy test pools on Sepolia, OR
-> 3. Only enable the Uniswap swap feature when `NEXT_PUBLIC_BLOCKCHAIN_NETWORK=base` (mainnet).
-> This is a key decision (see [Open Questions](#13-open-questions--decisions)).
+> **✅ DECIDED**: This integration targets **Base Mainnet only**. The Uniswap hook will create a dedicated `PublicClient` for Base Mainnet (chain ID 8453) using `createPublicClientForChain(base)`, regardless of the app's `NEXT_PUBLIC_BLOCKCHAIN_NETWORK` setting. This is the same pattern used by the network-specific components in the app. Testing will use an **Anvil mainnet fork** for integration tests.
 
 ---
 
@@ -127,7 +119,7 @@ hooks/vendor/
 └── useUniswapSwap.ts     # Main React hook: quotes, approvals, execution
 
 components/vendor/
-└── UniswapSwap.tsx        # Swap card UI component
+└── UniswapSwapTab.tsx      # Swap tab content (rendered inside VendorSwap's tabbed layout)
 
 lib/uniswap/abi/
 ├── universal-router.ts   # Minimal Universal Router ABI (execute function)
@@ -140,9 +132,11 @@ lib/uniswap/abi/
 
 | File | Change |
 |---|---|
-| `pages/lobby/vendor.tsx` | Import and render `<UniswapSwap />` alongside `<VendorSwap />` |
-| `package.json` | Add SDK dependencies |
-| `.env.local` / `.env.example` | Add fee wallet address and Uniswap-specific env vars |
+| `components/vendor/VendorSwap.tsx` | Add tab navigation ("DG Market" / "Uniswap") wrapping existing content + new `UniswapSwapTab` |
+| `pages/lobby/vendor.tsx` | No change needed — `VendorSwap` already rendered here |
+| `.env.local` / `.env.example` | Add `NEXT_PUBLIC_UNISWAP_FEE_WALLET` env var |
+
+> **Note**: No new npm dependencies are required. All encoding is done manually with Viem (already installed). The Uniswap SDKs (`@uniswap/universal-router-sdk`, `@uniswap/v3-sdk`, etc.) are **not** needed.
 
 ---
 
@@ -199,13 +193,11 @@ When swapping **ETH → Token**, the user sends ETH as `msg.value`. The Universa
 
 ## 6. Implementation: Step-by-Step
 
-### Step 1: Install Dependencies
+### Step 1: Dependencies
 
-```bash
-npm install @uniswap/universal-router-sdk @uniswap/v3-sdk @uniswap/sdk-core @uniswap/router-sdk
-```
+**No new npm packages are needed.** All Universal Router calldata is encoded manually using Viem's built-in `encodeAbiParameters`, `encodePacked`, and `encodeFunctionData` utilities which are already installed (`viem@^2.38.0`).
 
-> **Note**: Verify version compatibility with your existing `ethers@6` and `viem@2.38`. The Uniswap SDKs may have peer dependencies. Check for conflicts.
+The QuoterV2 and Pool ABIs will be defined as TypeScript constants in `lib/uniswap/abi/`.
 
 ### Step 2: Create Constants (`lib/uniswap/constants.ts`)
 
@@ -215,37 +207,31 @@ npm install @uniswap/universal-router-sdk @uniswap/v3-sdk @uniswap/sdk-core @uni
  * All contract addresses and fee configuration for Uniswap V3 on Base.
  */
 
+import { base } from 'viem/chains';
+
+/** Base Mainnet only — no Sepolia support for Uniswap swaps */
+export const UNISWAP_CHAIN = base; // chain ID 8453
+
+/** All contract addresses for Base Mainnet */
 export const UNISWAP_ADDRESSES = {
-  // Base Mainnet (8453)
-  8453: {
-    universalRouter: '0x66a9893cc07d91d95644aedd05d03f95e1dba8af' as `0x${string}`,
-    permit2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as `0x${string}`,
-    quoterV2: '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a' as `0x${string}`,
-    weth: '0x4200000000000000000000000000000000000006' as `0x${string}`,
-    usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
-    pools: {
-      ETH_UP: '0x9EF81F4E2F2f15Ff1c0C3f8c9ECc636580025242' as `0x${string}`,
-      ETH_USDC: '0xd0b53D9277642d899DF5C87A3966A349A798F224' as `0x${string}`,
-    },
-  },
-  // Base Sepolia (84532) — verify these exist
-  84532: {
-    universalRouter: '0x492E6456D9528771018DeB9E87ef7750EF184104' as `0x${string}`,
-    permit2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as `0x${string}`,
-    quoterV2: '' as `0x${string}`, // TBD: verify deployment
-    weth: '0x4200000000000000000000000000000000000006' as `0x${string}`,
-    usdc: '' as `0x${string}`, // TBD: Sepolia USDC address
-    pools: {
-      ETH_UP: '' as `0x${string}`, // TBD: may not exist
-      ETH_USDC: '' as `0x${string}`, // TBD: may not exist
-    },
+  universalRouter: '0x66a9893cc07d91d95644aedd05d03f95e1dba8af' as `0x${string}`,
+  permit2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as `0x${string}`,
+  quoterV2: '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a' as `0x${string}`,
+  weth: '0x4200000000000000000000000000000000000006' as `0x${string}`,
+  usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
+  pools: {
+    ETH_UP: '0x9EF81F4E2F2f15Ff1c0C3f8c9ECc636580025242' as `0x${string}`,
+    ETH_USDC: '0xd0b53D9277642d899DF5C87A3966A349A798F224' as `0x${string}`,
   },
 } as const;
 
+/** Supported swap pairs — hardcoded for MVP */
+export type SwapPair = 'ETH_UP' | 'ETH_USDC';
+
 /** Frontend fee configuration */
 export const FEE_CONFIG = {
-  /** Fee in basis points (25 = 0.25%) */
-  feeBips: 25,
+  /** Fee in basis points (25 = 0.25%), sourced from env var */
+  feeBips: Number(process.env.NEXT_PUBLIC_UNISWAP_FEE_BIPS ?? 25),
   /** Fee recipient wallet address — from env var */
   feeRecipient: process.env.NEXT_PUBLIC_UNISWAP_FEE_WALLET as `0x${string}`,
 } as const;
@@ -350,44 +336,7 @@ export async function getQuoteExactInputSingle(
 
 ### Step 5: Universal Router Command Encoder (`lib/uniswap/encode-swap.ts`)
 
-This is the core of the fee implementation. There are two approaches — choose based on SDK compatibility:
-
-#### Approach A: Using the `@uniswap/universal-router-sdk` (Preferred if SDK works)
-
-```typescript
-import { SwapRouter, UniswapTrade } from '@uniswap/universal-router-sdk';
-import { Trade as V3Trade } from '@uniswap/v3-sdk';
-
-// The SDK's SwapRouter.swapERC20CallParameters() supports a `fee` option
-// that automatically inserts PAY_PORTION + SWEEP commands.
-export function encodeSwapWithFee(config: {
-  trade: V3Trade<any, any, any>;
-  slippageTolerance: Percent;
-  deadline: number;
-  recipient: string;
-  feeRecipient: string;
-  feeBips: number;
-}): { calldata: string; value: string } {
-  // Check SDK docs for exact API — this varies by version
-  const { calldata, value } = SwapRouter.swapCallParameters(
-    new UniswapTrade(config.trade, {
-      fee: {
-        fee: new Percent(config.feeBips, 10_000),
-        recipient: config.feeRecipient,
-      },
-      recipient: config.recipient,
-      slippageTolerance: config.slippageTolerance,
-      deadlineOrPreviousBlockhash: config.deadline,
-    })
-  );
-
-  return { calldata, value };
-}
-```
-
-#### Approach B: Manual ABI Encoding (Fallback if SDK has compatibility issues)
-
-If the SDK has peer dependency conflicts or doesn't export the expected API, encode the commands manually using Viem:
+This is the core of the fee implementation. We use **manual Viem encoding** (no Uniswap SDK dependency) for reliability and zero dependency issues:
 
 ```typescript
 import { encodePacked, encodeAbiParameters, parseAbiParameters } from 'viem';
@@ -564,11 +513,12 @@ export async function approveUniversalRouterViaPermit2(
 ```typescript
 "use client";
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
+import { base } from 'viem/chains';
 import { usePrivyWriteWallet } from '@/hooks/unlock/usePrivyWriteWallet';
 import { createViemFromPrivyWallet } from '@/lib/blockchain/providers/privy-viem';
-import { getClientConfig } from '@/lib/blockchain/config';
-import { UNISWAP_ADDRESSES, FEE_CONFIG, DEFAULT_SLIPPAGE_BPS, DEFAULT_DEADLINE_SECONDS } from '@/lib/uniswap/constants';
+import { createPublicClientForChain } from '@/lib/blockchain/config';
+import { UNISWAP_ADDRESSES, UNISWAP_CHAIN, FEE_CONFIG, DEFAULT_SLIPPAGE_BPS, DEFAULT_DEADLINE_SECONDS } from '@/lib/uniswap/constants';
 import { fetchPoolState } from '@/lib/uniswap/pool';
 import { getQuoteExactInputSingle } from '@/lib/uniswap/quote';
 import { encodeSwapWithFeeManual } from '@/lib/uniswap/encode-swap';
@@ -604,7 +554,9 @@ interface SwapState {
 
 export function useUniswapSwap() {
   const wallet = usePrivyWriteWallet();
-  const { chainId } = getClientConfig();
+
+  // Always use Base Mainnet for Uniswap — independent of app's default network
+  const addresses = UNISWAP_ADDRESSES; // Base Mainnet only, no chain lookup needed
 
   const [state, setState] = useState<SwapState>({
     quote: null,
@@ -614,15 +566,6 @@ export function useUniswapSwap() {
     error: null,
     txHash: null,
   });
-
-  const addresses = useMemo(() => {
-    const addrs = UNISWAP_ADDRESSES[chainId as keyof typeof UNISWAP_ADDRESSES];
-    if (!addrs) {
-      log.warn('No Uniswap addresses configured for chain', { chainId });
-      return null;
-    }
-    return addrs;
-  }, [chainId]);
 
   /**
    * Fetch a quote for the given swap
@@ -637,7 +580,8 @@ export function useUniswapSwap() {
     setState(prev => ({ ...prev, isQuoting: true, error: null }));
 
     try {
-      const { publicClient } = await createViemFromPrivyWallet(wallet!);
+      // Use dedicated Base Mainnet public client for reads
+      const publicClient = createPublicClientForChain(base);
       const poolAddress = addresses.pools[pair];
       const poolState = await fetchPoolState(publicClient, poolAddress);
 
@@ -688,7 +632,10 @@ export function useUniswapSwap() {
     setState(prev => ({ ...prev, isSwapping: true, error: null, txHash: null }));
 
     try {
-      const { walletClient, publicClient } = await createViemFromPrivyWallet(wallet);
+      // Wallet client from Privy for write operations
+      const { walletClient } = await createViemFromPrivyWallet(wallet);
+      // Dedicated Base Mainnet public client for reads (independent of app network)
+      const publicClient = createPublicClientForChain(base);
       const userAddress = wallet.address as `0x${string}`;
       const poolAddress = addresses.pools[pair];
       const poolState = await fetchPoolState(publicClient, poolAddress);
@@ -767,29 +714,70 @@ export function useUniswapSwap() {
     ...state,
     getQuote,
     executeSwap,
-    isSupported: !!addresses,
+    isSupported: true, // Always supported — we hardcode Base Mainnet
     feeBips: FEE_CONFIG.feeBips,
   };
 }
 ```
 
-### Step 8: UI Component (`components/vendor/UniswapSwap.tsx`)
+### Step 8: UI Component — Tabbed Integration (`components/vendor/UniswapSwapTab.tsx`)
 
-The component should:
-- Mirror the `VendorSwap.tsx` design language (dark card, mode toggle, amount input).
-- Add a **pair selector** (ETH/UP vs ETH/USDC).
-- Show the fee breakdown (app fee, output after fee).
-- Provide clear approval step indicators.
+The Uniswap swap will be a **tab within the existing VendorSwap card**, not a separate component. This keeps the UI clean and familiar.
 
-**Design structure** (not full implementation — follow `VendorSwap.tsx` patterns):
+#### Tab Structure in `VendorSwap.tsx`
+
+The existing `VendorSwap.tsx` will be modified to add tab navigation at the top:
 
 ```tsx
-export default function UniswapSwap() {
-  // 1. State: pair, direction, amount
+// In VendorSwap.tsx — add tab state and navigation
+const [activeTab, setActiveTab] = useState<'vendor' | 'uniswap'>('vendor');
+
+return (
+  <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-slate-900/90 to-slate-900/60 p-6 shadow-2xl shadow-black/40">
+    {/* Tab Navigation */}
+    <div className="flex gap-1 p-1 mb-4 rounded-lg bg-white/5">
+      <button
+        onClick={() => setActiveTab('vendor')}
+        className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+          activeTab === 'vendor'
+            ? 'bg-white/10 text-white shadow-sm'
+            : 'text-white/50 hover:text-white/80'
+        }`}
+      >
+        DG Market
+      </button>
+      <button
+        onClick={() => setActiveTab('uniswap')}
+        className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+          activeTab === 'uniswap'
+            ? 'bg-white/10 text-white shadow-sm'
+            : 'text-white/50 hover:text-white/80'
+        }`}
+      >
+        Uniswap
+      </button>
+    </div>
+
+    {/* Tab Content */}
+    {activeTab === 'vendor' ? (
+      <VendorSwapContent />  {/* existing swap form, extracted into sub-component */}
+    ) : (
+      <UniswapSwapTab />     {/* new Uniswap swap form */}
+    )}
+  </div>
+);
+```
+
+#### `UniswapSwapTab.tsx` Design
+
+```tsx
+// components/vendor/UniswapSwapTab.tsx
+export default function UniswapSwapTab() {
+  // 1. State: pair (ETH_UP | ETH_USDC), direction (buy | sell), amount
   // 2. Hook: useUniswapSwap()
   // 3. Debounced quote fetching on amount change
   // 4. UI Sections:
-  //    a. Header: "Uniswap Swap" with pair selector pills
+  //    a. Pair selector pills: "ETH/UP" | "ETH/USDC"
   //    b. Direction toggle: Buy / Sell
   //    c. Amount input with balance display
   //    d. Quote display card:
@@ -800,8 +788,9 @@ export default function UniswapSwap() {
   //    e. Action button (Approve → Swap, with loading states)
 
   return (
-    <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-slate-900/90 to-slate-900/60 p-6 shadow-2xl shadow-black/40 space-y-4">
-      {/* ... match VendorSwap styling ... */}
+    <div className="space-y-4">
+      {/* No outer card — inherits from VendorSwap's card container */}
+      {/* ... */}
     </div>
   );
 }
@@ -809,39 +798,20 @@ export default function UniswapSwap() {
 
 ### Step 9: Vendor Page Integration (`pages/lobby/vendor.tsx`)
 
+**No changes needed** to the vendor page itself. The `VendorSwap` component already renders in the page, and the tab navigation will be added inside `VendorSwap.tsx`.
+
+The existing page structure remains:
 ```tsx
-import UniswapSwap from '@/components/vendor/UniswapSwap';
-
-export default function VendorPage() {
-  return (
-    <LobbyLayout>
-      <div className="flex flex-col items-center py-8">
-        {/* ... existing header ... */}
-
-        <section className="w-full max-w-5xl mx-auto mt-8 px-4 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-center">
-          {/* Primary: DG Vendor swap (existing) */}
-          <div className="w-full lg:max-w-md">
-            <VendorSwap />
-          </div>
-
-          {/* New: Uniswap swap card */}
-          <div className="w-full lg:max-w-md">
-            <UniswapSwap />
-          </div>
-
-          {/* Side info column */}
-          <div className="w-full lg:max-w-sm space-y-6">
-            <LightUpButton />
-            <LevelUpCard />
-          </div>
-        </section>
-      </div>
-    </LobbyLayout>
-  );
-}
+<section className="...">
+  <div className="w-full lg:max-w-md">
+    <VendorSwap />  {/* Now contains both tabs internally */}
+  </div>
+  <div className="w-full lg:max-w-sm space-y-6">
+    <LightUpButton />
+    <LevelUpCard />
+  </div>
+</section>
 ```
-
-> **Layout Decision**: This places the Uniswap card side-by-side with the Vendor card. Alternatively, use tabs within a single card to toggle between "DG Market" and "Uniswap". See [Open Questions](#13-open-questions--decisions).
 
 ---
 
@@ -998,7 +968,7 @@ Follow the existing `useDGMarket` error handling pattern — return `{ success: 
 #### `hooks/vendor/useUniswapSwap.test.ts`
 | Test | Description |
 |---|---|
-| `returns isSupported=false for unsupported chain` | When chainId not in UNISWAP_ADDRESSES |
+| `always targets Base Mainnet` | Verify public client uses `base` chain regardless of app network |
 | `fetches quote and updates state` | Mock pool + quoter, verify state.quote |
 | `handles approval flow for sell direction` | Verify 2 approval txs are sent before swap |
 | `skips approvals for buy (ETH) direction` | No approval calls when buying with ETH |
@@ -1007,7 +977,8 @@ Follow the existing `useDGMarket` error handling pattern — return `{ success: 
 #### `components/vendor/UniswapSwap.test.tsx`
 | Test | Description |
 |---|---|
-| `renders pair selector` | ETH/UP and ETH/USDC options visible |
+| `renders tab navigation` | "DG Market" and "Uniswap" tabs visible |
+| `renders pair selector in Uniswap tab` | ETH/UP and ETH/USDC options visible |
 | `renders buy/sell toggle` | Both modes accessible |
 | `disables swap button when no amount` | Button shows "Enter amount" |
 | `shows fee breakdown after quote` | Fee amount and user receive shown |
@@ -1036,17 +1007,19 @@ Follow the existing `useDGMarket` error handling pattern — return `{ success: 
 
 ---
 
-## 13. Open Questions & Decisions
+## 13. Resolved Decisions
 
-| # | Question | Options | Recommendation |
+All architectural decisions have been finalized:
+
+| # | Decision | Choice | Rationale |
 |---|---|---|---|
-| 1 | **Network support**: Enable on Sepolia or mainnet-only? | (a) Mainnet only (b) Both with feature flag | **(a)** — Pools don't exist on Sepolia. Gate behind `chainId === 8453`. |
-| 2 | **Layout**: Side-by-side cards or tabs within one card? | (a) Two separate cards (b) Tabbed interface | **(b)** — Less visual clutter; matches existing VendorSwap UX. |
-| 3 | **Supported pairs**: Only ETH/UP and ETH/USDC, or extensible? | (a) Hardcoded 2 pairs (b) Config-driven | **(a)** for MVP — keep it simple. |
-| 4 | **Swap directions**: Bidirectional or ETH-to-token only? | (a) Both buy and sell (b) Buy only | **(a)** — Both, but sell requires Permit2 flow. |
-| 5 | **Fee percentage**: Fixed or admin-configurable? | (a) Hardcoded in env (b) Admin panel setting | **(a)** for MVP — env var is sufficient. |
-| 6 | **SDK vs manual encoding**: Use `@uniswap/universal-router-sdk` or manual Viem encoding? | (a) SDK (b) Manual | **(b)** for reliability — SDK has frequent breaking changes and peer dep issues. Manual encoding with Viem is more predictable. |
-| 7 | **Fee token**: Take fee in output token or input token? | (a) Output token (b) Input token | **(a)** — The `PAY_PORTION` command operates on the Router's balance of the output token. |
-| 8 | **Price impact threshold**: At what % should we warn/block? | Configurable | Warn at 1%, block at 5%. |
-| 9 | **Universal Router version**: V1 (`0x3fC91A3...`) or V2/V4 (`0x66a989...`)? | Verify on BaseScan | The latest deployed version on Base. Verify command byte values match. |
-| 10 | **Testing strategy**: Mainnet fork or deploy test pools on Sepolia? | (a) Anvil mainnet fork (b) Sepolia test pools | **(a)** — Much simpler, real liquidity data. |
+| 1 | **Network** | ✅ **Base Mainnet only** | Pools don't exist on Sepolia. Use `createPublicClientForChain(base)` for a dedicated Base Mainnet provider, just like the address dropdown component — works regardless of `NEXT_PUBLIC_BLOCKCHAIN_NETWORK`. |
+| 2 | **Layout** | ✅ **Tabbed interface** | Single card with "DG Market" and "Uniswap" tabs. Cleaner, less clutter, flexible for future additions. |
+| 3 | **Supported pairs** | ✅ **Hardcoded 2 pairs** | ETH ↔ UP and ETH ↔ USDC only. No config-driven extensibility for MVP. |
+| 4 | **Swap directions** | ✅ **Bidirectional** | Both buy (ETH→Token) and sell (Token→ETH). Sell requires Permit2 approval flow. |
+| 5 | **Fee percentage** | ✅ **0.25% via env var** | `NEXT_PUBLIC_UNISWAP_FEE_BIPS=25` with fallback to 25. Sufficient for MVP. |
+| 6 | **Encoding strategy** | ✅ **Manual Viem encoding** | No `@uniswap/universal-router-sdk` or other Uniswap SDK dependencies. All calldata encoded with Viem's `encodeAbiParameters` / `encodePacked`. Zero dependency risk. |
+| 7 | **Fee token** | ✅ **Output token** | `PAY_PORTION` command operates on Router's held balance of the output token. |
+| 8 | **Price impact** | ✅ **Warn at 1%, block at 5%** | Protects users from unfavorable swaps. |
+| 9 | **Universal Router version** | ✅ **V4 (`0x66a989...`)** | Latest deployed version on Base Mainnet. Command byte values must be verified against this deployment. |
+| 10 | **Testing strategy** | ✅ **Anvil mainnet fork** | Fork Base Mainnet for integration tests. Real liquidity data, no test pool deployment needed. |
