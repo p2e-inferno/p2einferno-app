@@ -72,7 +72,10 @@ export async function sendMilestoneReviewNotification(
     const adminEmail = getAdminReviewEmail();
     const dedupKey = `milestone_review_${submissionId}`;
 
-    // Send parallel Telegram notification (fire-and-forget)
+    // Telegram notification is intentionally outside email dedup: Telegram is
+    // idempotent (duplicate pings are harmless) and has no DB-backed dedup table.
+    // The email dedup safety net covers rare race conditions that don't warrant
+    // building separate Telegram dedup infrastructure.
     sendAdminTelegramNotification(
       "New Milestone Submission",
       `${context.userName} submitted: ${context.taskTitle} (${context.submissionType})`,
@@ -185,7 +188,7 @@ export async function sendQuestReviewNotification(
       });
     }
 
-    // Send parallel Telegram notification (fire-and-forget)
+    // Telegram notification intentionally outside email dedup (see milestone path comment)
     sendAdminTelegramNotification(
       "New Quest Submission",
       `${context.userName} submitted: ${context.taskTitle} (${context.submissionType})`,
