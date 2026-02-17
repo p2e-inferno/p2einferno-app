@@ -43,6 +43,7 @@ export const QuestList = ({
       hasPrerequisite: Boolean(
         quest.prerequisite_quest_id || quest.prerequisite_quest_lock_address,
       ),
+      requiresGoodDollar: Boolean(quest.requires_gooddollar_verification),
     };
   });
 
@@ -85,6 +86,7 @@ export const QuestList = ({
               hasPendingTaskRewards,
               isQuestKeyPending,
               hasPrerequisite,
+              requiresGoodDollar,
             }) => (
               <QuestCard
                 key={quest.id}
@@ -95,6 +97,7 @@ export const QuestList = ({
                 hasPendingTaskRewards={hasPendingTaskRewards}
                 isQuestKeyPending={isQuestKeyPending}
                 hasPrerequisite={hasPrerequisite}
+                requiresGoodDollar={requiresGoodDollar}
               />
             ),
           )}

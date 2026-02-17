@@ -4,6 +4,7 @@ import type {
   UserQuestProgress as SupabaseUserQuestProgress,
   UserTaskCompletion as SupabaseUserTaskCompletion,
 } from "@/lib/supabase/types";
+import { PrerequisiteState } from "@/lib/quests/prerequisite-checker";
 
 export type Quest = SupabaseQuest;
 export type QuestTask = SupabaseQuestTask;
@@ -25,6 +26,7 @@ export interface QuestCardProps {
   hasPendingTaskRewards?: boolean;
   isQuestKeyPending?: boolean;
   hasPrerequisite?: boolean;
+  requiresGoodDollar?: boolean;
 }
 
 export interface QuestHeaderProps {
@@ -38,6 +40,7 @@ export interface QuestHeaderProps {
   isLoadingStartQuest?: boolean;
   canStartQuest?: boolean;
   prerequisiteQuest?: { id: string; title: string } | null;
+  prerequisiteState?: PrerequisiteState;
   canClaimReward?: boolean;
   hasClaimedReward?: boolean;
   onClaimReward?: () => void;

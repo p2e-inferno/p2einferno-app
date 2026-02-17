@@ -13,16 +13,29 @@ import { COMPLETE_LOCK_ABI } from "@/lib/blockchain/shared/abi-definitions";
 
 const log = getLogger("lib:quests:prerequisite-checker");
 
+export type PrerequisiteState =
+  | "none"
+  | "missing_completion"
+  | "missing_key"
+  | "missing_verification"
+  | "ok";
+
 export interface PrerequisiteCheckResult {
   canProceed: boolean;
   reason?: string;
-  prerequisiteState?: "none" | "missing_completion" | "missing_key" | "ok";
+  prerequisiteState?: PrerequisiteState;
 }
 
 export interface QuestPrerequisiteData {
   prerequisite_quest_id: string | null;
   prerequisite_quest_lock_address: string | null;
   requires_prerequisite_key: boolean;
+  requires_gooddollar_verification?: boolean;
+  /** Pre-fetched face verification status to avoid redundant DB queries in list endpoints. */
+  userFaceVerified?: {
+    isVerified: boolean;
+    isExpired: boolean;
+  } | null;
 }
 
 /**
@@ -44,10 +57,15 @@ export async function checkQuestPrerequisites(
     prerequisite_quest_id,
     prerequisite_quest_lock_address,
     requires_prerequisite_key,
+    requires_gooddollar_verification,
   } = questPrereqs;
 
-  // No prerequisites configured
-  if (!prerequisite_quest_id && !prerequisite_quest_lock_address) {
+  // No prerequisites or verification configured
+  if (
+    !prerequisite_quest_id &&
+    !prerequisite_quest_lock_address &&
+    !requires_gooddollar_verification
+  ) {
     return {
       canProceed: true,
       prerequisiteState: "none",
@@ -120,6 +138,58 @@ export async function checkQuestPrerequisites(
         reason: "Failed to verify key ownership",
         prerequisiteState: "missing_key",
       };
+    }
+  }
+
+  // Check GoodDollar face verification if required
+  if (requires_gooddollar_verification) {
+    // Use pre-fetched status if provided (avoids N+1 queries in list endpoints)
+    if (questPrereqs.userFaceVerified != null) {
+      if (
+        !questPrereqs.userFaceVerified.isVerified ||
+        questPrereqs.userFaceVerified.isExpired
+      ) {
+        return {
+          canProceed: false,
+          reason: questPrereqs.userFaceVerified.isExpired
+            ? "Your face verification has expired. Please re-verify."
+            : "GoodDollar face verification is required for this quest.",
+          prerequisiteState: "missing_verification",
+        };
+      }
+    } else {
+      const { data: profile, error: profileError } = await supabase
+        .from("user_profiles")
+        .select("is_face_verified, face_verification_expiry")
+        .eq("privy_user_id", userId)
+        .maybeSingle();
+
+      if (profileError) {
+        log.error("Error checking user face verification status", {
+          error: profileError,
+          userId,
+        });
+        return {
+          canProceed: false,
+          reason: "Failed to verify face verification status",
+          prerequisiteState: "missing_verification",
+        };
+      }
+
+      const now = new Date();
+      const isExpired =
+        profile?.face_verification_expiry &&
+        new Date(profile.face_verification_expiry) < now;
+
+      if (!profile?.is_face_verified || isExpired) {
+        return {
+          canProceed: false,
+          reason: isExpired
+            ? "Your face verification has expired. Please re-verify."
+            : "GoodDollar face verification is required for this quest.",
+          prerequisiteState: "missing_verification",
+        };
+      }
     }
   }
 

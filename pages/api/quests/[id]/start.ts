@@ -34,7 +34,7 @@ export default async function handler(
     const { data: quest, error: questError } = await supabase
       .from("quests")
       .select(
-        "id, title, is_active, prerequisite_quest_id, prerequisite_quest_lock_address, requires_prerequisite_key",
+        "id, title, is_active, prerequisite_quest_id, prerequisite_quest_lock_address, requires_prerequisite_key, requires_gooddollar_verification",
       )
       .eq("id", id)
       .eq("is_active", true)
@@ -70,6 +70,8 @@ export default async function handler(
         prerequisite_quest_id: quest.prerequisite_quest_id,
         prerequisite_quest_lock_address: quest.prerequisite_quest_lock_address,
         requires_prerequisite_key: quest.requires_prerequisite_key,
+        requires_gooddollar_verification:
+          quest.requires_gooddollar_verification,
       },
     );
 
