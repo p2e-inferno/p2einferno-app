@@ -93,7 +93,7 @@ export default async function handler(
 
       (quest as any).can_start = prereqCheck.canProceed;
       (quest as any).prerequisite_state =
-        prereqCheck.prerequisiteState ||
+        prereqCheck.prerequisiteState ??
         (quest.prerequisite_quest_id || quest.prerequisite_quest_lock_address
           ? "missing_completion"
           : "none");

@@ -61,6 +61,22 @@ export default async function handler(
       });
     }
 
+    // Pre-fetch user face verification to avoid N+1 queries in the loop
+    let userFaceVerified = null;
+    if (userId && (quests || []).some((q: any) => q.requires_gooddollar_verification)) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("is_face_verified, face_verification_expiry")
+        .eq("privy_user_id", userId)
+        .maybeSingle();
+
+      const now = new Date();
+      userFaceVerified =
+        profile?.is_face_verified &&
+        (!profile?.face_verification_expiry ||
+          new Date(profile.face_verification_expiry) > now);
+    }
+
     const questsWithPrereqs = await Promise.all(
       (quests || []).map(async (quest: any) => {
         if (!userId) {
@@ -78,6 +94,7 @@ export default async function handler(
             requires_prerequisite_key: quest.requires_prerequisite_key ?? false,
             requires_gooddollar_verification:
               quest.requires_gooddollar_verification ?? false,
+            userFaceVerified,
           },
         );
 
@@ -85,7 +102,7 @@ export default async function handler(
           ...sortQuestTasks(quest),
           can_start: prereqCheck.canProceed,
           prerequisite_state:
-            prereqCheck.prerequisiteState ||
+            prereqCheck.prerequisiteState ??
             (quest.prerequisite_quest_id ||
               quest.prerequisite_quest_lock_address
               ? "missing_completion"
