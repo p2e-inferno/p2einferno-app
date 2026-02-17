@@ -4,7 +4,9 @@
 -- when the admin approves them (handled by the Admin Review API).
 
 CREATE OR REPLACE FUNCTION public.notify_on_task_completion()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+SET search_path = 'public'
+AS $$
 DECLARE
   v_task_title TEXT;
   v_cohort_id TEXT;
