@@ -305,7 +305,7 @@ const QuestDetailsPage = () => {
       }
 
       if (result.success) {
-        toast.success("Task completed! 🔥");
+        toast.success(result.message || "Task completed! 🔥");
         await loadQuestDetails();
       } else {
         toast.error(result.error || "Failed to perform task action");
