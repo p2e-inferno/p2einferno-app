@@ -119,7 +119,7 @@ export default async function handler(
     const clientTxHash =
       clientVerificationData && typeof clientVerificationData === "object"
         ? (clientVerificationData as { transactionHash?: string })
-            .transactionHash
+          .transactionHash
         : undefined;
 
     const strategy = task?.task_type
@@ -348,9 +348,13 @@ export default async function handler(
       }
     }
 
-    res
-      .status(200)
-      .json({ success: true, message: "Task completed successfully" });
+    res.status(200).json({
+      success: true,
+      message:
+        initialStatus === "pending"
+          ? "Task submitted for review"
+          : "Task completed successfully",
+    });
   } catch (error) {
     log.error("Error in complete task API:", error);
     res.status(500).json({ error: "Internal server error" });
