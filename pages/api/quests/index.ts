@@ -63,18 +63,34 @@ export default async function handler(
 
     // Pre-fetch user face verification to avoid N+1 queries in the loop
     let userFaceVerified = null;
-    if (userId && (quests || []).some((q: any) => q.requires_gooddollar_verification)) {
-      const { data: profile } = await supabase
+    if (
+      userId &&
+      (quests || []).some((q: any) => q.requires_gooddollar_verification)
+    ) {
+      const { data: profile, error: profileError } = await supabase
         .from("user_profiles")
         .select("is_face_verified, face_verification_expiry")
         .eq("privy_user_id", userId)
         .maybeSingle();
 
-      const now = new Date();
-      userFaceVerified =
-        profile?.is_face_verified &&
-        (!profile?.face_verification_expiry ||
-          new Date(profile.face_verification_expiry) > now);
+      if (profileError) {
+        log.error("Error pre-fetching user face verification status", {
+          error: profileError,
+          userId,
+        });
+        // Fallback to unverified state on error for safety
+        userFaceVerified = { isVerified: false, isExpired: false };
+      } else {
+        const now = new Date();
+        const isExpired =
+          profile?.face_verification_expiry &&
+          new Date(profile.face_verification_expiry) < now;
+
+        userFaceVerified = {
+          isVerified: !!profile?.is_face_verified,
+          isExpired: !!isExpired,
+        };
+      }
     }
 
     const questsWithPrereqs = await Promise.all(

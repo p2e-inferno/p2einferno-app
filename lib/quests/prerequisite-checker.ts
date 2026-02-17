@@ -32,7 +32,10 @@ export interface QuestPrerequisiteData {
   requires_prerequisite_key: boolean;
   requires_gooddollar_verification?: boolean;
   /** Pre-fetched face verification status to avoid redundant DB queries in list endpoints. */
-  userFaceVerified?: boolean | null;
+  userFaceVerified?: {
+    isVerified: boolean;
+    isExpired: boolean;
+  } | null;
 }
 
 /**
@@ -142,10 +145,15 @@ export async function checkQuestPrerequisites(
   if (requires_gooddollar_verification) {
     // Use pre-fetched status if provided (avoids N+1 queries in list endpoints)
     if (questPrereqs.userFaceVerified != null) {
-      if (!questPrereqs.userFaceVerified) {
+      if (
+        !questPrereqs.userFaceVerified.isVerified ||
+        questPrereqs.userFaceVerified.isExpired
+      ) {
         return {
           canProceed: false,
-          reason: "GoodDollar face verification is required for this quest.",
+          reason: questPrereqs.userFaceVerified.isExpired
+            ? "Your face verification has expired. Please re-verify."
+            : "GoodDollar face verification is required for this quest.",
           prerequisiteState: "missing_verification",
         };
       }

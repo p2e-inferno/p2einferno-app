@@ -120,7 +120,16 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
         {onStartQuest && !isQuestStarted && !canStartQuest && (
           <p className="mt-2 text-sm text-yellow-400">
             {prerequisiteState === "missing_verification" ? (
-              "Complete GoodDollar verification to start this quest."
+              <>
+                Complete{" "}
+                <Link
+                  href="/lobby#gooddollar-verification"
+                  className="underline hover:text-yellow-300 transition-colors"
+                >
+                  GoodDollar verification
+                </Link>{" "}
+                to start this quest.
+              </>
             ) : prerequisiteQuest ? (
               <>
                 Complete{" "}
