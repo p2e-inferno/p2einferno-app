@@ -15,6 +15,7 @@ export const QuestCard = ({
   hasPendingTaskRewards,
   isQuestKeyPending,
   hasPrerequisite,
+  requiresGoodDollar,
 }: QuestCardProps) => {
   return (
     <Link href={`/lobby/quests/${quest.id}`} className="group relative">
@@ -64,6 +65,11 @@ export const QuestCard = ({
             {hasPrerequisite && (
               <div className="bg-gray-800/80 backdrop-blur-sm border border-gray-600 text-gray-300 px-3 py-1 rounded-full text-xs font-medium">
                 Prerequisite Required
+              </div>
+            )}
+            {requiresGoodDollar && (
+              <div className="bg-gray-800/80 backdrop-blur-sm border border-gray-600 text-gray-300 px-3 py-1 rounded-full text-xs font-medium">
+                GoodDollar Verification Required
               </div>
             )}
           </div>

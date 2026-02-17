@@ -718,6 +718,8 @@ const QuestDetailsPage = () => {
         ) : (
           "You need an active key from the prerequisite quest to continue."
         );
+      case "missing_verification":
+        return "GoodDollar face verification is required to start this quest.";
       default:
         return "Prerequisite requirements are not met yet.";
     }
@@ -761,6 +763,7 @@ const QuestDetailsPage = () => {
             }
             isClaimingReward={isClaimingQuestReward}
             isQuestKeyPending={isQuestKeyPending}
+            prerequisiteState={quest.prerequisite_state}
           />
 
           {isQuestStarted && tasksWithCompletion.length > 0 && (
