@@ -25,6 +25,7 @@ export interface QuestCardProps {
   hasPendingTaskRewards?: boolean;
   isQuestKeyPending?: boolean;
   hasPrerequisite?: boolean;
+  requiresGoodDollar?: boolean;
 }
 
 export interface QuestHeaderProps {
@@ -38,6 +39,12 @@ export interface QuestHeaderProps {
   isLoadingStartQuest?: boolean;
   canStartQuest?: boolean;
   prerequisiteQuest?: { id: string; title: string } | null;
+  prerequisiteState?:
+  | "none"
+  | "missing_completion"
+  | "missing_key"
+  | "missing_verification"
+  | "ok";
   canClaimReward?: boolean;
   hasClaimedReward?: boolean;
   onClaimReward?: () => void;

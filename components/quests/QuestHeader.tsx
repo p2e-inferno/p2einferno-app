@@ -21,6 +21,7 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
   onClaimReward,
   isClaimingReward,
   isQuestKeyPending,
+  prerequisiteState,
 }) => {
   const rewardLabel =
     quest.reward_type === "activation"
@@ -37,7 +38,9 @@ const QuestHeader: React.FC<QuestHeaderProps> = ({
   const startDisabled =
     !isQuestStarted && (!canStartQuest || Boolean(isLoadingStartQuest));
   const startButtonLabel = !canStartQuest
-    ? "Prerequisites Required"
+    ? prerequisiteState === "missing_verification"
+      ? "GoodDollar Verification Required"
+      : "Prerequisites Required"
     : isLoadingStartQuest
       ? "Starting..."
       : "Start Quest";

@@ -76,6 +76,8 @@ export default async function handler(
             prerequisite_quest_lock_address:
               quest.prerequisite_quest_lock_address || null,
             requires_prerequisite_key: quest.requires_prerequisite_key ?? false,
+            requires_gooddollar_verification:
+              quest.requires_gooddollar_verification ?? false,
           },
         );
 
@@ -85,7 +87,7 @@ export default async function handler(
           prerequisite_state:
             prereqCheck.prerequisiteState ||
             (quest.prerequisite_quest_id ||
-            quest.prerequisite_quest_lock_address
+              quest.prerequisite_quest_lock_address
               ? "missing_completion"
               : "none"),
         };
