@@ -89,12 +89,12 @@ The scripts in `~/Documents/projects/uniswap-buyer` are **backend scripts** usin
 ### Base Mainnet (Chain ID: 8453)
 | Contract | Address | Notes |
 |---|---|---|
-| Universal Router | `0x66a9893cc07d91d95644aedd05d03f95e1dba8af` | V4 Universal Router |
+| Universal Router | `0x6ff5693b99212da76ad316178a184ab56d299b43` | V4 Universal Router **on Base** (verified via [BaseScan](https://basescan.org/address/0x6ff5693b99212da76ad316178a184ab56d299b43)) |
 | Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` | Canonical across all chains |
-| QuoterV2 | `0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a` | Same as uniswap-buyer |
+| QuoterV2 | `0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a` | Same as uniswap-buyer (verified via [BaseScan](https://basescan.org/address/0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a)) |
 | WETH | `0x4200000000000000000000000000000000000006` | Base wrapped ETH |
 | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | Native USDC on Base |
-| UP Token | *(from pool discovery)* | Determined from pool contract |
+| UP Token | `0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187` | Confirmed from uniswap-buyer pool interaction |
 | ETH/UP Pool | `0x9EF81F4E2F2f15Ff1c0C3f8c9ECc636580025242` | From uniswap-buyer |
 | ETH/USDC Pool | `0xd0b53D9277642d899DF5C87A3966A349A798F224` | From uniswap-buyer |
 
@@ -214,11 +214,12 @@ export const UNISWAP_CHAIN = base; // chain ID 8453
 
 /** All contract addresses for Base Mainnet */
 export const UNISWAP_ADDRESSES = {
-  universalRouter: '0x66a9893cc07d91d95644aedd05d03f95e1dba8af' as `0x${string}`,
+  universalRouter: '0x6ff5693b99212da76ad316178a184ab56d299b43' as `0x${string}`,
   permit2: '0x000000000022D473030F116dDEE9F6B43aC78BA3' as `0x${string}`,
   quoterV2: '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a' as `0x${string}`,
   weth: '0x4200000000000000000000000000000000000006' as `0x${string}`,
   usdc: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' as `0x${string}`,
+  up: '0xaC27fa800955849d6D17cC8952Ba9dD6EAA66187' as `0x${string}`,
   pools: {
     ETH_UP: '0x9EF81F4E2F2f15Ff1c0C3f8c9ECc636580025242' as `0x${string}`,
     ETH_USDC: '0xd0b53D9277642d899DF5C87A3966A349A798F224' as `0x${string}`,
@@ -239,8 +240,39 @@ export const FEE_CONFIG = {
 /** Default slippage tolerance in basis points */
 export const DEFAULT_SLIPPAGE_BPS = 50; // 0.5%
 
-/** Transaction deadline in seconds */
-export const DEFAULT_DEADLINE_SECONDS = 600; // 10 minutes
+/** Transaction deadline in seconds (5 min — matches uniswap-buyer manual swap timing) */
+export const DEFAULT_DEADLINE_SECONDS = 300; // 5 minutes
+
+/**
+ * Resolve which pool token is WETH and which is the "other" token.
+ *
+ * Uniswap V3 pools order tokens by address (lower address = token0).
+ * We MUST compare against the known WETH address — never assume token0/token1 ordering.
+ * This mirrors the uniswap-buyer's dynamic detection logic.
+ */
+export function resolvePoolTokens(
+  token0: `0x${string}`,
+  token1: `0x${string}`,
+): { wethToken: `0x${string}`; otherToken: `0x${string}` } {
+  const isToken0Weth = token0.toLowerCase() === UNISWAP_ADDRESSES.weth.toLowerCase();
+  return {
+    wethToken: isToken0Weth ? token0 : token1,
+    otherToken: isToken0Weth ? token1 : token0,
+  };
+}
+
+/**
+ * Validate that the fee recipient address is configured.
+ * Must be called before any swap execution.
+ */
+export function validateFeeConfig(): void {
+  if (!FEE_CONFIG.feeRecipient || FEE_CONFIG.feeRecipient === 'undefined') {
+    throw new Error(
+      'NEXT_PUBLIC_UNISWAP_FEE_WALLET is not configured. ' +
+      'Set this environment variable to the treasury address before enabling swaps.'
+    );
+  }
+}
 ```
 
 ### Step 3: Pool State Fetcher (`lib/uniswap/pool.ts`)
@@ -341,17 +373,24 @@ This is the core of the fee implementation. We use **manual Viem encoding** (no 
 ```typescript
 import { encodePacked, encodeAbiParameters, parseAbiParameters } from 'viem';
 
-/** Command byte constants from the Universal Router */
+/**
+ * Command byte constants from the Universal Router's Commands.sol.
+ * Verified against: https://github.com/Uniswap/universal-router/blob/main/contracts/libraries/Commands.sol
+ */
 const COMMAND = {
   V3_SWAP_EXACT_IN: 0x00,
-  PAY_PORTION: 0x06,
   SWEEP: 0x04,
+  PAY_PORTION: 0x06,
   WRAP_ETH: 0x0b,
   UNWRAP_WETH: 0x0c,
 } as const;
 
-const ROUTER_AS_RECIPIENT = '0x0000000000000000000000000000000000000002';
-const MSG_SENDER = '0x0000000000000000000000000000000000000001';
+/** Special Universal Router recipient addresses */
+const ROUTER_AS_RECIPIENT = '0x0000000000000000000000000000000000000002' as `0x${string}`;
+const MSG_SENDER = '0x0000000000000000000000000000000000000001' as `0x${string}`;
+
+/** Native ETH sentinel used by SWEEP after UNWRAP_WETH */
+const ETH_ADDRESS = '0x0000000000000000000000000000000000000000' as `0x${string}`;
 
 export function encodeSwapWithFeeManual(config: {
   tokenIn: `0x${string}`;
@@ -363,12 +402,16 @@ export function encodeSwapWithFeeManual(config: {
   feeRecipient: `0x${string}`;
   feeBips: number;
   isNativeEthIn: boolean;
+  isNativeEthOut: boolean;
   deadline: number;
 }): { calldata: `0x${string}`; value: bigint } {
   const commands: number[] = [];
   const inputs: `0x${string}`[] = [];
 
-  // If paying with native ETH, wrap it first
+  // Calculate the minimum the user should receive after fees (for SWEEP defense-in-depth)
+  const sweepAmountMin = config.amountOutMin - (config.amountOutMin * BigInt(config.feeBips) / 10_000n);
+
+  // --- Step 1: If paying with native ETH, wrap it first ---
   if (config.isNativeEthIn) {
     commands.push(COMMAND.WRAP_ETH);
     inputs.push(encodeAbiParameters(
@@ -377,7 +420,7 @@ export function encodeSwapWithFeeManual(config: {
     ) as `0x${string}`);
   }
 
-  // 1. V3_SWAP_EXACT_IN — output goes to Router
+  // --- Step 2: V3_SWAP_EXACT_IN — output goes to Router (held temporarily) ---
   const path = encodePacked(
     ['address', 'uint24', 'address'],
     [config.tokenIn, config.fee, config.tokenOut]
@@ -388,21 +431,41 @@ export function encodeSwapWithFeeManual(config: {
     [ROUTER_AS_RECIPIENT, config.amountIn, config.amountOutMin, path, !config.isNativeEthIn]
   ) as `0x${string}`);
 
-  // 2. PAY_PORTION — send fee% to fee wallet
+  // --- Step 3: PAY_PORTION — send fee% of output token to fee wallet ---
+  // Note: When isNativeEthOut, fee is paid in WETH (fee wallet receives WETH, not ETH).
+  // This is simpler and avoids extra unwrap complexity. Document this for the treasury.
   commands.push(COMMAND.PAY_PORTION);
   inputs.push(encodeAbiParameters(
     parseAbiParameters('address token, address recipient, uint256 bips'),
     [config.tokenOut, config.feeRecipient, BigInt(config.feeBips)]
   ) as `0x${string}`);
 
-  // 3. SWEEP — send remaining to user
-  commands.push(COMMAND.SWEEP);
-  inputs.push(encodeAbiParameters(
-    parseAbiParameters('address token, address recipient, uint256 amountMin'),
-    [config.tokenOut, config.recipient, 0n]
-  ) as `0x${string}`);
+  // --- Step 4: Handle output delivery ---
+  if (config.isNativeEthOut) {
+    // Sell direction (Token → ETH): unwrap WETH to native ETH, then sweep ETH to user
+    // UNWRAP_WETH converts Router's remaining WETH balance to native ETH
+    commands.push(COMMAND.UNWRAP_WETH);
+    inputs.push(encodeAbiParameters(
+      parseAbiParameters('address recipient, uint256 amountMin'),
+      [ROUTER_AS_RECIPIENT, sweepAmountMin]
+    ) as `0x${string}`);
 
-  // Encode the execute(bytes,bytes[],uint256) call
+    // SWEEP native ETH (address(0)) to the user
+    commands.push(COMMAND.SWEEP);
+    inputs.push(encodeAbiParameters(
+      parseAbiParameters('address token, address recipient, uint256 amountMin'),
+      [ETH_ADDRESS, config.recipient, sweepAmountMin]
+    ) as `0x${string}`);
+  } else {
+    // Buy direction (ETH → Token): sweep ERC20 output token directly to user
+    commands.push(COMMAND.SWEEP);
+    inputs.push(encodeAbiParameters(
+      parseAbiParameters('address token, address recipient, uint256 amountMin'),
+      [config.tokenOut, config.recipient, sweepAmountMin]
+    ) as `0x${string}`);
+  }
+
+  // --- Encode the execute(bytes,bytes[],uint256) call ---
   const commandBytes = `0x${commands.map(c => c.toString(16).padStart(2, '0')).join('')}` as `0x${string}`;
   const calldata = encodeAbiParameters(
     parseAbiParameters('bytes commands, bytes[] inputs, uint256 deadline'),
@@ -420,7 +483,11 @@ export function encodeSwapWithFeeManual(config: {
 }
 ```
 
-> **⚠️ Implementation Note**: The exact command byte values (`0x00`, `0x04`, `0x06`, `0x0b`) **must be verified** against the deployed Universal Router version on Base. These values come from the Universal Router's `Commands.sol` library. Use the [Uniswap GitHub](https://github.com/Uniswap/universal-router/blob/main/contracts/libraries/Commands.sol) as the source of truth.
+> **Command Sequences by Direction**:
+> - **ETH → Token (buy)**: `WRAP_ETH → V3_SWAP_EXACT_IN → PAY_PORTION → SWEEP(token)`
+> - **Token → ETH (sell)**: `V3_SWAP_EXACT_IN → PAY_PORTION(WETH) → UNWRAP_WETH → SWEEP(ETH)`
+>
+> The fee wallet receives **WETH** on sell swaps (not native ETH). This avoids additional unwrap complexity and is standard practice — the treasury Gnosis Safe can hold or unwrap WETH as needed.
 
 ### Step 6: Permit2 Helpers (`lib/uniswap/permit2.ts`)
 
@@ -511,14 +578,16 @@ export async function approveUniversalRouterViaPermit2(
 ### Step 7: Main React Hook (`hooks/vendor/useUniswapSwap.ts`)
 
 ```typescript
-"use client";
-
 import { useState, useCallback } from 'react';
 import { base } from 'viem/chains';
+import { formatEther, formatUnits } from 'viem';
 import { usePrivyWriteWallet } from '@/hooks/unlock/usePrivyWriteWallet';
 import { createViemFromPrivyWallet } from '@/lib/blockchain/providers/privy-viem';
 import { createPublicClientForChain } from '@/lib/blockchain/config';
-import { UNISWAP_ADDRESSES, UNISWAP_CHAIN, FEE_CONFIG, DEFAULT_SLIPPAGE_BPS, DEFAULT_DEADLINE_SECONDS } from '@/lib/uniswap/constants';
+import {
+  UNISWAP_ADDRESSES, FEE_CONFIG, DEFAULT_SLIPPAGE_BPS, DEFAULT_DEADLINE_SECONDS,
+  resolvePoolTokens, validateFeeConfig,
+} from '@/lib/uniswap/constants';
 import { fetchPoolState } from '@/lib/uniswap/pool';
 import { getQuoteExactInputSingle } from '@/lib/uniswap/quote';
 import { encodeSwapWithFeeManual } from '@/lib/uniswap/encode-swap';
@@ -528,6 +597,7 @@ import {
   approveTokenForPermit2,
   approveUniversalRouterViaPermit2,
 } from '@/lib/uniswap/permit2';
+import { ERC20_ABI } from '@/lib/blockchain/shared/abi-definitions';
 import { getLogger } from '@/lib/utils/logger';
 
 const log = getLogger('hooks:vendor:uniswap-swap');
@@ -539,7 +609,7 @@ interface SwapQuote {
   amountOut: bigint;
   feeAmount: bigint;     // portion going to fee wallet
   userReceives: bigint;   // amountOut - feeAmount
-  priceImpact: number;    // percentage
+  priceImpact: number;    // percentage (0-100)
   gasEstimate: bigint;
 }
 
@@ -550,13 +620,12 @@ interface SwapState {
   isSwapping: boolean;
   error: string | null;
   txHash: string | null;
+  balance: bigint | null; // user's balance of the input token/ETH
 }
 
 export function useUniswapSwap() {
   const wallet = usePrivyWriteWallet();
-
-  // Always use Base Mainnet for Uniswap — independent of app's default network
-  const addresses = UNISWAP_ADDRESSES; // Base Mainnet only, no chain lookup needed
+  const addresses = UNISWAP_ADDRESSES;
 
   const [state, setState] = useState<SwapState>({
     quote: null,
@@ -565,28 +634,70 @@ export function useUniswapSwap() {
     isSwapping: false,
     error: null,
     txHash: null,
+    balance: null,
   });
 
   /**
-   * Fetch a quote for the given swap
+   * Fetch user's balance for the input side of a swap.
+   * ETH balance for buy direction, ERC20 balance for sell direction.
+   */
+  const fetchBalance = useCallback(async (
+    pair: SwapPair,
+    direction: SwapDirection,
+  ): Promise<bigint | null> => {
+    if (!wallet?.address) return null;
+
+    try {
+      const publicClient = createPublicClientForChain(base);
+      const userAddress = wallet.address as `0x${string}`;
+
+      if (direction === 'buy') {
+        // Buying with ETH — check native ETH balance
+        const balance = await publicClient.getBalance({ address: userAddress });
+        setState(prev => ({ ...prev, balance }));
+        return balance;
+      } else {
+        // Selling token — check ERC20 balance
+        const poolAddress = addresses.pools[pair];
+        const poolState = await fetchPoolState(publicClient, poolAddress);
+        const { otherToken } = resolvePoolTokens(poolState.token0, poolState.token1);
+
+        const balance = await publicClient.readContract({
+          address: otherToken,
+          abi: ERC20_ABI,
+          functionName: 'balanceOf',
+          args: [userAddress],
+        }) as bigint;
+
+        setState(prev => ({ ...prev, balance }));
+        return balance;
+      }
+    } catch (err) {
+      log.error('Balance fetch failed', { err });
+      return null;
+    }
+  }, [wallet?.address, addresses]);
+
+  /**
+   * Fetch a quote for the given swap.
+   * Does NOT require a connected wallet — uses public client only.
    */
   const getQuote = useCallback(async (
     pair: SwapPair,
     direction: SwapDirection,
     amountIn: bigint,
   ): Promise<SwapQuote | null> => {
-    if (!addresses) return null;
-
     setState(prev => ({ ...prev, isQuoting: true, error: null }));
 
     try {
-      // Use dedicated Base Mainnet public client for reads
       const publicClient = createPublicClientForChain(base);
       const poolAddress = addresses.pools[pair];
       const poolState = await fetchPoolState(publicClient, poolAddress);
 
-      const tokenIn = direction === 'buy' ? addresses.weth : /* resolve from pool */ poolState.token0;
-      const tokenOut = direction === 'buy' ? /* resolve from pool */ poolState.token1 : addresses.weth;
+      // Resolve token ordering — WETH can be token0 or token1 depending on addresses
+      const { wethToken, otherToken } = resolvePoolTokens(poolState.token0, poolState.token1);
+      const tokenIn = direction === 'buy' ? wethToken : otherToken;
+      const tokenOut = direction === 'buy' ? otherToken : wethToken;
 
       const quoteResult = await getQuoteExactInputSingle(
         publicClient,
@@ -597,11 +708,20 @@ export function useUniswapSwap() {
       const feeAmount = (quoteResult.amountOut * BigInt(FEE_CONFIG.feeBips)) / 10_000n;
       const userReceives = quoteResult.amountOut - feeAmount;
 
+      // Calculate price impact from sqrtPriceX96 shift
+      // sqrtPriceX96 is sqrt(price) * 2^96, so price = (sqrtPriceX96)^2 / 2^192
+      // Price impact = |1 - priceAfter/priceBefore| * 100
+      const priceBefore = poolState.sqrtPriceX96 * poolState.sqrtPriceX96;
+      const priceAfter = quoteResult.sqrtPriceX96After * quoteResult.sqrtPriceX96After;
+      const priceImpact = priceBefore > 0n
+        ? Math.abs(1 - Number(priceAfter) / Number(priceBefore)) * 100
+        : 0;
+
       const quote: SwapQuote = {
         amountOut: quoteResult.amountOut,
         feeAmount,
         userReceives,
-        priceImpact: 0, // TODO: Calculate from sqrtPriceX96After vs current
+        priceImpact,
         gasEstimate: quoteResult.gasEstimate,
       };
 
@@ -613,10 +733,16 @@ export function useUniswapSwap() {
       setState(prev => ({ ...prev, isQuoting: false, error: msg }));
       return null;
     }
-  }, [wallet, addresses]);
+  }, [addresses]);
 
   /**
-   * Execute the swap with fee
+   * Execute the swap with fee.
+   * Handles Permit2 approvals for sell direction, encodes Universal Router commands,
+   * and sends the transaction via Privy wallet.
+   *
+   * Note: createViemFromPrivyWallet handles chain switching automatically.
+   * If the user is on Base Sepolia (dev default), they will be prompted to
+   * switch to Base Mainnet before the transaction is sent.
    */
   const executeSwap = useCallback(async (
     pair: SwapPair,
@@ -624,31 +750,61 @@ export function useUniswapSwap() {
     amountIn: bigint,
     amountOutMin: bigint,
   ) => {
-    if (!wallet || !addresses || !FEE_CONFIG.feeRecipient) {
-      setState(prev => ({ ...prev, error: 'Wallet or config not ready' }));
+    if (!wallet) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
+      return;
+    }
+
+    // Validate fee config at execution time (fail fast if misconfigured)
+    try {
+      validateFeeConfig();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Fee config invalid';
+      setState(prev => ({ ...prev, error: msg }));
       return;
     }
 
     setState(prev => ({ ...prev, isSwapping: true, error: null, txHash: null }));
 
     try {
-      // Wallet client from Privy for write operations
       const { walletClient } = await createViemFromPrivyWallet(wallet);
-      // Dedicated Base Mainnet public client for reads (independent of app network)
       const publicClient = createPublicClientForChain(base);
       const userAddress = wallet.address as `0x${string}`;
       const poolAddress = addresses.pools[pair];
       const poolState = await fetchPoolState(publicClient, poolAddress);
+
+      // Resolve token ordering using WETH address comparison (not positional assumption)
+      const { wethToken, otherToken } = resolvePoolTokens(poolState.token0, poolState.token1);
       const isNativeEthIn = direction === 'buy';
+      const isNativeEthOut = direction === 'sell';
+      const tokenIn = isNativeEthIn ? wethToken : otherToken;
+      const tokenOut = isNativeEthIn ? otherToken : wethToken;
 
-      const tokenIn = isNativeEthIn ? addresses.weth : /* from pool */ poolState.token0;
-      const tokenOut = isNativeEthIn ? /* from pool */ poolState.token1 : addresses.weth;
+      // --- Balance check (prevent wasted gas on guaranteed-to-fail txs) ---
+      if (isNativeEthIn) {
+        const ethBalance = await publicClient.getBalance({ address: userAddress });
+        if (ethBalance < amountIn) {
+          setState(prev => ({ ...prev, isSwapping: false, error: 'Insufficient ETH balance' }));
+          return;
+        }
+      } else {
+        const tokenBalance = await publicClient.readContract({
+          address: tokenIn,
+          abi: ERC20_ABI,
+          functionName: 'balanceOf',
+          args: [userAddress],
+        }) as bigint;
+        if (tokenBalance < amountIn) {
+          setState(prev => ({ ...prev, isSwapping: false, error: 'Insufficient token balance' }));
+          return;
+        }
+      }
 
-      // --- Handle Approvals (only for ERC20 → ETH direction) ---
+      // --- Handle Approvals (only for ERC20 → ETH sell direction) ---
       if (!isNativeEthIn) {
         setState(prev => ({ ...prev, isApproving: true }));
 
-        // Step A: ERC20 → Permit2
+        // Step A: ERC20 → Permit2 (one-time per token, MAX_UINT160)
         const erc20Allowance = await checkErc20ApprovalForPermit2(
           publicClient, tokenIn, userAddress, addresses.permit2,
         );
@@ -658,14 +814,14 @@ export function useUniswapSwap() {
           await publicClient.waitForTransactionReceipt({ hash: approveTx });
         }
 
-        // Step B: Permit2 → Universal Router
+        // Step B: Permit2 → Universal Router (one-time, MAX_UINT160 amount with MAX_UINT48 expiry)
         const permit2Allowance = await checkPermit2Allowance(
           publicClient, addresses.permit2, userAddress, tokenIn, addresses.universalRouter,
         );
         if (permit2Allowance.amount < amountIn) {
           log.info('Approving Universal Router via Permit2');
           const permit2Tx = await approveUniversalRouterViaPermit2(
-            walletClient, addresses.permit2, tokenIn, addresses.universalRouter, amountIn,
+            walletClient, addresses.permit2, tokenIn, addresses.universalRouter,
           );
           await publicClient.waitForTransactionReceipt({ hash: permit2Tx });
         }
@@ -685,6 +841,7 @@ export function useUniswapSwap() {
         feeRecipient: FEE_CONFIG.feeRecipient,
         feeBips: FEE_CONFIG.feeBips,
         isNativeEthIn,
+        isNativeEthOut,
         deadline,
       });
 
@@ -714,7 +871,8 @@ export function useUniswapSwap() {
     ...state,
     getQuote,
     executeSwap,
-    isSupported: true, // Always supported — we hardcode Base Mainnet
+    fetchBalance,
+    isSupported: true,
     feeBips: FEE_CONFIG.feeBips,
   };
 }
@@ -835,8 +993,8 @@ User lands on Vendor page
 ```
 User selects "ETH/UP" pair, "Sell" direction
   → Enters 1000 UP
-  → App fetches quote: "You will receive ~0.008 ETH (fee: 0.00002 ETH)"
-  
+  → App fetches quote: "You will receive ~0.008 ETH (fee: 0.00002 ETH in WETH to treasury)"
+
   First time only:
   → User clicks "Swap"
   → App detects: UP not approved for Permit2
@@ -844,9 +1002,14 @@ User selects "ETH/UP" pair, "Sell" direction
   → App detects: Permit2 not approved for Router
   → Button says "Approve Router" → user signs tx 2
   → Button changes to "Swap" → user signs tx 3
-  
+
   Subsequent times:
   → User clicks "Swap" → single transaction
+
+  Transaction executes atomically:
+  → Universal Router: V3_SWAP(UP→WETH) → PAY_PORTION(WETH to fee wallet) → UNWRAP_WETH → SWEEP(ETH to user)
+  → User receives native ETH (not WETH)
+  → Fee wallet receives WETH
 ```
 
 ### Flow 3: Error — Insufficient Liquidity
@@ -1021,5 +1184,5 @@ All architectural decisions have been finalized:
 | 6 | **Encoding strategy** | ✅ **Manual Viem encoding** | No `@uniswap/universal-router-sdk` or other Uniswap SDK dependencies. All calldata encoded with Viem's `encodeAbiParameters` / `encodePacked`. Zero dependency risk. |
 | 7 | **Fee token** | ✅ **Output token** | `PAY_PORTION` command operates on Router's held balance of the output token. |
 | 8 | **Price impact** | ✅ **Warn at 1%, block at 5%** | Protects users from unfavorable swaps. |
-| 9 | **Universal Router version** | ✅ **V4 (`0x66a989...`)** | Latest deployed version on Base Mainnet. Command byte values must be verified against this deployment. |
+| 9 | **Universal Router version** | ✅ **V4 (`0x6ff569...`)** | Base Mainnet deployment ([BaseScan](https://basescan.org/address/0x6ff5693b99212da76ad316178a184ab56d299b43)). Note: `0x66a989...` is the Ethereum Mainnet address — do not use on Base. Command bytes verified against [Commands.sol](https://github.com/Uniswap/universal-router/blob/main/contracts/libraries/Commands.sol). |
 | 10 | **Testing strategy** | ✅ **Anvil mainnet fork** | Fork Base Mainnet for integration tests. Real liquidity data, no test pool deployment needed. |
