@@ -7,6 +7,7 @@ const log = getLogger("api:gooddollar-verify-callback");
 export interface VerifyCallbackResponse {
   success: boolean;
   message: string;
+  code?: string;
   data?: {
     address: string;
     isWhitelisted: boolean;
@@ -23,10 +24,12 @@ export const sendResponse = (
   message: string,
   error?: string,
   data?: VerifyCallbackResponse["data"],
+  code?: string,
 ) => {
   res.status(statusCode).json({
     success,
     message,
+    ...(code && { code }),
     ...(error && { error }),
     ...(data && { data }),
   });

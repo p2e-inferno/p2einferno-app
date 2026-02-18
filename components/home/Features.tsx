@@ -10,9 +10,9 @@ import {
 
 const features = [
   {
-    title: "GoodDollar Verification Unlocks Access",
+    title: "Sybil Defence",
     description:
-      "Verify once to unlock gated quests and verified-only reward flows. This helps protect rewards from Sybil extraction and keeps participation fair for real users.",
+      "GoodDollar verification is used as a core Sybil defence layer across reward flows. It helps ensure incentives go to real humans, protects the app from extraction attacks, and preserves fair progression for legitimate users.",
     icon: Shield,
     color: "text-flame-yellow",
   },
@@ -91,7 +91,7 @@ export function Features() {
 
         <div className="text-center mt-10">
           <Link
-            href="/gooddollar-verification"
+            href="/gooddollar/verification"
             className="inline-flex items-center gap-2 rounded-full border border-blue-500/40 bg-blue-500/10 px-5 py-2 text-blue-300 hover:border-blue-400/60 hover:bg-blue-500/20 transition-colors"
           >
             GoodDollar Verification: How It Works

@@ -11,6 +11,7 @@ import {
   CurrentEnrollments,
   LobbyLoadingState,
   LobbyErrorState,
+  VerificationBanner,
 } from "../../components/lobby";
 import { LobbyCheckinStrip } from "@/components/lobby/checkin-strip";
 import LobbyConfirmationModal from "../../components/lobby/LobbyConfirmationModal";
@@ -204,6 +205,7 @@ export default function LobbyPage() {
           />
         )}
         <StatsGrid stats={stats} />
+        <VerificationBanner />
       </div>
 
       {pendingApplications.length > 0 && (
