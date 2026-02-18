@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { usePrivy } from "@privy-io/react-auth";
-import type { BootcampProgram, Cohort } from "@/lib/supabase/types";
+import React, { useEffect, useState } from "react";
+import type { BootcampWithCohorts } from "@/lib/supabase/types";
 
 import { NetworkError } from "@/components/ui/network-error";
 import { BootcampsComingSoon, BootcampCard } from "@/components/bootcamps";
@@ -10,71 +9,36 @@ import { Flame } from "lucide-react";
 
 const log = getLogger("home:Bootcamps");
 
-interface BootcampWithCohorts extends BootcampProgram {
-  cohorts: Cohort[];
+interface BootcampsProps {
+  bootcamps: BootcampWithCohorts[];
+  loading: boolean;
+  error: string | null;
+  onRetry: () => Promise<void>;
 }
 
-export function Bootcamps() {
-  const [bootcamps, setBootcamps] = useState<BootcampWithCohorts[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export function Bootcamps({ bootcamps, loading, error, onRetry }: BootcampsProps) {
   const [isRetrying, setIsRetrying] = useState(false);
-
-  const { authenticated, getAccessToken } = usePrivy();
+  const [isErrorDismissed, setIsErrorDismissed] = useState(false);
 
   useEffect(() => {
-    fetchBootcamps();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [authenticated]);
-
-  const fetchBootcamps = async (isRetry = false) => {
-    try {
-      if (isRetry) {
-        setIsRetrying(true);
-        setError(null);
-      } else {
-        setLoading(true);
-      }
-
-      // Use Next.js API route instead of direct Supabase calls
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
-      try {
-        if (authenticated) {
-          const token = await getAccessToken();
-          if (token) headers.Authorization = `Bearer ${token}`;
-        }
-      } catch {}
-
-      const response = await fetch("/api/bootcamps", {
-        method: "GET",
-        headers,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to fetch bootcamps");
-      }
-
-      const result = await response.json();
-      setBootcamps(result.data || []);
-      setError(null);
-    } catch (err: any) {
-      log.error("Error fetching bootcamps:", err);
-      setError(err.message || "Failed to load bootcamps");
-    } finally {
-      setLoading(false);
-      setIsRetrying(false);
+    if (error) {
+      setIsErrorDismissed(false);
     }
-  };
-
-  const handleRetry = () => {
-    fetchBootcamps(true);
-  };
+  }, [error]);
 
   const handleClearError = () => {
-    setError(null);
+    setIsErrorDismissed(true);
+  };
+
+  const handleRetry = async () => {
+    try {
+      setIsRetrying(true);
+      await onRetry();
+    } catch (err) {
+      log.error("Error retrying bootcamps fetch:", err);
+    } finally {
+      setIsRetrying(false);
+    }
   };
 
   if (loading) {
@@ -90,7 +54,7 @@ export function Bootcamps() {
     );
   }
 
-  if (error && !isRetrying) {
+  if (error && !isRetrying && !isErrorDismissed) {
     return (
       <section id="bootcamps" className="py-16 md:py-24 bg-background">
         <div className="container mx-auto px-4">

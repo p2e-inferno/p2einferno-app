@@ -1,9 +1,14 @@
 import React, { useMemo } from "react";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useBootcamps } from "@/hooks/useBootcamps";
 import { Calendar, Users, Clock, Trophy, Loader2 } from "lucide-react";
-import type { Cohort } from "@/lib/supabase/types";
+import type { BootcampWithCohorts, Cohort } from "@/lib/supabase/types";
+
+interface FlagshipInfernalSparksProps {
+  bootcamps: BootcampWithCohorts[];
+  loading: boolean;
+  error: string | null;
+}
 
 function selectPrimaryCohort(
   cohorts: (Cohort | null | undefined)[],
@@ -19,9 +24,11 @@ function selectPrimaryCohort(
   return filteredCohorts[0] || null;
 }
 
-export function FlagshipInfernalSparks() {
-  const { bootcamps, loading, error } = useBootcamps();
-
+export function FlagshipInfernalSparks({
+  bootcamps,
+  loading,
+  error,
+}: FlagshipInfernalSparksProps) {
   const infernal = useMemo(() => {
     return bootcamps.find((b) =>
       b.name?.toLowerCase().includes("infernal sparks"),

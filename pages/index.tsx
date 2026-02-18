@@ -12,6 +12,7 @@ import { Bootcamps } from "@/components/home/Bootcamps";
 import { FAQ } from "@/components/home/FAQ";
 import { FlagshipInfernalSparks } from "@/components/home/FlagshipInfernalSparks";
 import { MainLayout } from "@/components/layouts/MainLayout";
+import { useBootcamps } from "@/hooks/useBootcamps";
 
 export const getServerSideProps: GetServerSideProps = async ({ req }) => {
   const cookieAuthToken = req.cookies["privy-token"];
@@ -34,6 +35,13 @@ export const getServerSideProps: GetServerSideProps = async ({ req }) => {
 };
 
 export default function Home() {
+  const {
+    bootcamps,
+    loading: bootcampsLoading,
+    error: bootcampsError,
+    refetch: refetchBootcamps,
+  } = useBootcamps();
+
   return (
     <>
       <Head>
@@ -51,10 +59,19 @@ export default function Home() {
           <About />
           <HowItWorks />
           <Personas />
-          <FlagshipInfernalSparks />
+          <FlagshipInfernalSparks
+            bootcamps={bootcamps}
+            loading={bootcampsLoading}
+            error={bootcampsError}
+          />
           <Features />
           <StarterKitSection />
-          <Bootcamps />
+          <Bootcamps
+            bootcamps={bootcamps}
+            loading={bootcampsLoading}
+            error={bootcampsError}
+            onRetry={refetchBootcamps}
+          />
           <Services />
           <FAQ />
         </div>
