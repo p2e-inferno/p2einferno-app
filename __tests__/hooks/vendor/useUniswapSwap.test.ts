@@ -102,7 +102,11 @@ describe("useUniswapSwap", () => {
     const { result } = renderHook(() => useUniswapSwap());
 
     await act(async () => {
-      const quote = await result.current.getQuote("ETH_UP", "A_TO_B", 1000000000000000000n);
+      const quote = await result.current.getQuote(
+        "ETH_UP",
+        "A_TO_B",
+        1000000000000000000n,
+      );
       expect(quote).not.toBeNull();
       expect(quote!.amountOut).toBe(1000000n);
       expect(quote!.feeAmount).toBe(2500n); // 1000000 * 25 / 10000
@@ -121,7 +125,11 @@ describe("useUniswapSwap", () => {
     const { result } = renderHook(() => useUniswapSwap());
 
     await act(async () => {
-      const quote = await result.current.getQuote("UP_USDC", "A_TO_B", 1000000000000000000n);
+      const quote = await result.current.getQuote(
+        "UP_USDC",
+        "A_TO_B",
+        1000000000000000000n,
+      );
       expect(quote).not.toBeNull();
       expect(quote!.amountOut).toBe(5000000n);
     });

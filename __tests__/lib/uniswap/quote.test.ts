@@ -96,7 +96,8 @@ describe("getQuoteExactInput", () => {
     const priceAfter = 99n * 99n; // 9801
     const PRECISION = 10n ** 18n;
     const ratio = (priceAfter * PRECISION) / priceBefore;
-    const impact = (Math.abs(Number(ratio - PRECISION)) / Number(PRECISION)) * 100;
+    const impact =
+      (Math.abs(Number(ratio - PRECISION)) / Number(PRECISION)) * 100;
     expect(impact).toBeGreaterThan(0);
 
     // Multi-hop: always 0 in MVP

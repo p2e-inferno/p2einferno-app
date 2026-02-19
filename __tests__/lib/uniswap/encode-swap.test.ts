@@ -5,11 +5,18 @@
 import { encodeSwapWithFeeManual, COMMAND } from "@/lib/uniswap/encode-swap";
 import { encodePacked } from "viem";
 
-const DUMMY_TOKEN = "0x1111111111111111111111111111111111111111" as `0x${string}`;
-const DUMMY_WETH = "0x4200000000000000000000000000000000000006" as `0x${string}`;
-const DUMMY_RECIPIENT = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`;
-const DUMMY_FEE_WALLET = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as `0x${string}`;
-const DUMMY_PATH = encodePacked(["address", "uint24", "address"], [DUMMY_WETH, 3000, DUMMY_TOKEN]);
+const DUMMY_TOKEN =
+  "0x1111111111111111111111111111111111111111" as `0x${string}`;
+const DUMMY_WETH =
+  "0x4200000000000000000000000000000000000006" as `0x${string}`;
+const DUMMY_RECIPIENT =
+  "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" as `0x${string}`;
+const DUMMY_FEE_WALLET =
+  "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" as `0x${string}`;
+const DUMMY_PATH = encodePacked(
+  ["address", "uint24", "address"],
+  [DUMMY_WETH, 3000, DUMMY_TOKEN],
+);
 
 function decodeCommandBytes(calldata: `0x${string}`): number[] {
   // Skip function selector (4 bytes = 8 hex chars) + 0x prefix
@@ -20,9 +27,15 @@ function decodeCommandBytes(calldata: `0x${string}`): number[] {
   // First word (64 hex chars) = offset to commands data
   const commandsOffset = parseInt(raw.slice(0, 64), 16) * 2;
   // At commandsOffset: 32-byte length prefix
-  const commandsLen = parseInt(raw.slice(commandsOffset, commandsOffset + 64), 16);
+  const commandsLen = parseInt(
+    raw.slice(commandsOffset, commandsOffset + 64),
+    16,
+  );
   // Actual command bytes follow
-  const commandsHex = raw.slice(commandsOffset + 64, commandsOffset + 64 + commandsLen * 2);
+  const commandsHex = raw.slice(
+    commandsOffset + 64,
+    commandsOffset + 64 + commandsLen * 2,
+  );
   const commands: number[] = [];
   for (let i = 0; i < commandsHex.length; i += 2) {
     commands.push(parseInt(commandsHex.slice(i, i + 2), 16));

@@ -40,7 +40,10 @@ export function Footer() {
     ],
     Resources: [
       { label: "Creator starter kit", href: "#" },
-      { label: "GoodDollar Verification Guide", href: "/gooddollar/verification" },
+      {
+        label: "GoodDollar Verification Guide",
+        href: "/gooddollar/verification",
+      },
       {
         label: "Speedrun Ethereum",
         href: "https://speedrunethereum.com/?utm_source=p2einferno&utm_medium=referral&utm_campaign=footer_resources",

@@ -1,6 +1,15 @@
 import Head from "next/head";
 import Link from "next/link";
-import { Shield, CheckCircle2, ArrowRight, Zap, Lock, ScanLine, Trophy, BadgeCheck } from "lucide-react";
+import {
+  Shield,
+  CheckCircle2,
+  ArrowRight,
+  Zap,
+  Lock,
+  ScanLine,
+  Trophy,
+  BadgeCheck,
+} from "lucide-react";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { FaceVerificationButton } from "@/components/gooddollar/FaceVerificationButton";
 
@@ -36,7 +45,7 @@ export default function GoodDollarVerificationPage() {
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
                     Unlocks Premium
                   </span>{" "}
-                    Rewards
+                  Rewards
                 </h1>
                 <p className="text-gray-400 mb-4">
                   Join the elite tier of Infernals.
@@ -205,23 +214,43 @@ function TrustBadge({ icon, text }: { icon: React.ReactNode; text: string }) {
   );
 }
 
-function BenefitCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function BenefitCard({
+  icon,
+  title,
+  description,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  description: string;
+}) {
   return (
     <div className="bg-white/[0.03] border border-white/[0.08] p-8 rounded-3xl hover:bg-white/[0.05] transition-all duration-500 group hover:-translate-y-2 shadow-sm hover:shadow-blue-500/10">
       <div className="w-14 h-14 rounded-2xl bg-white/[0.05] flex items-center justify-center mb-8 group-hover:scale-110 transition-transform shadow-inner">
         {icon}
       </div>
       <h3 className="text-2xl font-bold mb-4 font-heading">{title}</h3>
-      <p className="text-gray-400 leading-relaxed font-light text-lg">{description}</p>
+      <p className="text-gray-400 leading-relaxed font-light text-lg">
+        {description}
+      </p>
     </div>
   );
 }
 
-function StepItem({ number, title, description }: { number: string; title: string; description: string }) {
+function StepItem({
+  number,
+  title,
+  description,
+}: {
+  number: string;
+  title: string;
+  description: string;
+}) {
   return (
     <div className="flex flex-col items-center text-center max-w-2xl mx-auto">
       <div className="relative z-10 flex items-center justify-center w-14 h-14 rounded-full bg-[#0B0A1F] border-2 border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.5)] mb-8">
-        <span className="text-lg font-bold text-blue-400 leading-none">{number}</span>
+        <span className="text-lg font-bold text-blue-400 leading-none">
+          {number}
+        </span>
       </div>
       <h3 className="text-2xl font-bold mb-4 font-heading">{title}</h3>
       <p className="text-gray-400 text-lg leading-relaxed">{description}</p>

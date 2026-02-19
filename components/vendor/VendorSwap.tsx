@@ -236,153 +236,157 @@ export default function VendorSwap() {
       {activeTab === "uniswap" ? (
         <UniswapSwapTab />
       ) : (
-      <>
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white tracking-wide">
-          DG Token Market
-        </h3>
-      </div>
+        <>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white tracking-wide">
+              DG Token Market
+            </h3>
+          </div>
 
-      {/* Exchange + fee meta, compact like a DEX */}
-      {(exchangeRate !== undefined || feeConfig) && (
-        <div className="space-y-1 rounded-xl bg-slate-800/80 px-3 py-2 text-xs text-slate-200">
-          {exchangeRate !== undefined && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Rate</span>
-              <div className="text-right font-mono">
-                <div>
-                  1 {baseSymbol} ≈{" "}
-                  {buyPerBase !== undefined ? formatRatio(buyPerBase) : "--"}{" "}
-                  {swapSymbol}
+          {/* Exchange + fee meta, compact like a DEX */}
+          {(exchangeRate !== undefined || feeConfig) && (
+            <div className="space-y-1 rounded-xl bg-slate-800/80 px-3 py-2 text-xs text-slate-200">
+              {exchangeRate !== undefined && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Rate</span>
+                  <div className="text-right font-mono">
+                    <div>
+                      1 {baseSymbol} ≈{" "}
+                      {buyPerBase !== undefined
+                        ? formatRatio(buyPerBase)
+                        : "--"}{" "}
+                      {swapSymbol}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      1 {swapSymbol} ≈{" "}
+                      {sellPerSwap !== undefined
+                        ? formatRatio(sellPerSwap)
+                        : "--"}{" "}
+                      {baseSymbol}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-[11px] text-slate-400">
-                  1 {swapSymbol} ≈{" "}
-                  {sellPerSwap !== undefined ? formatRatio(sellPerSwap) : "--"}{" "}
-                  {baseSymbol}
+              )}
+              {feeConfig && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Fees</span>
+                  <span className="font-mono">
+                    {Number(feeConfig.buyFeeBps) / 100}% buy ·{" "}
+                    {Number(feeConfig.sellFeeBps) / 100}% sell
+                  </span>
                 </div>
-              </div>
+              )}
             </div>
           )}
-          {feeConfig && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Fees</span>
-              <span className="font-mono">
-                {Number(feeConfig.buyFeeBps) / 100}% buy ·{" "}
-                {Number(feeConfig.sellFeeBps) / 100}% sell
-              </span>
+
+          {/* Mode toggle */}
+          <div className="inline-flex rounded-full bg-slate-800/80 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => setMode("buy")}
+              className={`px-3 py-1 rounded-full ${
+                mode === "buy"
+                  ? "bg-emerald-500 text-black"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              Buy
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("sell")}
+              className={`px-3 py-1 rounded-full ${
+                mode === "sell"
+                  ? "bg-slate-700 text-white"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              Sell
+            </button>
+          </div>
+
+          {/* Amount Input */}
+          <div className="space-y-2 rounded-2xl bg-slate-800/70 p-4">
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span>Pay ({inputTokenSymbol})</span>
+              <span className="text-slate-400">Balance: {balanceText}</span>
+            </div>
+            {(isPaused || !isKeyHolder) && (
+              <p className="text-xs text-red-400">
+                {!isKeyHolder
+                  ? "Active DG Nation Membership is required to trade."
+                  : "Vendor is paused."}
+              </p>
+            )}
+            <Input
+              type="text"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.0"
+              className="border-none bg-transparent text-2xl font-medium text-white placeholder:text-slate-500 focus-visible:ring-0"
+              disabled={isPending}
+            />
+            <PercentPresets
+              onSelect={applyPercent}
+              disabled={
+                isPending ||
+                inputBalance === undefined ||
+                inputDecimals === undefined
+              }
+            />
+            {parsedAmount === null && amount.trim().length > 0 && (
+              <p className="text-xs text-red-400">Enter a valid amount.</p>
+            )}
+            {isBelowMin && minText && (
+              <p className="text-xs text-red-400">{minText}</p>
+            )}
+            {isOverBalance && (
+              <p className="text-xs text-red-400">Insufficient balance.</p>
+            )}
+            {isSellOutputZero && (
+              <p className="text-xs text-red-400">
+                Sell amount too small after fees at current rate.
+              </p>
+            )}
+          </div>
+
+          {/* Quote */}
+          {(feeText || receiveText) && (
+            <div className="space-y-1 rounded-xl bg-slate-800/80 px-3 py-2 text-xs text-slate-200">
+              {feeText && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Fee</span>
+                  <span className="font-mono">{feeText}</span>
+                </div>
+              )}
+              {receiveText && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Receive</span>
+                  <span className="font-mono">{receiveText}</span>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* Mode toggle */}
-      <div className="inline-flex rounded-full bg-slate-800/80 p-1 text-xs">
-        <button
-          type="button"
-          onClick={() => setMode("buy")}
-          className={`px-3 py-1 rounded-full ${
-            mode === "buy"
-              ? "bg-emerald-500 text-black"
-              : "text-slate-300 hover:text-white"
-          }`}
-        >
-          Buy
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("sell")}
-          className={`px-3 py-1 rounded-full ${
-            mode === "sell"
-              ? "bg-slate-700 text-white"
-              : "text-slate-300 hover:text-white"
-          }`}
-        >
-          Sell
-        </button>
-      </div>
-
-      {/* Amount Input */}
-      <div className="space-y-2 rounded-2xl bg-slate-800/70 p-4">
-        <div className="flex items-center justify-between text-xs text-slate-300">
-          <span>Pay ({inputTokenSymbol})</span>
-          <span className="text-slate-400">Balance: {balanceText}</span>
-        </div>
-        {(isPaused || !isKeyHolder) && (
-          <p className="text-xs text-red-400">
-            {!isKeyHolder
-              ? "Active DG Nation Membership is required to trade."
-              : "Vendor is paused."}
-          </p>
-        )}
-        <Input
-          type="text"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0.0"
-          className="border-none bg-transparent text-2xl font-medium text-white placeholder:text-slate-500 focus-visible:ring-0"
-          disabled={isPending}
-        />
-        <PercentPresets
-          onSelect={applyPercent}
-          disabled={
-            isPending ||
-            inputBalance === undefined ||
-            inputDecimals === undefined
-          }
-        />
-        {parsedAmount === null && amount.trim().length > 0 && (
-          <p className="text-xs text-red-400">Enter a valid amount.</p>
-        )}
-        {isBelowMin && minText && (
-          <p className="text-xs text-red-400">{minText}</p>
-        )}
-        {isOverBalance && (
-          <p className="text-xs text-red-400">Insufficient balance.</p>
-        )}
-        {isSellOutputZero && (
-          <p className="text-xs text-red-400">
-            Sell amount too small after fees at current rate.
-          </p>
-        )}
-      </div>
-
-      {/* Quote */}
-      {(feeText || receiveText) && (
-        <div className="space-y-1 rounded-xl bg-slate-800/80 px-3 py-2 text-xs text-slate-200">
-          {feeText && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Fee</span>
-              <span className="font-mono">{feeText}</span>
-            </div>
-          )}
-          {receiveText && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Receive</span>
-              <span className="font-mono">{receiveText}</span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Primary action */}
-      <Button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className={`w-full rounded-xl font-semibold ${
-          mode === "buy"
-            ? "bg-emerald-500 hover:bg-emerald-600 text-black"
-            : "bg-slate-700 hover:bg-slate-600 text-slate-50"
-        }`}
-      >
-        {isApproving
-          ? "Approving..."
-          : isPending
-            ? "Processing..."
-            : mode === "buy"
-              ? `Buy ${swapSymbol}`
-              : `Sell ${swapSymbol}`}
-      </Button>
-      </>
+          {/* Primary action */}
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className={`w-full rounded-xl font-semibold ${
+              mode === "buy"
+                ? "bg-emerald-500 hover:bg-emerald-600 text-black"
+                : "bg-slate-700 hover:bg-slate-600 text-slate-50"
+            }`}
+          >
+            {isApproving
+              ? "Approving..."
+              : isPending
+                ? "Processing..."
+                : mode === "buy"
+                  ? `Buy ${swapSymbol}`
+                  : `Sell ${swapSymbol}`}
+          </Button>
+        </>
       )}
     </div>
   );

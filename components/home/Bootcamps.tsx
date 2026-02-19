@@ -16,7 +16,12 @@ interface BootcampsProps {
   onRetry: () => Promise<void>;
 }
 
-export function Bootcamps({ bootcamps, loading, error, onRetry }: BootcampsProps) {
+export function Bootcamps({
+  bootcamps,
+  loading,
+  error,
+  onRetry,
+}: BootcampsProps) {
   const [isRetrying, setIsRetrying] = useState(false);
   const [isErrorDismissed, setIsErrorDismissed] = useState(false);
 

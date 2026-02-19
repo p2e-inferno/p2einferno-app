@@ -2,7 +2,13 @@
  * Unit tests for UniswapSwapTab and VendorSwap tab navigation.
  */
 
-import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
+import {
+  render,
+  screen,
+  fireEvent,
+  waitFor,
+  act,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import UniswapSwapTab from "@/components/vendor/UniswapSwapTab";
 
@@ -111,10 +117,8 @@ jest.mock("react-hot-toast", () => ({
   },
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const mockToast = jest.requireMock("react-hot-toast").default;
 const mockToastSuccess: jest.Mock = mockToast.success;
-const mockToastError: jest.Mock = mockToast.error;
 
 // Helper to reset mutable mock state to defaults
 function resetMockState() {
@@ -390,9 +394,7 @@ describe("UniswapSwapTab — stepper integration", () => {
       fireEvent.click(screen.getByTestId("close-btn"));
     });
     await waitFor(() => {
-      expect(
-        screen.queryByTestId("stepper-modal"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("stepper-modal")).not.toBeInTheDocument();
     });
   });
 
@@ -416,9 +418,7 @@ describe("UniswapSwapTab — stepper integration", () => {
     });
 
     await waitFor(() => {
-      expect(
-        screen.queryByTestId("stepper-modal"),
-      ).not.toBeInTheDocument();
+      expect(screen.queryByTestId("stepper-modal")).not.toBeInTheDocument();
     });
     expect(mockStepperCancel).toHaveBeenCalled();
     // No success toast — user cancelled

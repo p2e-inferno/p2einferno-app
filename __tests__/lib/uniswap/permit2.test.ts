@@ -121,7 +121,12 @@ describe("approveUniversalRouterViaPermit2", () => {
       account: OWNER,
     } as unknown as WalletClient;
 
-    await approveUniversalRouterViaPermit2(walletClient, PERMIT2, TOKEN, ROUTER);
+    await approveUniversalRouterViaPermit2(
+      walletClient,
+      PERMIT2,
+      TOKEN,
+      ROUTER,
+    );
 
     expect(walletClient.writeContract).toHaveBeenCalledTimes(1);
     const callArgs = (walletClient.writeContract as jest.Mock).mock.calls[0][0];

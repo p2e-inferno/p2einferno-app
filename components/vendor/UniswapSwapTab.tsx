@@ -45,11 +45,7 @@ function getInputSymbol(pair: SwapPair, direction: SwapDirection): string {
 
 function getOutputSymbol(pair: SwapPair, direction: SwapDirection): string {
   if (pair === "UP_USDC") return direction === "A_TO_B" ? "USDC" : "UP";
-  return direction === "A_TO_B"
-    ? pair === "ETH_UP"
-      ? "UP"
-      : "USDC"
-    : "ETH";
+  return direction === "A_TO_B" ? (pair === "ETH_UP" ? "UP" : "USDC") : "ETH";
 }
 
 function getInputDecimals(pair: SwapPair, direction: SwapDirection): number {
@@ -67,10 +63,7 @@ function formatTokenAmount(amount: bigint, decimals: number): string {
   return formatUnits(amount, decimals);
 }
 
-function parseTokenAmount(
-  value: string,
-  decimals: number,
-): bigint | null {
+function parseTokenAmount(value: string, decimals: number): bigint | null {
   try {
     if (!value || value.trim() === "") return null;
     if (decimals === 18) return parseEther(value);
@@ -190,8 +183,7 @@ export default function UniswapSwapTab() {
     if (!parsedAmount || parsedAmount <= 0n)
       return { label: "Enter amount", disabled: true };
     if (isQuoting) return { label: "Fetching quote...", disabled: true };
-    if (isOverBalance)
-      return { label: "Insufficient balance", disabled: true };
+    if (isOverBalance) return { label: "Insufficient balance", disabled: true };
     if (blockedImpact)
       return { label: "Price impact too high", disabled: true };
     if (error) return { label: "Swap", disabled: true };
@@ -231,11 +223,9 @@ export default function UniswapSwapTab() {
       } catch {
         // A step failed — suspend until user clicks Retry or Cancel
         while (true) {
-          const decision = await new Promise<"retry" | "cancel">(
-            (resolve) => {
-              decisionResolverRef.current = resolve;
-            },
-          );
+          const decision = await new Promise<"retry" | "cancel">((resolve) => {
+            decisionResolverRef.current = resolve;
+          });
           decisionResolverRef.current = null;
 
           if (decision === "cancel") {
@@ -364,24 +354,20 @@ export default function UniswapSwapTab() {
           {highImpact && (
             <div className="flex items-center justify-between text-amber-400">
               <span>Price impact</span>
-              <span className="font-mono">
-                {quote.priceImpact.toFixed(2)}%
-              </span>
+              <span className="font-mono">{quote.priceImpact.toFixed(2)}%</span>
             </div>
           )}
           {blockedImpact && (
             <p className="text-red-400">
-              Price impact too high ({quote.priceImpact.toFixed(1)}%).
-              Consider a smaller amount.
+              Price impact too high ({quote.priceImpact.toFixed(1)}%). Consider
+              a smaller amount.
             </p>
           )}
         </div>
       )}
 
       {/* Error display */}
-      {error && !isQuoting && (
-        <p className="text-xs text-red-400">{error}</p>
-      )}
+      {error && !isQuoting && <p className="text-xs text-red-400">{error}</p>}
 
       {/* Swap button */}
       <Button
