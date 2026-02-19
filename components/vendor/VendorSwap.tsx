@@ -19,6 +19,7 @@ import {
   formatAmountForInput,
   parseAmount,
 } from "@/lib/vendor/math";
+import { PercentPresets } from "@/components/vendor/PercentPresets";
 import UniswapSwapTab from "@/components/vendor/UniswapSwapTab";
 
 type Mode = "buy" | "sell";
@@ -321,35 +322,14 @@ export default function VendorSwap() {
           className="border-none bg-transparent text-2xl font-medium text-white placeholder:text-slate-500 focus-visible:ring-0"
           disabled={isPending}
         />
-        <div className="flex gap-2">
-          {[30, 50, 75].map((percent) => (
-            <button
-              key={percent}
-              type="button"
-              onClick={() => applyPercent(percent)}
-              className="rounded-full bg-slate-700/70 px-3 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
-              disabled={
-                isPending ||
-                inputBalance === undefined ||
-                inputDecimals === undefined
-              }
-            >
-              {percent}%
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => applyPercent(100)}
-            className="rounded-full bg-slate-700/70 px-3 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
-            disabled={
-              isPending ||
-              inputBalance === undefined ||
-              inputDecimals === undefined
-            }
-          >
-            Max
-          </button>
-        </div>
+        <PercentPresets
+          onSelect={applyPercent}
+          disabled={
+            isPending ||
+            inputBalance === undefined ||
+            inputDecimals === undefined
+          }
+        />
         {parsedAmount === null && amount.trim().length > 0 && (
           <p className="text-xs text-red-400">Enter a valid amount.</p>
         )}

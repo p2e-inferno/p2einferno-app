@@ -379,14 +379,21 @@ describe("UniswapSwapTab — stepper integration", () => {
       fireEvent.click(screen.getByTestId("retry-btn"));
     });
 
-    // After retry succeeds, modal closes and success toast fires
+    // After retry succeeds, modal stays open (user sees success state) and toast fires
+    await waitFor(() => {
+      expect(mockToastSuccess).toHaveBeenCalledWith("Swap complete!");
+    });
+    expect(mockStepperRetry).toHaveBeenCalledTimes(1);
+    // Modal is still visible — user clicks "Done" to dismiss
+    expect(screen.getByTestId("stepper-modal")).toBeInTheDocument();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("close-btn"));
+    });
     await waitFor(() => {
       expect(
         screen.queryByTestId("stepper-modal"),
       ).not.toBeInTheDocument();
     });
-    expect(mockStepperRetry).toHaveBeenCalledTimes(1);
-    expect(mockToastSuccess).toHaveBeenCalledWith("Swap complete!");
   });
 
   it("cancel closes modal cleanly", async () => {

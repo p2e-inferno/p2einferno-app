@@ -328,7 +328,10 @@ export function useUniswapSwap() {
               return {
                 transactionHash: hash,
                 async waitForConfirmation() {
-                  await publicClient.waitForTransactionReceipt({ hash });
+                  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+                  if (receipt.status === "reverted") {
+                    throw new Error("ERC20 approval transaction reverted on-chain");
+                  }
                   return { transactionHash: hash };
                 },
               };
@@ -362,7 +365,10 @@ export function useUniswapSwap() {
               return {
                 transactionHash: hash,
                 async waitForConfirmation() {
-                  await publicClient.waitForTransactionReceipt({ hash });
+                  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+                  if (receipt.status === "reverted") {
+                    throw new Error("Permit2 approval transaction reverted on-chain");
+                  }
                   return { transactionHash: hash };
                 },
               };
@@ -392,18 +398,42 @@ export function useUniswapSwap() {
         title: "Execute Swap",
         description: "Send swap transaction to the Universal Router",
         async execute() {
-          const hash = await walletClient.sendTransaction({
+          // Pre-flight gas estimation to catch reverts before the user signs
+          const txParams = {
             to: addresses.universalRouter,
             data: calldata,
             value,
-            chain: walletClient.chain,
             account: walletClient.account ?? userAddress,
+          };
+          try {
+            await publicClient.estimateGas(txParams);
+          } catch (estimateErr) {
+            const reason =
+              estimateErr instanceof Error
+                ? estimateErr.message
+                : "Unknown error";
+            log.error("Swap gas estimation failed — transaction would revert", {
+              reason,
+            });
+            throw new Error(
+              `Swap would fail on-chain: ${reason.slice(0, 200)}`,
+            );
+          }
+
+          const hash = await walletClient.sendTransaction({
+            ...txParams,
+            chain: walletClient.chain,
           });
           log.info("Swap transaction submitted", { txHash: hash });
           return {
             transactionHash: hash,
             async waitForConfirmation() {
-              await publicClient.waitForTransactionReceipt({ hash });
+              const receipt = await publicClient.waitForTransactionReceipt({ hash });
+              if (receipt.status === "reverted") {
+                throw new Error(
+                  "Swap transaction reverted on-chain. The swap may have expired or slippage was exceeded.",
+                );
+              }
               log.info("Swap confirmed", { txHash: hash });
               return { transactionHash: hash };
             },

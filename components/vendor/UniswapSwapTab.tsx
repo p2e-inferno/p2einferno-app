@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import type { DeploymentStep } from "@/lib/transaction-stepper/types";
 import type { SwapPair, SwapDirection } from "@/lib/uniswap/types";
 import { DEFAULT_SLIPPAGE_BPS } from "@/lib/uniswap/constants";
+import { PercentPresets } from "@/components/vendor/PercentPresets";
 import toast from "react-hot-toast";
 
 const PAIR_OPTIONS: { value: SwapPair; label: string }[] = [
@@ -141,6 +142,15 @@ export default function UniswapSwapTab() {
     setIsStepperOpen(false);
   }, [stepperState.canClose]);
 
+  const applyPercent = useCallback(
+    (percent: number) => {
+      if (balance === null) return;
+      const selected = (balance * BigInt(percent)) / 100n;
+      setAmount(formatTokenAmount(selected, getInputDecimals(pair, direction)));
+    },
+    [balance, pair, direction],
+  );
+
   // --- Derived state ---
   const inputDecimals = getInputDecimals(pair, direction);
   const outputDecimals = getOutputDecimals(pair, direction);
@@ -244,8 +254,8 @@ export default function UniswapSwapTab() {
         }
       }
 
-      // 5. All steps succeeded
-      setIsStepperOpen(false);
+      // 5. All steps succeeded — keep modal open so user sees the green ✓ states.
+      //    The modal's "Done" button (onClose) will dismiss it.
       toast.success("Swap complete!");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Swap failed");
@@ -331,6 +341,7 @@ export default function UniswapSwapTab() {
           placeholder="0.0"
           className="border-none bg-transparent text-2xl font-medium text-white placeholder:text-slate-500 focus-visible:ring-0"
         />
+        <PercentPresets onSelect={applyPercent} disabled={balance === null} />
         {isOverBalance && (
           <p className="text-xs text-red-400">Insufficient balance.</p>
         )}
