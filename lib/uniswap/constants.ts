@@ -69,7 +69,7 @@ export const ROUTE_CONFIG = {
 /** Frontend fee configuration */
 export const FEE_CONFIG = {
   /** Fee in basis points (25 = 0.25%), sourced from env var */
-  feeBips: Number(process.env.NEXT_PUBLIC_UNISWAP_FEE_BIPS ?? 25),
+  feeBips: Number(process.env.NEXT_PUBLIC_UNISWAP_FEE_BIPS || 25),
   /** Fee recipient wallet address — from env var */
   feeRecipient: process.env
     .NEXT_PUBLIC_UNISWAP_FEE_WALLET as `0x${string}`,
