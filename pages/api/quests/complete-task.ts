@@ -119,7 +119,7 @@ export default async function handler(
     const clientTxHash =
       clientVerificationData && typeof clientVerificationData === "object"
         ? (clientVerificationData as { transactionHash?: string })
-          .transactionHash
+            .transactionHash
         : undefined;
 
     const strategy = task?.task_type
