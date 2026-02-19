@@ -33,7 +33,9 @@ jest.mock("@/hooks/unlock/usePrivyWriteWallet", () => ({
 const mockReadContract = jest.fn();
 const mockGetBalance = jest.fn();
 const mockSimulateContract = jest.fn();
-const mockWaitForTransactionReceipt = jest.fn().mockResolvedValue({});
+const mockWaitForTransactionReceipt = jest
+  .fn()
+  .mockResolvedValue({ status: "success" });
 
 jest.mock("@/lib/blockchain/config", () => ({
   createPublicClientForChain: () => ({

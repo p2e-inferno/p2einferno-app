@@ -138,7 +138,15 @@ export default function UniswapSwapTab() {
   const applyPercent = useCallback(
     (percent: number) => {
       if (balance === null) return;
-      const selected = (balance * BigInt(percent)) / 100n;
+      let selected = (balance * BigInt(percent)) / 100n;
+      // Reserve a gas buffer when input is native ETH so the tx can pay for gas.
+      // ~0.0005 ETH covers typical Base L2 swap gas costs with margin.
+      const isNativeEthInput =
+        (pair === "ETH_UP" || pair === "ETH_USDC") && direction === "A_TO_B";
+      if (isNativeEthInput && percent === 100) {
+        const GAS_BUFFER = 500_000_000_000_000n; // 0.0005 ETH
+        selected = selected > GAS_BUFFER ? selected - GAS_BUFFER : 0n;
+      }
       setAmount(formatTokenAmount(selected, getInputDecimals(pair, direction)));
     },
     [balance, pair, direction],

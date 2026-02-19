@@ -120,7 +120,7 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
             onClick={onCheckinClick}
             disabled={isDisabled || !canCheckinToday || isPerformingCheckin}
             className={`w-full flex items-center justify-between ${
-              isDisabled || !canCheckinToday
+              isDisabled || !canCheckinToday || isPerformingCheckin
                 ? "cursor-not-allowed"
                 : "cursor-pointer"
             }`}

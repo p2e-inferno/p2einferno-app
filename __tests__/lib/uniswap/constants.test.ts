@@ -56,22 +56,8 @@ describe("resolvePoolTokens", () => {
 });
 
 describe("validateFeeConfig", () => {
-  const origWallet = process.env.NEXT_PUBLIC_UNISWAP_FEE_WALLET;
-  const origBips = process.env.NEXT_PUBLIC_UNISWAP_FEE_BIPS;
-
-  afterEach(() => {
-    // Restore original env
-    if (origWallet !== undefined) {
-      process.env.NEXT_PUBLIC_UNISWAP_FEE_WALLET = origWallet;
-    } else {
-      delete process.env.NEXT_PUBLIC_UNISWAP_FEE_WALLET;
-    }
-    if (origBips !== undefined) {
-      process.env.NEXT_PUBLIC_UNISWAP_FEE_BIPS = origBips;
-    } else {
-      delete process.env.NEXT_PUBLIC_UNISWAP_FEE_BIPS;
-    }
-  });
+  // Tests mutate FEE_CONFIG directly (not process.env) since
+  // FEE_CONFIG is evaluated at module load time.
 
   it("throws when fee wallet is not set", () => {
     // FEE_CONFIG is evaluated at module load, so we test via the validation function

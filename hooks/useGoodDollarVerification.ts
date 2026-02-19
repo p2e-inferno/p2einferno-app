@@ -40,6 +40,7 @@ export function useGoodDollarVerification() {
   const { walletAddress } = useDetectConnectedWalletAddress(user);
   const { sdk } = useIdentitySDK();
   const lastReconciledUserId = useRef<string | null>(null);
+  const lastUnverifiedReconciledUserId = useRef<string | null>(null);
 
   const query = useQuery<VerificationStatus>({
     queryKey: ["gooddollar-verification", user?.id],
@@ -92,6 +93,31 @@ export function useGoodDollarVerification() {
 
         // If no wallet is verified, return not verified
         if (!verifiedWallet) {
+          const hasSuccessfulCheck = checkResults.some((result) => !result.error);
+          const needsUnverifiedReconciliation =
+            lastUnverifiedReconciledUserId.current !== user.id;
+
+          // Heal stale DB state only when we had at least one successful
+          // chain check (avoid clearing status during transient RPC failures).
+          if (hasSuccessfulCheck && needsUnverifiedReconciliation) {
+            try {
+              const response = await fetch("/api/gooddollar/verify-callback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: "reconcile_unverified" }),
+              });
+              const data = await response.json();
+              if (data?.success) {
+                lastUnverifiedReconciledUserId.current = user.id;
+              }
+            } catch (error) {
+              log.warn("Failed unverified reconciliation attempt", {
+                userId: user.id,
+                error,
+              });
+            }
+          }
+
           log.info("No verified wallets found", { userId: user.id, checkedCount: walletAddresses.length });
           return {
             isWhitelisted: false,

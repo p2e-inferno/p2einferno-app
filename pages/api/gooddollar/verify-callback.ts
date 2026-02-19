@@ -55,6 +55,98 @@ export default async function handler(
 
     log.info("Face verification callback received", { status, address });
 
+    // Reconcile stale DB state when user is no longer verified on-chain.
+    if (status === "reconcile_unverified") {
+      if (!privyUser) {
+        privyUser = await getPrivyUser(req, true);
+      }
+      if (!privyUser) {
+        return sendResponse(
+          res,
+          401,
+          false,
+          "Not authenticated",
+          "User must be authenticated to reconcile verification status",
+        );
+      }
+
+      const userWalletAddress = extractUserWallet(privyUser);
+      const userWallets =
+        Array.isArray((privyUser as any)?.walletAddresses) &&
+        (privyUser as any)?.walletAddresses.length > 0
+          ? ((privyUser as any).walletAddresses as string[])
+          : userWalletAddress
+            ? [userWalletAddress]
+            : [];
+
+      // If user still has any whitelisted linked wallet, keep verified state.
+      let hasWhitelistedWallet = false;
+      for (const wallet of userWallets) {
+        try {
+          const normalized = validateAndNormalizeAddress(wallet);
+          const result = await retryWithDelay(
+            () => checkWhitelistStatus(normalized),
+            2,
+            250,
+          );
+          if (result.isWhitelisted) {
+            hasWhitelistedWallet = true;
+            break;
+          }
+        } catch (error) {
+          log.warn("Failed wallet check during unverified reconciliation", {
+            userId: privyUser.id,
+            wallet,
+            error,
+          });
+        }
+      }
+
+      if (hasWhitelistedWallet) {
+        return sendResponse(
+          res,
+          200,
+          true,
+          "User still has a verified wallet; no reconciliation needed",
+        );
+      }
+
+      let supabase;
+      try {
+        supabase = createAdminClient();
+      } catch (error) {
+        log.error("Supabase credentials not configured", { error });
+        return sendResponse(
+          res,
+          500,
+          false,
+          "Internal server error",
+          "Database credentials not configured",
+        );
+      }
+
+      const { error: clearError } = await supabase
+        .from("user_profiles")
+        .update({
+          is_face_verified: false,
+          face_verification_expiry: null,
+          gooddollar_whitelist_checked_at: new Date().toISOString(),
+        })
+        .eq("privy_user_id", privyUser.id);
+
+      if (clearError) {
+        return sendResponse(
+          res,
+          500,
+          false,
+          "Failed to reconcile verification status",
+          "Could not update database",
+        );
+      }
+
+      return sendResponse(res, 200, true, "Verification status reconciled");
+    }
+
     // Validate status
     if (status !== "success") {
       log.warn("Face verification failed at provider", { status, address });

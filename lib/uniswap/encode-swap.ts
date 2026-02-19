@@ -33,6 +33,13 @@ const ETH_ADDRESS =
 const EXECUTE_SELECTOR = "0x3593564c";
 
 export interface EncodeSwapConfig {
+  /**
+   * The output token address used by PAY_PORTION and SWEEP.
+   * When isNativeEthOut=true (sell direction), this MUST be the WETH address —
+   * the V3 swap yields WETH which PAY_PORTION operates on before UNWRAP_WETH
+   * converts the remainder to native ETH. Passing address(0) here would cause
+   * PAY_PORTION to silently fail.
+   */
   tokenOut: `0x${string}`;
   path: `0x${string}`;
   amountIn: bigint;
@@ -49,6 +56,17 @@ export function encodeSwapWithFeeManual(config: EncodeSwapConfig): {
   calldata: `0x${string}`;
   value: bigint;
 } {
+  // Guard: when selling to native ETH, tokenOut must be WETH (not zero address)
+  // so PAY_PORTION can operate on the swap's WETH output.
+  if (
+    config.isNativeEthOut &&
+    config.tokenOut === ("0x0000000000000000000000000000000000000000" as `0x${string}`)
+  ) {
+    throw new Error(
+      "tokenOut must be the WETH address when isNativeEthOut=true (PAY_PORTION operates on WETH before UNWRAP_WETH)",
+    );
+  }
+
   const commands: number[] = [];
   const inputs: `0x${string}`[] = [];
 

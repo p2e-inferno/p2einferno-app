@@ -377,27 +377,30 @@ export function useUniswapSwap() {
         }
       }
 
-      // Final step: the swap itself
-      const deadline =
-        Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_SECONDS;
-      const { calldata, value } = encodeSwapWithFeeManual({
-        tokenOut,
-        path,
-        amountIn,
-        amountOutMin,
-        recipient: userAddress,
-        feeRecipient: FEE_CONFIG.feeRecipient,
-        feeBips: FEE_CONFIG.feeBips,
-        isNativeEthIn,
-        isNativeEthOut,
-        deadline,
-      });
-
+      // Final step: the swap itself.
+      // Deadline and calldata are computed inside execute() so the 5-minute
+      // window starts when the user actually signs, not when steps are built
+      // (approval steps may consume significant time before this fires).
       steps.push({
         id: "swap",
         title: "Execute Swap",
         description: "Send swap transaction to the Universal Router",
         async execute() {
+          const deadline =
+            Math.floor(Date.now() / 1000) + DEFAULT_DEADLINE_SECONDS;
+          const { calldata, value } = encodeSwapWithFeeManual({
+            tokenOut,
+            path,
+            amountIn,
+            amountOutMin,
+            recipient: userAddress,
+            feeRecipient: FEE_CONFIG.feeRecipient,
+            feeBips: FEE_CONFIG.feeBips,
+            isNativeEthIn,
+            isNativeEthOut,
+            deadline,
+          });
+
           // Pre-flight gas estimation to catch reverts before the user signs
           const txParams = {
             to: addresses.universalRouter,
@@ -428,7 +431,9 @@ export function useUniswapSwap() {
           return {
             transactionHash: hash,
             async waitForConfirmation() {
-              const receipt = await publicClient.waitForTransactionReceipt({ hash });
+              const receipt = await publicClient.waitForTransactionReceipt({
+                hash,
+              });
               if (receipt.status === "reverted") {
                 throw new Error(
                   "Swap transaction reverted on-chain. The swap may have expired or slippage was exceeded.",

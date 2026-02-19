@@ -90,8 +90,8 @@ describe("checkPermit2Allowance", () => {
   });
 });
 
-describe("approveTokenForPermit2", () => {
-  it("skips approval when allowance sufficient", async () => {
+describe("approval skip decision", () => {
+  it("skips approveTokenForPermit2 when ERC20 allowance is sufficient", async () => {
     const publicClient = {
       readContract: jest.fn().mockResolvedValue((1n << 256n) - 1n),
     } as unknown as PublicClient;
