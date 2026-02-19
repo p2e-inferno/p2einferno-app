@@ -256,6 +256,7 @@ export default function UniswapSwapTab() {
 
       // 5. All steps succeeded — keep modal open so user sees the green ✓ states.
       //    The modal's "Done" button (onClose) will dismiss it.
+      fetchBalance(pair, direction);
       toast.success("Swap complete!");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Swap failed");
