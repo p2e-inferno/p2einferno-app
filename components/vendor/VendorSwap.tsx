@@ -19,6 +19,7 @@ import {
   formatAmountForInput,
   parseAmount,
 } from "@/lib/vendor/math";
+import UniswapSwapTab from "@/components/vendor/UniswapSwapTab";
 
 type Mode = "buy" | "sell";
 type BuyEstimate = ReturnType<typeof estimateBuy>;
@@ -43,6 +44,7 @@ export default function VendorSwap() {
   const { base, swap } = useDGTokenBalances(baseTokenAddress, swapTokenAddress);
   const { isKeyHolder, isPaused } = useDGVendorAccess();
 
+  const [activeTab, setActiveTab] = useState<"vendor" | "uniswap">("vendor");
   const [mode, setMode] = useState<Mode>("buy");
   const [amount, setAmount] = useState("");
 
@@ -204,6 +206,36 @@ export default function VendorSwap() {
 
   return (
     <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-slate-900/90 to-slate-900/60 p-6 shadow-2xl shadow-black/40 space-y-4">
+      {/* Tab Navigation */}
+      <div className="flex gap-1 p-1 rounded-lg bg-white/5">
+        <button
+          type="button"
+          onClick={() => setActiveTab("vendor")}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+            activeTab === "vendor"
+              ? "bg-white/10 text-white shadow-sm"
+              : "text-white/50 hover:text-white/80"
+          }`}
+        >
+          DG Market
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("uniswap")}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+            activeTab === "uniswap"
+              ? "bg-white/10 text-white shadow-sm"
+              : "text-white/50 hover:text-white/80"
+          }`}
+        >
+          Uniswap
+        </button>
+      </div>
+
+      {activeTab === "uniswap" ? (
+        <UniswapSwapTab />
+      ) : (
+      <>
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold text-white tracking-wide">
           DG Token Market
@@ -370,6 +402,8 @@ export default function VendorSwap() {
               ? `Buy ${swapSymbol}`
               : `Sell ${swapSymbol}`}
       </Button>
+      </>
+      )}
     </div>
   );
 }

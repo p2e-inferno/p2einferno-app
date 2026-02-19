@@ -32,11 +32,11 @@ export default function GoodDollarVerificationPage() {
                   Elevate Your Status
                 </div>
                 <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold font-heading mb-8 tracking-tight leading-tight">
-                  The{" "}
+                  Verification{" "}
                   <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
-                    Trusted Path
+                    Unlocks Premium
                   </span>{" "}
-                  to <br className="hidden md:block" /> Premium Rewards
+                    Rewards
                 </h1>
                 <p className="text-gray-400 mb-4">
                   Join the elite tier of Infernals.
