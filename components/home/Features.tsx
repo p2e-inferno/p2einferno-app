@@ -1,5 +1,6 @@
 import React from "react";
-import { Coins, Shield, Users, Zap, Gamepad2, Trophy } from "lucide-react";
+import Link from "next/link";
+import { Coins, Shield, Users, Zap, Gamepad2 } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -8,6 +9,13 @@ import {
 } from "@/components/ui/card";
 
 const features = [
+  {
+    title: "Sybil Defence",
+    description:
+      "GoodDollar verification is used as a core Sybil defence layer across reward flows. It helps ensure incentives go to real humans, protects the app from extraction attacks, and preserves fair progression for legitimate users.",
+    icon: Shield,
+    color: "text-flame-yellow",
+  },
   {
     title: "Real Onchain Actions",
     description:
@@ -28,13 +36,6 @@ const features = [
       "Join other Infernals and participate in shaping future of P2E INFERNO through DAO governance, collaborative quests, and community projects. Learn Web3 social dynamics by living them, not just studying them.",
     icon: Users,
     color: "text-faded-grey",
-  },
-  {
-    title: "Build Your Onchain Reputation",
-    description:
-      "Engage in onchain social activity and earn verifiable attestations for every skill you master. Build a permanent, portable reputation that proves your Web3 expertise to the world.",
-    icon: Trophy,
-    color: "text-steel-red",
   },
   {
     title: "Quests Over Lectures",
@@ -86,6 +87,15 @@ export function Features() {
               </CardHeader>
             </Card>
           ))}
+        </div>
+
+        <div className="text-center mt-10">
+          <Link
+            href="/gooddollar/verification"
+            className="inline-flex items-center gap-2 rounded-full border border-blue-500/40 bg-blue-500/10 px-5 py-2 text-blue-300 hover:border-blue-400/60 hover:bg-blue-500/20 transition-colors"
+          >
+            GoodDollar Verification: How It Works
+          </Link>
         </div>
 
         <div className="text-center mt-12">

@@ -20,6 +20,11 @@ import {
   isRetryableDbError,
   generateProofHash,
 } from "@/lib/gooddollar/callback-handler";
+import {
+  claimOrValidateVerifiedWalletOwnership,
+  GOODDOLLAR_OWNERSHIP_CONFLICT_CODE,
+  GOODDOLLAR_USER_WALLET_LOCKED_CODE,
+} from "@/lib/gooddollar/verification-ownership";
 
 const log = getLogger("api:gooddollar-verify-callback");
 
@@ -45,7 +50,7 @@ export default async function handler(
     const status = extractStatus(params);
     const addressParam =
       (params.wallet as string) || (params.address as string);
-    let address = addressParam as string | undefined;
+    const address = addressParam as string | undefined;
     let privyUser: any = null;
 
     log.info("Face verification callback received", { status, address });
@@ -218,30 +223,94 @@ export default async function handler(
       );
     }
 
-    // Update database
     const proofHash = generateProofHash(status, normalizedAddress, root);
-    const updateUserVerification = async () => {
-      const { error: dbError } = await supabase
-        .from("user_profiles")
-        .update({
-          is_face_verified: true,
-          face_verified_at: new Date().toISOString(),
-          gooddollar_whitelist_checked_at: new Date().toISOString(),
-          face_verification_expiry: expiryTimestampMs
-            ? new Date(expiryTimestampMs).toISOString()
-            : null,
-          face_verification_proof_hash: proofHash,
-        })
-        .eq("wallet_address", normalizedAddress);
-      if (dbError) throw dbError;
+    const ownershipCheck = await claimOrValidateVerifiedWalletOwnership({
+      supabase,
+      walletAddress: normalizedAddress,
+      privyUserId: privyUser.id,
+      proofHash,
+      source: "callback",
+    });
+
+    if (!ownershipCheck.ok) {
+      const code =
+        ownershipCheck.code === GOODDOLLAR_OWNERSHIP_CONFLICT_CODE
+          ? GOODDOLLAR_OWNERSHIP_CONFLICT_CODE
+          : GOODDOLLAR_USER_WALLET_LOCKED_CODE;
+      return sendResponse(
+        res,
+        200,
+        false,
+        ownershipCheck.message,
+        undefined,
+        undefined,
+        code,
+      );
+    }
+
+    // Persist verification state by canonical user identity (privy_user_id)
+    // and self-heal by creating a profile row when missing.
+    const verificationPatch = {
+      is_face_verified: true,
+      face_verified_at: new Date().toISOString(),
+      gooddollar_whitelist_checked_at: new Date().toISOString(),
+      face_verification_expiry: expiryTimestampMs
+        ? new Date(expiryTimestampMs).toISOString()
+        : null,
+      face_verification_proof_hash: proofHash,
+      linked_wallets: userWallets,
     };
 
     try {
-      await retryWithDelay(updateUserVerification, 3, 400);
+      const upsertVerificationState = async () => {
+        const { data: existingProfile, error: profileReadError } =
+          await supabase
+            .from("user_profiles")
+            .select("id")
+            .eq("privy_user_id", privyUser.id)
+            .maybeSingle();
+
+        if (profileReadError) throw profileReadError;
+
+        if (existingProfile?.id) {
+          const { error: updateError } = await supabase
+            .from("user_profiles")
+            .update(verificationPatch)
+            .eq("id", existingProfile.id);
+          if (updateError) throw updateError;
+          return;
+        }
+
+        const { error: insertError } = await supabase
+          .from("user_profiles")
+          .insert({
+            privy_user_id: privyUser.id,
+            ...verificationPatch,
+          });
+
+        if (insertError) throw insertError;
+      };
+
+      await retryWithDelay(upsertVerificationState, 3, 400);
+
+      // Best-effort wallet sync: do not fail verification if wallet_address cannot be written
+      const { error: walletSyncError } = await supabase
+        .from("user_profiles")
+        .update({ wallet_address: normalizedAddress })
+        .eq("privy_user_id", privyUser.id);
+
+      if (walletSyncError) {
+        log.warn("Best-effort wallet sync failed after verification", {
+          address: normalizedAddress,
+          userId: privyUser.id,
+          error: walletSyncError,
+        });
+      }
     } catch (dbError: any) {
       const retryable = isRetryableDbError(dbError);
       log.error("Failed to update user face verification status", {
         address: normalizedAddress,
+        userId: privyUser.id,
         error: dbError,
         retryable,
       });

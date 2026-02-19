@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import { ArrowRight, Shield } from "lucide-react";
+import { ArrowRight, Shield, ArrowRight as ArrowIcon } from "lucide-react";
 import {
   FlameIcon,
   LightningIcon,
@@ -10,7 +10,6 @@ import {
 import { useFaceVerificationAction } from "@/components/gooddollar/FaceVerificationButton";
 import { useGoodDollarVerification } from "@/hooks/useGoodDollarVerification";
 import { useDailyCheckin } from "@/hooks/checkin";
-import { ArrowRight as ArrowIcon } from "lucide-react";
 
 class FaceVerificationCardBoundary extends React.Component<
   { children: React.ReactNode },

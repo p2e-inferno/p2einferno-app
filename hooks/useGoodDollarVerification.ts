@@ -9,6 +9,10 @@ import { getWalletAddressesFromUser } from "@/lib/utils/wallet-selection";
 import { getLogger } from "@/lib/utils/logger";
 import { useRef } from "react";
 
+const GOODDOLLAR_OWNERSHIP_CONFLICT_CODE =
+  "WALLET_ALREADY_VERIFIED_BY_OTHER_USER";
+const GOODDOLLAR_USER_WALLET_LOCKED_CODE = "USER_ALREADY_HAS_VERIFIED_WALLET";
+
 const log = getLogger("hook:use-gooddollar-verification");
 
 export interface VerificationStatus {
@@ -120,6 +124,25 @@ export function useGoodDollarVerification() {
             });
             const data = await response.json();
             reconcileStatus = data?.success ? "ok" : "error";
+
+            if (
+              data?.success === false &&
+              (data?.code === GOODDOLLAR_OWNERSHIP_CONFLICT_CODE ||
+                data?.code === GOODDOLLAR_USER_WALLET_LOCKED_CODE)
+            ) {
+              log.warn("Verification wallet ownership conflict", {
+                userId: user.id,
+                address: normalizedAddress,
+                code: data?.code,
+                message: data?.message,
+              });
+              return {
+                isWhitelisted: false,
+                isExpired: false,
+                needsReVerification: false,
+                reconcileStatus: "error" as const,
+              };
+            }
 
             // Only mark as reconciled if successful
             if (data?.success) {

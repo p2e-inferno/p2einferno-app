@@ -142,6 +142,11 @@ const nextConfig = {
   async redirects() {
     return [
       {
+        source: "/gooddollar-verification",
+        destination: "/gooddollar/verification",
+        permanent: true,
+      },
+      {
         source: "/infernal-lobby",
         destination: "/lobby",
         permanent: true,

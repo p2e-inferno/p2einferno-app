@@ -57,9 +57,14 @@ export function useTransactionStepper(steps: DeploymentStep[]) {
 
   const runIdRef = useRef(0);
   const runtimeStepCountRef = useRef(runtimeSteps.length);
+  // Monotonic version counter — increments every time useEffect installs new steps.
+  // Callers snapshot this before setting new steps, then waitForSteps polls until
+  // the version has advanced, guaranteeing stepsRef.current points to the new steps.
+  const stepsVersionRef = useRef(0);
 
   useEffect(() => {
     stepsRef.current = steps;
+    stepsVersionRef.current += 1;
     setRuntimeSteps(createInitialRuntimeState(steps));
     setActiveStepIndex(steps.length > 0 ? 0 : -1);
     setIsRunning(false);
@@ -69,15 +74,22 @@ export function useTransactionStepper(steps: DeploymentStep[]) {
     runtimeStepCountRef.current = runtimeSteps.length;
   }, [runtimeSteps.length]);
 
-  const waitForSteps = useCallback(async (expectedCount: number) => {
-    const deadline = Date.now() + 5000;
-    while (runtimeStepCountRef.current < expectedCount) {
-      if (Date.now() > deadline) {
-        throw new Error("Stepper is not ready yet");
+  const waitForSteps = useCallback(
+    async (expectedCount: number, afterVersion?: number) => {
+      const deadline = Date.now() + 5000;
+      while (
+        runtimeStepCountRef.current < expectedCount ||
+        (afterVersion !== undefined &&
+          stepsVersionRef.current <= afterVersion)
+      ) {
+        if (Date.now() > deadline) {
+          throw new Error("Stepper is not ready yet");
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
       }
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-  }, []);
+    },
+    [],
+  );
 
   const updateStep = useCallback(
     (
@@ -259,5 +271,6 @@ export function useTransactionStepper(steps: DeploymentStep[]) {
     waitForSteps,
     cancel,
     state,
+    stepsVersion: stepsVersionRef,
   };
 }

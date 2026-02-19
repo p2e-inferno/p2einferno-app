@@ -56,7 +56,7 @@ export const useBootcamps = (): UseBootcampsResult => {
     } catch (err: any) {
       log.error("Bootcamps fetch error:", err);
       setError(err.message);
-      toast.error("Failed to load bootcamps");
+      toast.error("Failed to load bootcamps", { id: "bootcamps-load-error" });
     } finally {
       setLoading(false);
     }
