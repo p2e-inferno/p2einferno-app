@@ -74,6 +74,7 @@ export default async function handler(
 
       // If user still has any whitelisted linked wallet, keep verified state.
       let hasWhitelistedWallet = false;
+      let chainCheckSucceeded = false;
       for (const wallet of userWallets) {
         try {
           const normalized = validateAndNormalizeAddress(wallet);
@@ -82,6 +83,7 @@ export default async function handler(
             2,
             250,
           );
+          chainCheckSucceeded = true;
           if (result.isWhitelisted) {
             hasWhitelistedWallet = true;
             break;
@@ -93,6 +95,21 @@ export default async function handler(
             error,
           });
         }
+      }
+
+      // Safety guard: do not clear verified status when we couldn't
+      // complete any on-chain check (e.g. transient RPC/identity failures).
+      if (!chainCheckSucceeded) {
+        log.warn("Skipping unverified reconciliation: no successful chain checks", {
+          userId: privyUser.id,
+          walletCount: userWallets.length,
+        });
+        return sendResponse(
+          res,
+          200,
+          true,
+          "Skipped reconciliation because no on-chain checks succeeded",
+        );
       }
 
       if (hasWhitelistedWallet) {
