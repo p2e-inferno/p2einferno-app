@@ -30,6 +30,7 @@ let mockError: string | null = null;
 let mockBalance: bigint | null = null;
 
 const mockGetQuote = jest.fn();
+const mockClearQuote = jest.fn();
 const mockBuildSwapSteps = jest.fn();
 const mockFetchBalance = jest.fn();
 
@@ -40,6 +41,7 @@ jest.mock("@/hooks/vendor/useUniswapSwap", () => ({
     error: mockError,
     balance: mockBalance,
     getQuote: mockGetQuote,
+    clearQuote: mockClearQuote,
     buildSwapSteps: mockBuildSwapSteps,
     fetchBalance: mockFetchBalance,
     isSupported: true,
