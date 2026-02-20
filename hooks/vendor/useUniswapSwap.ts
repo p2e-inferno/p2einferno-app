@@ -7,7 +7,7 @@
  * Uses ensureWalletOnChainId + manual walletClient to guarantee Base Mainnet targeting.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { base } from "viem/chains";
 import { createWalletClient, custom, encodePacked } from "viem";
 import { usePrivyWriteWallet } from "@/hooks/unlock/usePrivyWriteWallet";
@@ -62,6 +62,11 @@ export function useUniswapSwap() {
     error: null,
     balance: null,
   });
+
+  // Monotonically increasing requestId to ignore stale quote responses.
+  // When a new quote request starts, increment this. Only commit state if
+  // the response's requestId matches the current ref value.
+  const quoteRequestIdRef = useRef(0);
 
   /**
    * Fetch user's balance for the input side of a swap.
@@ -121,12 +126,21 @@ export function useUniswapSwap() {
    * Fetch a quote for the given swap.
    * Does NOT require a connected wallet — uses public client only.
    */
+  const clearQuote = useCallback(() => {
+    quoteRequestIdRef.current += 1; // Invalidate any in-flight requests
+    setState((prev) => ({ ...prev, quote: null, error: null, isQuoting: false }));
+  }, []);
+
   const getQuote = useCallback(
     async (
       pair: SwapPair,
       direction: SwapDirection,
       amountIn: bigint,
     ): Promise<SwapQuote | null> => {
+      // Increment requestId to invalidate previous requests, then capture it.
+      quoteRequestIdRef.current += 1;
+      const thisRequestId = quoteRequestIdRef.current;
+
       setState((prev) => ({
         ...prev,
         quote: null,
@@ -201,12 +215,19 @@ export function useUniswapSwap() {
           gasEstimate: quoteResult.gasEstimate,
         };
 
-        setState((prev) => ({ ...prev, quote, isQuoting: false }));
-        return quote;
+        // Only commit state if this request is still current (not superseded)
+        if (thisRequestId === quoteRequestIdRef.current) {
+          setState((prev) => ({ ...prev, quote, isQuoting: false }));
+          return quote;
+        }
+        return null;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Quote failed";
         log.error("Quote failed", { err });
-        setState((prev) => ({ ...prev, isQuoting: false, error: msg }));
+        // Only commit error if this request is still current
+        if (thisRequestId === quoteRequestIdRef.current) {
+          setState((prev) => ({ ...prev, isQuoting: false, error: msg }));
+        }
         return null;
       }
     },
@@ -461,6 +482,7 @@ export function useUniswapSwap() {
   return {
     ...state,
     getQuote,
+    clearQuote,
     buildSwapSteps,
     fetchBalance,
     isSupported: true,

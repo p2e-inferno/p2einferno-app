@@ -39,6 +39,7 @@ export function Footer() {
       { label: "Services", href: "/services" },
     ],
     Resources: [
+      { label: "Privacy Policy", href: "/privacy-policy" },
       { label: "Creator starter kit", href: "#" },
       {
         label: "GoodDollar Verification Guide",

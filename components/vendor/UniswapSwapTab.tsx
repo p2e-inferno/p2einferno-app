@@ -20,6 +20,9 @@ import type { SwapPair, SwapDirection } from "@/lib/uniswap/types";
 import { DEFAULT_SLIPPAGE_BPS } from "@/lib/uniswap/constants";
 import { PercentPresets } from "@/components/vendor/PercentPresets";
 import toast from "react-hot-toast";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("component:uniswap-swap-tab");
 
 const PAIR_OPTIONS: { value: SwapPair; label: string }[] = [
   { value: "ETH_UP", label: "ETH / UP" },
@@ -84,6 +87,7 @@ export default function UniswapSwapTab() {
     balance,
     buildSwapSteps,
     getQuote,
+    clearQuote,
     fetchBalance,
     feeBips,
   } = useUniswapSwap();
@@ -179,12 +183,18 @@ export default function UniswapSwapTab() {
 
   // --- Debounced quote fetching (500ms) + auto-refresh (15s) ---
   useEffect(() => {
-    if (!parsedAmount || parsedAmount <= 0n) return;
+    if (!parsedAmount || parsedAmount <= 0n) {
+      clearQuote();
+      return;
+    }
+    // Clear stale quote immediately when inputs change (before debounce)
+    // to prevent using an old quote with new amounts during the 500ms window.
+    clearQuote();
     const timeout = setTimeout(() => {
       getQuote(pair, direction, parsedAmount);
     }, 500);
     return () => clearTimeout(timeout);
-  }, [amount, pair, direction, getQuote, parsedAmount]);
+  }, [amount, pair, direction, getQuote, clearQuote, parsedAmount]);
 
   useEffect(() => {
     if (!parsedAmount || parsedAmount <= 0n) return;
@@ -275,6 +285,12 @@ export default function UniswapSwapTab() {
       fetchBalance(pair, direction);
       toast.success("Swap complete!");
     } catch (err) {
+      log.error("Uniswap swap failed", {
+        error: err,
+        pair,
+        direction,
+        amount: parsedAmount?.toString(),
+      });
       toast.error(err instanceof Error ? err.message : "Swap failed");
     } finally {
       isSwappingRef.current = false;

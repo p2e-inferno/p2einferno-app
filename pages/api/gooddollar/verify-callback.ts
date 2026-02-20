@@ -108,7 +108,7 @@ export default async function handler(
         return sendResponse(
           res,
           200,
-          true,
+          false,
           "Skipped reconciliation because no on-chain checks succeeded",
         );
       }
