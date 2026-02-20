@@ -57,9 +57,7 @@ export default async function handler(
 
     // Reconcile stale DB state when user is no longer verified on-chain.
     if (status === "reconcile_unverified") {
-      if (!privyUser) {
-        privyUser = await getPrivyUser(req, true);
-      }
+      privyUser = await getPrivyUser(req, true);
       if (!privyUser) {
         return sendResponse(
           res,
@@ -100,10 +98,13 @@ export default async function handler(
       // Safety guard: do not clear verified status when we couldn't
       // complete any on-chain check (e.g. transient RPC/identity failures).
       if (!chainCheckSucceeded) {
-        log.warn("Skipping unverified reconciliation: no successful chain checks", {
-          userId: privyUser.id,
-          walletCount: userWallets.length,
-        });
+        log.warn(
+          "Skipping unverified reconciliation: no successful chain checks",
+          {
+            userId: privyUser.id,
+            walletCount: userWallets.length,
+          },
+        );
         return sendResponse(
           res,
           200,

@@ -101,13 +101,25 @@ export default function UniswapSwapTab() {
     stepsVersion: stepperVersion,
   } = useTransactionStepper(swapSteps);
 
-  // Guard against concurrent handleSwap invocations (double-click)
+  // Guard against concurrent handleSwap invocations (double-click).
+  // State drives the disabled button; ref prevents race conditions.
+  const [isSwapping, setIsSwapping] = useState(false);
   const isSwappingRef = useRef(false);
 
   // Decision ref: bridges async handleSwap <-> modal button clicks
   const decisionResolverRef = useRef<
     ((decision: "retry" | "cancel") => void) | null
   >(null);
+
+  // Settle any pending decision Promise on unmount so the async stack is released.
+  useEffect(() => {
+    return () => {
+      if (decisionResolverRef.current) {
+        decisionResolverRef.current("cancel");
+        decisionResolverRef.current = null;
+      }
+    };
+  }, []);
 
   const handleStepperRetry = useCallback(() => {
     if (decisionResolverRef.current) {
@@ -191,7 +203,9 @@ export default function UniswapSwapTab() {
   const getButtonState = (): { label: string; disabled: boolean } => {
     if (!parsedAmount || parsedAmount <= 0n)
       return { label: "Enter amount", disabled: true };
-    if (isQuoting) return { label: "Fetching quote...", disabled: true };
+    if (isQuoting || !quote)
+      return { label: "Fetching quote...", disabled: true };
+    if (isSwapping) return { label: "Swapping...", disabled: true };
     if (isOverBalance) return { label: "Insufficient balance", disabled: true };
     if (blockedImpact)
       return { label: "Price impact too high", disabled: true };
@@ -206,6 +220,7 @@ export default function UniswapSwapTab() {
     if (!parsedAmount || !quote) return;
     if (isSwappingRef.current) return;
     isSwappingRef.current = true;
+    setIsSwapping(true);
 
     try {
       // Calculate amountOutMin (pre-fee) with slippage
@@ -263,6 +278,7 @@ export default function UniswapSwapTab() {
       toast.error(err instanceof Error ? err.message : "Swap failed");
     } finally {
       isSwappingRef.current = false;
+      setIsSwapping(false);
     }
   };
 
