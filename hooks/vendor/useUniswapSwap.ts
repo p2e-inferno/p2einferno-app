@@ -218,8 +218,9 @@ export function useUniswapSwap() {
         // Only commit state if this request is still current (not superseded)
         if (thisRequestId === quoteRequestIdRef.current) {
           setState((prev) => ({ ...prev, quote, isQuoting: false }));
+          return quote;
         }
-        return quote;
+        return null;
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Quote failed";
         log.error("Quote failed", { err });
