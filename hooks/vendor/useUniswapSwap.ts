@@ -121,6 +121,10 @@ export function useUniswapSwap() {
    * Fetch a quote for the given swap.
    * Does NOT require a connected wallet — uses public client only.
    */
+  const clearQuote = useCallback(() => {
+    setState((prev) => ({ ...prev, quote: null, error: null }));
+  }, []);
+
   const getQuote = useCallback(
     async (
       pair: SwapPair,
@@ -461,6 +465,7 @@ export function useUniswapSwap() {
   return {
     ...state,
     getQuote,
+    clearQuote,
     buildSwapSteps,
     fetchBalance,
     isSupported: true,
