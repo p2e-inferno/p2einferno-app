@@ -1,3 +1,4 @@
+import Head from "next/head";
 import { useRouter } from "next/router";
 
 export default function DeletionStatusPage() {
@@ -6,28 +7,24 @@ export default function DeletionStatusPage() {
     typeof router.query.id === "string" ? router.query.id : "N/A";
 
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        padding: "2rem",
-        fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-      }}
-    >
-      <section style={{ maxWidth: 680, width: "100%" }}>
-        <h1 style={{ fontSize: "1.8rem", marginBottom: "0.75rem" }}>
-          Data Deletion Request Status
-        </h1>
-        <p style={{ marginBottom: "1rem", lineHeight: 1.6 }}>
-          We received your request. If your account data exists in our systems,
-          it will be deleted in line with our privacy policy and applicable
-          laws.
-        </p>
-        <p style={{ marginBottom: 0, fontSize: "0.95rem", color: "#555" }}>
-          Confirmation code: <strong>{requestId}</strong>
-        </p>
-      </section>
-    </main>
+    <>
+      <Head>
+        <title>Deletion Status - Request {requestId}</title>
+      </Head>
+      <main className="min-h-screen grid place-items-center p-8 font-sans">
+        <section className="max-w-xl w-full">
+          <h1 className="text-2xl mb-3">Data Deletion Request Status</h1>
+          <p className="mb-4 leading-relaxed">
+            We received your request. If your account data exists in our
+            systems, it will be deleted in line with our privacy policy and
+            applicable laws.
+          </p>
+          <p className="mb-0 text-sm text-gray-600">
+            Confirmation code:{" "}
+            <span className="font-semibold">{requestId}</span>
+          </p>
+        </section>
+      </main>
+    </>
   );
 }

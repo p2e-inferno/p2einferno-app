@@ -257,6 +257,48 @@ describe("UniswapSwapTab — quote display and price impact", () => {
       screen.getByText(/Price impact too high \(7\.5%\)/),
     ).toBeInTheDocument();
   });
+
+  it("calls clearQuote immediately when amount is cleared", () => {
+    render(<UniswapSwapTab />);
+    const input = screen.getByPlaceholderText("0.0");
+
+    // Type a valid amount
+    fireEvent.change(input, { target: { value: "1" } });
+    mockClearQuote.mockClear();
+
+    // Clear the amount
+    fireEvent.change(input, { target: { value: "" } });
+
+    // clearQuote should be called immediately (not debounced)
+    expect(mockClearQuote).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears quote immediately then debounces getQuote by 500ms", () => {
+    jest.useFakeTimers();
+    try {
+      render(<UniswapSwapTab />);
+      const input = screen.getByPlaceholderText("0.0");
+
+      mockClearQuote.mockClear();
+      mockGetQuote.mockClear();
+
+      // Type a new amount
+      fireEvent.change(input, { target: { value: "0.5" } });
+
+      // clearQuote should be called immediately (synchronously)
+      expect(mockClearQuote).toHaveBeenCalledTimes(1);
+      // getQuote should NOT be called yet (debounce pending)
+      expect(mockGetQuote).not.toHaveBeenCalled();
+
+      // Advance time by 500ms
+      jest.advanceTimersByTime(500);
+
+      // Now getQuote should be called
+      expect(mockGetQuote).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

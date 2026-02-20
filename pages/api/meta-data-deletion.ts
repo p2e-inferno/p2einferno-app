@@ -71,6 +71,9 @@ export default async function handler(
     return res.status(500).json({ error: "Server configuration error" });
   }
 
+  // Next.js usually parses req.body as an object for JSON and form-urlencoded
+  // requests. This signedRequest IIFE only handles string req.body as a
+  // defensive fallback when body parsing is disabled or Content-Type is unknown.
   const signedRequest = (() => {
     if (typeof req.body === "string") {
       try {
@@ -97,17 +100,25 @@ export default async function handler(
   }
 
   const confirmationCode = crypto.randomUUID();
+  const userIdFingerprint = crypto
+    .createHmac("sha256", appSecret)
+    .update(data.user_id)
+    .digest("hex")
+    .slice(0, 12);
 
   log.info("Data deletion request received", {
-    userId: data.user_id,
+    userIdFingerprint,
     confirmationCode,
   });
 
   // This app does not store any Facebook user data.
   // Acknowledge the request per Meta's requirements.
+  const appBaseUrl = (
+    process.env.NEXT_PUBLIC_APP_URL || "https://p2einferno.com"
+  ).replace(/\/+$/, "");
 
   return res.status(200).json({
-    url: `${process.env.NEXT_PUBLIC_APP_URL || "https://p2einferno.com"}/deletion-status?id=${confirmationCode}`,
+    url: `${appBaseUrl}/deletion-status?id=${confirmationCode}`,
     confirmation_code: confirmationCode,
   });
 }
