@@ -4,6 +4,7 @@
 
 import { renderHook, act } from "@testing-library/react";
 import { useUniswapSwap } from "@/hooks/vendor/useUniswapSwap";
+import type { DeploymentStep } from "@/lib/transaction-stepper/types";
 
 // --- Mocks ---
 
@@ -33,6 +34,7 @@ jest.mock("@/hooks/unlock/usePrivyWriteWallet", () => ({
 const mockReadContract = jest.fn();
 const mockGetBalance = jest.fn();
 const mockSimulateContract = jest.fn();
+const mockEstimateGas = jest.fn().mockResolvedValue(150000n);
 const mockWaitForTransactionReceipt = jest
   .fn()
   .mockResolvedValue({ status: "success" });
@@ -42,9 +44,23 @@ jest.mock("@/lib/blockchain/config", () => ({
     readContract: mockReadContract,
     getBalance: mockGetBalance,
     simulateContract: mockSimulateContract,
+    estimateGas: mockEstimateGas,
     waitForTransactionReceipt: mockWaitForTransactionReceipt,
   }),
 }));
+
+const mockSendTransaction = jest.fn().mockResolvedValue("0xswaphash");
+jest.mock("viem", () => {
+  const actual = jest.requireActual("viem");
+  return {
+    ...actual,
+    createWalletClient: jest.fn(() => ({
+      sendTransaction: mockSendTransaction,
+      chain: { id: 8453, name: "Base" },
+      account: "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    })),
+  };
+});
 
 jest.mock("@/lib/blockchain/shared/ensure-wallet-network", () => ({
   ensureWalletOnChainId: jest.fn().mockResolvedValue(undefined),
@@ -273,7 +289,7 @@ describe("useUniswapSwap", () => {
 
     const { result } = renderHook(() => useUniswapSwap());
 
-    let steps: any[];
+    let steps: DeploymentStep[];
     await act(async () => {
       steps = await result.current.buildSwapSteps(
         "ETH_UP",
@@ -286,6 +302,58 @@ describe("useUniswapSwap", () => {
     // Verify the step has the right structure
     expect(steps![0]!.execute).toBeDefined();
     expect(typeof steps![0]!.execute).toBe("function");
+  });
+
+  it("swap step execute() calls sendTransaction and returns hash", async () => {
+    mockGetBalance.mockResolvedValue(10000000000000000000n);
+    mockSendTransaction.mockResolvedValue("0xswaptxhash");
+
+    const { result } = renderHook(() => useUniswapSwap());
+
+    let steps: DeploymentStep[];
+    await act(async () => {
+      steps = await result.current.buildSwapSteps(
+        "ETH_UP",
+        "A_TO_B",
+        1000000000000000000n,
+        900000n,
+      );
+    });
+
+    const swapStep = steps!.find((s) => s.id === "swap")!;
+    const txResult = await swapStep.execute();
+
+    expect(mockEstimateGas).toHaveBeenCalled();
+    expect(mockSendTransaction).toHaveBeenCalled();
+    expect(txResult.transactionHash).toBe("0xswaptxhash");
+    expect(txResult.waitForConfirmation).toBeDefined();
+  });
+
+  it("swap step execute() throws when receipt is reverted", async () => {
+    mockGetBalance.mockResolvedValue(10000000000000000000n);
+    mockSendTransaction.mockResolvedValue("0xrevertedhash");
+    mockWaitForTransactionReceipt.mockResolvedValueOnce({
+      status: "reverted",
+    });
+
+    const { result } = renderHook(() => useUniswapSwap());
+
+    let steps: DeploymentStep[];
+    await act(async () => {
+      steps = await result.current.buildSwapSteps(
+        "ETH_UP",
+        "A_TO_B",
+        1000000000000000000n,
+        900000n,
+      );
+    });
+
+    const swapStep = steps!.find((s) => s.id === "swap")!;
+    const txResult = await swapStep.execute();
+
+    await expect(txResult.waitForConfirmation!()).rejects.toThrow(
+      "Swap transaction reverted on-chain",
+    );
   });
 
   it("buildSwapSteps includes approval steps for UP_USDC", async () => {

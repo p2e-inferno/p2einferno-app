@@ -5,6 +5,7 @@
 import {
   checkErc20ApprovalForPermit2,
   checkPermit2Allowance,
+  approveTokenForPermit2,
   approveUniversalRouterViaPermit2,
 } from "@/lib/uniswap/permit2";
 import type { PublicClient, WalletClient } from "viem";
@@ -100,16 +101,30 @@ describe("approval skip decision", () => {
       writeContract: jest.fn(),
     } as unknown as WalletClient;
 
-    const allowance = await checkErc20ApprovalForPermit2(
-      publicClient,
-      TOKEN,
-      OWNER,
-      PERMIT2,
-    );
-    // If allowance is sufficient, no need to call approveTokenForPermit2
-    if (allowance >= 1000n) {
-      expect(walletClient.writeContract).not.toHaveBeenCalled();
-    }
+    await checkErc20ApprovalForPermit2(publicClient, TOKEN, OWNER, PERMIT2);
+    // Allowance is MAX_UINT256 (sufficient) → no write should have been triggered
+    expect(walletClient.writeContract).not.toHaveBeenCalled();
+  });
+});
+
+describe("approveTokenForPermit2", () => {
+  it("calls ERC20.approve with MAX_UINT256 for the Permit2 contract", async () => {
+    const walletClient = {
+      writeContract: jest.fn().mockResolvedValue("0xapproveHash"),
+      chain: { id: 8453 },
+      account: OWNER,
+    } as unknown as WalletClient;
+
+    const hash = await approveTokenForPermit2(walletClient, TOKEN, PERMIT2);
+
+    expect(hash).toBe("0xapproveHash");
+    expect(walletClient.writeContract).toHaveBeenCalledTimes(1);
+    const callArgs = (walletClient.writeContract as jest.Mock).mock.calls[0][0];
+    expect(callArgs.address).toBe(TOKEN);
+    expect(callArgs.functionName).toBe("approve");
+    // args[0] = spender (Permit2), args[1] = amount (MAX_UINT256)
+    expect(callArgs.args[0]).toBe(PERMIT2);
+    expect(callArgs.args[1]).toBe((1n << 256n) - 1n);
   });
 });
 
@@ -130,7 +145,9 @@ describe("approveUniversalRouterViaPermit2", () => {
 
     expect(walletClient.writeContract).toHaveBeenCalledTimes(1);
     const callArgs = (walletClient.writeContract as jest.Mock).mock.calls[0][0];
-    // args[2] should be MAX_UINT160
+    // args[2] should be MAX_UINT160 (one-time approval amount)
     expect(callArgs.args[2]).toBe((1n << 160n) - 1n);
+    // args[3] should be MAX_UINT48 (maximum expiration)
+    expect(callArgs.args[3]).toBe(Number((1n << 48n) - 1n));
   });
 });

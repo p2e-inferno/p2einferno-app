@@ -8,7 +8,7 @@
  *   - decisionResolverRef for retry/cancel in the modal
  */
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { formatEther, formatUnits, parseEther, parseUnits } from "viem";
 import { useUniswapSwap } from "@/hooks/vendor/useUniswapSwap";
 import { useTransactionStepper } from "@/hooks/useTransactionStepper";
@@ -92,8 +92,6 @@ export default function UniswapSwapTab() {
   const [swapSteps, setSwapSteps] = useState<DeploymentStep[]>([]);
   const [isStepperOpen, setIsStepperOpen] = useState(false);
 
-  const stepsForStepper = useMemo(() => swapSteps, [swapSteps]);
-
   const {
     state: stepperState,
     start: stepperStart,
@@ -101,7 +99,10 @@ export default function UniswapSwapTab() {
     waitForSteps: stepperWaitForSteps,
     cancel: stepperCancel,
     stepsVersion: stepperVersion,
-  } = useTransactionStepper(stepsForStepper);
+  } = useTransactionStepper(swapSteps);
+
+  // Guard against concurrent handleSwap invocations (double-click)
+  const isSwappingRef = useRef(false);
 
   // Decision ref: bridges async handleSwap <-> modal button clicks
   const decisionResolverRef = useRef<
@@ -203,6 +204,8 @@ export default function UniswapSwapTab() {
   // --- Main swap handler ---
   const handleSwap = async () => {
     if (!parsedAmount || !quote) return;
+    if (isSwappingRef.current) return;
+    isSwappingRef.current = true;
 
     try {
       // Calculate amountOutMin (pre-fee) with slippage
@@ -258,6 +261,8 @@ export default function UniswapSwapTab() {
       toast.success("Swap complete!");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Swap failed");
+    } finally {
+      isSwappingRef.current = false;
     }
   };
 

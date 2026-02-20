@@ -16,7 +16,7 @@ import {
   sendResponse,
   retryWithDelay,
   extractStatus,
-  extractUserWallet,
+  getPrivyUserWallets,
   isRetryableDbError,
   generateProofHash,
 } from "@/lib/gooddollar/callback-handler";
@@ -70,14 +70,7 @@ export default async function handler(
         );
       }
 
-      const userWalletAddress = extractUserWallet(privyUser);
-      const userWallets =
-        Array.isArray((privyUser as any)?.walletAddresses) &&
-        (privyUser as any)?.walletAddresses.length > 0
-          ? ((privyUser as any).walletAddresses as string[])
-          : userWalletAddress
-            ? [userWalletAddress]
-            : [];
+      const userWallets = getPrivyUserWallets(privyUser);
 
       // If user still has any whitelisted linked wallet, keep verified state.
       let hasWhitelistedWallet = false;
@@ -125,14 +118,15 @@ export default async function handler(
         );
       }
 
-      const { error: clearError } = await supabase
+      const { data: updatedRows, error: clearError } = await supabase
         .from("user_profiles")
         .update({
           is_face_verified: false,
           face_verification_expiry: null,
           gooddollar_whitelist_checked_at: new Date().toISOString(),
         })
-        .eq("privy_user_id", privyUser.id);
+        .eq("privy_user_id", privyUser.id)
+        .select("id");
 
       if (clearError) {
         return sendResponse(
@@ -142,6 +136,12 @@ export default async function handler(
           "Failed to reconcile verification status",
           "Could not update database",
         );
+      }
+
+      if (!updatedRows || updatedRows.length === 0) {
+        log.warn("Unverified reconciliation matched 0 rows", {
+          userId: privyUser.id,
+        });
       }
 
       return sendResponse(res, 200, true, "Verification status reconciled");
@@ -214,14 +214,7 @@ export default async function handler(
     }
 
     // Verify address matches
-    const userWalletAddress = extractUserWallet(privyUser);
-    const userWallets =
-      Array.isArray((privyUser as any)?.walletAddresses) &&
-      (privyUser as any)?.walletAddresses.length > 0
-        ? ((privyUser as any).walletAddresses as string[])
-        : userWalletAddress
-          ? [userWalletAddress]
-          : [];
+    const userWallets = getPrivyUserWallets(privyUser);
 
     const ownsAddress = userWallets.some(
       (w) => w && w.toLowerCase() === normalizedAddress,
@@ -230,7 +223,7 @@ export default async function handler(
     if (!ownsAddress) {
       log.error("Address mismatch - potential hijacking or session issue", {
         callbackAddress: normalizedAddress,
-        userAddress: userWalletAddress || "none",
+        userAddress: userWallets[0] || "none",
         userId: privyUser.id,
       });
       return sendResponse(

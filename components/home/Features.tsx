@@ -1,5 +1,3 @@
-import React from "react";
-import Link from "next/link";
 import { Coins, Shield, Users, Zap, Gamepad2 } from "lucide-react";
 import {
   Card,
@@ -87,21 +85,6 @@ export function Features() {
               </CardHeader>
             </Card>
           ))}
-        </div>
-
-        <div className="text-center mt-10">
-          <Link
-            href="/gooddollar/verification"
-            className="inline-flex items-center gap-2 rounded-full border border-blue-500/40 bg-blue-500/10 px-5 py-2 text-blue-300 hover:border-blue-400/60 hover:bg-blue-500/20 transition-colors"
-          >
-            GoodDollar Verification: How It Works
-          </Link>
-        </div>
-
-        <div className="text-center mt-12">
-          <p className="text-lg md:text-xl font-semibold text-flame-yellow">
-            This is Web3 education that sticks.
-          </p>
         </div>
       </div>
     </section>

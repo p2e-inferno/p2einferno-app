@@ -67,7 +67,10 @@ export function useUniswapSwap() {
    * Fetch user's balance for the input side of a swap.
    */
   const fetchBalance = useCallback(
-    async (pair: SwapPair, direction: SwapDirection): Promise<bigint | null> => {
+    async (
+      pair: SwapPair,
+      direction: SwapDirection,
+    ): Promise<bigint | null> => {
       if (!wallet?.address) return null;
 
       try {
@@ -84,19 +87,16 @@ export function useUniswapSwap() {
           setState((prev) => ({ ...prev, balance }));
           return balance;
         } else {
+          // Resolve the ERC20 token address for the input side.
+          // All pairs have known token addresses — no RPC needed.
           let tokenIn: `0x${string}`;
-          if (pair === "UP_USDC") {
-            tokenIn =
-              direction === "A_TO_B" ? addresses.up : addresses.usdc;
+          if (pair === "ETH_UP") {
+            tokenIn = addresses.up;
+          } else if (pair === "ETH_USDC") {
+            tokenIn = addresses.usdc;
           } else {
-            const poolAddress =
-              addresses.pools[pair as "ETH_UP" | "ETH_USDC"];
-            const poolState = await fetchPoolState(publicClient, poolAddress);
-            const { otherToken } = resolvePoolTokens(
-              poolState.token0,
-              poolState.token1,
-            );
-            tokenIn = otherToken;
+            // UP_USDC
+            tokenIn = direction === "A_TO_B" ? addresses.up : addresses.usdc;
           }
 
           const balance = (await publicClient.readContract({
@@ -127,7 +127,12 @@ export function useUniswapSwap() {
       direction: SwapDirection,
       amountIn: bigint,
     ): Promise<SwapQuote | null> => {
-      setState((prev) => ({ ...prev, isQuoting: true, error: null }));
+      setState((prev) => ({
+        ...prev,
+        quote: null,
+        isQuoting: true,
+        error: null,
+      }));
 
       try {
         validateFeeConfig();
@@ -153,8 +158,7 @@ export function useUniswapSwap() {
             { path, amountIn },
           );
         } else {
-          const poolAddress =
-            addresses.pools[pair as "ETH_UP" | "ETH_USDC"];
+          const poolAddress = addresses.pools[pair as "ETH_UP" | "ETH_USDC"];
           poolState = await fetchPoolState(publicClient, poolAddress);
           const { wethToken, otherToken } = resolvePoolTokens(
             poolState.token0,
@@ -176,19 +180,16 @@ export function useUniswapSwap() {
         // Price impact from sqrtPriceX96 shift (single-hop only)
         let priceImpact = 0;
         if (pair !== "UP_USDC" && poolState) {
-          const priceBefore =
-            poolState.sqrtPriceX96 * poolState.sqrtPriceX96;
+          const priceBefore = poolState.sqrtPriceX96 * poolState.sqrtPriceX96;
           const priceAfter =
             quoteResult.sqrtPriceX96After > 0n
-              ? quoteResult.sqrtPriceX96After *
-                quoteResult.sqrtPriceX96After
+              ? quoteResult.sqrtPriceX96After * quoteResult.sqrtPriceX96After
               : priceBefore;
           if (priceBefore > 0n) {
             const PRECISION = 10n ** 18n;
             const ratio = (priceAfter * PRECISION) / priceBefore;
             priceImpact =
-              (Math.abs(Number(ratio - PRECISION)) / Number(PRECISION)) *
-              100;
+              (Math.abs(Number(ratio - PRECISION)) / Number(PRECISION)) * 100;
           }
         }
 
@@ -270,8 +271,7 @@ export function useUniswapSwap() {
           );
         }
       } else {
-        const poolAddress =
-          addresses.pools[pair as "ETH_UP" | "ETH_USDC"];
+        const poolAddress = addresses.pools[pair as "ETH_UP" | "ETH_USDC"];
         const poolState = await fetchPoolState(publicClient, poolAddress);
         const { wethToken, otherToken } = resolvePoolTokens(
           poolState.token0,
@@ -328,9 +328,13 @@ export function useUniswapSwap() {
               return {
                 transactionHash: hash,
                 async waitForConfirmation() {
-                  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+                  const receipt = await publicClient.waitForTransactionReceipt({
+                    hash,
+                  });
                   if (receipt.status === "reverted") {
-                    throw new Error("ERC20 approval transaction reverted on-chain");
+                    throw new Error(
+                      "ERC20 approval transaction reverted on-chain",
+                    );
                   }
                   return { transactionHash: hash };
                 },
@@ -353,8 +357,7 @@ export function useUniswapSwap() {
           steps.push({
             id: "approve-permit2",
             title: "Approve Universal Router via Permit2",
-            description:
-              "One-time Permit2 allowance for the Universal Router",
+            description: "One-time Permit2 allowance for the Universal Router",
             async execute() {
               const hash = await approveUniversalRouterViaPermit2(
                 walletClient,
@@ -365,9 +368,13 @@ export function useUniswapSwap() {
               return {
                 transactionHash: hash,
                 async waitForConfirmation() {
-                  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+                  const receipt = await publicClient.waitForTransactionReceipt({
+                    hash,
+                  });
                   if (receipt.status === "reverted") {
-                    throw new Error("Permit2 approval transaction reverted on-chain");
+                    throw new Error(
+                      "Permit2 approval transaction reverted on-chain",
+                    );
                   }
                   return { transactionHash: hash };
                 },
