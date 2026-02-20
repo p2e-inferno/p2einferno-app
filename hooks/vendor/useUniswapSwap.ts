@@ -128,7 +128,7 @@ export function useUniswapSwap() {
    */
   const clearQuote = useCallback(() => {
     quoteRequestIdRef.current += 1; // Invalidate any in-flight requests
-    setState((prev) => ({ ...prev, quote: null, error: null }));
+    setState((prev) => ({ ...prev, quote: null, error: null, isQuoting: false }));
   }, []);
 
   const getQuote = useCallback(
