@@ -8,6 +8,7 @@ const log = getLogger("api:meta-data-deletion");
 
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_REQUESTS = 30;
+const EXPECTED_SIGNED_REQUEST_ALGORITHM = "HMAC-SHA256";
 const USER_ID_FINGERPRINT_LENGTH = 12;
 const MASKED_CODE_VISIBLE_CHARS = 4;
 const MASKED_CODE_MIN_LENGTH = 8;
@@ -17,16 +18,27 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 
 function getClientKey(req: NextApiRequest): string {
   const forwardedFor = req.headers["x-forwarded-for"];
-  const ip =
-    (typeof forwardedFor === "string" && forwardedFor.split(",")[0]?.trim()) ||
-    req.socket.remoteAddress ||
-    "unknown";
-  const userAgent = req.headers["user-agent"] || "unknown";
-  return `${ip}:${userAgent}`;
+  const ipFromForwarded =
+    typeof forwardedFor === "string"
+      ? forwardedFor.split(",")[0]?.trim()
+      : Array.isArray(forwardedFor)
+        ? forwardedFor[0]?.split(",")[0]?.trim()
+        : undefined;
+  const ip = ipFromForwarded || req.socket.remoteAddress || "unknown";
+  return ip;
+}
+
+function cleanupExpiredRateLimitEntries(now: number): void {
+  for (const [key, entry] of rateLimitStore.entries()) {
+    if (entry.resetAt <= now) {
+      rateLimitStore.delete(key);
+    }
+  }
 }
 
 function isRateLimited(req: NextApiRequest): boolean {
   const now = Date.now();
+  cleanupExpiredRateLimitEntries(now);
   const key = getClientKey(req);
   const current = rateLimitStore.get(key);
 
@@ -93,6 +105,14 @@ function parseSignedRequest(
       data.user_id.length === 0
     ) {
       log.error("signed_request payload missing user_id");
+      return null;
+    }
+
+    if (
+      typeof data.algorithm !== "string" ||
+      data.algorithm !== EXPECTED_SIGNED_REQUEST_ALGORITHM
+    ) {
+      log.error("signed_request payload invalid algorithm");
       return null;
     }
 
@@ -171,7 +191,7 @@ export default async function handler(
   ).replace(/\/+$/, "");
 
   return res.status(200).json({
-    url: `${appBaseUrl}/deletion-status?id=${confirmationCode}`,
+    url: `${appBaseUrl}/deletion-status?id=${encodeURIComponent(confirmationCode)}`,
     confirmation_code: confirmationCode,
   });
 }

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MainLayout } from "@/components/layouts/MainLayout";
 import { PageHeader } from "@/components/ui/PageHeader";
 
+// Update this when the policy content is modified.
 const LAST_UPDATED = "February 20, 2026";
 
 function PolicySection({
