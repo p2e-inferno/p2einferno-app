@@ -94,8 +94,9 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
       {/* Daily Check-in */}
       <div className={`group ${isDisabled ? "pointer-events-none" : ""}`}>
         <div
-          className={`h-full bg-gradient-to-br rounded-xl p-6 border backdrop-blur-sm transition-all duration-300 ${cardBase} ${isDisabled ? "opacity-60" : "group-hover:scale-105"
-            }`}
+          className={`h-full bg-gradient-to-br rounded-xl p-6 border backdrop-blur-sm transition-all duration-300 ${cardBase} ${
+            isDisabled ? "opacity-60" : "group-hover:scale-105"
+          }`}
         >
           <div className="mb-4">
             <div className="flex items-start space-x-3 mb-2">
@@ -118,18 +119,20 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
           <button
             onClick={onCheckinClick}
             disabled={isDisabled || !canCheckinToday || isPerformingCheckin}
-            className={`w-full flex items-center justify-between ${isDisabled || !canCheckinToday
+            className={`w-full flex items-center justify-between ${
+              isDisabled || !canCheckinToday || isPerformingCheckin
                 ? "cursor-not-allowed"
                 : "cursor-pointer"
-              }`}
+            }`}
           >
             <span className={`${ctaColor} font-medium text-left`}>
               {checkinCtaText}
             </span>
             <ArrowIcon
               size={20}
-              className={`${ctaColor} ${isDisabled ? "" : "group-hover:translate-x-1"
-                } transition-transform`}
+              className={`${ctaColor} ${
+                isDisabled ? "" : "group-hover:translate-x-1"
+              } transition-transform`}
             />
           </button>
         </div>
@@ -234,8 +237,8 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
           type="button"
           onClick={
             isVerificationDisabled ||
-              isVerificationLoading ||
-              verificationStatus?.isWhitelisted
+            isVerificationLoading ||
+            verificationStatus?.isWhitelisted
               ? undefined
               : handleVerify
           }
@@ -245,13 +248,14 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
             isVerificationLoading ||
             verificationStatus?.isWhitelisted
           }
-          className={`group w-full text-left h-full bg-gradient-to-br from-blue-800/30 to-blue-900/30 rounded-xl p-6 border border-blue-500/20 backdrop-blur-sm transition-all duration-300 ${isVerificationDisabled ||
-              isVerifying ||
-              isVerificationLoading ||
-              verificationStatus?.isWhitelisted
+          className={`group w-full text-left h-full bg-gradient-to-br from-blue-800/30 to-blue-900/30 rounded-xl p-6 border border-blue-500/20 backdrop-blur-sm transition-all duration-300 ${
+            isVerificationDisabled ||
+            isVerifying ||
+            isVerificationLoading ||
+            verificationStatus?.isWhitelisted
               ? "opacity-60 cursor-not-allowed"
               : "hover:border-blue-400/40 hover:scale-105"
-            }`}
+          }`}
           id="gooddollar-verification"
           aria-busy={isVerifying || isVerificationLoading}
         >
@@ -281,13 +285,14 @@ export const QuickActionsGrid: React.FC<QuickActionsGridProps> = ({
             </span>
             <ArrowRight
               size={20}
-              className={`group-hover:translate-x-1 transition-transform ${isVerificationDisabled ||
-                  isVerifying ||
-                  isVerificationLoading ||
-                  verificationStatus?.isWhitelisted
+              className={`group-hover:translate-x-1 transition-transform ${
+                isVerificationDisabled ||
+                isVerifying ||
+                isVerificationLoading ||
+                verificationStatus?.isWhitelisted
                   ? "opacity-60"
                   : ""
-                }`}
+              }`}
             />
           </div>
           {verificationStatus?.reconcileStatus === "pending" && (

@@ -185,7 +185,7 @@ export function TransactionStepperModal({
                           <TriangleAlert className="h-4 w-4" />
                           Step failed
                         </div>
-                        <div className="mt-1 text-xs font-mono text-red-200 whitespace-pre-wrap select-text">
+                        <div className="mt-1 text-xs font-mono text-red-200 whitespace-pre-wrap select-text max-h-24 overflow-y-auto">
                           {step.errorMessage}
                         </div>
                       </div>

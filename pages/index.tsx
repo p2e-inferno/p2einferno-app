@@ -4,6 +4,7 @@ import Head from "next/head";
 import { Hero } from "@/components/home/Hero";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { Features } from "@/components/home/Features";
+import { RealHumans } from "@/components/home/RealHumans";
 import { About } from "@/components/home/About";
 import { Services } from "@/components/home/Services";
 import { Personas } from "@/components/home/Personas";
@@ -65,6 +66,7 @@ export default function Home() {
             error={bootcampsError}
           />
           <Features />
+          <RealHumans />
           <StarterKitSection />
           <Bootcamps
             bootcamps={bootcamps}

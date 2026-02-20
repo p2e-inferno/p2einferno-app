@@ -89,6 +89,19 @@ export const extractUserWallet = (privyUser: any): string | undefined => {
     : undefined;
 };
 
+// Extract all linked wallet addresses from a Privy user object.
+// Falls back to the single-wallet helper when the array field is absent.
+export const getPrivyUserWallets = (privyUser: any): string[] => {
+  if (
+    Array.isArray(privyUser?.walletAddresses) &&
+    privyUser.walletAddresses.length > 0
+  ) {
+    return privyUser.walletAddresses as string[];
+  }
+  const single = extractUserWallet(privyUser);
+  return single ? [single] : [];
+};
+
 // Check if DB error is retryable
 export const isRetryableDbError = (err: any): boolean => {
   if (!err) return false;

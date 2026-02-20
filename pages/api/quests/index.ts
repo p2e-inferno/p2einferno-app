@@ -120,7 +120,7 @@ export default async function handler(
           prerequisite_state:
             prereqCheck.prerequisiteState ??
             (quest.prerequisite_quest_id ||
-              quest.prerequisite_quest_lock_address
+            quest.prerequisite_quest_lock_address
               ? "missing_completion"
               : "none"),
         };

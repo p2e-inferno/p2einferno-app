@@ -7,7 +7,7 @@ import { isVerificationExpired } from "@/lib/gooddollar/identity-sdk";
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { getWalletAddressesFromUser } from "@/lib/utils/wallet-selection";
 import { getLogger } from "@/lib/utils/logger";
-import { useRef } from "react";
+import { useRef, useEffect, useCallback } from "react";
 
 const GOODDOLLAR_OWNERSHIP_CONFLICT_CODE =
   "WALLET_ALREADY_VERIFIED_BY_OTHER_USER";
@@ -40,6 +40,10 @@ export function useGoodDollarVerification() {
   const { walletAddress } = useDetectConnectedWalletAddress(user);
   const { sdk } = useIdentitySDK();
   const lastReconciledUserId = useRef<string | null>(null);
+  const lastUnverifiedReconciledUserId = useRef<string | null>(null);
+  // Tracks whether the most recent query had at least one successful chain check
+  // but found no verified wallet — used by the reconciliation useEffect.
+  const chainCheckSucceededRef = useRef(false);
 
   const query = useQuery<VerificationStatus>({
     queryKey: ["gooddollar-verification", user?.id],
@@ -78,21 +82,40 @@ export function useGoodDollarVerification() {
           walletAddresses.map(async (address) => {
             try {
               const normalizedAddress = address.toLowerCase() as `0x${string}`;
-              const { isWhitelisted } = await sdk.getWhitelistedRoot(normalizedAddress);
+              const { isWhitelisted } =
+                await sdk.getWhitelistedRoot(normalizedAddress);
               return { address: normalizedAddress, isWhitelisted, error: null };
             } catch (error) {
-              log.warn("Failed to check whitelist for wallet", { address, error });
-              return { address: address.toLowerCase() as `0x${string}`, isWhitelisted: false, error };
+              log.warn("Failed to check whitelist for wallet", {
+                address,
+                error,
+              });
+              return {
+                address: address.toLowerCase() as `0x${string}`,
+                isWhitelisted: false,
+                error,
+              };
             }
-          })
+          }),
         );
 
         // Find first verified wallet
-        const verifiedWallet = checkResults.find((result) => result.isWhitelisted);
+        const verifiedWallet = checkResults.find(
+          (result) => result.isWhitelisted,
+        );
 
         // If no wallet is verified, return not verified
         if (!verifiedWallet) {
-          log.info("No verified wallets found", { userId: user.id, checkedCount: walletAddresses.length });
+          // Signal to the reconciliation useEffect whether chain checks
+          // succeeded (avoid clearing DB state during transient RPC failures).
+          chainCheckSucceededRef.current = checkResults.some(
+            (result) => !result.error,
+          );
+
+          log.info("No verified wallets found", {
+            userId: user.id,
+            checkedCount: walletAddresses.length,
+          });
           return {
             isWhitelisted: false,
             isExpired: false,
@@ -210,6 +233,40 @@ export function useGoodDollarVerification() {
     retryDelay: (attemptIndex: number) =>
       Math.min(1000 * 2 ** attemptIndex, 30000),
   });
+
+  // Reconcile stale DB state when on-chain checks confirm the user is no
+  // longer verified.  Runs as a side-effect (not inside queryFn) so the
+  // query stays read-only.
+  const reconcileUnverified = useCallback(async (userId: string) => {
+    try {
+      const response = await fetch("/api/gooddollar/verify-callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "reconcile_unverified" }),
+      });
+      const data = await response.json();
+      if (data?.success) {
+        lastUnverifiedReconciledUserId.current = userId;
+      }
+    } catch (error) {
+      log.warn("Failed unverified reconciliation attempt", {
+        userId,
+        error,
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (
+      query.data &&
+      !query.data.isWhitelisted &&
+      chainCheckSucceededRef.current &&
+      user?.id &&
+      lastUnverifiedReconciledUserId.current !== user.id
+    ) {
+      reconcileUnverified(user.id);
+    }
+  }, [query.data, user?.id, reconcileUnverified]);
 
   if (query.data) {
     log.debug("Verification state", {

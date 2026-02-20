@@ -19,6 +19,8 @@ import {
   formatAmountForInput,
   parseAmount,
 } from "@/lib/vendor/math";
+import { PercentPresets } from "@/components/vendor/PercentPresets";
+import UniswapSwapTab from "@/components/vendor/UniswapSwapTab";
 
 type Mode = "buy" | "sell";
 type BuyEstimate = ReturnType<typeof estimateBuy>;
@@ -43,6 +45,7 @@ export default function VendorSwap() {
   const { base, swap } = useDGTokenBalances(baseTokenAddress, swapTokenAddress);
   const { isKeyHolder, isPaused } = useDGVendorAccess();
 
+  const [activeTab, setActiveTab] = useState<"vendor" | "uniswap">("vendor");
   const [mode, setMode] = useState<Mode>("buy");
   const [amount, setAmount] = useState("");
 
@@ -204,172 +207,187 @@ export default function VendorSwap() {
 
   return (
     <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-slate-900/90 to-slate-900/60 p-6 shadow-2xl shadow-black/40 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-white tracking-wide">
-          DG Token Market
-        </h3>
-      </div>
-
-      {/* Exchange + fee meta, compact like a DEX */}
-      {(exchangeRate !== undefined || feeConfig) && (
-        <div className="space-y-1 rounded-xl bg-slate-800/80 px-3 py-2 text-xs text-slate-200">
-          {exchangeRate !== undefined && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Rate</span>
-              <div className="text-right font-mono">
-                <div>
-                  1 {baseSymbol} ≈{" "}
-                  {buyPerBase !== undefined ? formatRatio(buyPerBase) : "--"}{" "}
-                  {swapSymbol}
-                </div>
-                <div className="text-[11px] text-slate-400">
-                  1 {swapSymbol} ≈{" "}
-                  {sellPerSwap !== undefined ? formatRatio(sellPerSwap) : "--"}{" "}
-                  {baseSymbol}
-                </div>
-              </div>
-            </div>
-          )}
-          {feeConfig && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Fees</span>
-              <span className="font-mono">
-                {Number(feeConfig.buyFeeBps) / 100}% buy ·{" "}
-                {Number(feeConfig.sellFeeBps) / 100}% sell
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Mode toggle */}
-      <div className="inline-flex rounded-full bg-slate-800/80 p-1 text-xs">
+      {/* Tab Navigation */}
+      <div className="flex gap-1 p-1 rounded-lg bg-white/5">
         <button
           type="button"
-          onClick={() => setMode("buy")}
-          className={`px-3 py-1 rounded-full ${
-            mode === "buy"
-              ? "bg-emerald-500 text-black"
-              : "text-slate-300 hover:text-white"
+          onClick={() => setActiveTab("vendor")}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+            activeTab === "vendor"
+              ? "bg-white/10 text-white shadow-sm"
+              : "text-white/50 hover:text-white/80"
           }`}
         >
-          Buy
+          DG Market
         </button>
         <button
           type="button"
-          onClick={() => setMode("sell")}
-          className={`px-3 py-1 rounded-full ${
-            mode === "sell"
-              ? "bg-slate-700 text-white"
-              : "text-slate-300 hover:text-white"
+          onClick={() => setActiveTab("uniswap")}
+          className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+            activeTab === "uniswap"
+              ? "bg-white/10 text-white shadow-sm"
+              : "text-white/50 hover:text-white/80"
           }`}
         >
-          Sell
+          Uniswap
         </button>
       </div>
 
-      {/* Amount Input */}
-      <div className="space-y-2 rounded-2xl bg-slate-800/70 p-4">
-        <div className="flex items-center justify-between text-xs text-slate-300">
-          <span>Pay ({inputTokenSymbol})</span>
-          <span className="text-slate-400">Balance: {balanceText}</span>
-        </div>
-        {(isPaused || !isKeyHolder) && (
-          <p className="text-xs text-red-400">
-            {!isKeyHolder
-              ? "Active DG Nation Membership is required to trade."
-              : "Vendor is paused."}
-          </p>
-        )}
-        <Input
-          type="text"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          placeholder="0.0"
-          className="border-none bg-transparent text-2xl font-medium text-white placeholder:text-slate-500 focus-visible:ring-0"
-          disabled={isPending}
-        />
-        <div className="flex gap-2">
-          {[30, 50, 75].map((percent) => (
+      {activeTab === "uniswap" ? (
+        <UniswapSwapTab />
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-white tracking-wide">
+              DG Token Market
+            </h3>
+          </div>
+
+          {/* Exchange + fee meta, compact like a DEX */}
+          {(exchangeRate !== undefined || feeConfig) && (
+            <div className="space-y-1 rounded-xl bg-slate-800/80 px-3 py-2 text-xs text-slate-200">
+              {exchangeRate !== undefined && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Rate</span>
+                  <div className="text-right font-mono">
+                    <div>
+                      1 {baseSymbol} ≈{" "}
+                      {buyPerBase !== undefined
+                        ? formatRatio(buyPerBase)
+                        : "--"}{" "}
+                      {swapSymbol}
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      1 {swapSymbol} ≈{" "}
+                      {sellPerSwap !== undefined
+                        ? formatRatio(sellPerSwap)
+                        : "--"}{" "}
+                      {baseSymbol}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {feeConfig && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Fees</span>
+                  <span className="font-mono">
+                    {Number(feeConfig.buyFeeBps) / 100}% buy ·{" "}
+                    {Number(feeConfig.sellFeeBps) / 100}% sell
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Mode toggle */}
+          <div className="inline-flex rounded-full bg-slate-800/80 p-1 text-xs">
             <button
-              key={percent}
               type="button"
-              onClick={() => applyPercent(percent)}
-              className="rounded-full bg-slate-700/70 px-3 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
+              onClick={() => setMode("buy")}
+              className={`px-3 py-1 rounded-full ${
+                mode === "buy"
+                  ? "bg-emerald-500 text-black"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              Buy
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("sell")}
+              className={`px-3 py-1 rounded-full ${
+                mode === "sell"
+                  ? "bg-slate-700 text-white"
+                  : "text-slate-300 hover:text-white"
+              }`}
+            >
+              Sell
+            </button>
+          </div>
+
+          {/* Amount Input */}
+          <div className="space-y-2 rounded-2xl bg-slate-800/70 p-4">
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <span>Pay ({inputTokenSymbol})</span>
+              <span className="text-slate-400">Balance: {balanceText}</span>
+            </div>
+            {(isPaused || !isKeyHolder) && (
+              <p className="text-xs text-red-400">
+                {!isKeyHolder
+                  ? "Active DG Nation Membership is required to trade."
+                  : "Vendor is paused."}
+              </p>
+            )}
+            <Input
+              type="text"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.0"
+              className="border-none bg-transparent text-2xl font-medium text-white placeholder:text-slate-500 focus-visible:ring-0"
+              disabled={isPending}
+            />
+            <PercentPresets
+              onSelect={applyPercent}
               disabled={
                 isPending ||
                 inputBalance === undefined ||
                 inputDecimals === undefined
               }
-            >
-              {percent}%
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => applyPercent(100)}
-            className="rounded-full bg-slate-700/70 px-3 py-1 text-[11px] text-slate-200 hover:bg-slate-700"
-            disabled={
-              isPending ||
-              inputBalance === undefined ||
-              inputDecimals === undefined
-            }
+            />
+            {parsedAmount === null && amount.trim().length > 0 && (
+              <p className="text-xs text-red-400">Enter a valid amount.</p>
+            )}
+            {isBelowMin && minText && (
+              <p className="text-xs text-red-400">{minText}</p>
+            )}
+            {isOverBalance && (
+              <p className="text-xs text-red-400">Insufficient balance.</p>
+            )}
+            {isSellOutputZero && (
+              <p className="text-xs text-red-400">
+                Sell amount too small after fees at current rate.
+              </p>
+            )}
+          </div>
+
+          {/* Quote */}
+          {(feeText || receiveText) && (
+            <div className="space-y-1 rounded-xl bg-slate-800/80 px-3 py-2 text-xs text-slate-200">
+              {feeText && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Fee</span>
+                  <span className="font-mono">{feeText}</span>
+                </div>
+              )}
+              {receiveText && (
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Receive</span>
+                  <span className="font-mono">{receiveText}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Primary action */}
+          <Button
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className={`w-full rounded-xl font-semibold ${
+              mode === "buy"
+                ? "bg-emerald-500 hover:bg-emerald-600 text-black"
+                : "bg-slate-700 hover:bg-slate-600 text-slate-50"
+            }`}
           >
-            Max
-          </button>
-        </div>
-        {parsedAmount === null && amount.trim().length > 0 && (
-          <p className="text-xs text-red-400">Enter a valid amount.</p>
-        )}
-        {isBelowMin && minText && (
-          <p className="text-xs text-red-400">{minText}</p>
-        )}
-        {isOverBalance && (
-          <p className="text-xs text-red-400">Insufficient balance.</p>
-        )}
-        {isSellOutputZero && (
-          <p className="text-xs text-red-400">
-            Sell amount too small after fees at current rate.
-          </p>
-        )}
-      </div>
-
-      {/* Quote */}
-      {(feeText || receiveText) && (
-        <div className="space-y-1 rounded-xl bg-slate-800/80 px-3 py-2 text-xs text-slate-200">
-          {feeText && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Fee</span>
-              <span className="font-mono">{feeText}</span>
-            </div>
-          )}
-          {receiveText && (
-            <div className="flex items-center justify-between">
-              <span className="text-slate-400">Receive</span>
-              <span className="font-mono">{receiveText}</span>
-            </div>
-          )}
-        </div>
+            {isApproving
+              ? "Approving..."
+              : isPending
+                ? "Processing..."
+                : mode === "buy"
+                  ? `Buy ${swapSymbol}`
+                  : `Sell ${swapSymbol}`}
+          </Button>
+        </>
       )}
-
-      {/* Primary action */}
-      <Button
-        onClick={handleSubmit}
-        disabled={!canSubmit}
-        className={`w-full rounded-xl font-semibold ${
-          mode === "buy"
-            ? "bg-emerald-500 hover:bg-emerald-600 text-black"
-            : "bg-slate-700 hover:bg-slate-600 text-slate-50"
-        }`}
-      >
-        {isApproving
-          ? "Approving..."
-          : isPending
-            ? "Processing..."
-            : mode === "buy"
-              ? `Buy ${swapSymbol}`
-              : `Sell ${swapSymbol}`}
-      </Button>
     </div>
   );
 }

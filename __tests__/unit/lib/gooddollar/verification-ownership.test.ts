@@ -107,7 +107,7 @@ describe("gooddollar verification ownership", () => {
     });
 
     let eqCalls = 0;
-    const updateBuilder = {
+    const updateBuilder: Record<string, jest.Mock> = {
       update: jest.fn().mockReturnThis(),
       eq: jest.fn(() => {
         eqCalls += 1;
