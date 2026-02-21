@@ -196,4 +196,25 @@ describe("lib/webhooks/meta-whatsapp/forward", () => {
       ),
     ).rejects.toBe(err);
   });
+
+  test("forwardToTarget falls back to default timeout for non-numeric env values", async () => {
+    process.env.WHATSAPP_FORWARD_TIMEOUT_MS = "not-a-number";
+    const { mod } = loadModule();
+    const fetchMock = global.fetch as jest.Mock;
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+
+    await mod.forwardToTarget(
+      {
+        name: "agent",
+        url: "https://agent.example/webhook",
+        secret: "agent-secret",
+      },
+      '{"hello":"world"}',
+      "sha256=abc",
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.signal).toBeDefined();
+  });
 });

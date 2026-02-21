@@ -119,7 +119,11 @@ export async function forwardToTarget(
   rawBody: string,
   metaSignature: string | null,
 ): Promise<void> {
-  const timeoutMs = Number(process.env.WHATSAPP_FORWARD_TIMEOUT_MS || 3000);
+  const parsedTimeoutMs = Number(process.env.WHATSAPP_FORWARD_TIMEOUT_MS);
+  const timeoutMs =
+    Number.isFinite(parsedTimeoutMs) && parsedTimeoutMs > 0
+      ? parsedTimeoutMs
+      : 3000;
 
   const response = await fetch(target.url, {
     method: "POST",
