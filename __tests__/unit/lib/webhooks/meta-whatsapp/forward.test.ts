@@ -89,6 +89,25 @@ describe("lib/webhooks/meta-whatsapp/forward", () => {
     ]);
   });
 
+  test("getTargetsForFields supports route-map-only deployments (no default destination)", () => {
+    delete process.env.WHATSAPP_FORWARD_DESTINATION_URL;
+    delete process.env.WHATSAPP_FORWARD_DESTINATION_NAME;
+    delete process.env.WHATSAPP_GATEWAY_SHARED_SECRET;
+    process.env.WHATSAPP_FORWARD_ROUTE_MAP = JSON.stringify({
+      messages: [{ name: "agent", url: "https://agent.example/webhook" }],
+    });
+    const { mod } = loadModule();
+
+    const targets = mod.getTargetsForFields(["messages"]);
+    expect(targets).toEqual([
+      {
+        name: "agent",
+        url: "https://agent.example/webhook",
+        secret: undefined,
+      },
+    ]);
+  });
+
   test("malformed route map logs warning and falls back to default destination", () => {
     process.env.WHATSAPP_FORWARD_ROUTE_MAP = "{invalid-json";
     const { mod, warn } = loadModule();
@@ -157,5 +176,24 @@ describe("lib/webhooks/meta-whatsapp/forward", () => {
         null,
       ),
     ).rejects.toThrow("forward_failed:agent:503");
+  });
+
+  test("forwardToTarget propagates fetch rejection errors", async () => {
+    const { mod } = loadModule();
+    const fetchMock = global.fetch as jest.Mock;
+    const err = new Error("network timeout");
+    fetchMock.mockRejectedValue(err);
+
+    await expect(
+      mod.forwardToTarget(
+        {
+          name: "agent",
+          url: "https://agent.example/webhook",
+          secret: "agent-secret",
+        },
+        '{"hello":"world"}',
+        "sha256=abc",
+      ),
+    ).rejects.toBe(err);
   });
 });

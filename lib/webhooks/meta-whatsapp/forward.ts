@@ -90,28 +90,28 @@ export function extractWebhookFields(payload: unknown): string[] {
 
 export function getTargetsForFields(fields: string[]): DestinationTarget[] {
   const defaults = defaultTarget();
-  if (defaults.length === 0) return [];
   if (fields.length === 0) return defaults;
 
   const parsed = getRouteMap();
-  if (!parsed) return defaults;
+  if (parsed) {
+    const keyed = new Map<string, DestinationTarget>();
+    for (const field of fields) {
+      const fromMap = parsed[field];
+      if (!Array.isArray(fromMap)) continue;
 
-  const keyed = new Map<string, DestinationTarget>();
-  for (const field of fields) {
-    const fromMap = parsed[field];
-    if (!Array.isArray(fromMap)) continue;
-
-    for (const target of fromMap) {
-      if (!target?.url) continue;
-      const name = target.name || target.url;
-      keyed.set(name, { name, url: target.url, secret: target.secret });
+      for (const target of fromMap) {
+        if (!target?.url) continue;
+        const name = target.name || target.url;
+        keyed.set(name, { name, url: target.url, secret: target.secret });
+      }
     }
+
+    if (keyed.size > 0) return [...keyed.values()];
   }
 
-  if (keyed.size > 0) return [...keyed.values()];
-
   // Explicit behavior: fields not present in route map fall back to default target.
-  return defaults;
+  if (defaults.length > 0) return defaults;
+  return [];
 }
 
 export async function forwardToTarget(

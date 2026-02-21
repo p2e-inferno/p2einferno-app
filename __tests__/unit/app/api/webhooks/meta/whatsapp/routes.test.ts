@@ -1,22 +1,27 @@
 // Mock next/server before requiring route handlers
 jest.mock("next/server", () => {
+  type JsonResponse = {
+    status: number;
+    json: () => Promise<unknown>;
+  };
+
   class NextResponseMock {
     status: number;
-    private body: any;
+    private body: unknown;
 
-    constructor(body?: any, init: any = {}) {
+    constructor(body?: unknown, init: { status?: number } = {}) {
       this.body = body;
       this.status = init.status || 200;
     }
 
-    static json(body: any, init: any = {}) {
+    static json(body: unknown, init: { status?: number } = {}): JsonResponse {
       return {
         status: init.status || 200,
         json: async () => body,
       };
     }
 
-    async text() {
+    async text(): Promise<string> {
       return typeof this.body === "string"
         ? this.body
         : String(this.body ?? "");
@@ -35,9 +40,15 @@ jest.mock("@/lib/utils/logger", () => ({
   }),
 }));
 
-const checkMock = jest.fn();
+const checkMock = jest.fn<
+  Promise<{ success: boolean; remaining: number; resetAt: number }>,
+  [string, number, number]
+>();
 jest.mock("@/lib/utils/rate-limiter", () => ({
-  rateLimiter: { check: (...args: any[]) => checkMock(...args) },
+  rateLimiter: {
+    check: (identifier: string, maxRequests: number, windowMs: number) =>
+      checkMock(identifier, maxRequests, windowMs),
+  },
 }));
 
 const verifyMetaSignatureMock = jest.fn();
@@ -45,10 +56,15 @@ const extractWebhookFieldsMock = jest.fn();
 const getTargetsForFieldsMock = jest.fn();
 const forwardToTargetMock = jest.fn();
 jest.mock("@/lib/webhooks/meta-whatsapp/forward", () => ({
-  verifyMetaSignature: (...args: any[]) => verifyMetaSignatureMock(...args),
-  extractWebhookFields: (...args: any[]) => extractWebhookFieldsMock(...args),
-  getTargetsForFields: (...args: any[]) => getTargetsForFieldsMock(...args),
-  forwardToTarget: (...args: any[]) => forwardToTargetMock(...args),
+  verifyMetaSignature: (rawBody: string, signatureHeader: string | null) =>
+    verifyMetaSignatureMock(rawBody, signatureHeader),
+  extractWebhookFields: (payload: unknown) => extractWebhookFieldsMock(payload),
+  getTargetsForFields: (fields: string[]) => getTargetsForFieldsMock(fields),
+  forwardToTarget: (
+    target: { name: string; url: string; secret?: string },
+    rawBody: string,
+    metaSignature: string | null,
+  ) => forwardToTargetMock(target, rawBody, metaSignature),
 }));
 
 const { GET, POST } = require("@/app/api/webhooks/meta/whatsapp/route");
@@ -85,7 +101,7 @@ describe("app/api/webhooks/meta/whatsapp route", () => {
       nextUrl: new URL(
         `https://example.com/api/webhooks/meta/whatsapp${query}`,
       ),
-    } as any;
+    };
   }
 
   function makePostReq({
@@ -107,7 +123,7 @@ describe("app/api/webhooks/meta/whatsapp route", () => {
           return null;
         },
       },
-    } as any;
+    };
   }
 
   test("GET verification returns challenge on token match", async () => {
@@ -132,11 +148,6 @@ describe("app/api/webhooks/meta/whatsapp route", () => {
 
   test("POST returns 401 for invalid signature", async () => {
     verifyMetaSignatureMock.mockReturnValue(false);
-    checkMock.mockResolvedValueOnce({
-      success: true,
-      remaining: 5,
-      resetAt: Date.now() + 1000,
-    });
 
     const res = await POST(makePostReq());
     expect(res.status).toBe(401);
@@ -157,6 +168,7 @@ describe("app/api/webhooks/meta/whatsapp route", () => {
   });
 
   test("POST returns 429 when valid limiter is exceeded", async () => {
+    // Signature is valid in this test, so the first rateLimiter.check call is the valid-IP limiter.
     checkMock.mockResolvedValueOnce({
       success: false,
       remaining: 0,
@@ -223,6 +235,10 @@ describe("app/api/webhooks/meta/whatsapp route", () => {
 describe("app/api/webhooks/meta/whatsapp/health route", () => {
   const originalEnv = process.env;
 
+  beforeEach(() => {
+    process.env = { ...originalEnv };
+  });
+
   afterAll(() => {
     process.env = originalEnv;
   });
@@ -233,11 +249,10 @@ describe("app/api/webhooks/meta/whatsapp/health route", () => {
         get: (key: string) =>
           key.toLowerCase() === "authorization" ? auth || null : null,
       },
-    } as any;
+    };
   }
 
   test("GET health returns 200 without token config", async () => {
-    process.env = { ...originalEnv };
     delete process.env.WEBHOOK_HEALTH_TOKEN;
 
     const res = await HEALTH_GET(makeHealthReq());
@@ -249,15 +264,23 @@ describe("app/api/webhooks/meta/whatsapp/health route", () => {
   });
 
   test("GET health returns 401 with token config and missing auth", async () => {
-    process.env = { ...originalEnv, WEBHOOK_HEALTH_TOKEN: "secret-token" };
+    process.env.WEBHOOK_HEALTH_TOKEN = "secret-token";
 
     const res = await HEALTH_GET(makeHealthReq());
     expect(res.status).toBe(401);
     await expect(res.json()).resolves.toEqual({ error: "unauthorized" });
   });
 
+  test("GET health returns 401 with token config and wrong auth", async () => {
+    process.env.WEBHOOK_HEALTH_TOKEN = "secret-token";
+
+    const res = await HEALTH_GET(makeHealthReq("Bearer wrong-token"));
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({ error: "unauthorized" });
+  });
+
   test("GET health returns 200 with token config and valid auth", async () => {
-    process.env = { ...originalEnv, WEBHOOK_HEALTH_TOKEN: "secret-token" };
+    process.env.WEBHOOK_HEALTH_TOKEN = "secret-token";
 
     const res = await HEALTH_GET(makeHealthReq("Bearer secret-token"));
     expect(res.status).toBe(200);
