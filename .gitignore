@@ -139,3 +139,6 @@ playwright-report/
 AGENTS.md
 CLAUDE.md
 .mcp.json
+
+# macOS Finder metadata
+.DS_Store
