@@ -53,11 +53,8 @@ interface TaskItemProps {
   processingTaskId: string | null; // ID of the task currently being processed (for loading states)
 }
 
-const getTaskIcon = (
-  taskType: string,
-  isCompleted: boolean,
-): React.ReactNode => {
-  const className = `w-8 h-8 ${isCompleted ? "text-green-500" : "text-gray-500"}`;
+const getTaskIcon = (taskType: string): React.ReactNode => {
+  const className = "w-8 h-8 text-gray-500";
   const iconProps = { className: "w-6 h-6" }; // For icons within the status circle
 
   let specificIcon: React.ReactNode;
@@ -111,19 +108,7 @@ const getTaskIcon = (
       break;
   }
 
-  if (isCompleted) {
-    return <CheckCircle2 className={className} />;
-  } else {
-    // Wrap the specific icon in a div to mimic the original structure if needed, or just return the icon
-    return <div className={`mr-4 mt-1 ${className}`}>{specificIcon}</div>;
-    // Original had a more complex structure for non-completed icons, adjust as needed.
-    // For simplicity here, if not completed, we show the specific task type icon directly.
-    // The original code in the page was:
-    // <div className={`mr-4 mt-1 ${isCompleted ? "text-green-500" : "text-gray-500"}`}>
-    //   {isCompleted ? <CheckCircle2 className="w-8 h-8" /> : <div className="relative">{getTaskIcon(task.task_type)}</div>}
-    // </div>
-    // The getTaskIcon in the page returned only the inner icon. This new one is more comprehensive.
-  }
+  return <div className={`mr-4 mt-1 ${className}`}>{specificIcon}</div>;
 };
 
 const TaskItem: React.FC<TaskItemProps> = ({
@@ -424,7 +409,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
           {isCompleted ? (
             <CheckCircle2 className="w-8 h-8 text-green-500 mr-4 mt-1" />
           ) : (
-            getTaskIcon(task.task_type, false)
+            getTaskIcon(task.task_type)
           )}
 
           {/* Task Info */}
@@ -626,9 +611,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     isProcessing ||
                     uploading ||
                     !isQuestStarted ||
-                    (requiresTxHashInput && !hasValidTxHash) ||
-                    (task.input_required &&
-                      (isFileUpload ? !uploadedFileUrl : !inputValue.trim()))
+                    (requiresTxHashInput
+                      ? !hasValidTxHash
+                      : task.input_required &&
+                        (isFileUpload ? !uploadedFileUrl : !inputValue.trim()))
                   }
                   className="bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-2 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >

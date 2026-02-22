@@ -11,8 +11,9 @@ export const VENDOR_BLOCKCHAIN_TASK_TYPES = [
   "vendor_level_up",
 ] as const satisfies readonly TaskType[];
 
-type VendorTxTaskType = (typeof VENDOR_TX_TASK_TYPES)[number];
-type VendorBlockchainTaskType = (typeof VENDOR_BLOCKCHAIN_TASK_TYPES)[number];
+export type VendorTxTaskType = (typeof VENDOR_TX_TASK_TYPES)[number];
+export type VendorBlockchainTaskType =
+  (typeof VENDOR_BLOCKCHAIN_TASK_TYPES)[number];
 
 export function isVendorTxTaskType(
   taskType: TaskType,

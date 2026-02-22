@@ -82,6 +82,44 @@ describe("VendorVerificationStrategy", () => {
     process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS = originalVendorAddress;
   });
 
+  it("returns VENDOR_CONFIG_ERROR when vendor address is missing at module load", async () => {
+    const previous = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+
+    try {
+      let IsolatedStrategy: VendorVerificationStrategyCtor | undefined;
+      jest.isolateModules(() => {
+        delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+        const mod =
+          require("@/lib/quests/verification/vendor-verification") as {
+            VendorVerificationStrategy: VendorVerificationStrategyCtor;
+          };
+        IsolatedStrategy = mod.VendorVerificationStrategy;
+      });
+
+      if (!IsolatedStrategy) {
+        throw new Error("Isolated VendorVerificationStrategy failed to load");
+      }
+
+      const client = createMockPublicClient();
+      const strategy = new IsolatedStrategy(client);
+      const result = await strategy.verify(
+        "vendor_buy",
+        { transactionHash: mockTxHash },
+        "user-123",
+        mockUserAddress,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe("VENDOR_CONFIG_ERROR");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+      } else {
+        process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS = previous;
+      }
+    }
+  });
+
   describe("Constructor", () => {
     it("should accept a PublicClient in constructor", () => {
       expect(VendorVerificationStrategy).toBeDefined();
