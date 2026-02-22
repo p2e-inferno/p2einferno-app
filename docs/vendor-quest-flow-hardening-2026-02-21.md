@@ -116,7 +116,7 @@ This document tracks all fixes implemented for vendor quest completion reliabili
 
 #### `supabase/migrations/149_normalize_quest_verified_tx_hashes.sql`
 
-- Removes old case-sensitive uniqueness constraint for quest verified tx hashes.
+- Removes old case-sensitive uniqueness constraint for quest-verified tx hashes.
 - Adds a pre-check that fails migration early when existing rows collide under `lower(transaction_hash)`.
 - Adds case-insensitive unique index on `lower(transaction_hash)`.
 - Drops redundant legacy `transaction_hash` index now superseded by the case-insensitive unique index.

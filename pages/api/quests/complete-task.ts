@@ -1,9 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { LinkedAccountWithMetadata, User } from "@privy-io/server-auth";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
-import { extractAndValidateWalletFromHeader } from "@/lib/auth/privy";
-import { WalletValidationError } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  extractAndValidateWalletFromHeader,
+  WalletValidationError,
+} from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/utils/privyUtils";
 import { getLogger } from "@/lib/utils/logger";
 import { isExternalWallet } from "@/lib/utils/wallet-address";

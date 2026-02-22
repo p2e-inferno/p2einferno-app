@@ -6,6 +6,7 @@ import type { QuestTask, Quest } from "@/lib/supabase/types";
 import { getLogger } from "@/lib/utils/logger";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 import { sortQuestTasks } from "@/lib/quests/sort-tasks";
+import { resolveTaskVerificationMethod } from "@/lib/quests/taskVerificationMethod";
 
 const log = getLogger("api:admin:quests:index");
 
@@ -176,7 +177,7 @@ async function createQuest(
           title: task.title,
           description: task.description,
           task_type: task.task_type,
-          verification_method: task.verification_method,
+          verification_method: resolveTaskVerificationMethod(task),
           reward_amount: task.reward_amount || 0,
           order_index: task.order_index ?? index,
           task_config: task.task_config || {},

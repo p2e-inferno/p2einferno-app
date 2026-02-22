@@ -12,8 +12,6 @@ const USER_REJECTION_PATTERNS = [
   /\buser[\s_-]*rejected\b/i,
   /\buser[\s_-]*denied\b/i,
   /\buser[\s_-]*cancel(?:ed|led)\b/i,
-  /\buser[\s_-]*rejected\s+transaction\b/i,
-  /\buser[\s_-]*denied\s+transaction\b/i,
 ];
 
 export const isUserRejectedError = (err: unknown): boolean => {

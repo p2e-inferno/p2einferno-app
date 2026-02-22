@@ -225,6 +225,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
     requiresTxHashInput,
     completion?.verification_data,
     completion?.submission_data,
+    task.id,
   ]);
 
   const handleFileUpload = async (file: File) => {

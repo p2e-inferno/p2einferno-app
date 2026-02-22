@@ -163,7 +163,7 @@ export class VendorVerificationStrategy implements VerificationStrategy {
 
     const amount = this.getEventAmount(type, decoded.args, taskConfig);
     if (type !== "vendor_light_up") {
-      const required = this.getRequiredAmount(type, taskConfig);
+      const required = this.getRequiredAmount(taskConfig);
       if (required > 0n && amount < required) {
         return {
           success: false,
@@ -305,13 +305,20 @@ export class VendorVerificationStrategy implements VerificationStrategy {
   ): boolean {
     const userLower = user.toLowerCase();
     if (type === "vendor_buy") {
-      return (args.buyer as string)?.toLowerCase() === userLower;
+      return (
+        typeof args.buyer === "string" && args.buyer.toLowerCase() === userLower
+      );
     }
     if (type === "vendor_sell") {
-      return (args.seller as string)?.toLowerCase() === userLower;
+      return (
+        typeof args.seller === "string" &&
+        args.seller.toLowerCase() === userLower
+      );
     }
     if (type === "vendor_light_up") {
-      return (args.user as string)?.toLowerCase() === userLower;
+      return (
+        typeof args.user === "string" && args.user.toLowerCase() === userLower
+      );
     }
     return false;
   }
@@ -339,10 +346,7 @@ export class VendorVerificationStrategy implements VerificationStrategy {
     return 0n;
   }
 
-  private getRequiredAmount(
-    type: TaskType,
-    taskConfig: Record<string, unknown> | null,
-  ): bigint {
+  private getRequiredAmount(taskConfig: Record<string, unknown> | null): bigint {
     const raw =
       taskConfig && typeof taskConfig === "object"
         ? (taskConfig as { required_amount?: unknown }).required_amount
@@ -351,11 +355,6 @@ export class VendorVerificationStrategy implements VerificationStrategy {
     const required = this.toBigInt(raw);
     if (required > 0n) {
       return required;
-    }
-
-    // Defaults: allow any amount if not configured.
-    if (type === "vendor_buy" || type === "vendor_sell") {
-      return 0n;
     }
     return 0n;
   }

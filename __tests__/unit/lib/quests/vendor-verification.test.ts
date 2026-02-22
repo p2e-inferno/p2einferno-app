@@ -7,6 +7,10 @@
 
 import { decodeEventLog, type Address, type PublicClient } from "viem";
 
+type VendorVerificationStrategyCtor = new (client: PublicClient) => {
+  verify: (...args: unknown[]) => Promise<{ success: boolean; error?: string }>;
+};
+
 // Mock the ABI - will be replaced when vendor-abi.ts is implemented
 jest.mock("@/lib/blockchain/shared/vendor-abi", () => ({
   DG_TOKEN_VENDOR_ABI: [],
@@ -35,9 +39,17 @@ describe("VendorVerificationStrategy", () => {
     "0x000000000000000000000000000000000000bEEF" as Address;
   const mockTxHash =
     "0x1111111111111111111111111111111111111111111111111111111111111111" as `0x${string}`;
+  const originalVendorAddress = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
 
   // Will fail until implemented
-  let VendorVerificationStrategy: any;
+  let VendorVerificationStrategy: VendorVerificationStrategyCtor | undefined;
+
+  const getStrategy = (): VendorVerificationStrategyCtor => {
+    if (!VendorVerificationStrategy) {
+      throw new Error("VendorVerificationStrategy not loaded");
+    }
+    return VendorVerificationStrategy;
+  };
 
   const createMockPublicClient = (
     overrides: Partial<PublicClient> = {},
@@ -54,17 +66,29 @@ describe("VendorVerificationStrategy", () => {
 
     try {
       const mod = await import("@/lib/quests/verification/vendor-verification");
-      VendorVerificationStrategy = mod.VendorVerificationStrategy;
+      VendorVerificationStrategy =
+        mod.VendorVerificationStrategy as VendorVerificationStrategyCtor;
     } catch {
       // Expected to fail until implemented
     }
   });
 
+  afterAll(() => {
+    if (originalVendorAddress === undefined) {
+      delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+      return;
+    }
+    process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS = originalVendorAddress;
+  });
+
   describe("Constructor", () => {
     it("should accept a PublicClient in constructor", () => {
       expect(VendorVerificationStrategy).toBeDefined();
+      if (!VendorVerificationStrategy) {
+        throw new Error("VendorVerificationStrategy not loaded");
+      }
       const client = createMockPublicClient();
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       expect(strategy).toBeDefined();
     });
   });
@@ -91,7 +115,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
@@ -104,7 +128,7 @@ describe("VendorVerificationStrategy", () => {
 
     it("should fail if transaction hash is missing", async () => {
       const client = createMockPublicClient();
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
 
       const result = await strategy.verify(
         "vendor_buy",
@@ -127,7 +151,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
@@ -149,7 +173,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
@@ -171,7 +195,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
@@ -206,7 +230,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_sell",
         { transactionHash: mockTxHash },
@@ -238,7 +262,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_light_up",
         { transactionHash: mockTxHash },
@@ -263,7 +287,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_level_up",
         {},
@@ -287,7 +311,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_level_up",
         {},
@@ -312,7 +336,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_level_up",
         {},
@@ -336,7 +360,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_level_up",
         {}, // No transactionHash
@@ -352,7 +376,7 @@ describe("VendorVerificationStrategy", () => {
   describe("verify() - unsupported type", () => {
     it("should return error for unsupported task type", async () => {
       const client = createMockPublicClient();
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
 
       const result = await strategy.verify(
         "unsupported_type" as any,
@@ -374,7 +398,7 @@ describe("VendorVerificationStrategy", () => {
           .mockRejectedValue(new Error("RPC timeout")),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
