@@ -10,6 +10,7 @@ import {
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { isUserRejectedError } from "@/lib/utils/wallet-errors";
 import type {
   Quest,
   UserQuestProgress,
@@ -29,23 +30,6 @@ export const useQuests = () => {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  const isUserRejected = (err: any): boolean => {
-    const code = (err?.code ?? err?.error?.code) as any;
-    const name = (err?.name || "").toString().toLowerCase();
-    const msg = (err?.message || "").toString().toLowerCase();
-    return (
-      code === 4001 ||
-      code === "ACTION_REJECTED" ||
-      name.includes("userrejected") ||
-      msg.includes("user rejected") ||
-      msg.includes("rejected") ||
-      msg.includes("denied") ||
-      msg.includes("cancel") ||
-      msg.includes("canceled") ||
-      msg.includes("cancelled")
-    );
-  };
 
   const renderAttestationToast = (
     message: string,
@@ -151,6 +135,7 @@ export const useQuests = () => {
           taskId,
           verificationData,
           inputData,
+          walletAddress: selectedWallet?.address,
         });
 
         // Refresh user progress
@@ -164,7 +149,7 @@ export const useQuests = () => {
         return false;
       }
     },
-    [user?.id, authenticated, fetchUserProgress],
+    [user?.id, authenticated, fetchUserProgress, selectedWallet?.address],
   );
 
   // Complete quest (quest-level key claim)
@@ -251,7 +236,7 @@ export const useQuests = () => {
             const commitJson = await commitResp.json().catch(() => ({}));
             scanUrl = commitJson?.attestationScanUrl || null;
           } catch (err: any) {
-            if (isUserRejected(err)) {
+            if (isUserRejectedError(err)) {
               proofCancelled = true;
             } else {
               throw err;
@@ -352,7 +337,7 @@ export const useQuests = () => {
               ],
             });
           } catch (err: any) {
-            if (isUserRejected(err)) {
+            if (isUserRejectedError(err)) {
               throw new Error("Claim cancelled");
             }
             throw err;

@@ -30,9 +30,9 @@ jest.mock("viem", () => ({
 
 describe("VendorVerificationStrategy", () => {
   const mockVendorAddress =
-    "0xVENDOR0000000000000000000000000000000000" as Address;
+    "0x000000000000000000000000000000000000dEaD" as Address;
   const mockUserAddress =
-    "0xUSER00000000000000000000000000000000000" as Address;
+    "0x000000000000000000000000000000000000bEEF" as Address;
   const mockTxHash =
     "0x1111111111111111111111111111111111111111111111111111111111111111" as `0x${string}`;
 
@@ -121,7 +121,7 @@ describe("VendorVerificationStrategy", () => {
       const client = createMockPublicClient({
         getTransactionReceipt: jest.fn().mockResolvedValue({
           status: "success",
-          to: "0xWRONGCONTRACT000000000000000000000000",
+          to: "0x000000000000000000000000000000000000c0de",
           from: mockUserAddress,
           logs: [],
         }),
@@ -144,7 +144,7 @@ describe("VendorVerificationStrategy", () => {
         getTransactionReceipt: jest.fn().mockResolvedValue({
           status: "success",
           to: mockVendorAddress,
-          from: "0xDIFFERENTUSER000000000000000000000000",
+          from: "0x000000000000000000000000000000000000c0de",
           logs: [],
         }),
       });

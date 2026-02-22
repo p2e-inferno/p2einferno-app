@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
+import { extractAndValidateWalletFromHeader } from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/utils/privyUtils";
 import { getLogger } from "@/lib/utils/logger";
 import { isExternalWallet } from "@/lib/utils/wallet-address";
@@ -9,6 +10,7 @@ import {
   checkQuestPrerequisites,
   getUserPrimaryWallet,
 } from "@/lib/quests/prerequisite-checker";
+import { normalizeTransactionHash } from "@/lib/quests/tx-hash";
 import { registerQuestTransaction } from "@/lib/quests/verification/replay-prevention";
 import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
 
@@ -58,8 +60,35 @@ export default async function handler(
       return res.status(404).json({ error: "Quest not found" });
     }
 
+    // Prefer validated active wallet from header (multi-wallet safe), fallback to stored profile wallet.
+    const rawActiveWalletHeader = req.headers?.["x-active-wallet"];
+    if (Array.isArray(rawActiveWalletHeader)) {
+      return res
+        .status(400)
+        .json({ error: "Multiple X-Active-Wallet headers provided" });
+    }
+
+    let activeWalletFromHeader: string | null = null;
+    try {
+      activeWalletFromHeader = await extractAndValidateWalletFromHeader({
+        userId: effectiveUserId,
+        activeWalletHeader: rawActiveWalletHeader,
+        context: "quest-task-completion",
+        required: false,
+      });
+    } catch (walletErr: any) {
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Invalid X-Active-Wallet header";
+      const status = message.includes("does not belong") ? 403 : 400;
+      return res.status(status).json({ error: message });
+    }
+
     // Check prerequisites before allowing task completion
-    const userWallet = await getUserPrimaryWallet(supabase, effectiveUserId);
+    const userWallet =
+      activeWalletFromHeader ||
+      (await getUserPrimaryWallet(supabase, effectiveUserId));
     const prereqCheck = await checkQuestPrerequisites(
       supabase,
       effectiveUserId,
@@ -116,24 +145,50 @@ export default async function handler(
 
     // Build verification data (server-authored only)
     let verificationData: Record<string, unknown> | null = null;
-    const clientTxHash =
+    const rawClientTxHash =
       clientVerificationData && typeof clientVerificationData === "object"
         ? (clientVerificationData as { transactionHash?: string })
             .transactionHash
+        : undefined;
+    const clientTxHash =
+      typeof rawClientTxHash === "string" && rawClientTxHash.trim()
+        ? normalizeTransactionHash(rawClientTxHash)
         : undefined;
 
     const strategy = task?.task_type
       ? getVerificationStrategy(task.task_type)
       : undefined;
+    const forceBlockchainTaskTypes = [
+      "vendor_buy",
+      "vendor_sell",
+      "vendor_light_up",
+      "vendor_level_up",
+    ];
+    const requiresBlockchainVerification = Boolean(
+      task &&
+      (task.verification_method === "blockchain" ||
+        forceBlockchainTaskTypes.includes(task.task_type)),
+    );
 
-    if (task?.verification_method === "blockchain" && !strategy) {
+    if (requiresBlockchainVerification && !strategy) {
       return res.status(400).json({
         error: "Unsupported verification method for task type",
         code: "UNSUPPORTED_VERIFICATION",
       });
     }
 
-    if (task?.verification_method === "blockchain" && strategy) {
+    let pendingTxRegistration: {
+      txHash: string;
+      taskType: string;
+      metadata: {
+        amount: string | null;
+        eventName: string | null;
+        blockNumber: string | null;
+        logIndex: number | null;
+      };
+    } | null = null;
+
+    if (requiresBlockchainVerification && strategy) {
       if (!userWallet) {
         return res.status(400).json({ error: "Wallet not linked" });
       }
@@ -153,24 +208,23 @@ export default async function handler(
         });
       }
 
-      verificationData = {
-        ...result.metadata,
-        txHash: clientTxHash || null,
-        verificationMethod: "blockchain",
-      };
-
       const isTxBasedTask = [
         "vendor_buy",
         "vendor_sell",
         "vendor_light_up",
         "deploy_lock",
       ].includes(task.task_type);
+
+      verificationData = {
+        ...result.metadata,
+        txHash: isTxBasedTask ? clientTxHash || null : null,
+        verificationMethod: "blockchain",
+      };
+
       if (isTxBasedTask && clientTxHash) {
         const metadata = result.metadata || {};
-        const registerData = await registerQuestTransaction(supabase, {
+        pendingTxRegistration = {
           txHash: clientTxHash,
-          userId: effectiveUserId,
-          taskId,
           taskType: task.task_type,
           metadata: {
             amount:
@@ -188,22 +242,33 @@ export default async function handler(
             logIndex:
               typeof metadata.logIndex === "number" ? metadata.logIndex : null,
           },
-        });
+        };
+      }
+    }
 
-        if (!registerData.success) {
-          if (registerData.kind === "rpc_error") {
-            return res.status(500).json({
-              error: "Failed to register transaction",
-              code: "TX_REGISTER_FAILED",
-            });
-          }
-          return res.status(400).json({
-            error:
-              registerData.error ||
-              "This transaction has already been used to complete a quest task",
-            code: "TX_ALREADY_USED",
+    if (pendingTxRegistration) {
+      const registerData = await registerQuestTransaction(supabase, {
+        txHash: pendingTxRegistration.txHash,
+        userId: effectiveUserId,
+        taskId,
+        taskType: pendingTxRegistration.taskType,
+        metadata: pendingTxRegistration.metadata,
+      });
+
+      if (!registerData.success) {
+        if (registerData.kind === "rpc_error") {
+          return res.status(500).json({
+            error: "Failed to register transaction",
+            code: "TX_REGISTER_FAILED",
           });
         }
+
+        return res.status(400).json({
+          error:
+            registerData.error ||
+            "This transaction has already been used to complete a quest task",
+          code: "TX_ALREADY_USED",
+        });
       }
     }
 

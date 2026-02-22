@@ -81,6 +81,10 @@ function makeSupabase(
   const updateFn = jest.fn().mockReturnValue({
     eq: jest.fn().mockResolvedValue({ error: null }),
   });
+  const deleteEqFn = jest.fn().mockResolvedValue({ error: null });
+  const deleteFn = jest.fn().mockReturnValue({
+    eq: deleteEqFn,
+  });
   const rpcFn = jest.fn().mockResolvedValue({ data: null, error: null });
 
   const profileResult = options.userProfile ?? { data: null, error: null };
@@ -117,6 +121,7 @@ function makeSupabase(
         }),
         insert: insertFn,
         update: updateFn,
+        delete: deleteFn,
       };
     }
     if (table === "user_profiles") {
@@ -138,7 +143,12 @@ function makeSupabase(
     };
   });
 
-  return { from, rpc: rpcFn, _insertFn: insertFn };
+  return {
+    from,
+    rpc: rpcFn,
+    _insertFn: insertFn,
+    _deleteEqFn: deleteEqFn,
+  };
 }
 
 function makeReq(body: Record<string, unknown> = {}, method = "POST") {

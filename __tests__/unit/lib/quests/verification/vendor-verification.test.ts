@@ -41,6 +41,15 @@ const loadStrategy = () => {
   return VendorVerificationStrategy;
 };
 
+const loadStrategyWithoutVendorAddress = () => {
+  delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+  jest.resetModules();
+  const {
+    VendorVerificationStrategy,
+  } = require("@/lib/quests/verification/vendor-verification");
+  return VendorVerificationStrategy;
+};
+
 describe("VendorVerificationStrategy", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -264,5 +273,25 @@ describe("VendorVerificationStrategy", () => {
 
     expect(result.success).toBe(false);
     expect(result.code).toBe("TX_FETCH_FAILED");
+  });
+
+  it("fails with explicit config error when vendor address is missing", async () => {
+    const VendorVerificationStrategy = loadStrategyWithoutVendorAddress();
+    const client = {
+      getTransactionReceipt: jest.fn(),
+      readContract: jest.fn(),
+    } as any;
+
+    const strategy = new VendorVerificationStrategy(client);
+    const result = await strategy.verify(
+      "vendor_buy",
+      { transactionHash: "0xabc" },
+      "user",
+      userAddress,
+      { taskConfig: {} },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("VENDOR_CONFIG_ERROR");
   });
 });
