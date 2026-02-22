@@ -1,7 +1,9 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import type { LinkedAccountWithMetadata, User } from "@privy-io/server-auth";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getPrivyUser } from "@/lib/auth/privy";
 import { extractAndValidateWalletFromHeader } from "@/lib/auth/privy";
+import { WalletValidationError } from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/utils/privyUtils";
 import { getLogger } from "@/lib/utils/logger";
 import { isExternalWallet } from "@/lib/utils/wallet-address";
@@ -10,11 +12,34 @@ import {
   checkQuestPrerequisites,
   getUserPrimaryWallet,
 } from "@/lib/quests/prerequisite-checker";
-import { normalizeTransactionHash } from "@/lib/quests/tx-hash";
+import { normalizeTransactionHash } from "@/lib/quests/txHash";
 import { registerQuestTransaction } from "@/lib/quests/verification/replay-prevention";
 import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
 
 const log = getLogger("api:quests:complete-task");
+
+type FarcasterLinkedAccount = Extract<
+  LinkedAccountWithMetadata,
+  { type: "farcaster" }
+>;
+type WalletLinkedAccount = Extract<
+  LinkedAccountWithMetadata,
+  { type: "wallet" }
+>;
+
+function isFarcasterLinkedAccount(
+  account: LinkedAccountWithMetadata,
+): account is FarcasterLinkedAccount {
+  return account.type === "farcaster" && typeof account.fid === "number";
+}
+
+function isExternalWalletLinkedAccount(
+  account: LinkedAccountWithMetadata,
+): account is WalletLinkedAccount {
+  return (
+    account.type === "wallet" && isExternalWallet(account.walletClientType)
+  );
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -76,12 +101,16 @@ export default async function handler(
         context: "quest-task-completion",
         required: false,
       });
-    } catch (walletErr: any) {
+    } catch (walletErr: unknown) {
       const message =
         walletErr instanceof Error
           ? walletErr.message
           : "Invalid X-Active-Wallet header";
-      const status = message.includes("does not belong") ? 403 : 400;
+      const status =
+        walletErr instanceof WalletValidationError &&
+        walletErr.code === "NOT_OWNED"
+          ? 403
+          : 400;
       return res.status(status).json({ error: message });
     }
 
@@ -278,9 +307,9 @@ export default async function handler(
     if (task?.task_type === "link_farcaster") {
       // Verify Farcaster linkage via Privy server SDK and use server-trusted data
       const privy = createPrivyClient();
-      const profile: any = await privy.getUserById(effectiveUserId);
+      const profile: User = await privy.getUserById(effectiveUserId);
       const farcasterAccount = profile?.linkedAccounts?.find(
-        (a: any) => a?.type === "farcaster" && a?.fid,
+        isFarcasterLinkedAccount,
       );
       if (!farcasterAccount) {
         return res
@@ -296,10 +325,9 @@ export default async function handler(
     if (task?.task_type === "link_wallet") {
       // Verify external wallet linkage via Privy server SDK and use server-trusted data
       const privy = createPrivyClient();
-      const profile: any = await privy.getUserById(effectiveUserId);
+      const profile: User = await privy.getUserById(effectiveUserId);
       const externalWallet = profile?.linkedAccounts?.find(
-        (a: any) =>
-          a?.type === "wallet" && isExternalWallet(a?.walletClientType),
+        isExternalWalletLinkedAccount,
       );
       if (!externalWallet) {
         return res.status(400).json({

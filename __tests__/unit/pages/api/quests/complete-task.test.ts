@@ -147,6 +147,7 @@ function makeSupabase(
     from,
     rpc: rpcFn,
     _insertFn: insertFn,
+    _deleteFn: deleteFn,
     _deleteEqFn: deleteEqFn,
   };
 }

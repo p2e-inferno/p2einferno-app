@@ -253,14 +253,14 @@ describe("VendorVerificationStrategy", () => {
   describe("verify() - vendor_level_up", () => {
     it("should verify user has reached target stage", async () => {
       const client = createMockPublicClient({
-        readContract: jest.fn().mockResolvedValue([
-          2, // stage (target is 2)
-          1000n, // points
-          500n, // fuel
-          0n, // lastStage3MaxSale
-          0n, // dailySoldAmount
-          0n, // dailyWindowStart
-        ]),
+        readContract: jest.fn().mockResolvedValue({
+          stage: 2, // target is 2
+          points: 1000n,
+          fuel: 500n,
+          lastStage3MaxSale: 0n,
+          dailySoldAmount: 0n,
+          dailyWindowStart: 0n,
+        }),
       });
 
       const strategy = new VendorVerificationStrategy(client);
@@ -277,14 +277,14 @@ describe("VendorVerificationStrategy", () => {
 
     it("should fail if user has not reached target stage", async () => {
       const client = createMockPublicClient({
-        readContract: jest.fn().mockResolvedValue([
-          1, // stage (target is 3)
-          500n,
-          200n,
-          0n,
-          0n,
-          0n,
-        ]),
+        readContract: jest.fn().mockResolvedValue({
+          stage: 1, // target is 3
+          points: 500n,
+          fuel: 200n,
+          lastStage3MaxSale: 0n,
+          dailySoldAmount: 0n,
+          dailyWindowStart: 0n,
+        }),
       });
 
       const strategy = new VendorVerificationStrategy(client);
@@ -302,14 +302,14 @@ describe("VendorVerificationStrategy", () => {
 
     it("should succeed if user has exceeded target stage", async () => {
       const client = createMockPublicClient({
-        readContract: jest.fn().mockResolvedValue([
-          3, // stage (target is 2)
-          2000n,
-          1000n,
-          0n,
-          0n,
-          0n,
-        ]),
+        readContract: jest.fn().mockResolvedValue({
+          stage: 3, // target is 2
+          points: 2000n,
+          fuel: 1000n,
+          lastStage3MaxSale: 0n,
+          dailySoldAmount: 0n,
+          dailyWindowStart: 0n,
+        }),
       });
 
       const strategy = new VendorVerificationStrategy(client);
@@ -326,7 +326,14 @@ describe("VendorVerificationStrategy", () => {
 
     it("should NOT require transaction hash for level_up verification", async () => {
       const client = createMockPublicClient({
-        readContract: jest.fn().mockResolvedValue([2, 0n, 0n, 0n, 0n, 0n]),
+        readContract: jest.fn().mockResolvedValue({
+          stage: 2,
+          points: 0n,
+          fuel: 0n,
+          lastStage3MaxSale: 0n,
+          dailySoldAmount: 0n,
+          dailyWindowStart: 0n,
+        }),
       });
 
       const strategy = new VendorVerificationStrategy(client);

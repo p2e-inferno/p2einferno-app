@@ -63,13 +63,13 @@ This document tracks all fixes implemented for vendor quest completion reliabili
 - Updated quest task completion calls to pass selected wallet address, preserving active-wallet context outside quest details page too.
 - Uses shared `isUserRejectedError(...)` helper (deduplicated logic).
 
-#### `lib/quests/tx-hash.ts`
+#### `lib/quests/txHash.ts`
 
 - Added shared tx-hash helpers:
   - `isValidTransactionHash(...)`
   - `normalizeTransactionHash(...)`
 
-#### `lib/utils/wallet-errors.ts`
+#### `lib/utils/walletErrors.ts`
 
 - Added shared wallet user-rejection classifier:
   - `isUserRejectedError(...)`
@@ -117,12 +117,24 @@ This document tracks all fixes implemented for vendor quest completion reliabili
 #### `supabase/migrations/149_normalize_quest_verified_tx_hashes.sql`
 
 - Removes old case-sensitive uniqueness constraint for quest verified tx hashes.
+- Adds a pre-check that fails migration early when existing rows collide under `lower(transaction_hash)`.
 - Adds case-insensitive unique index on `lower(transaction_hash)`.
 - Drops redundant legacy `transaction_hash` index now superseded by the case-insensitive unique index.
 - Updates `register_quest_transaction(...)` function to normalize hashes via `lower(trim(...))` before check/insert.
 - Adds idempotent success when the tx hash is already registered by the same `user_id + task_id` (including concurrent unique-violation path).
 
-Note: This migration intentionally avoids rewriting existing rows and avoids cleanup/deletion operations.
+Operator prerequisite: ensure no case-colliding existing hashes before running this migration.
+
+Recommended pre-check query:
+
+```sql
+SELECT lower(transaction_hash) AS normalized_hash, COUNT(*) AS row_count
+FROM public.quest_verified_transactions
+GROUP BY lower(transaction_hash)
+HAVING COUNT(*) > 1;
+```
+
+If this returns rows, resolve collisions first; otherwise migration step 1 (new unique index) can be applied safely and the `register_quest_transaction(...)` normalization path will enforce it going forward.
 
 ---
 

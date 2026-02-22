@@ -4,6 +4,20 @@
 ALTER TABLE public.quest_verified_transactions
 DROP CONSTRAINT IF EXISTS unique_quest_tx_hash;
 
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.quest_verified_transactions
+    GROUP BY lower(transaction_hash)
+    HAVING COUNT(*) > 1
+  ) THEN
+    RAISE EXCEPTION
+      'Cannot create idx_quest_verified_tx_hash_lower_unique: case-colliding transaction_hash rows exist in quest_verified_transactions';
+  END IF;
+END;
+$$;
+
 CREATE UNIQUE INDEX IF NOT EXISTS idx_quest_verified_tx_hash_lower_unique
 ON public.quest_verified_transactions (lower(transaction_hash));
 

@@ -10,7 +10,7 @@ import {
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
-import { isUserRejectedError } from "@/lib/utils/wallet-errors";
+import { isUserRejectedError } from "@/lib/utils/walletErrors";
 import type {
   Quest,
   UserQuestProgress,

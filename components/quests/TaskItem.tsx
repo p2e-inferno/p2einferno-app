@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { DeployLockTaskForm } from "./DeployLockTaskForm";
 import { RichText } from "@/components/common/RichText";
 import { validateFile } from "@/lib/utils/validation";
-import { isValidTransactionHash } from "@/lib/quests/tx-hash";
+import { isValidTransactionHash } from "@/lib/quests/txHash";
 
 import type { QuestTask, UserTaskCompletion } from "@/lib/supabase/types";
 import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
@@ -136,6 +136,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 }) => {
   const [inputValue, setInputValue] = useState("");
   const [txHashInput, setTxHashInput] = useState("");
+  const [txHashTouched, setTxHashTouched] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -170,6 +171,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   useEffect(() => {
     setInputValue("");
     setTxHashInput("");
+    setTxHashTouched(false);
     setUploadedFileUrl(null);
     setUploadedFileName(null);
     setImagePreview(null);
@@ -467,7 +469,11 @@ const TaskItem: React.FC<TaskItemProps> = ({
                   id={`tx-hash-${task.id}`}
                   type="text"
                   value={txHashInput}
-                  onChange={(e) => setTxHashInput(e.target.value)}
+                  onChange={(e) => {
+                    setTxHashInput(e.target.value);
+                    setTxHashTouched(true);
+                  }}
+                  onBlur={() => setTxHashTouched(true)}
                   placeholder="0x..."
                   className="bg-gray-800 border-gray-700 text-gray-100 font-mono"
                   autoCapitalize="off"
@@ -643,7 +649,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     </p>
                   )}
 
-                {requiresTxHashInput && !hasValidTxHash && (
+                {requiresTxHashInput && !hasValidTxHash && txHashTouched && (
                   <p className="text-red-400 text-sm">
                     Please provide a valid transaction hash to continue
                   </p>

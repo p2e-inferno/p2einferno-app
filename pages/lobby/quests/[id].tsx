@@ -25,8 +25,8 @@ import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import QuestHeader from "@/components/quests/QuestHeader";
 import TaskItem from "@/components/quests/TaskItem";
 import { getLogger } from "@/lib/utils/logger";
-import { isValidTransactionHash } from "@/lib/quests/tx-hash";
-import { isUserRejectedError } from "@/lib/utils/wallet-errors";
+import { isValidTransactionHash } from "@/lib/quests/txHash";
+import { isUserRejectedError } from "@/lib/utils/walletErrors";
 
 const log = getLogger("lobby:quests:[id]");
 

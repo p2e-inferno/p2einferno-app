@@ -1,5 +1,5 @@
 import { CHAIN_ID } from "@/lib/blockchain/config";
-import { normalizeTransactionHash } from "@/lib/quests/tx-hash";
+import { normalizeTransactionHash } from "@/lib/quests/txHash";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("quests:replay-prevention");

@@ -139,9 +139,9 @@ export class VendorVerificationStrategy implements VerificationStrategy {
 
     const decoded = receipt.logs
       .filter(
-        (log) => log.address.toLowerCase() === vendorAddress.toLowerCase(),
+        (txLog) => txLog.address.toLowerCase() === vendorAddress.toLowerCase(),
       )
-      .map((log) => this.safeDecode(log))
+      .map((txLog) => this.safeDecode(txLog))
       .find((event) => event?.eventName === eventName);
 
     if (!decoded) {
@@ -200,10 +200,45 @@ export class VendorVerificationStrategy implements VerificationStrategy {
       args: [user as `0x${string}`],
     });
 
-    // userState follows the tuple layout defined in the ABI:
-    // [stage, points, fuel, lastStage3MaxSale, dailySoldAmount, dailyWindowStart]
-    const tuple = userState as unknown as readonly [number, ...unknown[]];
-    const stage = tuple[0];
+    // getUserState returns a named tuple struct via ABI components.
+    // Primary access path is object.stage; keep array index fallback for defensive compatibility.
+    const stateObj =
+      typeof userState === "object" && userState !== null
+        ? (userState as Record<string, unknown>)
+        : null;
+    const stage =
+      typeof stateObj?.stage === "number"
+        ? stateObj.stage
+        : Array.isArray(userState) && typeof userState[0] === "number"
+          ? userState[0]
+          : null;
+
+    if (stage === null) {
+      log.error("Invalid getUserState result shape", {
+        user,
+        vendorAddress,
+        userState,
+      });
+      return {
+        success: false,
+        error: "Invalid vendor user state response",
+        code: "INVALID_USER_STATE",
+      };
+    }
+
+    if (!Number.isFinite(stage)) {
+      log.error("Invalid stage value in getUserState result", {
+        user,
+        vendorAddress,
+        stage,
+        userState,
+      });
+      return {
+        success: false,
+        error: "Invalid vendor user stage value",
+        code: "INVALID_USER_STATE",
+      };
+    }
 
     if (stage >= targetStage) {
       log.info("Level verified", { user, stage, targetStage });
@@ -242,22 +277,22 @@ export class VendorVerificationStrategy implements VerificationStrategy {
     }
   }
 
-  private safeDecode(log: {
+  private safeDecode(txLog: {
     data: `0x${string}`;
     topics: readonly `0x${string}`[] | readonly [];
     logIndex?: number;
   }) {
     try {
       // Skip logs with no topics (shouldn't match events anyway)
-      if (log.topics.length === 0) {
+      if (txLog.topics.length === 0) {
         return null;
       }
       const decoded = decodeEventLog({
         abi: DG_TOKEN_VENDOR_ABI,
-        data: log.data,
-        topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+        data: txLog.data,
+        topics: txLog.topics as [`0x${string}`, ...`0x${string}`[]],
       });
-      return { ...decoded, logIndex: log.logIndex ?? null };
+      return { ...decoded, logIndex: txLog.logIndex ?? null };
     } catch {
       return null;
     }
