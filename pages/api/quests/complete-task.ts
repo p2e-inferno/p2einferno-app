@@ -15,6 +15,10 @@ import {
   getUserPrimaryWallet,
 } from "@/lib/quests/prerequisite-checker";
 import { normalizeTransactionHash } from "@/lib/quests/txHash";
+import {
+  isVendorBlockchainTaskType,
+  isVendorTxTaskType,
+} from "@/lib/quests/vendorTaskTypes";
 import { registerQuestTransaction } from "@/lib/quests/verification/replay-prevention";
 import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
 
@@ -189,16 +193,10 @@ export default async function handler(
     const strategy = task?.task_type
       ? getVerificationStrategy(task.task_type)
       : undefined;
-    const forceBlockchainTaskTypes = [
-      "vendor_buy",
-      "vendor_sell",
-      "vendor_light_up",
-      "vendor_level_up",
-    ];
     const requiresBlockchainVerification = Boolean(
       task &&
       (task.verification_method === "blockchain" ||
-        forceBlockchainTaskTypes.includes(task.task_type)),
+        isVendorBlockchainTaskType(task.task_type)),
     );
 
     if (requiresBlockchainVerification && !strategy) {
@@ -239,12 +237,8 @@ export default async function handler(
         });
       }
 
-      const isTxBasedTask = [
-        "vendor_buy",
-        "vendor_sell",
-        "vendor_light_up",
-        "deploy_lock",
-      ].includes(task.task_type);
+      const isTxBasedTask =
+        isVendorTxTaskType(task.task_type) || task.task_type === "deploy_lock";
 
       verificationData = {
         ...result.metadata,
@@ -278,6 +272,9 @@ export default async function handler(
     }
 
     if (pendingTxRegistration) {
+      // Intentionally register before persisting completion to claim tx hash early
+      // and prevent replay attacks. Tradeoff: if completion INSERT/UPDATE fails
+      // afterward, the tx remains claimed (orphaned) and cannot be retried.
       const registerData = await registerQuestTransaction(supabase, {
         txHash: pendingTxRegistration.txHash,
         userId: effectiveUserId,

@@ -6,9 +6,10 @@
  */
 
 import { decodeEventLog, type Address, type PublicClient } from "viem";
+import type { VerificationResult } from "@/lib/quests/verification/types";
 
 type VendorVerificationStrategyCtor = new (client: PublicClient) => {
-  verify: (...args: unknown[]) => Promise<{ success: boolean; error?: string }>;
+  verify: (...args: unknown[]) => Promise<VerificationResult>;
 };
 
 // Mock the ABI - will be replaced when vendor-abi.ts is implemented
@@ -84,9 +85,6 @@ describe("VendorVerificationStrategy", () => {
   describe("Constructor", () => {
     it("should accept a PublicClient in constructor", () => {
       expect(VendorVerificationStrategy).toBeDefined();
-      if (!VendorVerificationStrategy) {
-        throw new Error("VendorVerificationStrategy not loaded");
-      }
       const client = createMockPublicClient();
       const strategy = new (getStrategy())(client);
       expect(strategy).toBeDefined();

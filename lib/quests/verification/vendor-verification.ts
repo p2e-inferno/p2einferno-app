@@ -14,6 +14,7 @@ import type {
   VerificationOptions,
 } from "./types";
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
+import { isVendorTxTaskType } from "@/lib/quests/vendorTaskTypes";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("vendor-verification");
@@ -49,35 +50,32 @@ export class VendorVerificationStrategy implements VerificationStrategy {
     const taskConfig = options?.taskConfig || null;
 
     try {
-      switch (taskType) {
-        case "vendor_buy":
-        case "vendor_sell":
-        case "vendor_light_up":
-          if (!transactionHash) {
-            return {
-              success: false,
-              error: "Transaction hash required",
-              code: "TX_HASH_REQUIRED",
-            };
-          }
-          return await this.verifyTransaction(
-            transactionHash!,
-            taskType,
-            userAddress,
-            taskConfig,
-            vendorAddress,
-          );
-
-        case "vendor_level_up":
-          return await this.verifyLevel(userAddress, taskConfig, vendorAddress);
-
-        default:
+      if (isVendorTxTaskType(taskType)) {
+        if (!transactionHash) {
           return {
             success: false,
-            error: "Unsupported vendor task type",
-            code: "INVALID_TASK_TYPE",
+            error: "Transaction hash required",
+            code: "TX_HASH_REQUIRED",
           };
+        }
+        return await this.verifyTransaction(
+          transactionHash,
+          taskType,
+          userAddress,
+          taskConfig,
+          vendorAddress,
+        );
       }
+
+      if (taskType === "vendor_level_up") {
+        return await this.verifyLevel(userAddress, taskConfig, vendorAddress);
+      }
+
+      return {
+        success: false,
+        error: "Unsupported vendor task type",
+        code: "INVALID_TASK_TYPE",
+      };
     } catch (error: unknown) {
       log.error("Verification error", { error, taskType, userId });
       return {
@@ -346,7 +344,9 @@ export class VendorVerificationStrategy implements VerificationStrategy {
     return 0n;
   }
 
-  private getRequiredAmount(taskConfig: Record<string, unknown> | null): bigint {
+  private getRequiredAmount(
+    taskConfig: Record<string, unknown> | null,
+  ): bigint {
     const raw =
       taskConfig && typeof taskConfig === "object"
         ? (taskConfig as { required_amount?: unknown }).required_amount

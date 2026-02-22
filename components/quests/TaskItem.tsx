@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import {
   Mail,
@@ -30,6 +30,7 @@ import { DeployLockTaskForm } from "./DeployLockTaskForm";
 import { RichText } from "@/components/common/RichText";
 import { validateFile } from "@/lib/utils/validation";
 import { isValidTransactionHash } from "@/lib/quests/txHash";
+import { isVendorTxTaskType } from "@/lib/quests/vendorTaskTypes";
 
 import type { QuestTask, UserTaskCompletion } from "@/lib/supabase/types";
 import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
@@ -149,9 +150,18 @@ const TaskItem: React.FC<TaskItemProps> = ({
     !!task.task_config &&
     typeof task.task_config === "object";
   const requiresTxHashInput =
-    ["vendor_buy", "vendor_sell", "vendor_light_up"].includes(task.task_type) ||
+    isVendorTxTaskType(task.task_type) ||
     (task.task_type === "deploy_lock" && !hasDeployLockForm);
   const hasValidTxHash = isValidTransactionHash(txHashInput);
+  const verificationTxHash = useMemo(() => {
+    const verificationData = completion?.verification_data as
+      | { txHash?: string }
+      | null
+      | undefined;
+    return typeof verificationData?.txHash === "string"
+      ? verificationData.txHash
+      : null;
+  }, [completion?.verification_data]);
 
   const isCompleted =
     !!completion && completion.submission_status === "completed";
@@ -204,14 +214,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
   // Pre-populate tx hash for tx-based vendor tasks during resubmission flows.
   useEffect(() => {
     if (!canEdit || !requiresTxHashInput) return;
-    const verificationData = completion?.verification_data as
-      | { txHash?: string }
-      | null
-      | undefined;
-    const fromVerification =
-      typeof verificationData?.txHash === "string"
-        ? verificationData.txHash
-        : null;
+    const fromVerification = verificationTxHash;
     const fromSubmission =
       typeof completion?.submission_data === "string"
         ? completion.submission_data
@@ -223,7 +226,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
   }, [
     canEdit,
     requiresTxHashInput,
-    completion?.verification_data,
+    completion?.id,
+    verificationTxHash,
     completion?.submission_data,
     task.id,
   ]);
