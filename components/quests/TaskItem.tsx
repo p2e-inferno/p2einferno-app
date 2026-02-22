@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import {
   Mail,
   Wallet,
   Share2,
+  Flame,
+  TrendingUp,
   FileSignature,
   Circle,
   CheckCircle2,
@@ -27,6 +29,8 @@ import { Label } from "@/components/ui/label";
 import { DeployLockTaskForm } from "./DeployLockTaskForm";
 import { RichText } from "@/components/common/RichText";
 import { validateFile } from "@/lib/utils/validation";
+import { isValidTransactionHash } from "@/lib/quests/txHash";
+import { isVendorTxTaskType } from "@/lib/quests/vendorTaskTypes";
 
 import type { QuestTask, UserTaskCompletion } from "@/lib/supabase/types";
 import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
@@ -49,11 +53,8 @@ interface TaskItemProps {
   processingTaskId: string | null; // ID of the task currently being processed (for loading states)
 }
 
-const getTaskIcon = (
-  taskType: string,
-  isCompleted: boolean,
-): React.ReactNode => {
-  const className = `w-8 h-8 ${isCompleted ? "text-green-500" : "text-gray-500"}`;
+const getTaskIcon = (taskType: string): React.ReactNode => {
+  const className = "w-8 h-8 text-gray-500";
   const iconProps = { className: "w-6 h-6" }; // For icons within the status circle
 
   let specificIcon: React.ReactNode;
@@ -89,6 +90,16 @@ const getTaskIcon = (
     case "deploy_lock":
       specificIcon = <Network {...iconProps} />;
       break;
+    case "vendor_buy":
+    case "vendor_sell":
+      specificIcon = <Coins {...iconProps} />;
+      break;
+    case "vendor_light_up":
+      specificIcon = <Flame {...iconProps} />;
+      break;
+    case "vendor_level_up":
+      specificIcon = <TrendingUp {...iconProps} />;
+      break;
     case "custom":
       specificIcon = <Circle {...iconProps} />;
       break;
@@ -97,19 +108,7 @@ const getTaskIcon = (
       break;
   }
 
-  if (isCompleted) {
-    return <CheckCircle2 className={className} />;
-  } else {
-    // Wrap the specific icon in a div to mimic the original structure if needed, or just return the icon
-    return <div className={`mr-4 mt-1 ${className}`}>{specificIcon}</div>;
-    // Original had a more complex structure for non-completed icons, adjust as needed.
-    // For simplicity here, if not completed, we show the specific task type icon directly.
-    // The original code in the page was:
-    // <div className={`mr-4 mt-1 ${isCompleted ? "text-green-500" : "text-gray-500"}`}>
-    //   {isCompleted ? <CheckCircle2 className="w-8 h-8" /> : <div className="relative">{getTaskIcon(task.task_type)}</div>}
-    // </div>
-    // The getTaskIcon in the page returned only the inner icon. This new one is more comprehensive.
-  }
+  return <div className={`mr-4 mt-1 ${className}`}>{specificIcon}</div>;
 };
 
 const TaskItem: React.FC<TaskItemProps> = ({
@@ -122,6 +121,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
   processingTaskId,
 }) => {
   const [inputValue, setInputValue] = useState("");
+  const [txHashInput, setTxHashInput] = useState("");
+  const [txHashTouched, setTxHashTouched] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadedFileUrl, setUploadedFileUrl] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
@@ -129,6 +130,23 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const [isDragging, setIsDragging] = useState(false);
 
   const isFileUpload = task.input_validation === "file";
+  const hasDeployLockForm =
+    task.task_type === "deploy_lock" &&
+    !!task.task_config &&
+    typeof task.task_config === "object";
+  const requiresTxHashInput =
+    isVendorTxTaskType(task.task_type) ||
+    (task.task_type === "deploy_lock" && !hasDeployLockForm);
+  const hasValidTxHash = isValidTransactionHash(txHashInput);
+  const verificationTxHash = useMemo(() => {
+    const verificationData = completion?.verification_data as
+      | { txHash?: string }
+      | null
+      | undefined;
+    return typeof verificationData?.txHash === "string"
+      ? verificationData.txHash
+      : null;
+  }, [completion?.verification_data]);
 
   const isCompleted =
     !!completion && completion.submission_status === "completed";
@@ -139,12 +157,16 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const isProcessing =
     processingTaskId === task.id || processingTaskId === completion?.id;
 
-  // Allow editing/resubmission if status is pending, retry, or failed (for input-based tasks)
-  const canEdit = (isPending || isRetry || isFailed) && task.input_required;
+  // Allow editing/resubmission for tasks that require user-provided proof.
+  const canEdit =
+    (isPending || isRetry || isFailed) &&
+    (task.input_required || requiresTxHashInput);
 
   // Reset form state when task changes
   useEffect(() => {
     setInputValue("");
+    setTxHashInput("");
+    setTxHashTouched(false);
     setUploadedFileUrl(null);
     setUploadedFileName(null);
     setImagePreview(null);
@@ -173,6 +195,27 @@ const TaskItem: React.FC<TaskItemProps> = ({
       }
     }
   }, [canEdit, completion?.submission_data, isFileUpload, task.id]);
+
+  // Pre-populate tx hash for tx-based vendor tasks during resubmission flows.
+  useEffect(() => {
+    if (!canEdit || !requiresTxHashInput) return;
+    const fromVerification = verificationTxHash;
+    const fromSubmission =
+      typeof completion?.submission_data === "string"
+        ? completion.submission_data
+        : null;
+    const existingHash = (fromVerification || fromSubmission || "").trim();
+    if (existingHash) {
+      setTxHashInput(existingHash);
+    }
+  }, [
+    canEdit,
+    requiresTxHashInput,
+    completion?.id,
+    verificationTxHash,
+    completion?.submission_data,
+    task.id,
+  ]);
 
   const handleFileUpload = async (file: File) => {
     // Client-side validation before expensive operations
@@ -270,6 +313,16 @@ const TaskItem: React.FC<TaskItemProps> = ({
   };
 
   const handleTaskAction = () => {
+    if (requiresTxHashInput) {
+      const txHash = txHashInput.trim();
+      if (!hasValidTxHash) {
+        toast.error("Please provide a valid transaction hash");
+        return;
+      }
+      onAction(task, txHash);
+      return;
+    }
+
     if (task.input_required) {
       if (isFileUpload) {
         if (uploadedFileUrl) {
@@ -356,7 +409,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
           {isCompleted ? (
             <CheckCircle2 className="w-8 h-8 text-green-500 mr-4 mt-1" />
           ) : (
-            getTaskIcon(task.task_type, false)
+            getTaskIcon(task.task_type)
           )}
 
           {/* Task Info */}
@@ -378,7 +431,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               !isCompleted &&
               !isPending &&
               isQuestStarted &&
-              task.task_config && (
+              hasDeployLockForm && (
                 <div className="mb-4">
                   <DeployLockTaskForm
                     taskId={task.id}
@@ -397,7 +450,32 @@ const TaskItem: React.FC<TaskItemProps> = ({
               )}
 
             {/* Input Field for input-based tasks */}
+            {requiresTxHashInput && !isCompleted && isQuestStarted && (
+              <div className="mb-4 space-y-2">
+                <Label htmlFor={`tx-hash-${task.id}`} className="text-gray-300">
+                  Transaction Hash
+                </Label>
+                <Input
+                  id={`tx-hash-${task.id}`}
+                  type="text"
+                  value={txHashInput}
+                  onChange={(e) => {
+                    setTxHashInput(e.target.value);
+                    setTxHashTouched(true);
+                  }}
+                  onBlur={() => setTxHashTouched(true)}
+                  placeholder="0x..."
+                  className="bg-gray-800 border-gray-700 text-gray-100 font-mono"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+              </div>
+            )}
+
+            {/* Input Field for input-based tasks */}
             {task.input_required &&
+              !requiresTxHashInput &&
               task.task_type !== "deploy_lock" &&
               !isCompleted &&
               isQuestStarted && (
@@ -533,8 +611,10 @@ const TaskItem: React.FC<TaskItemProps> = ({
                     isProcessing ||
                     uploading ||
                     !isQuestStarted ||
-                    (task.input_required &&
-                      (isFileUpload ? !uploadedFileUrl : !inputValue.trim()))
+                    (requiresTxHashInput
+                      ? !hasValidTxHash
+                      : task.input_required &&
+                        (isFileUpload ? !uploadedFileUrl : !inputValue.trim()))
                   }
                   className="bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-2 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -551,6 +631,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
                 {/* Show validation message when input is required but missing */}
                 {task.input_required &&
+                  !requiresTxHashInput &&
                   (isFileUpload ? !uploadedFileUrl : !inputValue.trim()) && (
                     <p className="text-red-400 text-sm">
                       {isFileUpload
@@ -558,6 +639,12 @@ const TaskItem: React.FC<TaskItemProps> = ({
                         : `Please provide ${task.input_label?.toLowerCase() || "required information"} to continue`}
                     </p>
                   )}
+
+                {requiresTxHashInput && !hasValidTxHash && txHashTouched && (
+                  <p className="text-red-400 text-sm">
+                    Please provide a valid transaction hash to continue
+                  </p>
+                )}
               </div>
             )}
 

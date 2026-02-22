@@ -136,6 +136,19 @@ export class PrivyUnavailableError extends Error {
   }
 }
 
+export class WalletValidationError extends Error {
+  public readonly code: "NOT_OWNED" | "HEADER_REQUIRED" | "INVALID_FORMAT";
+
+  constructor(
+    code: "NOT_OWNED" | "HEADER_REQUIRED" | "INVALID_FORMAT",
+    message: string,
+  ) {
+    super(message);
+    this.name = "WalletValidationError";
+    this.code = code;
+  }
+}
+
 /**
  * Extract and validate wallet address from X-Active-Wallet header
  *
@@ -179,7 +192,10 @@ export async function extractAndValidateWalletFromHeader(params: {
         context,
         userId,
       });
-      throw new Error("X-Active-Wallet header is required");
+      throw new WalletValidationError(
+        "HEADER_REQUIRED",
+        "X-Active-Wallet header is required",
+      );
     }
     log.debug("X-Active-Wallet header not provided, skipping validation", {
       context,
@@ -197,11 +213,21 @@ export async function extractAndValidateWalletFromHeader(params: {
       userId,
       headerWallet,
     });
-    throw new Error("Invalid wallet address format");
+    throw new WalletValidationError(
+      "INVALID_FORMAT",
+      "Invalid wallet address format",
+    );
   }
 
   // Validate wallet ownership using shared helper
-  return await validateWalletOwnership(userId, headerWallet, context);
+  try {
+    return await validateWalletOwnership(userId, headerWallet, context);
+  } catch (error) {
+    if (error instanceof AuthorizationError) {
+      throw new WalletValidationError("NOT_OWNED", error.message);
+    }
+    throw error;
+  }
 }
 
 /**

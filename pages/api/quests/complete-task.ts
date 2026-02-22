@@ -1,6 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
+import type { LinkedAccountWithMetadata, User } from "@privy-io/server-auth";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  extractAndValidateWalletFromHeader,
+  WalletValidationError,
+} from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/utils/privyUtils";
 import { getLogger } from "@/lib/utils/logger";
 import { isExternalWallet } from "@/lib/utils/wallet-address";
@@ -9,10 +14,38 @@ import {
   checkQuestPrerequisites,
   getUserPrimaryWallet,
 } from "@/lib/quests/prerequisite-checker";
+import { normalizeTransactionHash } from "@/lib/quests/txHash";
+import {
+  isVendorBlockchainTaskType,
+  isVendorTxTaskType,
+} from "@/lib/quests/vendorTaskTypes";
 import { registerQuestTransaction } from "@/lib/quests/verification/replay-prevention";
 import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
 
 const log = getLogger("api:quests:complete-task");
+
+type FarcasterLinkedAccount = Extract<
+  LinkedAccountWithMetadata,
+  { type: "farcaster" }
+>;
+type WalletLinkedAccount = Extract<
+  LinkedAccountWithMetadata,
+  { type: "wallet" }
+>;
+
+function isFarcasterLinkedAccount(
+  account: LinkedAccountWithMetadata,
+): account is FarcasterLinkedAccount {
+  return account.type === "farcaster" && typeof account.fid === "number";
+}
+
+function isExternalWalletLinkedAccount(
+  account: LinkedAccountWithMetadata,
+): account is WalletLinkedAccount {
+  return (
+    account.type === "wallet" && isExternalWallet(account.walletClientType)
+  );
+}
 
 export default async function handler(
   req: NextApiRequest,
@@ -58,8 +91,39 @@ export default async function handler(
       return res.status(404).json({ error: "Quest not found" });
     }
 
+    // Prefer validated active wallet from header (multi-wallet safe), fallback to stored profile wallet.
+    const rawActiveWalletHeader = req.headers?.["x-active-wallet"];
+    if (Array.isArray(rawActiveWalletHeader)) {
+      return res
+        .status(400)
+        .json({ error: "Multiple X-Active-Wallet headers provided" });
+    }
+
+    let activeWalletFromHeader: string | null = null;
+    try {
+      activeWalletFromHeader = await extractAndValidateWalletFromHeader({
+        userId: effectiveUserId,
+        activeWalletHeader: rawActiveWalletHeader,
+        context: "quest-task-completion",
+        required: false,
+      });
+    } catch (walletErr: unknown) {
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Invalid X-Active-Wallet header";
+      const status =
+        walletErr instanceof WalletValidationError &&
+        walletErr.code === "NOT_OWNED"
+          ? 403
+          : 400;
+      return res.status(status).json({ error: message });
+    }
+
     // Check prerequisites before allowing task completion
-    const userWallet = await getUserPrimaryWallet(supabase, effectiveUserId);
+    const userWallet =
+      activeWalletFromHeader ||
+      (await getUserPrimaryWallet(supabase, effectiveUserId));
     const prereqCheck = await checkQuestPrerequisites(
       supabase,
       effectiveUserId,
@@ -116,24 +180,44 @@ export default async function handler(
 
     // Build verification data (server-authored only)
     let verificationData: Record<string, unknown> | null = null;
-    const clientTxHash =
+    const rawClientTxHash =
       clientVerificationData && typeof clientVerificationData === "object"
         ? (clientVerificationData as { transactionHash?: string })
             .transactionHash
+        : undefined;
+    const clientTxHash =
+      typeof rawClientTxHash === "string" && rawClientTxHash.trim()
+        ? normalizeTransactionHash(rawClientTxHash)
         : undefined;
 
     const strategy = task?.task_type
       ? getVerificationStrategy(task.task_type)
       : undefined;
+    const requiresBlockchainVerification = Boolean(
+      task &&
+      (task.verification_method === "blockchain" ||
+        isVendorBlockchainTaskType(task.task_type)),
+    );
 
-    if (task?.verification_method === "blockchain" && !strategy) {
+    if (requiresBlockchainVerification && !strategy) {
       return res.status(400).json({
         error: "Unsupported verification method for task type",
         code: "UNSUPPORTED_VERIFICATION",
       });
     }
 
-    if (task?.verification_method === "blockchain" && strategy) {
+    let pendingTxRegistration: {
+      txHash: string;
+      taskType: string;
+      metadata: {
+        amount: string | null;
+        eventName: string | null;
+        blockNumber: string | null;
+        logIndex: number | null;
+      };
+    } | null = null;
+
+    if (requiresBlockchainVerification && strategy) {
       if (!userWallet) {
         return res.status(400).json({ error: "Wallet not linked" });
       }
@@ -153,24 +237,19 @@ export default async function handler(
         });
       }
 
+      const isTxBasedTask =
+        isVendorTxTaskType(task.task_type) || task.task_type === "deploy_lock";
+
       verificationData = {
         ...result.metadata,
-        txHash: clientTxHash || null,
+        txHash: isTxBasedTask ? clientTxHash || null : null,
         verificationMethod: "blockchain",
       };
 
-      const isTxBasedTask = [
-        "vendor_buy",
-        "vendor_sell",
-        "vendor_light_up",
-        "deploy_lock",
-      ].includes(task.task_type);
       if (isTxBasedTask && clientTxHash) {
         const metadata = result.metadata || {};
-        const registerData = await registerQuestTransaction(supabase, {
+        pendingTxRegistration = {
           txHash: clientTxHash,
-          userId: effectiveUserId,
-          taskId,
           taskType: task.task_type,
           metadata: {
             amount:
@@ -188,22 +267,36 @@ export default async function handler(
             logIndex:
               typeof metadata.logIndex === "number" ? metadata.logIndex : null,
           },
-        });
+        };
+      }
+    }
 
-        if (!registerData.success) {
-          if (registerData.kind === "rpc_error") {
-            return res.status(500).json({
-              error: "Failed to register transaction",
-              code: "TX_REGISTER_FAILED",
-            });
-          }
-          return res.status(400).json({
-            error:
-              registerData.error ||
-              "This transaction has already been used to complete a quest task",
-            code: "TX_ALREADY_USED",
+    if (pendingTxRegistration) {
+      // Intentionally register before persisting completion to claim tx hash early
+      // and prevent replay attacks. Tradeoff: if completion INSERT/UPDATE fails
+      // afterward, the tx remains claimed (orphaned) and cannot be retried.
+      const registerData = await registerQuestTransaction(supabase, {
+        txHash: pendingTxRegistration.txHash,
+        userId: effectiveUserId,
+        taskId,
+        taskType: pendingTxRegistration.taskType,
+        metadata: pendingTxRegistration.metadata,
+      });
+
+      if (!registerData.success) {
+        if (registerData.kind === "rpc_error") {
+          return res.status(500).json({
+            error: "Failed to register transaction",
+            code: "TX_REGISTER_FAILED",
           });
         }
+
+        return res.status(400).json({
+          error:
+            registerData.error ||
+            "This transaction has already been used to complete a quest task",
+          code: "TX_ALREADY_USED",
+        });
       }
     }
 
@@ -213,9 +306,9 @@ export default async function handler(
     if (task?.task_type === "link_farcaster") {
       // Verify Farcaster linkage via Privy server SDK and use server-trusted data
       const privy = createPrivyClient();
-      const profile: any = await privy.getUserById(effectiveUserId);
+      const profile: User = await privy.getUserById(effectiveUserId);
       const farcasterAccount = profile?.linkedAccounts?.find(
-        (a: any) => a?.type === "farcaster" && a?.fid,
+        isFarcasterLinkedAccount,
       );
       if (!farcasterAccount) {
         return res
@@ -231,10 +324,9 @@ export default async function handler(
     if (task?.task_type === "link_wallet") {
       // Verify external wallet linkage via Privy server SDK and use server-trusted data
       const privy = createPrivyClient();
-      const profile: any = await privy.getUserById(effectiveUserId);
+      const profile: User = await privy.getUserById(effectiveUserId);
       const externalWallet = profile?.linkedAccounts?.find(
-        (a: any) =>
-          a?.type === "wallet" && isExternalWallet(a?.walletClientType),
+        isExternalWalletLinkedAccount,
       );
       if (!externalWallet) {
         return res.status(400).json({

@@ -196,5 +196,21 @@ describe("QuestTaskForm - Vendor Task Types", () => {
         }),
       );
     });
+
+    it("should keep input_required false for vendor tx tasks", async () => {
+      const onUpdate = jest.fn();
+      render(<QuestTaskForm {...defaultProps} onUpdate={onUpdate} />);
+
+      const buyButton = screen.getByRole("button", {
+        name: /buy.*dg.*tokens/i,
+      });
+      await userEvent.click(buyButton);
+
+      expect(onUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input_required: false,
+        }),
+      );
+    });
   });
 });

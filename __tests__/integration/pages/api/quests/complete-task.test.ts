@@ -27,9 +27,23 @@ const mockGetPrivyUser = getPrivyUser as jest.Mock;
 const mockCheckQuestPrerequisites = checkQuestPrerequisites as jest.Mock;
 const mockGetUserPrimaryWallet = getUserPrimaryWallet as jest.Mock;
 
-const makeSupabase = (overrides?: { rpc?: jest.Mock; insert?: jest.Mock }) => {
+const makeSupabase = (overrides?: {
+  rpc?: jest.Mock;
+  insert?: jest.Mock;
+  task?: Partial<{
+    requires_admin_review: boolean;
+    input_required: boolean;
+    task_type: string;
+    verification_method: string;
+    task_config: Record<string, unknown> | null;
+  }>;
+}) => {
   const insert =
     overrides?.insert || jest.fn().mockResolvedValue({ error: null });
+  const deleteEq = jest.fn().mockResolvedValue({ error: null });
+  const deleteFn = jest.fn().mockReturnValue({
+    eq: deleteEq,
+  });
   const update = jest.fn().mockResolvedValue({ error: null });
   const rpc =
     overrides?.rpc ||
@@ -50,6 +64,7 @@ const makeSupabase = (overrides?: { rpc?: jest.Mock; insert?: jest.Mock }) => {
     task_type: "vendor_buy",
     verification_method: "blockchain",
     task_config: { required_amount: "1" },
+    ...(overrides?.task || {}),
   };
 
   const from = jest.fn((table: string) => {
@@ -74,12 +89,18 @@ const makeSupabase = (overrides?: { rpc?: jest.Mock; insert?: jest.Mock }) => {
         single: jest.fn().mockResolvedValue({ data: null }),
         insert,
         update,
+        delete: deleteFn,
       };
     }
     return {};
   });
 
-  return { from, rpc };
+  return {
+    from,
+    rpc,
+    _insertFn: insert,
+    _deleteEq: deleteEq,
+  };
 };
 
 describe("POST /api/quests/complete-task", () => {
@@ -166,5 +187,93 @@ describe("POST /api/quests/complete-task", () => {
     expect(verify).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(400);
     expect(insert).not.toHaveBeenCalled();
+    expect((supabase as any)._deleteEq).not.toHaveBeenCalled();
+  });
+
+  it("enforces blockchain verification for vendor tasks even when verification_method is misconfigured", async () => {
+    const verify = jest.fn().mockResolvedValue({
+      success: true,
+      metadata: {
+        eventName: "TokensPurchased",
+        amount: "10",
+        logIndex: 1,
+        blockNumber: "2",
+      },
+    });
+    mockGetVerificationStrategy.mockReturnValue({ verify });
+
+    const supabase = makeSupabase({
+      task: {
+        task_type: "vendor_buy",
+        verification_method: "automatic",
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase);
+
+    const req = {
+      method: "POST",
+      body: {
+        questId: "quest-1",
+        taskId: "task-1",
+        verificationData: { transactionHash: "0xabc" },
+      },
+    } as any;
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+
+    await handler(req, res);
+
+    expect(verify).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  it("does not persist client tx hash for vendor_level_up verification data", async () => {
+    const verify = jest.fn().mockResolvedValue({
+      success: true,
+      metadata: { currentStage: 3, targetStage: 3 },
+    });
+    mockGetVerificationStrategy.mockReturnValue({ verify });
+
+    const supabase = makeSupabase({
+      task: {
+        task_type: "vendor_level_up",
+        verification_method: "blockchain",
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase);
+
+    const req = {
+      method: "POST",
+      body: {
+        questId: "quest-1",
+        taskId: "task-1",
+        verificationData: {
+          transactionHash:
+            "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+      },
+    } as any;
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect((supabase as any)._insertFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verification_data: expect.objectContaining({
+          txHash: null,
+          verificationMethod: "blockchain",
+          currentStage: 3,
+          targetStage: 3,
+        }),
+      }),
+    );
   });
 });

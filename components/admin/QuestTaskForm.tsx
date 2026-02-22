@@ -171,7 +171,8 @@ export default function QuestTaskForm({
   const { minBuyAmount, minSellAmount } = useDGMarket();
 
   useEffect(() => {
-    // Show input config for task types that typically require input
+    // Show input config only for manual-input tasks.
+    // Vendor tx tasks are type-driven in quest UI and do not use input_required.
     const inputTaskTypes: TaskType[] = [
       "submit_url",
       "submit_text",
@@ -198,6 +199,11 @@ export default function QuestTaskForm({
       "complete_external",
       "custom",
     ];
+    const vendorTxTaskTypes: TaskType[] = [
+      "vendor_buy",
+      "vendor_sell",
+      "vendor_light_up",
+    ];
     const vendorTaskTypes: TaskType[] = [
       "vendor_buy",
       "vendor_sell",
@@ -207,6 +213,7 @@ export default function QuestTaskForm({
     ];
 
     const requiresInput = inputTaskTypes.includes(taskType);
+    const isVendorTxTask = vendorTxTaskTypes.includes(taskType);
     const isVendorTask = vendorTaskTypes.includes(taskType);
 
     const updated = {
@@ -234,6 +241,10 @@ export default function QuestTaskForm({
       updated.input_validation = "file";
       updated.input_label = "Upload Proof";
       updated.input_placeholder = "Upload a file as proof (image or PDF)";
+    } else if (isVendorTxTask) {
+      updated.input_validation = "text";
+      updated.input_label = "Transaction Hash";
+      updated.input_placeholder = "0x...";
     }
 
     setLocalTask(updated);

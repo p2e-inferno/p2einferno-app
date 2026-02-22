@@ -17,6 +17,7 @@ jest.mock("viem", () => ({
 const vendorAddress = "0x000000000000000000000000000000000000dEaD";
 const userAddress = "0x000000000000000000000000000000000000bEEF";
 const otherAddress = "0x000000000000000000000000000000000000c0de";
+const originalVendorAddress = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
 
 const baseReceipt = {
   to: vendorAddress,
@@ -34,7 +35,18 @@ const baseReceipt = {
 };
 
 const loadStrategy = () => {
+  jest.resetModules();
   process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS = vendorAddress;
+  const { decodeEventLog } = require("viem") as { decodeEventLog: Mock };
+  const {
+    VendorVerificationStrategy,
+  } = require("@/lib/quests/verification/vendor-verification");
+  return { VendorVerificationStrategy, decodeEventLog };
+};
+
+const loadStrategyWithoutVendorAddress = () => {
+  jest.resetModules();
+  delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
   const {
     VendorVerificationStrategy,
   } = require("@/lib/quests/verification/vendor-verification");
@@ -46,11 +58,18 @@ describe("VendorVerificationStrategy", () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    if (originalVendorAddress === undefined) {
+      delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+      return;
+    }
+    process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS = originalVendorAddress;
+  });
+
   it("fails when expected event is missing", async () => {
-    const { decodeEventLog } = require("viem") as { decodeEventLog: Mock };
+    const { VendorVerificationStrategy, decodeEventLog } = loadStrategy();
     decodeEventLog.mockReturnValue({ eventName: "OtherEvent", args: {} });
 
-    const VendorVerificationStrategy = loadStrategy();
     const client = {
       getTransactionReceipt: jest.fn().mockResolvedValue(baseReceipt),
       readContract: jest.fn(),
@@ -70,13 +89,12 @@ describe("VendorVerificationStrategy", () => {
   });
 
   it("fails when event user does not match", async () => {
-    const { decodeEventLog } = require("viem") as { decodeEventLog: Mock };
+    const { VendorVerificationStrategy, decodeEventLog } = loadStrategy();
     decodeEventLog.mockReturnValue({
       eventName: "TokensPurchased",
       args: { buyer: otherAddress, baseTokenAmount: 10n, swapTokenAmount: 5n },
     });
 
-    const VendorVerificationStrategy = loadStrategy();
     const client = {
       getTransactionReceipt: jest.fn().mockResolvedValue(baseReceipt),
       readContract: jest.fn(),
@@ -96,13 +114,12 @@ describe("VendorVerificationStrategy", () => {
   });
 
   it("fails when amount is below required", async () => {
-    const { decodeEventLog } = require("viem") as { decodeEventLog: Mock };
+    const { VendorVerificationStrategy, decodeEventLog } = loadStrategy();
     decodeEventLog.mockReturnValue({
       eventName: "TokensPurchased",
       args: { buyer: userAddress, baseTokenAmount: 5n, swapTokenAmount: 2n },
     });
 
-    const VendorVerificationStrategy = loadStrategy();
     const client = {
       getTransactionReceipt: jest.fn().mockResolvedValue(baseReceipt),
       readContract: jest.fn(),
@@ -122,13 +139,12 @@ describe("VendorVerificationStrategy", () => {
   });
 
   it("passes for light up when Lit event matches user", async () => {
-    const { decodeEventLog } = require("viem") as { decodeEventLog: Mock };
+    const { VendorVerificationStrategy, decodeEventLog } = loadStrategy();
     decodeEventLog.mockReturnValue({
       eventName: "Lit",
       args: { user: userAddress, burnAmount: 1n, newFuel: 2n },
     });
 
-    const VendorVerificationStrategy = loadStrategy();
     const client = {
       getTransactionReceipt: jest.fn().mockResolvedValue(baseReceipt),
       readContract: jest.fn(),
@@ -148,10 +164,17 @@ describe("VendorVerificationStrategy", () => {
   });
 
   it("fails when user stage is below target", async () => {
-    const VendorVerificationStrategy = loadStrategy();
+    const { VendorVerificationStrategy } = loadStrategy();
     const client = {
       getTransactionReceipt: jest.fn(),
-      readContract: jest.fn().mockResolvedValue([1, 0, 0, 0, 0, 0] as const),
+      readContract: jest.fn().mockResolvedValue({
+        stage: 1,
+        points: 0n,
+        fuel: 0n,
+        lastStage3MaxSale: 0n,
+        dailySoldAmount: 0n,
+        dailyWindowStart: 0n,
+      }),
     } as any;
 
     const strategy = new VendorVerificationStrategy(client);
@@ -168,13 +191,12 @@ describe("VendorVerificationStrategy", () => {
   });
 
   it("fails when transaction is to wrong contract", async () => {
-    const { decodeEventLog } = require("viem") as { decodeEventLog: Mock };
+    const { VendorVerificationStrategy, decodeEventLog } = loadStrategy();
     decodeEventLog.mockReturnValue({
       eventName: "TokensPurchased",
       args: { buyer: userAddress, baseTokenAmount: 10n, swapTokenAmount: 5n },
     });
 
-    const VendorVerificationStrategy = loadStrategy();
     const client = {
       getTransactionReceipt: jest.fn().mockResolvedValue({
         ...baseReceipt,
@@ -196,13 +218,12 @@ describe("VendorVerificationStrategy", () => {
   });
 
   it("fails when transaction sender does not match user", async () => {
-    const { decodeEventLog } = require("viem") as { decodeEventLog: Mock };
+    const { VendorVerificationStrategy, decodeEventLog } = loadStrategy();
     decodeEventLog.mockReturnValue({
       eventName: "TokensPurchased",
       args: { buyer: userAddress, baseTokenAmount: 10n, swapTokenAmount: 5n },
     });
 
-    const VendorVerificationStrategy = loadStrategy();
     const client = {
       getTransactionReceipt: jest.fn().mockResolvedValue({
         ...baseReceipt,
@@ -224,7 +245,7 @@ describe("VendorVerificationStrategy", () => {
   });
 
   it("fails when transaction status is not success", async () => {
-    const VendorVerificationStrategy = loadStrategy();
+    const { VendorVerificationStrategy } = loadStrategy();
     const client = {
       getTransactionReceipt: jest.fn().mockResolvedValue({
         ...baseReceipt,
@@ -246,7 +267,7 @@ describe("VendorVerificationStrategy", () => {
   });
 
   it("fails when transaction receipt is not found", async () => {
-    const VendorVerificationStrategy = loadStrategy();
+    const { VendorVerificationStrategy } = loadStrategy();
     const client = {
       getTransactionReceipt: jest
         .fn()
@@ -264,5 +285,25 @@ describe("VendorVerificationStrategy", () => {
 
     expect(result.success).toBe(false);
     expect(result.code).toBe("TX_FETCH_FAILED");
+  });
+
+  it("fails with explicit config error when vendor address is missing", async () => {
+    const VendorVerificationStrategy = loadStrategyWithoutVendorAddress();
+    const client = {
+      getTransactionReceipt: jest.fn(),
+      readContract: jest.fn(),
+    } as any;
+
+    const strategy = new VendorVerificationStrategy(client);
+    const result = await strategy.verify(
+      "vendor_buy",
+      { transactionHash: "0xabc" },
+      "user",
+      userAddress,
+      { taskConfig: {} },
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("VENDOR_CONFIG_ERROR");
   });
 });

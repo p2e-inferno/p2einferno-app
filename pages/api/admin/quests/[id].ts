@@ -6,6 +6,7 @@ import { randomUUID } from "crypto";
 import { getLogger } from "@/lib/utils/logger";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 import { sortQuestTasks } from "@/lib/quests/sort-tasks";
+import { resolveTaskVerificationMethod } from "@/lib/quests/taskVerificationMethod";
 
 const log = getLogger("api:admin:quests:[id]");
 
@@ -236,7 +237,13 @@ async function updateQuest(
 
     // Handle tasks update if provided
     if (tasks && Array.isArray(tasks)) {
-      const validation = await validateVendorTaskConfig(tasks);
+      const normalizedTasks = tasks.map((task: Partial<QuestTask>) => ({
+        ...task,
+        task_config: task.task_config || undefined,
+        verification_method: resolveTaskVerificationMethod(task),
+      }));
+
+      const validation = await validateVendorTaskConfig(normalizedTasks);
       if (!validation.ok) {
         return res.status(400).json({ error: validation.error });
       }
@@ -250,7 +257,7 @@ async function updateQuest(
       if (fetchError) throw fetchError;
 
       const existingTaskIds = (existingTasks || []).map((t: any) => t.id);
-      const incomingTaskIds = tasks
+      const incomingTaskIds = normalizedTasks
         .filter((t) => t.id && !t.id.startsWith("temp"))
         .map((t) => t.id);
 
@@ -276,10 +283,10 @@ async function updateQuest(
       }
 
       // Step 4: Categorize tasks into insert, update, delete
-      const tasksToInsert = tasks.filter(
+      const tasksToInsert = normalizedTasks.filter(
         (t: Partial<QuestTask>) => !t.id || t.id.startsWith("temp"),
       );
-      const tasksToUpdate = tasks.filter(
+      const tasksToUpdate = normalizedTasks.filter(
         (t: Partial<QuestTask>) => t.id && !t.id.startsWith("temp"),
       );
 

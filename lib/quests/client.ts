@@ -42,9 +42,12 @@ export function completeQuestTaskRequest<T = any>(params: {
   taskId: string;
   verificationData?: any;
   inputData?: any;
+  walletAddress?: string;
 }) {
+  const { walletAddress, ...payload } = params;
   return postQuestApi<T>("/api/quests/complete-task", {
-    payload: params,
+    payload,
+    walletAddress,
   });
 }
 

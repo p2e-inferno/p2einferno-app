@@ -6,6 +6,11 @@
  */
 
 import { decodeEventLog, type Address, type PublicClient } from "viem";
+import type { VerificationResult } from "@/lib/quests/verification/types";
+
+type VendorVerificationStrategyCtor = new (client: PublicClient) => {
+  verify: (...args: unknown[]) => Promise<VerificationResult>;
+};
 
 // Mock the ABI - will be replaced when vendor-abi.ts is implemented
 jest.mock("@/lib/blockchain/shared/vendor-abi", () => ({
@@ -30,14 +35,22 @@ jest.mock("viem", () => ({
 
 describe("VendorVerificationStrategy", () => {
   const mockVendorAddress =
-    "0xVENDOR0000000000000000000000000000000000" as Address;
+    "0x000000000000000000000000000000000000dEaD" as Address;
   const mockUserAddress =
-    "0xUSER00000000000000000000000000000000000" as Address;
+    "0x000000000000000000000000000000000000bEEF" as Address;
   const mockTxHash =
     "0x1111111111111111111111111111111111111111111111111111111111111111" as `0x${string}`;
+  const originalVendorAddress = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
 
   // Will fail until implemented
-  let VendorVerificationStrategy: any;
+  let VendorVerificationStrategy: VendorVerificationStrategyCtor | undefined;
+
+  const getStrategy = (): VendorVerificationStrategyCtor => {
+    if (!VendorVerificationStrategy) {
+      throw new Error("VendorVerificationStrategy not loaded");
+    }
+    return VendorVerificationStrategy;
+  };
 
   const createMockPublicClient = (
     overrides: Partial<PublicClient> = {},
@@ -54,9 +67,56 @@ describe("VendorVerificationStrategy", () => {
 
     try {
       const mod = await import("@/lib/quests/verification/vendor-verification");
-      VendorVerificationStrategy = mod.VendorVerificationStrategy;
+      VendorVerificationStrategy =
+        mod.VendorVerificationStrategy as VendorVerificationStrategyCtor;
     } catch {
       // Expected to fail until implemented
+    }
+  });
+
+  afterAll(() => {
+    if (originalVendorAddress === undefined) {
+      delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+      return;
+    }
+    process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS = originalVendorAddress;
+  });
+
+  it("returns VENDOR_CONFIG_ERROR when vendor address is missing at module load", async () => {
+    const previous = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+
+    try {
+      let IsolatedStrategy: VendorVerificationStrategyCtor | undefined;
+      jest.isolateModules(() => {
+        delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+        const mod =
+          require("@/lib/quests/verification/vendor-verification") as {
+            VendorVerificationStrategy: VendorVerificationStrategyCtor;
+          };
+        IsolatedStrategy = mod.VendorVerificationStrategy;
+      });
+
+      if (!IsolatedStrategy) {
+        throw new Error("Isolated VendorVerificationStrategy failed to load");
+      }
+
+      const client = createMockPublicClient();
+      const strategy = new IsolatedStrategy(client);
+      const result = await strategy.verify(
+        "vendor_buy",
+        { transactionHash: mockTxHash },
+        "user-123",
+        mockUserAddress,
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe("VENDOR_CONFIG_ERROR");
+    } finally {
+      if (previous === undefined) {
+        delete process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+      } else {
+        process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS = previous;
+      }
     }
   });
 
@@ -64,7 +124,7 @@ describe("VendorVerificationStrategy", () => {
     it("should accept a PublicClient in constructor", () => {
       expect(VendorVerificationStrategy).toBeDefined();
       const client = createMockPublicClient();
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       expect(strategy).toBeDefined();
     });
   });
@@ -91,7 +151,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
@@ -104,7 +164,7 @@ describe("VendorVerificationStrategy", () => {
 
     it("should fail if transaction hash is missing", async () => {
       const client = createMockPublicClient();
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
 
       const result = await strategy.verify(
         "vendor_buy",
@@ -121,13 +181,13 @@ describe("VendorVerificationStrategy", () => {
       const client = createMockPublicClient({
         getTransactionReceipt: jest.fn().mockResolvedValue({
           status: "success",
-          to: "0xWRONGCONTRACT000000000000000000000000",
+          to: "0x000000000000000000000000000000000000c0de",
           from: mockUserAddress,
           logs: [],
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
@@ -144,12 +204,12 @@ describe("VendorVerificationStrategy", () => {
         getTransactionReceipt: jest.fn().mockResolvedValue({
           status: "success",
           to: mockVendorAddress,
-          from: "0xDIFFERENTUSER000000000000000000000000",
+          from: "0x000000000000000000000000000000000000c0de",
           logs: [],
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
@@ -171,7 +231,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },
@@ -206,7 +266,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_sell",
         { transactionHash: mockTxHash },
@@ -238,7 +298,7 @@ describe("VendorVerificationStrategy", () => {
         }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_light_up",
         { transactionHash: mockTxHash },
@@ -253,17 +313,17 @@ describe("VendorVerificationStrategy", () => {
   describe("verify() - vendor_level_up", () => {
     it("should verify user has reached target stage", async () => {
       const client = createMockPublicClient({
-        readContract: jest.fn().mockResolvedValue([
-          2, // stage (target is 2)
-          1000n, // points
-          500n, // fuel
-          0n, // lastStage3MaxSale
-          0n, // dailySoldAmount
-          0n, // dailyWindowStart
-        ]),
+        readContract: jest.fn().mockResolvedValue({
+          stage: 2, // target is 2
+          points: 1000n,
+          fuel: 500n,
+          lastStage3MaxSale: 0n,
+          dailySoldAmount: 0n,
+          dailyWindowStart: 0n,
+        }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_level_up",
         {},
@@ -277,17 +337,17 @@ describe("VendorVerificationStrategy", () => {
 
     it("should fail if user has not reached target stage", async () => {
       const client = createMockPublicClient({
-        readContract: jest.fn().mockResolvedValue([
-          1, // stage (target is 3)
-          500n,
-          200n,
-          0n,
-          0n,
-          0n,
-        ]),
+        readContract: jest.fn().mockResolvedValue({
+          stage: 1, // target is 3
+          points: 500n,
+          fuel: 200n,
+          lastStage3MaxSale: 0n,
+          dailySoldAmount: 0n,
+          dailyWindowStart: 0n,
+        }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_level_up",
         {},
@@ -302,17 +362,17 @@ describe("VendorVerificationStrategy", () => {
 
     it("should succeed if user has exceeded target stage", async () => {
       const client = createMockPublicClient({
-        readContract: jest.fn().mockResolvedValue([
-          3, // stage (target is 2)
-          2000n,
-          1000n,
-          0n,
-          0n,
-          0n,
-        ]),
+        readContract: jest.fn().mockResolvedValue({
+          stage: 3, // target is 2
+          points: 2000n,
+          fuel: 1000n,
+          lastStage3MaxSale: 0n,
+          dailySoldAmount: 0n,
+          dailyWindowStart: 0n,
+        }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_level_up",
         {},
@@ -326,10 +386,17 @@ describe("VendorVerificationStrategy", () => {
 
     it("should NOT require transaction hash for level_up verification", async () => {
       const client = createMockPublicClient({
-        readContract: jest.fn().mockResolvedValue([2, 0n, 0n, 0n, 0n, 0n]),
+        readContract: jest.fn().mockResolvedValue({
+          stage: 2,
+          points: 0n,
+          fuel: 0n,
+          lastStage3MaxSale: 0n,
+          dailySoldAmount: 0n,
+          dailyWindowStart: 0n,
+        }),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_level_up",
         {}, // No transactionHash
@@ -345,7 +412,7 @@ describe("VendorVerificationStrategy", () => {
   describe("verify() - unsupported type", () => {
     it("should return error for unsupported task type", async () => {
       const client = createMockPublicClient();
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
 
       const result = await strategy.verify(
         "unsupported_type" as any,
@@ -367,7 +434,7 @@ describe("VendorVerificationStrategy", () => {
           .mockRejectedValue(new Error("RPC timeout")),
       });
 
-      const strategy = new VendorVerificationStrategy(client);
+      const strategy = new (getStrategy())(client);
       const result = await strategy.verify(
         "vendor_buy",
         { transactionHash: mockTxHash },

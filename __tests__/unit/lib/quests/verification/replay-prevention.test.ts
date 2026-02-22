@@ -31,6 +31,26 @@ describe("registerQuestTransaction", () => {
     });
 
     expect(result.success).toBe(true);
+    expect(result.alreadyRegistered).toBe(false);
+  });
+
+  it("returns idempotent success when tx is already registered for same user/task", async () => {
+    const supabase = {
+      rpc: jest.fn().mockResolvedValue({
+        data: { success: true, already_registered: true },
+        error: null,
+      }),
+    } as any;
+
+    const result = await registerQuestTransaction(supabase, {
+      txHash: "0xabc",
+      userId: "user",
+      taskId: "task",
+      taskType: "vendor_buy",
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.alreadyRegistered).toBe(true);
   });
 
   it("returns conflict when rpc reports reused tx", async () => {

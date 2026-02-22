@@ -25,6 +25,8 @@ import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import QuestHeader from "@/components/quests/QuestHeader";
 import TaskItem from "@/components/quests/TaskItem";
 import { getLogger } from "@/lib/utils/logger";
+import { isValidTransactionHash } from "@/lib/quests/txHash";
+import { isUserRejectedError } from "@/lib/utils/walletErrors";
 
 const log = getLogger("lobby:quests:[id]");
 
@@ -59,23 +61,6 @@ const QuestDetailsPage = () => {
   const [progress, setProgress] = useState(0); // Percentage
   const [processingTask, setProcessingTask] = useState<string | null>(null); // For button loading states
   const [isClaimingQuestReward, setIsClaimingQuestReward] = useState(false);
-
-  const isUserRejected = (err: any): boolean => {
-    const code = (err?.code ?? err?.error?.code) as any;
-    const name = (err?.name || "").toString().toLowerCase();
-    const msg = (err?.message || "").toString().toLowerCase();
-    return (
-      code === 4001 ||
-      code === "ACTION_REJECTED" ||
-      name.includes("userrejected") ||
-      msg.includes("user rejected") ||
-      msg.includes("rejected") ||
-      msg.includes("denied") ||
-      msg.includes("cancel") ||
-      msg.includes("canceled") ||
-      msg.includes("cancelled")
-    );
-  };
 
   // Data fetching and processing logic (fetchQuestDetails, startQuest, calculateQuestProgress, claimTaskReward, etc.)
   // remains largely the same in this file for now.
@@ -163,11 +148,21 @@ const QuestDetailsPage = () => {
     if (!questId) return;
     setProcessingTask(task.id);
     try {
+      const submitTask = (params: {
+        questId: string;
+        taskId: string;
+        verificationData?: any;
+        inputData?: any;
+      }) =>
+        completeQuestTaskRequest({
+          ...params,
+          walletAddress: selectedWallet?.address,
+        });
       let result;
       switch (task.task_type) {
         case "link_email":
           if (user?.email?.address) {
-            result = await completeQuestTaskRequest({
+            result = await submitTask({
               questId: questId as string,
               taskId: task.id,
               verificationData: { email: user.email.address },
@@ -178,7 +173,7 @@ const QuestDetailsPage = () => {
           }
           break;
         case "link_wallet":
-          result = await completeQuestTaskRequest({
+          result = await submitTask({
             questId: questId as string,
             taskId: task.id,
             verificationData: { wallet: user?.wallet?.address },
@@ -186,7 +181,7 @@ const QuestDetailsPage = () => {
           break;
         case "link_farcaster":
           if (user?.farcaster?.fid) {
-            result = await completeQuestTaskRequest({
+            result = await submitTask({
               questId: questId as string,
               taskId: task.id,
               verificationData: {
@@ -200,7 +195,7 @@ const QuestDetailsPage = () => {
           }
           break;
         case "link_telegram":
-          result = await completeQuestTaskRequest({
+          result = await submitTask({
             questId: questId as string,
             taskId: task.id,
             verificationData: {},
@@ -209,7 +204,7 @@ const QuestDetailsPage = () => {
         case "sign_tos":
           const signature = await signTOS();
           if (signature) {
-            result = await completeQuestTaskRequest({
+            result = await submitTask({
               questId: questId as string,
               taskId: task.id,
               verificationData: { signature },
@@ -225,7 +220,7 @@ const QuestDetailsPage = () => {
         case "submit_text":
         case "submit_proof":
           if (inputData && typeof inputData === "string" && inputData.trim()) {
-            result = await completeQuestTaskRequest({
+            result = await submitTask({
               questId: questId as string,
               taskId: task.id,
               verificationData: { inputData },
@@ -249,8 +244,12 @@ const QuestDetailsPage = () => {
               ? (inputData as any).transactionHash
               : inputData;
 
-          if (txHash) {
-            result = await completeQuestTaskRequest({
+          if (
+            txHash &&
+            typeof txHash === "string" &&
+            isValidTransactionHash(txHash)
+          ) {
+            result = await submitTask({
               questId: questId as string,
               taskId: task.id,
               verificationData: { transactionHash: txHash },
@@ -258,19 +257,19 @@ const QuestDetailsPage = () => {
           } else {
             result = {
               success: false,
-              error: `Please provide a valid transaction hash for ${task.title}`,
+              error: `Please provide a valid transaction hash (0x + 64 hex chars) for ${task.title}`,
             };
           }
           break;
         case "vendor_level_up":
-          result = await completeQuestTaskRequest({
+          result = await submitTask({
             questId: questId as string,
             taskId: task.id,
             verificationData: {},
           });
           break;
         case "complete_external":
-          result = await completeQuestTaskRequest({
+          result = await submitTask({
             questId: questId as string,
             taskId: task.id,
             verificationData: {
@@ -281,7 +280,7 @@ const QuestDetailsPage = () => {
           break;
         case "custom":
           if (task.input_required && inputData) {
-            result = await completeQuestTaskRequest({
+            result = await submitTask({
               questId: questId as string,
               taskId: task.id,
               verificationData: { inputData },
@@ -293,7 +292,7 @@ const QuestDetailsPage = () => {
               error: `Please provide ${task.input_label || "required input"}`,
             };
           } else {
-            result = await completeQuestTaskRequest({
+            result = await submitTask({
               questId: questId as string,
               taskId: task.id,
               verificationData: { custom_action: true },
@@ -390,7 +389,7 @@ const QuestDetailsPage = () => {
             ],
           });
         } catch (err: any) {
-          if (isUserRejected(err)) {
+          if (isUserRejectedError(err)) {
             throw new Error("Claim cancelled");
           }
           throw err;
@@ -496,7 +495,7 @@ const QuestDetailsPage = () => {
             ],
           });
         } catch (err: any) {
-          if (isUserRejected(err)) {
+          if (isUserRejectedError(err)) {
             throw new Error("Claim cancelled");
           }
           throw err;
@@ -605,7 +604,7 @@ const QuestDetailsPage = () => {
             const commitJson = await commitResp.json().catch(() => ({}));
             attestationScanUrl = commitJson?.attestationScanUrl || null;
           } catch (err: any) {
-            if (isUserRejected(err)) {
+            if (isUserRejectedError(err)) {
               proofCancelled = true;
             } else {
               throw err;
