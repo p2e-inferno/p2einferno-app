@@ -7,7 +7,7 @@ const log = getLogger("hooks:useTelegramNotifications");
 const POLL_INTERVAL_MS = 3000;
 const POLL_MAX_ATTEMPTS = 20; // ~60 seconds
 
-function openTelegramDeepLinkInPopup(deepLink: string): boolean {
+export function openTelegramDeepLinkInPopup(deepLink: string): boolean {
   try {
     const popup = window.open("", "_blank");
     if (!popup) return false;
@@ -33,6 +33,7 @@ interface TelegramNotificationStatus {
   linking: boolean;
   blockedDeepLink: string | null;
   dismissBlockedDeepLink: () => void;
+  retryBlockedDeepLink: () => boolean;
   enable: () => Promise<void>;
   disable: () => Promise<void>;
   refetch: () => Promise<void>;
@@ -111,6 +112,25 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
     }, POLL_INTERVAL_MS);
   }, []);
 
+  const dismissBlockedDeepLink = useCallback(() => {
+    setBlockedDeepLink(null);
+  }, []);
+
+  const retryBlockedDeepLink = useCallback((): boolean => {
+    if (!blockedDeepLink) return false;
+
+    const popupOpened = openTelegramDeepLinkInPopup(blockedDeepLink);
+    if (!popupOpened) return false;
+
+    // If linking flow is still incomplete, restart polling window.
+    if (!enabled) {
+      setLinking(true);
+      startPolling();
+    }
+
+    return true;
+  }, [blockedDeepLink, enabled, startPolling]);
+
   const enable = useCallback(async () => {
     setLinking(true);
     setBlockedDeepLink(null);
@@ -178,7 +198,8 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
     loading,
     linking,
     blockedDeepLink,
-    dismissBlockedDeepLink: () => setBlockedDeepLink(null),
+    dismissBlockedDeepLink,
+    retryBlockedDeepLink,
     enable,
     disable,
     refetch: fetchStatus,

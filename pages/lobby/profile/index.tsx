@@ -321,17 +321,9 @@ const ProfilePage = () => {
   }, [telegram.blockedDeepLink]);
 
   const handleOpenTelegramLink = useCallback(() => {
-    if (!telegram.blockedDeepLink) return;
+    const popupOpened = telegram.retryBlockedDeepLink();
 
-    const popup = window.open("", "_blank");
-
-    if (popup) {
-      try {
-        popup.opener = null;
-      } catch {
-        // Ignore browser restrictions on opener assignment.
-      }
-      popup.location.href = telegram.blockedDeepLink;
+    if (popupOpened) {
       telegram.dismissBlockedDeepLink();
     } else {
       toast("Popup still blocked. Copy the link and open it manually.");
@@ -443,7 +435,10 @@ const ProfilePage = () => {
                 >
                   Copy Link
                 </Button>
-                <Button onClick={handleOpenTelegramLink} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Button
+                  onClick={handleOpenTelegramLink}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
                   Try Opening Again
                 </Button>
               </DialogFooter>

@@ -134,7 +134,7 @@ describe("enable() action", () => {
     openSpy.mockRestore();
   });
 
-  it("opens returned deepLink in new tab", async () => {
+  it("opens blank popup and navigates to deepLink when popup is allowed", async () => {
     fetchSpy.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ deepLink: "https://t.me/Bot?start=abc123" }),
@@ -152,10 +152,7 @@ describe("enable() action", () => {
       await result.current.enable();
     });
 
-    expect(openSpy).toHaveBeenCalledWith(
-      "",
-      "_blank",
-    );
+    expect(openSpy).toHaveBeenCalledWith("", "_blank");
     expect(result.current.blockedDeepLink).toBeNull();
 
     openSpy.mockRestore();
@@ -179,10 +176,7 @@ describe("enable() action", () => {
       await result.current.enable();
     });
 
-    expect(openSpy).toHaveBeenCalledWith(
-      "",
-      "_blank",
-    );
+    expect(openSpy).toHaveBeenCalledWith("", "_blank");
     expect(result.current.blockedDeepLink).toBe(
       "https://t.me/Bot?start=popupblocked",
     );
@@ -220,7 +214,7 @@ describe("enable() action", () => {
       json: async () => ({ deepLink: "https://t.me/Bot?start=dismiss" }),
     } as Response);
 
-    jest.spyOn(window, "open").mockImplementation(() => null);
+    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
 
     const { result } = renderHook(() => useTelegramNotifications());
 
@@ -239,6 +233,8 @@ describe("enable() action", () => {
     });
 
     expect(result.current.blockedDeepLink).toBeNull();
+
+    openSpy.mockRestore();
   });
 });
 
