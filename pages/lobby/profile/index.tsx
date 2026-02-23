@@ -24,6 +24,15 @@ import { useWithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
 import { useTelegramNotifications } from "@/hooks/useTelegramNotifications";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const log = getLogger("lobby:profile:index");
 
@@ -300,6 +309,35 @@ const ProfilePage = () => {
     }
   };
 
+  const handleCopyTelegramLink = useCallback(async () => {
+    if (!telegram.blockedDeepLink) return;
+    try {
+      await navigator.clipboard.writeText(telegram.blockedDeepLink);
+      toast.success("Telegram link copied");
+    } catch (error) {
+      log.error("Failed to copy Telegram deep link", { error });
+      toast.error("Failed to copy link. Please copy it manually.");
+    }
+  }, [telegram.blockedDeepLink]);
+
+  const handleOpenTelegramLink = useCallback(() => {
+    if (!telegram.blockedDeepLink) return;
+
+    const popup = window.open("", "_blank");
+
+    if (popup) {
+      try {
+        popup.opener = null;
+      } catch {
+        // Ignore browser restrictions on opener assignment.
+      }
+      popup.location.href = telegram.blockedDeepLink;
+      telegram.dismissBlockedDeepLink();
+    } else {
+      toast("Popup still blocked. Copy the link and open it manually.");
+    }
+  }, [telegram]);
+
   // Early return for unauthenticated users
   if (!user) {
     return (
@@ -375,6 +413,42 @@ const ProfilePage = () => {
             confirmText="Unlink wallet"
             variant="danger"
           />
+
+          <Dialog
+            open={Boolean(telegram.blockedDeepLink)}
+            onOpenChange={(open) => {
+              if (!open) telegram.dismissBlockedDeepLink();
+            }}
+          >
+            <DialogContent className="bg-gray-900 border border-gray-700 text-white max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Open Telegram Manually</DialogTitle>
+                <DialogDescription className="text-gray-300">
+                  If Telegram did not open automatically, copy this link and
+                  open it in another browser tab to complete linking.
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="mt-4 rounded-lg border border-gray-700 bg-gray-800/70 p-3">
+                <p className="break-all text-sm text-gray-200">
+                  {telegram.blockedDeepLink}
+                </p>
+              </div>
+
+              <DialogFooter className="mt-6 gap-2 sm:gap-2">
+                <Button
+                  variant="outline"
+                  onClick={handleCopyTelegramLink}
+                  className="border-gray-600 text-gray-200 hover:bg-gray-800"
+                >
+                  Copy Link
+                </Button>
+                <Button onClick={handleOpenTelegramLink} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Try Opening Again
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* DG Nation Subscription Management Section */}
           <div className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 rounded-xl border border-gray-700 p-6 sm:p-8 mt-6">

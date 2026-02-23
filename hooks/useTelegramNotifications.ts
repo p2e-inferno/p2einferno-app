@@ -7,11 +7,32 @@ const log = getLogger("hooks:useTelegramNotifications");
 const POLL_INTERVAL_MS = 3000;
 const POLL_MAX_ATTEMPTS = 20; // ~60 seconds
 
+function openTelegramDeepLinkInPopup(deepLink: string): boolean {
+  try {
+    const popup = window.open("", "_blank");
+    if (!popup) return false;
+
+    try {
+      popup.opener = null;
+    } catch {
+      // Ignore browser restrictions on opener assignment.
+    }
+
+    popup.location.href = deepLink;
+    return true;
+  } catch (error) {
+    log.warn("Failed to open Telegram deep link popup", { error });
+    return false;
+  }
+}
+
 interface TelegramNotificationStatus {
   enabled: boolean;
   linked: boolean;
   loading: boolean;
   linking: boolean;
+  blockedDeepLink: string | null;
+  dismissBlockedDeepLink: () => void;
   enable: () => Promise<void>;
   disable: () => Promise<void>;
   refetch: () => Promise<void>;
@@ -22,6 +43,7 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
   const [linked, setLinked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [linking, setLinking] = useState(false);
+  const [blockedDeepLink, setBlockedDeepLink] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Clean up polling on unmount
@@ -70,6 +92,7 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
             setEnabled(true);
             setLinked(true);
             setLinking(false);
+            setBlockedDeepLink(null);
             if (pollRef.current) clearInterval(pollRef.current);
             pollRef.current = null;
             toast.success("Telegram notifications enabled!");
@@ -90,6 +113,7 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
 
   const enable = useCallback(async () => {
     setLinking(true);
+    setBlockedDeepLink(null);
     try {
       const res = await fetch("/api/user/telegram/activate", {
         method: "POST",
@@ -102,7 +126,13 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
 
       const { deepLink } = await res.json();
       if (deepLink) {
-        window.open(deepLink, "_blank");
+        const popupOpened = openTelegramDeepLinkInPopup(deepLink);
+        if (!popupOpened) {
+          setBlockedDeepLink(deepLink);
+          toast(
+            "Telegram didn't open automatically. Use the manual link to continue.",
+          );
+        }
         // Poll for activation status until user completes the flow in Telegram
         startPolling();
       }
@@ -130,6 +160,7 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
 
       setEnabled(false);
       setLinked(false);
+      setBlockedDeepLink(null);
       toast.success("Telegram notifications disabled");
     } catch (error) {
       log.error("Error disabling Telegram notifications", { error });
@@ -146,6 +177,8 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
     linked,
     loading,
     linking,
+    blockedDeepLink,
+    dismissBlockedDeepLink: () => setBlockedDeepLink(null),
     enable,
     disable,
     refetch: fetchStatus,
