@@ -2,12 +2,13 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useTelegramNotifications } from "@/hooks/useTelegramNotifications";
 
 // Mock toast
-jest.mock("react-hot-toast", () => ({
-  toast: {
+jest.mock("react-hot-toast", () => {
+  const toast = Object.assign(jest.fn(), {
     success: jest.fn(),
     error: jest.fn(),
-  },
-}));
+  });
+  return { toast };
+});
 
 jest.mock("@/lib/utils/logger", () => ({
   getLogger: () => ({
@@ -20,7 +21,14 @@ jest.mock("@/lib/utils/logger", () => ({
 
 let fetchSpy: jest.SpyInstance;
 
+const createPopupMock = () =>
+  ({
+    opener: null,
+    location: { href: "" },
+  }) as unknown as Window;
+
 beforeEach(() => {
+  jest.clearAllMocks();
   jest.restoreAllMocks();
   fetchSpy = jest.spyOn(global, "fetch");
 });
@@ -106,7 +114,9 @@ describe("enable() action", () => {
     } as Response);
 
     // Mock window.open
-    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+    const openSpy = jest
+      .spyOn(window, "open")
+      .mockImplementation(() => createPopupMock());
 
     const { result } = renderHook(() => useTelegramNotifications());
 
@@ -124,10 +134,36 @@ describe("enable() action", () => {
     openSpy.mockRestore();
   });
 
-  it("opens returned deepLink in new tab", async () => {
+  it("opens blank popup and navigates to deepLink when popup is allowed", async () => {
     fetchSpy.mockResolvedValueOnce({
       ok: true,
       json: async () => ({ deepLink: "https://t.me/Bot?start=abc123" }),
+    } as Response);
+
+    const openSpy = jest
+      .spyOn(window, "open")
+      .mockImplementation(() => createPopupMock());
+
+    const { result } = renderHook(() => useTelegramNotifications());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.enable();
+    });
+
+    expect(openSpy).toHaveBeenCalledWith("", "_blank");
+    expect(result.current.blockedDeepLink).toBeNull();
+
+    openSpy.mockRestore();
+  });
+
+  it("stores deepLink for manual fallback when popup is blocked", async () => {
+    const { toast } = require("react-hot-toast");
+
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ deepLink: "https://t.me/Bot?start=popupblocked" }),
     } as Response);
 
     const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
@@ -140,9 +176,12 @@ describe("enable() action", () => {
       await result.current.enable();
     });
 
-    expect(openSpy).toHaveBeenCalledWith(
-      "https://t.me/Bot?start=abc123",
-      "_blank",
+    expect(openSpy).toHaveBeenCalledWith("", "_blank");
+    expect(result.current.blockedDeepLink).toBe(
+      "https://t.me/Bot?start=popupblocked",
+    );
+    expect(toast).toHaveBeenCalledWith(
+      "Telegram didn't open automatically. Use the manual link to continue.",
     );
 
     openSpy.mockRestore();
@@ -165,6 +204,35 @@ describe("enable() action", () => {
     });
 
     expect(openSpy).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
+  });
+
+  it("clears blockedDeepLink when dismissBlockedDeepLink is called", async () => {
+    fetchSpy.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ deepLink: "https://t.me/Bot?start=dismiss" }),
+    } as Response);
+
+    const openSpy = jest.spyOn(window, "open").mockImplementation(() => null);
+
+    const { result } = renderHook(() => useTelegramNotifications());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    await act(async () => {
+      await result.current.enable();
+    });
+
+    expect(result.current.blockedDeepLink).toBe(
+      "https://t.me/Bot?start=dismiss",
+    );
+
+    act(() => {
+      result.current.dismissBlockedDeepLink();
+    });
+
+    expect(result.current.blockedDeepLink).toBeNull();
 
     openSpy.mockRestore();
   });

@@ -55,7 +55,7 @@ interface TaskItemProps {
 
 const getTaskIcon = (taskType: string): React.ReactNode => {
   const className = "w-8 h-8 text-gray-500";
-  const iconProps = { className: "w-6 h-6" }; // For icons within the status circle
+  const iconProps = { className: "w-6 h-6" };
 
   let specificIcon: React.ReactNode;
 
