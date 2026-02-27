@@ -46,13 +46,22 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
   const [linking, setLinking] = useState(false);
   const [blockedDeepLink, setBlockedDeepLink] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRequestInFlightRef = useRef(false);
+
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    pollRequestInFlightRef.current = false;
+  }, []);
 
   // Clean up polling on unmount
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      stopPolling();
     };
-  }, []);
+  }, [stopPolling]);
 
   const fetchStatus = useCallback(async () => {
     try {
@@ -80,11 +89,14 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
 
   const startPolling = useCallback(() => {
     // Stop any existing poll
-    if (pollRef.current) clearInterval(pollRef.current);
+    stopPolling();
 
     let attempts = 0;
     pollRef.current = setInterval(async () => {
+      if (pollRequestInFlightRef.current) return;
+
       attempts++;
+      pollRequestInFlightRef.current = true;
       try {
         const res = await fetch("/api/user/telegram/activate");
         if (res.ok) {
@@ -94,23 +106,23 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
             setLinked(true);
             setLinking(false);
             setBlockedDeepLink(null);
-            if (pollRef.current) clearInterval(pollRef.current);
-            pollRef.current = null;
+            stopPolling();
             toast.success("Telegram notifications enabled!");
             return;
           }
         }
       } catch {
         // Ignore fetch errors during polling
+      } finally {
+        pollRequestInFlightRef.current = false;
       }
 
       if (attempts >= POLL_MAX_ATTEMPTS) {
-        if (pollRef.current) clearInterval(pollRef.current);
-        pollRef.current = null;
+        stopPolling();
         setLinking(false);
       }
     }, POLL_INTERVAL_MS);
-  }, []);
+  }, [stopPolling]);
 
   const dismissBlockedDeepLink = useCallback(() => {
     setBlockedDeepLink(null);
@@ -168,6 +180,8 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
   }, [startPolling]);
 
   const disable = useCallback(async () => {
+    stopPolling();
+    setLinking(false);
     try {
       const res = await fetch("/api/user/telegram/activate", {
         method: "DELETE",
@@ -190,7 +204,7 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
           : "Failed to disable Telegram notifications",
       );
     }
-  }, []);
+  }, [stopPolling]);
 
   return {
     enabled,
