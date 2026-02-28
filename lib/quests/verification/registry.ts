@@ -9,6 +9,7 @@ import type { TaskType } from "@/lib/supabase/types";
 import type { VerificationStrategy } from "./types";
 import { VendorVerificationStrategy } from "./vendor-verification";
 import { DeployLockVerificationStrategy } from "./deploy-lock-verification";
+import { AIVerificationStrategy } from "./ai-vision-verification";
 import { createViemPublicClient } from "@/lib/blockchain/providers/privy-viem";
 
 // Create a shared public client instance
@@ -17,14 +18,16 @@ const publicClient = createViemPublicClient();
 // Singleton strategy instances
 const vendorStrategy = new VendorVerificationStrategy(publicClient);
 const deployLockStrategy = new DeployLockVerificationStrategy();
+const aiStrategy = new AIVerificationStrategy();
 
 // Map of task types to their verification strategies
 const strategies: Partial<Record<TaskType, VerificationStrategy>> = {
-    vendor_buy: vendorStrategy,
-    vendor_sell: vendorStrategy,
-    vendor_light_up: vendorStrategy,
-    vendor_level_up: vendorStrategy,
-    deploy_lock: deployLockStrategy,
+  vendor_buy: vendorStrategy,
+  vendor_sell: vendorStrategy,
+  vendor_light_up: vendorStrategy,
+  vendor_level_up: vendorStrategy,
+  deploy_lock: deployLockStrategy,
+  submit_proof: aiStrategy,
 };
 
 /**
@@ -33,7 +36,7 @@ const strategies: Partial<Record<TaskType, VerificationStrategy>> = {
  * @returns The verification strategy, or undefined if none exists
  */
 export function getVerificationStrategy(
-    type: TaskType
+  type: TaskType,
 ): VerificationStrategy | undefined {
-    return strategies[type];
+  return strategies[type];
 }

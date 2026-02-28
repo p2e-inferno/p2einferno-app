@@ -814,57 +814,142 @@ export default function QuestDetailsPage() {
             {quest.quest_tasks && quest.quest_tasks.length > 0 ? (
               [...quest.quest_tasks]
                 .sort((a, b) => a.order_index - b.order_index)
-                .map((task, index) => (
-                  <div
-                    key={task.id}
-                    className="bg-gray-900/50 border border-gray-800 rounded-lg p-6"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-2xl">
-                            {getTaskIcon(task.task_type)}
-                          </span>
-                          <h3 className="text-lg font-semibold text-white">
-                            {index + 1}. {task.title}
-                          </h3>
-                          {task.requires_admin_review && (
-                            <Badge className="bg-orange-600">
-                              Requires Review
-                            </Badge>
-                          )}
-                        </div>
-                        <RichText
-                          content={task.description}
-                          className="text-gray-400 mb-4"
-                        />
+                .map((task, index) =>
+                  (() => {
+                    const taskConfig =
+                      task.task_config &&
+                      typeof task.task_config === "object" &&
+                      !Array.isArray(task.task_config)
+                        ? (task.task_config as Record<string, unknown>)
+                        : null;
+                    const aiPrompt =
+                      taskConfig &&
+                      typeof taskConfig.ai_verification_prompt === "string"
+                        ? taskConfig.ai_verification_prompt.trim()
+                        : "";
+                    const aiModel =
+                      taskConfig && typeof taskConfig.ai_model === "string"
+                        ? taskConfig.ai_model.trim()
+                        : "";
+                    const aiThreshold = (() => {
+                      const raw =
+                        taskConfig &&
+                        (taskConfig as any).ai_confidence_threshold;
+                      const parsed =
+                        typeof raw === "number"
+                          ? raw
+                          : typeof raw === "string"
+                            ? Number(raw)
+                            : NaN;
+                      return Number.isFinite(parsed) ? parsed : 0.7;
+                    })();
+                    const aiPromptRequired = Boolean(
+                      taskConfig && (taskConfig as any).ai_prompt_required,
+                    );
 
-                        <div className="flex items-center gap-6 text-sm">
-                          <div className="flex items-center text-yellow-400">
-                            <Coins className="w-4 h-4 mr-1" />
-                            <span className="font-semibold">
-                              {task.reward_amount} DG
-                            </span>
-                          </div>
-                          <div className="text-gray-400">
-                            Type:{" "}
-                            <span className="text-gray-300">
-                              {task.task_type}
-                            </span>
-                          </div>
-                          {task.input_required && (
-                            <div className="text-gray-400">
-                              Input:{" "}
-                              <span className="text-gray-300">
-                                {task.input_label || "Required"}
+                    return (
+                      <div
+                        key={task.id}
+                        className="bg-gray-900/50 border border-gray-800 rounded-lg p-6"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <span className="text-2xl">
+                                {getTaskIcon(task.task_type)}
                               </span>
+                              <h3 className="text-lg font-semibold text-white">
+                                {index + 1}. {task.title}
+                              </h3>
+                              {task.requires_admin_review && (
+                                <Badge className="bg-orange-600">
+                                  Requires Review
+                                </Badge>
+                              )}
                             </div>
-                          )}
+                            <RichText
+                              content={task.description}
+                              className="text-gray-400 mb-4"
+                            />
+
+                            <div className="flex items-center gap-6 text-sm">
+                              <div className="flex items-center text-yellow-400">
+                                <Coins className="w-4 h-4 mr-1" />
+                                <span className="font-semibold">
+                                  {task.reward_amount} DG
+                                </span>
+                              </div>
+                              <div className="text-gray-400">
+                                Type:{" "}
+                                <span className="text-gray-300">
+                                  {task.task_type}
+                                </span>
+                              </div>
+                              {task.input_required && (
+                                <div className="text-gray-400">
+                                  Input:{" "}
+                                  <span className="text-gray-300">
+                                    {task.input_label || "Required"}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {task.task_type === "submit_proof" && (
+                              <div className="mt-4 pt-4 border-t border-gray-800">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge
+                                    className={
+                                      aiPrompt ? "bg-purple-600" : "bg-gray-700"
+                                    }
+                                  >
+                                    AI{" "}
+                                    {aiPrompt ? "Configured" : "Not Configured"}
+                                  </Badge>
+                                  <span className="text-gray-400 text-sm">
+                                    AI Verification Prompt
+                                  </span>
+                                </div>
+                                {aiPrompt ? (
+                                  <pre className="text-sm text-gray-300 whitespace-pre-wrap bg-gray-950/40 border border-gray-800 rounded-md p-3">
+                                    {aiPrompt}
+                                  </pre>
+                                ) : (
+                                  <p className="text-sm text-gray-500">
+                                    No <code>ai_verification_prompt</code> set
+                                    in <code>task_config</code>. This task will
+                                    always go to admin review.
+                                  </p>
+                                )}
+
+                                <div className="mt-3 flex flex-col gap-1 text-sm text-gray-400">
+                                  <div>
+                                    Model:{" "}
+                                    <span className="text-gray-300">
+                                      {aiModel || "google/gemini-2.0-flash-001"}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    Auto-approve threshold:{" "}
+                                    <span className="text-gray-300">
+                                      {aiThreshold}
+                                    </span>
+                                  </div>
+                                  <div>
+                                    Require AI prompt:{" "}
+                                    <span className="text-gray-300">
+                                      {aiPromptRequired ? "Yes" : "No"}
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
-                ))
+                    );
+                  })(),
+                )
             ) : (
               <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-8 text-center">
                 <p className="text-gray-400">No tasks found for this quest</p>

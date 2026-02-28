@@ -304,7 +304,28 @@ const QuestDetailsPage = () => {
       }
 
       if (result.success) {
-        toast.success(result.message || "Task completed! 🔥");
+        const status = result.submissionStatus;
+        const handleSubmissionToast = () => {
+          const message =
+            typeof result.message === "string" && result.message.trim()
+              ? result.message
+              : undefined;
+
+          if (status === "retry") {
+            toast.error(result.feedback || message || "Please retry");
+            return;
+          }
+
+          const successMessageByStatus: Record<string, string> = {
+            completed: "Task completed!",
+            pending: "Task submitted for review",
+          };
+          toast.success(
+            message || successMessageByStatus[status] || "Task submitted",
+          );
+        };
+
+        handleSubmissionToast();
         await loadQuestDetails();
       } else {
         toast.error(result.error || "Failed to perform task action");
