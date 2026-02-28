@@ -47,8 +47,10 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
   const [blockedDeepLink, setBlockedDeepLink] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const pollRequestInFlightRef = useRef(false);
+  const pollGenerationRef = useRef(0);
 
   const stopPolling = useCallback(() => {
+    pollGenerationRef.current += 1;
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
@@ -91,6 +93,7 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
     // Stop any existing poll
     stopPolling();
 
+    const currentGeneration = pollGenerationRef.current;
     let attempts = 0;
     pollRef.current = setInterval(async () => {
       if (pollRequestInFlightRef.current) return;
@@ -101,6 +104,9 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
         const res = await fetch("/api/user/telegram/activate");
         if (res.ok) {
           const data = await res.json();
+          if (currentGeneration !== pollGenerationRef.current) {
+            return;
+          }
           if (data.enabled) {
             setEnabled(true);
             setLinked(true);
