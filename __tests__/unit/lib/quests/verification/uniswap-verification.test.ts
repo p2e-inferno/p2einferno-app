@@ -21,6 +21,30 @@ const { UNISWAP_ADDRESSES, UNISWAP_CHAIN } = jest.requireActual(
 const userAddress = "0x000000000000000000000000000000000000bEEF";
 const otherAddress = "0x000000000000000000000000000000000000c0de";
 
+function sortAddress(a: `0x${string}`, b: `0x${string}`): [`0x${string}`, `0x${string}`] {
+  return a.toLowerCase() < b.toLowerCase() ? [a, b] : [b, a];
+}
+
+function makeSwapArgs(params: {
+  tokenA: `0x${string}`;
+  tokenB: `0x${string}`;
+  tokenIn: `0x${string}`;
+  amountIn: bigint;
+  amountOut: bigint;
+}) {
+  const [token0, token1] = sortAddress(params.tokenA, params.tokenB);
+  const tokenInLower = params.tokenIn.toLowerCase();
+
+  // Uniswap V3 Swap: positive = pool received token (token flowed into pool),
+  // negative = pool sent token (token flowed out of pool).
+  const amount0 =
+    token0.toLowerCase() === tokenInLower ? params.amountIn : -params.amountOut;
+  const amount1 =
+    token1.toLowerCase() === tokenInLower ? params.amountIn : -params.amountOut;
+
+  return { amount0, amount1 };
+}
+
 function makeSwapLog(
   poolAddress: string,
   _amount0: bigint,
@@ -428,6 +452,236 @@ describe("UniswapVerificationStrategy", () => {
 
       expect(result.success).toBe(false);
       expect(result.code).toBe("MISSING_REQUIRED_POOL_SWAPS");
+    });
+
+    it("should succeed for valid UP_USDC A_TO_B route (UP->WETH then WETH->USDC)", async () => {
+      const { UniswapVerificationStrategy, decodeEventLog } = loadStrategy();
+
+      const ethUpArgs = makeSwapArgs({
+        tokenA: UNISWAP_ADDRESSES.weth,
+        tokenB: UNISWAP_ADDRESSES.up,
+        tokenIn: UNISWAP_ADDRESSES.up,
+        amountIn: 2000n,
+        amountOut: 1000n,
+      });
+      const ethUsdcArgs = makeSwapArgs({
+        tokenA: UNISWAP_ADDRESSES.weth,
+        tokenB: UNISWAP_ADDRESSES.usdc,
+        tokenIn: UNISWAP_ADDRESSES.weth,
+        amountIn: 1000n,
+        amountOut: 900n,
+      });
+
+      decodeEventLog
+        .mockImplementationOnce(() => ({
+          eventName: "Swap",
+          args: {
+            sender: userAddress,
+            recipient: userAddress,
+            ...ethUpArgs,
+            sqrtPriceX96: 0n,
+            liquidity: 0n,
+            tick: 0,
+          },
+        }))
+        .mockImplementationOnce(() => ({
+          eventName: "Swap",
+          args: {
+            sender: userAddress,
+            recipient: userAddress,
+            ...ethUsdcArgs,
+            sqrtPriceX96: 0n,
+            liquidity: 0n,
+            tick: 0,
+          },
+        }));
+
+      const ethUpLog = makeSwapLog(UNISWAP_ADDRESSES.pools.ETH_UP, 0n, 0n);
+      const ethUsdcLog = makeSwapLog(UNISWAP_ADDRESSES.pools.ETH_USDC, 0n, 0n);
+
+      const client = createMockClient({
+        receipt: {
+          status: "success",
+          from: userAddress,
+          to: UNISWAP_ADDRESSES.universalRouter,
+          blockNumber: 100n,
+          logs: [ethUpLog, ethUsdcLog],
+        },
+      });
+
+      const strategy = new UniswapVerificationStrategy(client);
+
+      const result = await strategy.verify(
+        "uniswap_swap",
+        { transactionHash: "0x1234" },
+        "user1",
+        userAddress,
+        {
+          taskConfig: {
+            pair: "UP_USDC",
+            direction: "A_TO_B",
+            required_amount_in: "1000",
+          },
+        },
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.metadata?.pair).toBe("UP_USDC");
+      expect(result.metadata?.direction).toBe("A_TO_B");
+    });
+
+    it("should succeed for valid UP_USDC B_TO_A route (USDC->WETH then WETH->UP)", async () => {
+      const { UniswapVerificationStrategy, decodeEventLog } = loadStrategy();
+
+      const ethUsdcArgs = makeSwapArgs({
+        tokenA: UNISWAP_ADDRESSES.weth,
+        tokenB: UNISWAP_ADDRESSES.usdc,
+        tokenIn: UNISWAP_ADDRESSES.usdc,
+        amountIn: 5000000n,
+        amountOut: 1000n,
+      });
+      const ethUpArgs = makeSwapArgs({
+        tokenA: UNISWAP_ADDRESSES.weth,
+        tokenB: UNISWAP_ADDRESSES.up,
+        tokenIn: UNISWAP_ADDRESSES.weth,
+        amountIn: 1000n,
+        amountOut: 900n,
+      });
+
+      // Note: decode order is ETH_UP pool logs first, then ETH_USDC pool logs.
+      decodeEventLog
+        .mockImplementationOnce(() => ({
+          eventName: "Swap",
+          args: {
+            sender: userAddress,
+            recipient: userAddress,
+            ...ethUpArgs,
+            sqrtPriceX96: 0n,
+            liquidity: 0n,
+            tick: 0,
+          },
+        }))
+        .mockImplementationOnce(() => ({
+          eventName: "Swap",
+          args: {
+            sender: userAddress,
+            recipient: userAddress,
+            ...ethUsdcArgs,
+            sqrtPriceX96: 0n,
+            liquidity: 0n,
+            tick: 0,
+          },
+        }));
+
+      const ethUpLog = makeSwapLog(UNISWAP_ADDRESSES.pools.ETH_UP, 0n, 0n);
+      const ethUsdcLog = makeSwapLog(UNISWAP_ADDRESSES.pools.ETH_USDC, 0n, 0n);
+
+      const client = createMockClient({
+        receipt: {
+          status: "success",
+          from: userAddress,
+          to: UNISWAP_ADDRESSES.universalRouter,
+          blockNumber: 100n,
+          logs: [ethUpLog, ethUsdcLog],
+        },
+      });
+
+      const strategy = new UniswapVerificationStrategy(client);
+
+      const result = await strategy.verify(
+        "uniswap_swap",
+        { transactionHash: "0x1234" },
+        "user1",
+        userAddress,
+        {
+          taskConfig: {
+            pair: "UP_USDC",
+            direction: "B_TO_A",
+            required_amount_in: "5000000",
+          },
+        },
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.metadata?.pair).toBe("UP_USDC");
+      expect(result.metadata?.direction).toBe("B_TO_A");
+    });
+
+    it("should return ROUTE_MISMATCH when required pools swap unrelated directions (bypass regression)", async () => {
+      const { UniswapVerificationStrategy, decodeEventLog } = loadStrategy();
+
+      // ETH_UP: UP -> WETH (correct for A_TO_B)
+      const ethUpArgs = makeSwapArgs({
+        tokenA: UNISWAP_ADDRESSES.weth,
+        tokenB: UNISWAP_ADDRESSES.up,
+        tokenIn: UNISWAP_ADDRESSES.up,
+        amountIn: 2000n,
+        amountOut: 1000n,
+      });
+      // ETH_USDC: USDC -> WETH (wrong for A_TO_B; should be WETH -> USDC)
+      const ethUsdcWrongArgs = makeSwapArgs({
+        tokenA: UNISWAP_ADDRESSES.weth,
+        tokenB: UNISWAP_ADDRESSES.usdc,
+        tokenIn: UNISWAP_ADDRESSES.usdc,
+        amountIn: 5000000n,
+        amountOut: 1000n,
+      });
+
+      decodeEventLog
+        .mockImplementationOnce(() => ({
+          eventName: "Swap",
+          args: {
+            sender: userAddress,
+            recipient: userAddress,
+            ...ethUpArgs,
+            sqrtPriceX96: 0n,
+            liquidity: 0n,
+            tick: 0,
+          },
+        }))
+        .mockImplementationOnce(() => ({
+          eventName: "Swap",
+          args: {
+            sender: userAddress,
+            recipient: userAddress,
+            ...ethUsdcWrongArgs,
+            sqrtPriceX96: 0n,
+            liquidity: 0n,
+            tick: 0,
+          },
+        }));
+
+      const ethUpLog = makeSwapLog(UNISWAP_ADDRESSES.pools.ETH_UP, 0n, 0n);
+      const ethUsdcLog = makeSwapLog(UNISWAP_ADDRESSES.pools.ETH_USDC, 0n, 0n);
+
+      const client = createMockClient({
+        receipt: {
+          status: "success",
+          from: userAddress,
+          to: UNISWAP_ADDRESSES.universalRouter,
+          blockNumber: 100n,
+          logs: [ethUpLog, ethUsdcLog],
+        },
+      });
+
+      const strategy = new UniswapVerificationStrategy(client);
+
+      const result = await strategy.verify(
+        "uniswap_swap",
+        { transactionHash: "0x1234" },
+        "user1",
+        userAddress,
+        {
+          taskConfig: {
+            pair: "UP_USDC",
+            direction: "A_TO_B",
+            required_amount_in: "1000",
+          },
+        },
+      );
+
+      expect(result.success).toBe(false);
+      expect(result.code).toBe("ROUTE_MISMATCH");
     });
   });
 

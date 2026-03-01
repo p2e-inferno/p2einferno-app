@@ -77,6 +77,25 @@ function getAmountInForToken(
   return 0n;
 }
 
+/**
+ * Get the output amount for a specific token from a Swap event.
+ * Negative amount = pool sent that token (i.e. it was the output token).
+ */
+function getAmountOutForToken(
+  swap: SwapLogDecoded,
+  tokenOut: `0x${string}`,
+  tokenA: `0x${string}`,
+  tokenB: `0x${string}`,
+): bigint {
+  const [token0, token1] = sortAddress(tokenA, tokenB);
+  const token0Out = swap.amount0 < 0n ? -swap.amount0 : 0n;
+  const token1Out = swap.amount1 < 0n ? -swap.amount1 : 0n;
+
+  if (tokenOut.toLowerCase() === token0.toLowerCase()) return token0Out;
+  if (tokenOut.toLowerCase() === token1.toLowerCase()) return token1Out;
+  return 0n;
+}
+
 /** Resolve input token address for a pair + direction */
 function getInputToken(
   pair: SwapPair,
@@ -194,37 +213,85 @@ function extractUpUsdcMultiHopInputAmount(params: {
   const ethUpSwap = decodedEthUp[0]!;
   const ethUsdcSwap = decodedEthUsdc[0]!;
 
-  const tokenIn =
-    params.direction === "A_TO_B"
-      ? UNISWAP_ADDRESSES.up
-      : UNISWAP_ADDRESSES.usdc;
+  // Enforce route continuity:
+  // A_TO_B: UP -> WETH (ETH_UP pool), then WETH -> USDC (ETH_USDC pool)
+  // B_TO_A: USDC -> WETH (ETH_USDC pool), then WETH -> UP (ETH_UP pool)
+  if (params.direction === "A_TO_B") {
+    const upIn = getAmountInForToken(
+      ethUpSwap,
+      UNISWAP_ADDRESSES.up,
+      UNISWAP_ADDRESSES.weth,
+      UNISWAP_ADDRESSES.up,
+    );
+    const wethOutFromEthUp = getAmountOutForToken(
+      ethUpSwap,
+      UNISWAP_ADDRESSES.weth,
+      UNISWAP_ADDRESSES.weth,
+      UNISWAP_ADDRESSES.up,
+    );
 
-  // For UP->USDC, input amount is UP-in on the ETH_UP pool.
-  // For USDC->UP, input amount is USDC-in on the ETH_USDC pool.
-  const inputAmount =
-    params.direction === "A_TO_B"
-      ? getAmountInForToken(
-          ethUpSwap,
-          tokenIn,
-          UNISWAP_ADDRESSES.weth,
-          UNISWAP_ADDRESSES.up,
-        )
-      : getAmountInForToken(
-          ethUsdcSwap,
-          tokenIn,
-          UNISWAP_ADDRESSES.weth,
-          UNISWAP_ADDRESSES.usdc,
-        );
+    const wethInToEthUsdc = getAmountInForToken(
+      ethUsdcSwap,
+      UNISWAP_ADDRESSES.weth,
+      UNISWAP_ADDRESSES.weth,
+      UNISWAP_ADDRESSES.usdc,
+    );
+    const usdcOut = getAmountOutForToken(
+      ethUsdcSwap,
+      UNISWAP_ADDRESSES.usdc,
+      UNISWAP_ADDRESSES.weth,
+      UNISWAP_ADDRESSES.usdc,
+    );
 
-  if (inputAmount <= 0n) {
+    if (upIn <= 0n || wethOutFromEthUp <= 0n || wethInToEthUsdc <= 0n || usdcOut <= 0n) {
+      return {
+        ok: false,
+        code: "ROUTE_MISMATCH",
+        error:
+          "Expected UP->WETH swap in ETH_UP pool and WETH->USDC swap in ETH_USDC pool for UP_USDC A_TO_B",
+      };
+    }
+
+    return { ok: true, inputAmount: upIn };
+  }
+
+  // B_TO_A
+  const usdcIn = getAmountInForToken(
+    ethUsdcSwap,
+    UNISWAP_ADDRESSES.usdc,
+    UNISWAP_ADDRESSES.weth,
+    UNISWAP_ADDRESSES.usdc,
+  );
+  const wethOutFromEthUsdc = getAmountOutForToken(
+    ethUsdcSwap,
+    UNISWAP_ADDRESSES.weth,
+    UNISWAP_ADDRESSES.weth,
+    UNISWAP_ADDRESSES.usdc,
+  );
+
+  const wethInToEthUp = getAmountInForToken(
+    ethUpSwap,
+    UNISWAP_ADDRESSES.weth,
+    UNISWAP_ADDRESSES.weth,
+    UNISWAP_ADDRESSES.up,
+  );
+  const upOut = getAmountOutForToken(
+    ethUpSwap,
+    UNISWAP_ADDRESSES.up,
+    UNISWAP_ADDRESSES.weth,
+    UNISWAP_ADDRESSES.up,
+  );
+
+  if (usdcIn <= 0n || wethOutFromEthUsdc <= 0n || wethInToEthUp <= 0n || upOut <= 0n) {
     return {
       ok: false,
-      code: "INPUT_AMOUNT_NOT_FOUND",
-      error: `Could not derive a positive input amount for token ${tokenIn} from required pool Swap logs.`,
+      code: "ROUTE_MISMATCH",
+      error:
+        "Expected USDC->WETH swap in ETH_USDC pool and WETH->UP swap in ETH_UP pool for UP_USDC B_TO_A",
     };
   }
 
-  return { ok: true, inputAmount: abs(inputAmount) };
+  return { ok: true, inputAmount: usdcIn };
 }
 
 const ALLOWED_PAIRS: readonly SwapPair[] = ["ETH_UP", "ETH_USDC", "UP_USDC"];
