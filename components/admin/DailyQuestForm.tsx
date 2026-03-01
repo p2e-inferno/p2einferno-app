@@ -217,6 +217,10 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       return "Completion bonus reward amount must be an integer >= 0";
     }
 
+    if (lockAddress.trim() && !isAddress(lockAddress.trim())) {
+      return "Invalid lock address";
+    }
+
     if (eligRequiredLock.trim() && !isAddress(eligRequiredLock.trim())) {
       return "Invalid required lock address";
     }
@@ -228,7 +232,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       if (!isAddress(erc20Token.trim())) {
         return "Invalid ERC20 token address";
       }
-      if (!/^[0-9]+(\\.[0-9]+)?$/.test(erc20MinBalance.trim())) {
+      if (!/^[0-9]+(\.[0-9]+)?$/.test(erc20MinBalance.trim())) {
         return "ERC20 minimum balance must be a human decimal string";
       }
       if (!(Number(erc20MinBalance.trim()) > 0)) {
@@ -356,6 +360,12 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       return;
     }
 
+    const trimmedLockAddress = lockAddress.trim();
+    if (trimmedLockAddress && !isAddress(trimmedLockAddress)) {
+      toast.error("Invalid lock address");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const eligibility_config: any = {};
@@ -381,7 +391,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         image_url: imageUrl,
         is_active: isActive,
         completion_bonus_reward_amount: completionBonus,
-        lock_address: lockAddress.trim() || null,
+        lock_address: trimmedLockAddress || null,
         lock_manager_granted: lockManagerGranted,
         grant_failure_reason: lockManagerGranted
           ? null

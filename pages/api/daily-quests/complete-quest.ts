@@ -10,6 +10,7 @@ import { createWalletClientUnified } from "@/lib/blockchain/config/clients/walle
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { grantKeyToUser } from "@/lib/services/user-key-service";
 import { extractTokenTransfers } from "@/lib/blockchain/shared/transaction-utils";
+import { randomUUID } from "crypto";
 
 const log = getLogger("api:daily-quests:complete-quest");
 
@@ -283,8 +284,93 @@ export default async function handler(
       });
     }
 
+    // Claim-gate before the on-chain write so concurrent requests cannot double-grant.
+    // Uses key_claim_tx_hash as a "pending:<uuid>" marker while reward_claimed=false.
+    const claimToken = `pending:${randomUUID()}`;
+    const nowIso = new Date().toISOString();
+    const { data: claimGate, error: claimGateErr } = await supabase
+      .from("user_daily_quest_progress")
+      .update({
+        key_claim_tx_hash: claimToken,
+        updated_at: nowIso,
+      })
+      .eq("id", progress.id)
+      .eq("user_id", userId)
+      .eq("daily_quest_run_id", dailyQuestRunId)
+      .eq("reward_claimed", false)
+      .is("key_claim_tx_hash", null)
+      .select("id")
+      .maybeSingle();
+
+    if (claimGateErr) {
+      log.error("Failed to gate daily quest key claim", {
+        dailyQuestRunId,
+        userId,
+        claimGateErr,
+      });
+      return res.status(503).json({
+        error: "CLAIM_GATE_FAILED",
+        message: "Daily quest completion was not finalized. Please retry.",
+      });
+    }
+
+    if (!claimGate) {
+      const { data: latest, error: latestErr } = await supabase
+        .from("user_daily_quest_progress")
+        .select("reward_claimed,key_claim_tx_hash,key_claim_token_id")
+        .eq("id", progress.id)
+        .eq("user_id", userId)
+        .eq("daily_quest_run_id", dailyQuestRunId)
+        .maybeSingle();
+
+      if (latestErr) {
+        log.error("Failed to re-read progress after losing claim gate", {
+          dailyQuestRunId,
+          userId,
+          latestErr,
+        });
+        return res.status(503).json({
+          error: "CLAIM_GATE_LOST",
+          message: "Daily quest completion is being finalized. Please retry.",
+        });
+      }
+
+      if (latest?.reward_claimed) {
+        return res.status(200).json({
+          success: true,
+          message: "Daily quest completion already claimed",
+          transactionHash: latest.key_claim_tx_hash ?? null,
+          keyTokenId: latest.key_claim_token_id
+            ? String(latest.key_claim_token_id)
+            : null,
+          completionBonusRewardAmount:
+            Number(template.completion_bonus_reward_amount || 0) || 0,
+          completionBonusAwarded: Boolean(progress.completion_bonus_claimed),
+          attestationRequired: false,
+        });
+      }
+
+      return res.status(409).json({
+        error: "CLAIM_IN_PROGRESS",
+        message:
+          "Daily quest completion is already being finalized. Please retry.",
+      });
+    }
+
     const walletClient = createWalletClientUnified();
     if (!walletClient) {
+      await supabase
+        .from("user_daily_quest_progress")
+        .update({
+          key_claim_tx_hash: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", progress.id)
+        .eq("user_id", userId)
+        .eq("daily_quest_run_id", dailyQuestRunId)
+        .eq("reward_claimed", false)
+        .eq("key_claim_tx_hash", claimToken);
+
       return res.status(500).json({
         error: "Server wallet not configured for key granting",
       });
@@ -298,6 +384,18 @@ export default async function handler(
     );
 
     if (!grantResult.success) {
+      await supabase
+        .from("user_daily_quest_progress")
+        .update({
+          key_claim_tx_hash: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", progress.id)
+        .eq("user_id", userId)
+        .eq("daily_quest_run_id", dailyQuestRunId)
+        .eq("reward_claimed", false)
+        .eq("key_claim_tx_hash", claimToken);
+
       log.error("Daily quest key grant failed", {
         dailyQuestRunId,
         userId,
@@ -353,7 +451,8 @@ export default async function handler(
       .eq("id", progress.id)
       .eq("user_id", userId)
       .eq("daily_quest_run_id", dailyQuestRunId)
-      .eq("reward_claimed", false);
+      .eq("reward_claimed", false)
+      .eq("key_claim_tx_hash", claimToken);
 
     if (updateError) {
       log.error("Failed to update daily quest progress after key grant", {
@@ -492,6 +591,16 @@ export default async function handler(
       completionBonusRewardAmount: bonusAmount,
       completionBonusAwarded,
       attestationRequired: false,
+      ...(updateError
+        ? {
+            dbWarning: {
+              message:
+                "Key grant succeeded but progress persistence failed; please refresh and contact support if this repeats.",
+              code: updateError.code ?? null,
+              details: updateError.message,
+            },
+          }
+        : {}),
     });
   } catch (error) {
     log.error("Error in daily quest complete-quest API:", error);

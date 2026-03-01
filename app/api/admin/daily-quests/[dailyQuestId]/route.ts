@@ -85,7 +85,7 @@ async function validateEligibilityConfig(
     if (!isAddress(token)) {
       return { ok: false as const, error: "Invalid ERC20 token address" };
     }
-    if (!/^[0-9]+(\\.[0-9]+)?$/.test(minBalance)) {
+    if (!/^[0-9]+(\.[0-9]+)?$/.test(minBalance)) {
       return {
         ok: false as const,
         error: "ERC20 minimum balance must be a human decimal string",
@@ -156,8 +156,12 @@ export async function GET(
       { success: true, data: { ...tmpl, daily_quest_tasks: tasks || [] } },
       { status: 200 },
     );
-  } catch (error: any) {
-    log.error("daily quests admin GET by id error", { error, dailyQuestId });
+  } catch (error: unknown) {
+    const errorInfo =
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { message: String(error) };
+    log.error("daily quests admin GET by id error", { ...errorInfo, dailyQuestId });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -180,6 +184,7 @@ export async function PUT(
     const tasks = Array.isArray(payload.daily_quest_tasks)
       ? payload.daily_quest_tasks
       : [];
+    const lockAddress = (payload.lock_address || "").trim();
 
     if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
     if (!description) {
@@ -187,6 +192,10 @@ export async function PUT(
     }
     if (!tasks.length) {
       return NextResponse.json({ error: "At least one task is required" }, { status: 400 });
+    }
+
+    if (lockAddress && !isAddress(lockAddress)) {
+      return NextResponse.json({ error: "Invalid lock address" }, { status: 400 });
     }
 
     const bonus = payload.completion_bonus_reward_amount ?? 0;
@@ -221,36 +230,7 @@ export async function PUT(
       return NextResponse.json({ error: taskCfgValidation.error }, { status: 400 });
     }
 
-    const { data: updated, error: updateErr } = await supabase
-      .from("daily_quest_templates")
-      .update({
-        title,
-        description,
-        image_url: payload.image_url ?? null,
-        is_active: payload.is_active ?? true,
-        completion_bonus_reward_amount: bonus,
-        lock_address: payload.lock_address ?? null,
-        lock_manager_granted: payload.lock_manager_granted ?? false,
-        grant_failure_reason: payload.grant_failure_reason ?? null,
-        eligibility_config: payload.eligibility_config ?? {},
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", dailyQuestId)
-      .select("*")
-      .maybeSingle();
-
-    if (updateErr) {
-      return NextResponse.json({ error: updateErr.message }, { status: 400 });
-    }
-    if (!updated) {
-      return NextResponse.json({ error: "Daily quest not found" }, { status: 404 });
-    }
-
-    // Replace tasks for future runs only; existing run task snapshots are immutable.
-    await supabase.from("daily_quest_tasks").delete().eq("daily_quest_template_id", dailyQuestId);
-
     const insertTasks = tasks.map((t) => ({
-      daily_quest_template_id: dailyQuestId,
       title: (t.title || "").trim(),
       description: (t.description || "").trim(),
       task_type: t.task_type,
@@ -265,14 +245,52 @@ export async function PUT(
       requires_admin_review: t.requires_admin_review ?? false,
     }));
 
-    const { error: insertErr } = await supabase.from("daily_quest_tasks").insert(insertTasks);
-    if (insertErr) {
-      return NextResponse.json({ error: insertErr.message }, { status: 400 });
+    // Atomic template update + task replacement (single DB transaction via RPC)
+    const { data: rpcData, error: rpcErr } = await supabase.rpc(
+      "admin_replace_daily_quest_template_and_tasks",
+      {
+        p_template_id: dailyQuestId,
+        p_title: title,
+        p_description: description,
+        p_image_url: payload.image_url ?? null,
+        p_is_active: payload.is_active ?? true,
+        p_completion_bonus_reward_amount: bonus,
+        p_lock_address: lockAddress || null,
+        p_lock_manager_granted: payload.lock_manager_granted ?? false,
+        p_grant_failure_reason: payload.grant_failure_reason ?? null,
+        p_eligibility_config: payload.eligibility_config ?? {},
+        p_tasks: insertTasks,
+      },
+    );
+
+    if (rpcErr) {
+      return NextResponse.json({ error: rpcErr.message }, { status: 400 });
+    }
+
+    const response =
+      (rpcData as { success?: boolean; error?: string; data?: unknown }) || {};
+    if (!response.success) {
+      if (response.error === "NOT_FOUND") {
+        return NextResponse.json({ error: "Daily quest not found" }, { status: 404 });
+      }
+      return NextResponse.json(
+        { error: response.error || "Failed to update daily quest" },
+        { status: 400 },
+      );
+    }
+
+    const updated = response.data;
+    if (!updated) {
+      return NextResponse.json({ error: "Daily quest not found" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, data: updated }, { status: 200 });
-  } catch (error: any) {
-    log.error("daily quests admin PUT error", { error, dailyQuestId });
+  } catch (error: unknown) {
+    const errorInfo =
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { message: String(error) };
+    log.error("daily quests admin PUT error", { ...errorInfo, dailyQuestId });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -302,9 +320,12 @@ export async function PATCH(
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     if (!data) return NextResponse.json({ error: "Daily quest not found" }, { status: 404 });
     return NextResponse.json({ success: true, data }, { status: 200 });
-  } catch (error: any) {
-    log.error("daily quests admin PATCH error", { error, dailyQuestId });
+  } catch (error: unknown) {
+    const errorInfo =
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { message: String(error) };
+    log.error("daily quests admin PATCH error", { ...errorInfo, dailyQuestId });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
-

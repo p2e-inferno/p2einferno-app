@@ -86,7 +86,7 @@ async function validateEligibilityConfig(
     if (!isAddress(token)) {
       return { ok: false as const, error: "Invalid ERC20 token address" };
     }
-    if (!/^[0-9]+(\\.[0-9]+)?$/.test(minBalance)) {
+    if (!/^[0-9]+(\.[0-9]+)?$/.test(minBalance)) {
       return {
         ok: false as const,
         error: "ERC20 minimum balance must be a human decimal string",
@@ -189,8 +189,12 @@ export async function GET(req: NextRequest) {
     }));
 
     return NextResponse.json({ success: true, data }, { status: 200 });
-  } catch (error: any) {
-    log.error("daily quests admin GET error", { error });
+  } catch (error: unknown) {
+    const errorInfo =
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { message: String(error) };
+    log.error("daily quests admin GET error", { ...errorInfo });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -209,6 +213,7 @@ export async function POST(req: NextRequest) {
     const tasks = Array.isArray(payload.daily_quest_tasks)
       ? payload.daily_quest_tasks
       : [];
+    const lockAddress = (payload.lock_address || "").trim();
 
     if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
     if (!description) {
@@ -216,6 +221,10 @@ export async function POST(req: NextRequest) {
     }
     if (!tasks.length) {
       return NextResponse.json({ error: "At least one task is required" }, { status: 400 });
+    }
+
+    if (lockAddress && !isAddress(lockAddress)) {
+      return NextResponse.json({ error: "Invalid lock address" }, { status: 400 });
     }
 
     const bonus = payload.completion_bonus_reward_amount ?? 0;
@@ -258,7 +267,7 @@ export async function POST(req: NextRequest) {
         image_url: payload.image_url ?? null,
         is_active: payload.is_active ?? true,
         completion_bonus_reward_amount: bonus,
-        lock_address: payload.lock_address ?? null,
+        lock_address: lockAddress || null,
         lock_manager_granted: payload.lock_manager_granted ?? false,
         grant_failure_reason: payload.grant_failure_reason ?? null,
         eligibility_config: payload.eligibility_config ?? {},
@@ -293,6 +302,17 @@ export async function POST(req: NextRequest) {
       .from("daily_quest_tasks")
       .insert(insertTasks);
     if (taskInsertErr) {
+      const { error: cleanupErr } = await supabase
+        .from("daily_quest_templates")
+        .delete()
+        .eq("id", tmpl.id);
+      if (cleanupErr) {
+        log.error("Failed to cleanup orphan daily quest template", {
+          dailyQuestTemplateId: tmpl.id,
+          cleanupErr,
+        });
+      }
+
       return NextResponse.json({ error: taskInsertErr.message }, { status: 400 });
     }
 
@@ -320,9 +340,12 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, data: tmpl }, { status: 201 });
-  } catch (error: any) {
-    log.error("daily quests admin POST error", { error });
+  } catch (error: unknown) {
+    const errorInfo =
+      error instanceof Error
+        ? { message: error.message, stack: error.stack }
+        : { message: String(error) };
+    log.error("daily quests admin POST error", { ...errorInfo });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
-

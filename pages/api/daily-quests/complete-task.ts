@@ -228,23 +228,35 @@ export default async function handler(
     }
 
     // Insert completion idempotently (unique(user_id, daily_quest_run_id, daily_quest_run_task_id))
-    await supabase.from("user_daily_task_completions").upsert(
-      {
-        user_id: userId,
-        daily_quest_run_id: dailyQuestRunId,
-        daily_quest_run_task_id: dailyQuestRunTaskId,
-        verification_data: {
-          ...(verifyResult.metadata || {}),
-          txHash: txRequired ? clientTxHash || null : null,
-          verificationMethod: task.verification_method,
+    const { error: completionUpsertErr } = await supabase
+      .from("user_daily_task_completions")
+      .upsert(
+        {
+          user_id: userId,
+          daily_quest_run_id: dailyQuestRunId,
+          daily_quest_run_task_id: dailyQuestRunTaskId,
+          verification_data: {
+            ...(verifyResult.metadata || {}),
+            txHash: txRequired ? clientTxHash || null : null,
+            verificationMethod: task.verification_method,
+          },
+          submission_status: "completed",
         },
-        submission_status: "completed",
-      },
-      {
-        onConflict: "user_id,daily_quest_run_id,daily_quest_run_task_id",
-        ignoreDuplicates: true,
-      },
-    );
+        {
+          onConflict: "user_id,daily_quest_run_id,daily_quest_run_task_id",
+          ignoreDuplicates: true,
+        },
+      );
+
+    if (completionUpsertErr) {
+      log.error("Failed to upsert daily task completion", {
+        userId,
+        dailyQuestRunId,
+        dailyQuestRunTaskId,
+        completionUpsertErr,
+      });
+      return res.status(500).json({ error: "Failed to save task completion" });
+    }
 
     // Recompute completion count and set progress.completed_at when last task completes
     const { data: totalTasks, error: totalErr } = await supabase
@@ -274,13 +286,28 @@ export default async function handler(
       completedCount === totalCount &&
       !progress.completed_at
     ) {
-      await supabase
+      const { error: progressUpdateErr } = await supabase
         .from("user_daily_quest_progress")
         .update({ completed_at: new Date().toISOString() })
         .eq("id", progress.id)
         .eq("user_id", userId)
         .eq("daily_quest_run_id", dailyQuestRunId)
         .is("completed_at", null);
+
+      if (progressUpdateErr) {
+        log.error(
+          "Failed to update daily quest progress completion timestamp",
+          {
+            userId,
+            dailyQuestRunId,
+            progressId: progress.id,
+            progressUpdateErr,
+          },
+        );
+        return res
+          .status(500)
+          .json({ error: "Failed to update daily quest progress" });
+      }
     }
 
     return res.status(200).json({ success: true });

@@ -33,7 +33,9 @@ jest.mock("@/lib/auth/privy", () => ({
   extractAndValidateWalletFromHeader: jest.fn(async () => {
     return "0x00000000000000000000000000000000000000bb";
   }),
-  WalletValidationError: class WalletValidationError extends Error {},
+  WalletValidationError: class WalletValidationError extends Error {
+    code?: string;
+  },
 }));
 
 jest.mock("@/lib/services/user-key-service", () => ({
@@ -125,26 +127,34 @@ jest.mock("@/lib/supabase/server", () => {
                   }),
                 }),
               }),
-              update: (payload: any) => ({
-                eq: () => ({
-                  eq: () => ({
-                    eq: () => ({
-                      // reward_claimed update path (4th eq)
-                      eq: async () => {
-                        global.__DAILY_COMPLETE_PROGRESS_UPDATE__ = payload;
-                        return { data: null, error: null };
-                      },
-                      // completion bonus gate path (select after 3 eq)
-                      select: () => ({
-                        maybeSingle: async () => {
-                          global.__DAILY_COMPLETE_BONUS_GATE_UPDATE__ = payload;
-                          return { data: { id: "progress-1" }, error: null };
-                        },
-                      }),
-                    }),
+              update: (payload: any) => {
+                const builder: any = {
+                  eq: () => builder,
+                  is: () => builder,
+                  select: () => ({
+                    maybeSingle: async () => {
+                      if (payload?.completion_bonus_claimed === true) {
+                        global.__DAILY_COMPLETE_BONUS_GATE_UPDATE__ = payload;
+                      }
+                      return { data: { id: "progress-1" }, error: null };
+                    },
                   }),
-                }),
-              }),
+                  then: (resolve: any, reject: any) => {
+                    try {
+                      if (payload?.reward_claimed === true) {
+                        global.__DAILY_COMPLETE_PROGRESS_UPDATE__ = payload;
+                      }
+                      return Promise.resolve({ data: null, error: null }).then(
+                        resolve,
+                        reject,
+                      );
+                    } catch (e) {
+                      return Promise.reject(e).then(resolve, reject);
+                    }
+                  },
+                };
+                return builder;
+              },
             } as any;
           case "daily_quest_run_tasks":
             return {
@@ -197,6 +207,16 @@ jest.mock("@/lib/supabase/server", () => {
 });
 
 describe("POST /api/daily-quests/complete-quest", () => {
+  beforeEach(() => {
+    global.__DAILY_COMPLETE_AUTH__ = "ok";
+    global.__DAILY_COMPLETE_LOCK_ADDRESS__ =
+      "0x00000000000000000000000000000000000000aa";
+    global.__DAILY_COMPLETE_BONUS__ = 10;
+    global.__DAILY_COMPLETE_PROGRESS_UPDATE__ = null;
+    global.__DAILY_COMPLETE_BONUS_GATE_UPDATE__ = null;
+    global.__DAILY_COMPLETE_AWARD_XP_CALLED__ = false;
+  });
+
   it("grants key and awards completion bonus", async () => {
     const { req, res } = createMocks({
       method: "POST",

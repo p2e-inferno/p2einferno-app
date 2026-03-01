@@ -33,9 +33,9 @@ export default async function handler(
       .eq("status", "active");
 
     if (runErr) {
+      log.error("Failed to fetch daily quest runs", { runErr });
       return res.status(500).json({
         error: "Failed to fetch daily quest runs",
-        details: runErr.message,
       });
     }
 
@@ -50,9 +50,9 @@ export default async function handler(
       : { data: [], error: null };
 
     if (tmplErr) {
+      log.error("Failed to fetch daily quest templates", { tmplErr });
       return res.status(500).json({
         error: "Failed to fetch daily quest templates",
-        details: tmplErr.message,
       });
     }
 
@@ -65,9 +65,9 @@ export default async function handler(
       : { data: [], error: null };
 
     if (taskErr) {
+      log.error("Failed to fetch daily quest tasks", { taskErr });
       return res.status(500).json({
         error: "Failed to fetch daily quest tasks",
-        details: taskErr.message,
       });
     }
 

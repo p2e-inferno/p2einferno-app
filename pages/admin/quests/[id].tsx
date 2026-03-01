@@ -30,7 +30,6 @@ import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
 import { useTransferFeeBasisPoints } from "@/hooks/unlock/useTransferFeeBasisPoints";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
 import { getLogger } from "@/lib/utils/logger";
-import { toast } from "react-hot-toast";
 import type { Address } from "viem";
 import { NON_TRANSFERABLE_FEE_BPS } from "@/hooks/unlock/useSyncLockTransferabilityState";
 
@@ -560,14 +559,14 @@ export default function QuestDetailsPage() {
                 lockAddress={quest.lock_address}
                 grantFailureReason={quest.grant_failure_reason}
                 onSuccess={() => {
-                  toast.success("Database updated successfully");
                   if (id && typeof id === "string") {
                     fetchQuestDetails(id); // Refresh quest data
                     checkActualManagerStatus(); // Refresh blockchain status
                   }
                 }}
                 onError={(error) => {
-                  toast.error(`Update failed: ${error}`);
+                  // Error is already toasted by the child component
+                  log.error("Lock manager retry failed", { error });
                 }}
               />
             )}
@@ -644,14 +643,14 @@ export default function QuestDetailsPage() {
                 lockAddress={quest.lock_address}
                 maxKeysFailureReason={quest.max_keys_failure_reason}
                 onSuccess={() => {
-                  toast.success("Lock purchases disabled successfully");
                   if (id && typeof id === "string") {
                     fetchQuestDetails(id); // Refresh quest data
                     checkActualMaxKeysValue(); // Refresh blockchain status
                   }
                 }}
                 onError={(error) => {
-                  toast.error(`Security update failed: ${error}`);
+                  // Error is already toasted by the child component
+                  log.error("Max keys security update failed", { error });
                 }}
               />
             )}
@@ -739,14 +738,16 @@ export default function QuestDetailsPage() {
                     quest.transferability_failure_reason
                   }
                   onSuccess={() => {
-                    toast.success("Lock transfers disabled successfully");
                     if (id && typeof id === "string") {
                       fetchQuestDetails(id);
                       checkActualTransferFeeBps();
                     }
                   }}
                   onError={(error) => {
-                    toast.error(`Security update failed: ${error}`);
+                    // Error is already toasted by the child component
+                    log.error("Transferability security update failed", {
+                      error,
+                    });
                   }}
                 />
               )}

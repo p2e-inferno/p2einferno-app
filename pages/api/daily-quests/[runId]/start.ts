@@ -7,10 +7,11 @@ import {
   WalletValidationError,
 } from "@/lib/auth/privy";
 import { evaluateDailyQuestEligibility } from "@/lib/quests/daily-quests/constraints";
+import { DailyQuestRun } from "@/lib/supabase/types";
 
 const log = getLogger("api:daily-quests:start");
 
-function isRunActiveWindow(run: any) {
+function isRunActiveWindow(run: DailyQuestRun) {
   const now = Date.now();
   const starts = Date.parse(run.starts_at);
   const ends = Date.parse(run.ends_at);
@@ -100,13 +101,23 @@ export default async function handler(
       return res.status(403).json({ error: "INELIGIBLE", eligibility });
     }
 
-    await supabase.from("user_daily_quest_progress").upsert(
-      {
-        user_id: userId,
-        daily_quest_run_id: runId,
-      },
-      { onConflict: "user_id,daily_quest_run_id", ignoreDuplicates: true },
-    );
+    const { error: upsertErr } = await supabase
+      .from("user_daily_quest_progress")
+      .upsert(
+        {
+          user_id: userId,
+          daily_quest_run_id: runId,
+        },
+        { onConflict: "user_id,daily_quest_run_id", ignoreDuplicates: true },
+      );
+    if (upsertErr) {
+      log.error("Failed to start daily quest (progress upsert failed)", {
+        runId,
+        userId,
+        upsertErr,
+      });
+      return res.status(500).json({ error: "Failed to start daily quest" });
+    }
 
     const { data: progress, error: progErr } = await supabase
       .from("user_daily_quest_progress")

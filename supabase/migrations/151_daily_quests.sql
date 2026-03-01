@@ -152,7 +152,7 @@ CREATE INDEX IF NOT EXISTS idx_daily_quest_verified_tx_task_id
 
 CREATE TABLE IF NOT EXISTS public.daily_quest_notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  daily_quest_template_id uuid NOT NULL REFERENCES public.daily_quest_templates(id),
+  daily_quest_template_id uuid NOT NULL REFERENCES public.daily_quest_templates(id) ON DELETE CASCADE,
   run_date date NOT NULL,
   notification_type text NOT NULL,
   created_at timestamptz DEFAULT now(),
@@ -213,6 +213,7 @@ DECLARE
   v_tx_hash_normalized TEXT;
 BEGIN
   v_tx_hash_normalized := lower(trim(p_tx_hash));
+  PERFORM pg_advisory_xact_lock(hashtext(v_tx_hash_normalized)::bigint);
 
   -- 1) Check daily quest table first (same-domain idempotency).
   SELECT * INTO v_existing
@@ -343,6 +344,7 @@ DECLARE
 BEGIN
   -- IMPORTANT: preserve lower(trim()) normalization from migration 149.
   v_tx_hash_normalized := lower(trim(p_tx_hash));
+  PERFORM pg_advisory_xact_lock(hashtext(v_tx_hash_normalized)::bigint);
 
   SELECT * INTO v_existing
   FROM public.quest_verified_transactions
@@ -421,7 +423,113 @@ EXCEPTION
 END;
 $$;
 
+-- Atomic admin template update + task replacement (single DB transaction).
+-- Used by the admin API to avoid leaving templates with zero tasks when inserts fail.
+CREATE OR REPLACE FUNCTION public.admin_replace_daily_quest_template_and_tasks(
+  p_template_id uuid,
+  p_title text,
+  p_description text,
+  p_image_url text,
+  p_is_active boolean,
+  p_completion_bonus_reward_amount integer,
+  p_lock_address text,
+  p_lock_manager_granted boolean,
+  p_grant_failure_reason text,
+  p_eligibility_config jsonb,
+  p_tasks jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+DECLARE
+  v_updated public.daily_quest_templates;
+BEGIN
+  UPDATE public.daily_quest_templates
+  SET
+    title = p_title,
+    description = p_description,
+    image_url = p_image_url,
+    is_active = p_is_active,
+    completion_bonus_reward_amount = p_completion_bonus_reward_amount,
+    lock_address = p_lock_address,
+    lock_manager_granted = p_lock_manager_granted,
+    grant_failure_reason = p_grant_failure_reason,
+    eligibility_config = COALESCE(p_eligibility_config, '{}'::jsonb),
+    updated_at = now()
+  WHERE id = p_template_id
+  RETURNING * INTO v_updated;
+
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', false, 'error', 'NOT_FOUND');
+  END IF;
+
+  DELETE FROM public.daily_quest_tasks
+  WHERE daily_quest_template_id = p_template_id;
+
+  INSERT INTO public.daily_quest_tasks (
+    daily_quest_template_id,
+    title,
+    description,
+    task_type,
+    verification_method,
+    reward_amount,
+    order_index,
+    task_config,
+    input_required,
+    input_label,
+    input_placeholder,
+    input_validation,
+    requires_admin_review
+  )
+  SELECT
+    p_template_id,
+    (t->>'title')::text,
+    (t->>'description')::text,
+    (t->>'task_type')::text,
+    (t->>'verification_method')::text,
+    COALESCE((t->>'reward_amount')::int, 0),
+    COALESCE((t->>'order_index')::int, 0),
+    COALESCE(t->'task_config', '{}'::jsonb),
+    COALESCE((t->>'input_required')::boolean, false),
+    NULLIF((t->>'input_label')::text, ''),
+    NULLIF((t->>'input_placeholder')::text, ''),
+    NULLIF((t->>'input_validation')::text, ''),
+    COALESCE((t->>'requires_admin_review')::boolean, false)
+  FROM jsonb_array_elements(COALESCE(p_tasks, '[]'::jsonb)) AS t;
+
+  RETURN jsonb_build_object('success', true, 'data', to_jsonb(v_updated));
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.admin_replace_daily_quest_template_and_tasks(
+  uuid,
+  text,
+  text,
+  text,
+  boolean,
+  integer,
+  text,
+  boolean,
+  text,
+  jsonb,
+  jsonb
+) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_replace_daily_quest_template_and_tasks(
+  uuid,
+  text,
+  text,
+  text,
+  boolean,
+  integer,
+  text,
+  boolean,
+  text,
+  jsonb,
+  jsonb
+) TO service_role;
+
 -- SECURITY: award_xp_to_user is server-only (SECURITY DEFINER).
 REVOKE EXECUTE ON FUNCTION public.award_xp_to_user(uuid, integer, text, jsonb) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.award_xp_to_user(uuid, integer, text, jsonb) TO service_role;
-

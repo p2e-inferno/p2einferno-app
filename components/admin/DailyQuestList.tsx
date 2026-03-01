@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAdminApi } from "@/hooks/useAdminApi";
+import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
+import { useAdminAuthContext } from "@/contexts/admin-context";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
 
@@ -21,6 +23,7 @@ type DailyQuestTemplateRow = {
 };
 
 export function DailyQuestList() {
+  const { authenticated, isAdmin, isLoadingAuth, user } = useAdminAuthContext();
   const { adminFetch, loading } = useAdminApi({ suppressToasts: true });
   const [rows, setRows] = useState<DailyQuestTemplateRow[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -35,15 +38,20 @@ export function DailyQuestList() {
       if (result.error) throw new Error(result.error);
       const data = Array.isArray(result.data?.data) ? result.data.data : [];
       setRows(data);
-    } catch (err: any) {
+    } catch (err: unknown) {
       log.error("Failed to fetch daily quests", err);
-      setError(err?.message || "Failed to load daily quests");
+      setError(
+        err instanceof Error ? err.message : "Failed to load daily quests",
+      );
     }
   }, [adminFetch]);
 
-  useEffect(() => {
-    fetchRows();
-  }, [fetchRows]);
+  useAdminFetchOnce({
+    authenticated,
+    isAdmin,
+    walletKey: user?.wallet?.address || null,
+    fetcher: fetchRows,
+  });
 
   const toggleStatus = async (row: DailyQuestTemplateRow) => {
     setIsToggling(row.id);
@@ -61,6 +69,14 @@ export function DailyQuestList() {
       setIsToggling(null);
     }
   };
+
+  if (isLoadingAuth) {
+    return (
+      <div className="py-16 text-center text-gray-400">
+        Loading daily quests...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -146,7 +162,7 @@ export function DailyQuestList() {
           );
         })}
 
-        {rows.length === 0 && (
+        {rows.length === 0 && authenticated && isAdmin && (
           <div className="px-4 py-10 text-center text-gray-400">
             No daily quests yet.
           </div>
