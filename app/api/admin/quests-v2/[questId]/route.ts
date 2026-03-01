@@ -5,6 +5,7 @@ import { ensureAdminOrRespond } from "@/lib/auth/route-handlers/admin-guard";
 import { getLogger } from "@/lib/utils/logger";
 import { ADMIN_CACHE_TAGS } from "@/lib/app-config/admin";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
+import { resolveTaskVerificationMethod } from "@/lib/quests/taskVerificationMethod";
 import { sortQuestTasks } from "@/lib/quests/sort-tasks";
 
 const log = getLogger("api:quests:[questId]");
@@ -221,6 +222,8 @@ export async function PUT(
 
       for (const task of toUpdate) {
         const { id, ...taskData } = task;
+        const resolvedMethod = resolveTaskVerificationMethod(task);
+        if (resolvedMethod) taskData.verification_method = resolvedMethod;
         const { error: uErr } = await supabase
           .from("quest_tasks")
           .update({ ...taskData, quest_id: questId, updated_at: now })
@@ -234,6 +237,7 @@ export async function PUT(
           return {
             quest_id: questId,
             ...rest,
+            verification_method: resolveTaskVerificationMethod(task) || rest.verification_method,
             task_config: task.task_config || {},
             order_index: task.order_index ?? toUpdate.length + index,
             created_at: now,

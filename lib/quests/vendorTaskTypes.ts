@@ -28,3 +28,25 @@ export function isVendorBlockchainTaskType(
     taskType as VendorBlockchainTaskType,
   );
 }
+
+/**
+ * All task types that require a transaction hash for verification and
+ * replay prevention. Used by both the complete-task API (for replay
+ * registration) and TaskItem UI (for the tx-hash input field).
+ */
+export const TX_HASH_REQUIRED_TASK_TYPES = [
+  ...VENDOR_TX_TASK_TYPES,
+  "deploy_lock",
+  "uniswap_swap",
+] as const satisfies readonly TaskType[];
+
+export type TxHashRequiredTaskType =
+  (typeof TX_HASH_REQUIRED_TASK_TYPES)[number];
+
+export function isTxHashRequiredTaskType(
+  taskType: TaskType,
+): taskType is TxHashRequiredTaskType {
+  return TX_HASH_REQUIRED_TASK_TYPES.includes(
+    taskType as TxHashRequiredTaskType,
+  );
+}

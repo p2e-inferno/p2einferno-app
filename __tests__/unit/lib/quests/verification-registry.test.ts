@@ -48,6 +48,12 @@ describe("Verification Registry", () => {
       expect(typeof strategy.verify).toBe("function");
     });
 
+    it("should return UniswapVerificationStrategy for uniswap_swap", () => {
+      const strategy = getVerificationStrategy("uniswap_swap");
+      expect(strategy).toBeDefined();
+      expect(typeof strategy.verify).toBe("function");
+    });
+
     it("should return undefined for unsupported task types", () => {
       const strategy = getVerificationStrategy("unsupported_task");
       expect(strategy).toBeUndefined();

@@ -5,6 +5,7 @@ import { ensureAdminOrRespond } from "@/lib/auth/route-handlers/admin-guard";
 import { getLogger } from "@/lib/utils/logger";
 import { ADMIN_CACHE_TAGS } from "@/lib/app-config/admin";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
+import { resolveTaskVerificationMethod } from "@/lib/quests/taskVerificationMethod";
 import { broadcastTelegramNotification } from "@/lib/notifications/telegram";
 import { sortQuestTasks } from "@/lib/quests/sort-tasks";
 
@@ -248,7 +249,7 @@ export async function POST(req: NextRequest) {
           title: task.title,
           description: task.description,
           task_type: task.task_type,
-          verification_method: task.verification_method,
+          verification_method: resolveTaskVerificationMethod(task),
           reward_amount: Number.isFinite(rewardAmount) ? rewardAmount : 0,
           order_index: task.order_index ?? index,
           task_config: task.task_config || {},

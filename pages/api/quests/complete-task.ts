@@ -17,7 +17,7 @@ import {
 import { normalizeTransactionHash } from "@/lib/quests/txHash";
 import {
   isVendorBlockchainTaskType,
-  isVendorTxTaskType,
+  isTxHashRequiredTaskType,
 } from "@/lib/quests/vendorTaskTypes";
 import { registerQuestTransaction } from "@/lib/quests/verification/replay-prevention";
 import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
@@ -255,8 +255,7 @@ export default async function handler(
         });
       }
 
-      const isTxBasedTask =
-        isVendorTxTaskType(task.task_type) || task.task_type === "deploy_lock";
+      const isTxBasedTask = isTxHashRequiredTaskType(task.task_type);
 
       verificationData = {
         ...result.metadata,
@@ -271,13 +270,19 @@ export default async function handler(
           taskType: task.task_type,
           metadata: {
             amount:
-              typeof metadata.amount === "string" ? metadata.amount : null,
+              typeof metadata.amount === "string"
+                ? metadata.amount
+                : typeof metadata.inputAmount === "string"
+                  ? metadata.inputAmount
+                  : null,
             eventName:
               task.task_type === "deploy_lock"
                 ? "NewLock"
-                : typeof metadata.eventName === "string"
-                  ? metadata.eventName
-                  : null,
+                : task.task_type === "uniswap_swap"
+                  ? "Swap"
+                  : typeof metadata.eventName === "string"
+                    ? metadata.eventName
+                    : null,
             blockNumber:
               typeof metadata.blockNumber === "string"
                 ? metadata.blockNumber

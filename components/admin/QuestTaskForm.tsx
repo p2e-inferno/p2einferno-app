@@ -29,6 +29,7 @@ import {
   Network,
   ArrowUpCircle,
   MessageCircle,
+  Repeat,
 } from "lucide-react";
 import { useDGMarket } from "@/hooks/vendor/useDGMarket";
 import { getStageOptions } from "@/lib/blockchain/shared/vendor-constants";
@@ -146,6 +147,12 @@ const taskTypeOptions: {
     icon: <Network className="w-4 h-4" />,
     description: "User must deploy an Unlock Protocol lock",
   },
+  {
+    value: "uniswap_swap",
+    label: "Uniswap Swap",
+    icon: <Repeat className="w-4 h-4" />,
+    description: "User must complete a Uniswap swap for a supported pair",
+  },
 ];
 
 const validationOptions: { value: InputValidationType; label: string }[] = [
@@ -204,6 +211,7 @@ export default function QuestTaskForm({
       "vendor_buy",
       "vendor_sell",
       "vendor_light_up",
+      "uniswap_swap",
     ];
     const vendorTaskTypes: TaskType[] = [
       "vendor_buy",
@@ -211,6 +219,7 @@ export default function QuestTaskForm({
       "vendor_light_up",
       "vendor_level_up",
       "deploy_lock",
+      "uniswap_swap",
     ];
 
     const requiresInput = inputTaskTypes.includes(taskType);
@@ -260,6 +269,7 @@ export default function QuestTaskForm({
   const isVendorSell = localTask.task_type === "vendor_sell";
   const isVendorLevelUp = localTask.task_type === "vendor_level_up";
   const isDeployLock = localTask.task_type === "deploy_lock";
+  const isUniswapSwap = localTask.task_type === "uniswap_swap";
   const vendorConfig = (localTask.task_config as Record<string, unknown>) || {};
 
   const updateTaskConfig = (updates: Record<string, unknown>) => {
@@ -623,6 +633,109 @@ export default function QuestTaskForm({
                 );
               })}
             </div>
+          </div>
+        </div>
+      )}
+
+      {isUniswapSwap && (
+        <div className="border border-gray-700 rounded-lg p-4 space-y-4 bg-gray-800/50">
+          <h4 className="font-semibold text-white flex items-center gap-2">
+            <Repeat className="w-4 h-4" />
+            Uniswap Swap Config
+          </h4>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`uni-pair-${index}`} className="text-white">
+                Swap Pair
+              </Label>
+              <Select
+                value={(vendorConfig.pair as string) || ""}
+                onValueChange={(value) => updateTaskConfig({ pair: value })}
+              >
+                <SelectTrigger className="bg-transparent border-gray-700 text-gray-100">
+                  <SelectValue placeholder="Select pair" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ETH_UP">ETH / UP</SelectItem>
+                  <SelectItem value="ETH_USDC">ETH / USDC</SelectItem>
+                  <SelectItem value="UP_USDC">UP / USDC (multi-hop)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor={`uni-direction-${index}`} className="text-white">
+                Direction
+              </Label>
+              <Select
+                value={(vendorConfig.direction as string) || ""}
+                onValueChange={(value) => updateTaskConfig({ direction: value })}
+              >
+                <SelectTrigger className="bg-transparent border-gray-700 text-gray-100">
+                  <SelectValue placeholder="Select direction" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A_TO_B">
+                    {vendorConfig.pair === "ETH_UP"
+                      ? "ETH → UP"
+                      : vendorConfig.pair === "ETH_USDC"
+                        ? "ETH → USDC"
+                        : vendorConfig.pair === "UP_USDC"
+                          ? "UP → USDC"
+                          : "A → B"}
+                  </SelectItem>
+                  <SelectItem value="B_TO_A">
+                    {vendorConfig.pair === "ETH_UP"
+                      ? "UP → ETH"
+                      : vendorConfig.pair === "ETH_USDC"
+                        ? "USDC → ETH"
+                        : vendorConfig.pair === "UP_USDC"
+                          ? "USDC → UP"
+                          : "B → A"}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor={`uni-amount-${index}`} className="text-white">
+              Minimum Input Amount (raw token units)
+            </Label>
+            <Input
+              id={`uni-amount-${index}`}
+              type="text"
+              value={
+                typeof vendorConfig.required_amount_in === "string"
+                  ? vendorConfig.required_amount_in
+                  : ""
+              }
+              onChange={(e) =>
+                updateTaskConfig({ required_amount_in: e.target.value.trim() })
+              }
+              placeholder="e.g. 1000000000000000000 (1 ETH in wei)"
+              className="bg-transparent border-gray-700 text-gray-100 font-mono"
+            />
+            <p className="text-xs text-gray-400">
+              {(() => {
+                const p = vendorConfig.pair;
+                const d = vendorConfig.direction;
+                if (p === "ETH_UP")
+                  return d === "A_TO_B"
+                    ? "ETH amount in wei (18 decimals)"
+                    : "UP amount in wei (18 decimals)";
+                if (p === "ETH_USDC")
+                  return d === "A_TO_B"
+                    ? "ETH amount in wei (18 decimals)"
+                    : "USDC amount in raw units (6 decimals)";
+                if (p === "UP_USDC")
+                  return d === "A_TO_B"
+                    ? "UP amount in wei (18 decimals)"
+                    : "USDC amount in raw units (6 decimals)";
+                return "Select a pair and direction first";
+              })()}
+            </p>
           </div>
         </div>
       )}

@@ -150,4 +150,31 @@ describe("TaskItem vendor tx input flow", () => {
     expect(screen.getByLabelText("Transaction Hash")).toHaveValue("");
     expect(screen.getByRole("button", { name: "Resubmit" })).toBeDisabled();
   });
+
+  it("renders tx hash input for uniswap_swap tasks", () => {
+    const uniswapTask = {
+      ...baseTask,
+      id: "task-uni",
+      title: "Uniswap Swap",
+      description: "Submit Uniswap swap tx hash",
+      task_type: "uniswap_swap",
+    };
+
+    render(
+      <TaskItem
+        task={uniswapTask}
+        completion={undefined}
+        isQuestStarted={true}
+        questId="quest-1"
+        onAction={jest.fn()}
+        onClaimReward={jest.fn()}
+        processingTaskId={null}
+      />,
+    );
+
+    expect(screen.getByLabelText("Transaction Hash")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Complete Task" }),
+    ).toBeDisabled();
+  });
 });
