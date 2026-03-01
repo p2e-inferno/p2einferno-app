@@ -63,9 +63,9 @@ export async function getVendorStageConstants(): Promise<
 
 function validateUniswapSwapTaskConfig(
   config: unknown,
-): { ok: true } | { ok: false; error: string } {
+): { success: true } | { success: false; error: string } {
   if (!config || typeof config !== "object") {
-    return { ok: false, error: "Task configuration missing" };
+    return { success: false, error: "Task configuration missing" };
   }
   const c = config as Record<string, unknown>;
   const pair = c.pair;
@@ -76,25 +76,28 @@ function validateUniswapSwapTaskConfig(
   const allowedDirections: readonly SwapDirection[] = ["A_TO_B", "B_TO_A"];
 
   if (typeof pair !== "string" || !allowedPairs.includes(pair as SwapPair)) {
-    return { ok: false, error: `Invalid pair: ${String(pair)}` };
+    return { success: false, error: `Invalid pair: ${String(pair)}` };
   }
   if (
     typeof direction !== "string" ||
     !allowedDirections.includes(direction as SwapDirection)
   ) {
-    return { ok: false, error: `Invalid direction: ${String(direction)}` };
+    return { success: false, error: `Invalid direction: ${String(direction)}` };
   }
   if (typeof required !== "string" || !required.trim()) {
-    return { ok: false, error: "required_amount_in is required" };
+    return { success: false, error: "required_amount_in is required" };
   }
   if (!/^[0-9]+$/.test(required.trim())) {
-    return { ok: false, error: "required_amount_in must be a base-10 integer string" };
+    return {
+      success: false,
+      error: "required_amount_in must be a base-10 integer string",
+    };
   }
   const asBigInt = parseRequiredAmount(required);
   if (asBigInt <= 0n) {
-    return { ok: false, error: "required_amount_in must be > 0" };
+    return { success: false, error: "required_amount_in must be > 0" };
   }
-  return { ok: true };
+  return { success: true };
 }
 
 export async function validateVendorTaskConfig(
@@ -114,7 +117,7 @@ export async function validateVendorTaskConfig(
 
     if (task.task_type === "uniswap_swap") {
       const uniValidation = validateUniswapSwapTaskConfig(task.task_config);
-      if (!uniValidation.ok) {
+      if (!uniValidation.success) {
         return {
           ok: false,
           error: `Task "${task.title || "Uniswap Swap"}": ${uniValidation.error}`,

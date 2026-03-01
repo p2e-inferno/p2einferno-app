@@ -21,7 +21,10 @@ const { UNISWAP_ADDRESSES, UNISWAP_CHAIN } = jest.requireActual(
 const userAddress = "0x000000000000000000000000000000000000bEEF";
 const otherAddress = "0x000000000000000000000000000000000000c0de";
 
-function sortAddress(a: `0x${string}`, b: `0x${string}`): [`0x${string}`, `0x${string}`] {
+function sortAddress(
+  a: `0x${string}`,
+  b: `0x${string}`,
+): [`0x${string}`, `0x${string}`] {
   return a.toLowerCase() < b.toLowerCase() ? [a, b] : [b, a];
 }
 
@@ -45,11 +48,7 @@ function makeSwapArgs(params: {
   return { amount0, amount1 };
 }
 
-function makeSwapLog(
-  poolAddress: string,
-  _amount0: bigint,
-  _amount1: bigint,
-) {
+function makeSwapLog(poolAddress: string, _amount0: bigint, _amount1: bigint) {
   return {
     address: poolAddress,
     data: "0x",
@@ -76,8 +75,16 @@ function loadStrategy() {
   return { UniswapVerificationStrategy, decodeEventLog };
 }
 
+type MockReceipt = {
+  status: "success" | "reverted" | (string & {});
+  from: string;
+  to: string | null;
+  blockNumber: bigint;
+  logs: any[];
+};
+
 function createMockClient(overrides: {
-  receipt?: any;
+  receipt?: MockReceipt | null;
   chainId?: number;
   receiptError?: Error;
 }) {
@@ -85,7 +92,9 @@ function createMockClient(overrides: {
     getTransactionReceipt: overrides.receiptError
       ? jest.fn().mockRejectedValue(overrides.receiptError)
       : jest.fn().mockResolvedValue(overrides.receipt ?? null),
-    getChainId: jest.fn().mockResolvedValue(overrides.chainId ?? UNISWAP_CHAIN.id),
+    getChainId: jest
+      .fn()
+      .mockResolvedValue(overrides.chainId ?? UNISWAP_CHAIN.id),
   };
 }
 
@@ -105,7 +114,13 @@ describe("UniswapVerificationStrategy", () => {
         {},
         "user1",
         userAddress,
-        { taskConfig: { pair: "ETH_UP", direction: "A_TO_B", required_amount_in: "1000" } },
+        {
+          taskConfig: {
+            pair: "ETH_UP",
+            direction: "A_TO_B",
+            required_amount_in: "1000",
+          },
+        },
       );
 
       expect(result.success).toBe(false);
@@ -687,30 +702,42 @@ describe("UniswapVerificationStrategy", () => {
 
   describe("resolveTaskVerificationMethod", () => {
     it("should map uniswap_swap to blockchain", () => {
-      const { resolveTaskVerificationMethod } = require("@/lib/quests/taskVerificationMethod");
-      const result = resolveTaskVerificationMethod({ task_type: "uniswap_swap" });
+      const {
+        resolveTaskVerificationMethod,
+      } = require("@/lib/quests/taskVerificationMethod");
+      const result = resolveTaskVerificationMethod({
+        task_type: "uniswap_swap",
+      });
       expect(result).toBe("blockchain");
     });
   });
 
   describe("isTxHashRequiredTaskType", () => {
     it("should return true for uniswap_swap", () => {
-      const { isTxHashRequiredTaskType } = require("@/lib/quests/vendorTaskTypes");
+      const {
+        isTxHashRequiredTaskType,
+      } = require("@/lib/quests/vendorTaskTypes");
       expect(isTxHashRequiredTaskType("uniswap_swap")).toBe(true);
     });
 
     it("should return true for deploy_lock", () => {
-      const { isTxHashRequiredTaskType } = require("@/lib/quests/vendorTaskTypes");
+      const {
+        isTxHashRequiredTaskType,
+      } = require("@/lib/quests/vendorTaskTypes");
       expect(isTxHashRequiredTaskType("deploy_lock")).toBe(true);
     });
 
     it("should return true for vendor_buy", () => {
-      const { isTxHashRequiredTaskType } = require("@/lib/quests/vendorTaskTypes");
+      const {
+        isTxHashRequiredTaskType,
+      } = require("@/lib/quests/vendorTaskTypes");
       expect(isTxHashRequiredTaskType("vendor_buy")).toBe(true);
     });
 
     it("should return false for link_email", () => {
-      const { isTxHashRequiredTaskType } = require("@/lib/quests/vendorTaskTypes");
+      const {
+        isTxHashRequiredTaskType,
+      } = require("@/lib/quests/vendorTaskTypes");
       expect(isTxHashRequiredTaskType("link_email")).toBe(false);
     });
   });

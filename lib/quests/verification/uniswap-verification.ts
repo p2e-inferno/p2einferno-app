@@ -500,7 +500,7 @@ export class UniswapVerificationStrategy implements VerificationStrategy {
         error: error?.message || String(error),
       });
 
-      if (error?.code === "TX_HASH_REQUIRED" || error?.code) {
+      if (error?.code) {
         return {
           success: false,
           error: error.message || "Verification failed",

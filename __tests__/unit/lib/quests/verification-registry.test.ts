@@ -68,6 +68,10 @@ describe("Verification Registry", () => {
       const strategy1 = getVerificationStrategy("vendor_buy");
       const strategy2 = getVerificationStrategy("vendor_buy");
       expect(strategy1).toBe(strategy2);
+
+      const uni1 = getVerificationStrategy("uniswap_swap");
+      const uni2 = getVerificationStrategy("uniswap_swap");
+      expect(uni1).toBe(uni2);
     });
   });
 });

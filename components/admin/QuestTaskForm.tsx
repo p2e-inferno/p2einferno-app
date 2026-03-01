@@ -670,7 +670,9 @@ export default function QuestTaskForm({
               </Label>
               <Select
                 value={(vendorConfig.direction as string) || ""}
-                onValueChange={(value) => updateTaskConfig({ direction: value })}
+                onValueChange={(value) =>
+                  updateTaskConfig({ direction: value })
+                }
               >
                 <SelectTrigger className="bg-transparent border-gray-700 text-gray-100">
                   <SelectValue placeholder="Select direction" />
