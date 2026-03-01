@@ -12,6 +12,49 @@ const log = getLogger("ai:client");
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL_FALLBACK = "google/gemini-2.0-flash-001";
+const DEFAULT_OPENROUTER_TIMEOUT_MS = 15_000;
+
+function truncatePreview(value: string, maxLen = 200): string {
+  const trimmed = value.trim();
+  if (trimmed.length <= maxLen) return trimmed;
+  return `${trimmed.slice(0, maxLen)}…`;
+}
+
+function sanitizeProviderPayload(value: string): {
+  kind: "json" | "text";
+  preview: string;
+} {
+  try {
+    const parsed = JSON.parse(value);
+    const redactKeys = new Set([
+      "messages",
+      "prompt",
+      "input",
+      "image_url",
+      "url",
+      "content",
+      "text",
+    ]);
+    const redact = (node: unknown): unknown => {
+      if (!node || typeof node !== "object") return node;
+      if (Array.isArray(node)) return node.map(redact);
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+        if (redactKeys.has(k)) {
+          out[k] = "[redacted]";
+        } else {
+          out[k] = redact(v);
+        }
+      }
+      return out;
+    };
+
+    const sanitized = redact(parsed);
+    return { kind: "json", preview: truncatePreview(JSON.stringify(sanitized)) };
+  } catch {
+    return { kind: "text", preview: truncatePreview(value) };
+  }
+}
 
 /**
  * Send a chat completion request to OpenRouter.
@@ -75,6 +118,30 @@ export async function chatCompletion(
       body.models = [model, ...options.fallbacks];
     }
 
+    const timeoutMs = (() => {
+      const raw = process.env.OPENROUTER_TIMEOUT_MS;
+      const parsed =
+        typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
+      return Number.isFinite(parsed) && parsed > 0
+        ? parsed
+        : DEFAULT_OPENROUTER_TIMEOUT_MS;
+    })();
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
+    const externalSignal = options.signal;
+    const onExternalAbort = () => controller.abort();
+    if (externalSignal) {
+      if (externalSignal.aborted) {
+        controller.abort();
+      } else {
+        externalSignal.addEventListener("abort", onExternalAbort, { once: true });
+      }
+    }
+
     const response = await fetch(OPENROUTER_URL, {
       method: "POST",
       headers: {
@@ -85,15 +152,24 @@ export async function chatCompletion(
         "X-Title": "P2E Inferno",
       },
       body: JSON.stringify(body),
-      signal: options.signal,
+      signal: controller.signal,
+    }).finally(() => {
+      clearTimeout(timeoutId);
+      if (externalSignal) {
+        externalSignal.removeEventListener("abort", onExternalAbort);
+      }
     });
+
+    log.debug("AI response status", { status: response.status, model });
 
     if (!response.ok) {
       const errorBody = await response.text().catch(() => "Unknown error");
+      const sanitized = sanitizeProviderPayload(errorBody);
       log.error("OpenRouter API error", {
         status: response.status,
-        body: errorBody,
         model,
+        bodyKind: sanitized.kind,
+        bodyPreview: sanitized.preview,
       });
       return {
         success: false,
@@ -106,7 +182,11 @@ export async function chatCompletion(
 
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== "string" || !content.trim()) {
-      log.warn("Empty AI response", { model, data });
+      log.warn("Empty AI response", {
+        model,
+        contentType: typeof content,
+        hasChoices: Array.isArray(data?.choices),
+      });
       return {
         success: false,
         error: "AI returned empty response",
@@ -125,8 +205,7 @@ export async function chatCompletion(
 
     log.info("AI response received", {
       model: actualModel,
-      promptTokens: usage?.promptTokens,
-      completionTokens: usage?.completionTokens,
+      contentLength: content.trim().length,
     });
 
     return {
@@ -140,14 +219,18 @@ export async function chatCompletion(
       return {
         success: false,
         error: "Request was cancelled",
-        code: "AI_CANCELLED",
+        code:
+          typeof options.signal !== "undefined" && options.signal?.aborted
+            ? "AI_CANCELLED"
+            : "AI_TIMEOUT",
       };
     }
 
-    log.error("AI request failed", { error, model });
+    const message = error instanceof Error ? error.message : "Unknown AI error";
+    log.error("AI request failed", { message, model });
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown AI error",
+      error: message,
       code: "AI_REQUEST_FAILED",
     };
   }

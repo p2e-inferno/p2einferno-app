@@ -58,8 +58,8 @@ function parseVisionDecisionResponse(content: string): {
       ? [cleaned, cleaned.slice(firstBrace, lastBrace + 1)]
       : [cleaned];
 
-  try {
-    for (const candidate of candidates) {
+  for (const candidate of candidates) {
+    try {
       const parsed = JSON.parse(candidate);
       if (typeof parsed?.decision === "string") {
         const decision = parsed.decision as string;
@@ -70,9 +70,10 @@ function parseVisionDecisionResponse(content: string): {
           typeof parsed.confidence === "number" &&
           typeof parsed.reason === "string"
         ) {
+          const confidence = Math.min(1, Math.max(0, parsed.confidence));
           return {
             decision,
-            confidence: parsed.confidence,
+            confidence,
             reason: parsed.reason,
           };
         }
@@ -84,17 +85,19 @@ function parseVisionDecisionResponse(content: string): {
         typeof parsed.confidence === "number" &&
         typeof parsed.reason === "string"
       ) {
+        const confidence = Math.min(1, Math.max(0, parsed.confidence));
         return {
           decision: parsed.verified ? "approve" : "defer",
-          confidence: parsed.confidence,
+          confidence,
           reason: parsed.reason,
         };
       }
+    } catch {
+      continue;
     }
-    return null;
-  } catch {
-    return null;
   }
+
+  return null;
 }
 
 export async function verifyScreenshotWithAI(options: {
@@ -156,19 +159,20 @@ export async function verifyScreenshotWithAI(options: {
     };
   }
 
+  const confidence = Math.min(1, Math.max(0, parsed.confidence));
   const clampedThreshold = Math.min(
     1,
     Math.max(0, options.confidenceThreshold),
   );
   const effectiveDecision: VisionDecision =
-    parsed.decision === "approve" && parsed.confidence < clampedThreshold
+    parsed.decision === "approve" && confidence < clampedThreshold
       ? "retry"
       : parsed.decision;
 
   return {
     success: true,
     decision: effectiveDecision,
-    confidence: parsed.confidence,
+    confidence,
     reason: parsed.reason,
     model: result.model,
   };

@@ -15,12 +15,26 @@ import type {
 } from "./types";
 import { getLogger } from "@/lib/utils/logger";
 import { verifyScreenshotWithAI } from "@/lib/ai/verification/vision";
+import { createHash } from "crypto";
 
 const log = getLogger("quests:ai-vision-verification");
 
 const DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-001";
 const DEFAULT_VISION_FALLBACKS = ["openai/gpt-4o-mini"];
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+function hashUserId(userId: string): string {
+  try {
+    return createHash("sha256").update(userId).digest("hex").slice(0, 12);
+  } catch {
+    return "redacted";
+  }
+}
 
 function extractScreenshotUrl(
   verificationData: Record<string, unknown>,
@@ -50,9 +64,7 @@ function extractScreenshotUrl(
 function resolveConfidenceThreshold(
   taskConfig: Record<string, unknown> | null,
 ): number {
-  const raw = taskConfig
-    ? (taskConfig as any).ai_confidence_threshold
-    : undefined;
+  const raw = taskConfig?.ai_confidence_threshold;
   const parsed =
     typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
   if (!Number.isFinite(parsed)) return DEFAULT_CONFIDENCE_THRESHOLD;
@@ -62,7 +74,7 @@ function resolveConfidenceThreshold(
 function resolveVisionModel(
   taskConfig: Record<string, unknown> | null,
 ): string {
-  const raw = taskConfig ? (taskConfig as any).ai_model : undefined;
+  const raw = taskConfig?.ai_model;
   if (typeof raw === "string" && raw.trim()) return raw.trim();
   return DEFAULT_VISION_MODEL;
 }
@@ -75,13 +87,10 @@ export class AIVerificationStrategy implements VerificationStrategy {
     _userAddress: string,
     options?: VerificationOptions,
   ): Promise<VerificationResult> {
-    const taskConfig = (options?.taskConfig as Record<string, unknown>) || null;
+    const taskConfig = asRecord(options?.taskConfig);
 
-    const prompt =
-      taskConfig &&
-      typeof (taskConfig as any).ai_verification_prompt === "string"
-        ? String((taskConfig as any).ai_verification_prompt).trim()
-        : "";
+    const rawPrompt = taskConfig?.ai_verification_prompt;
+    const prompt = typeof rawPrompt === "string" ? rawPrompt.trim() : "";
 
     if (!prompt) {
       return {
@@ -103,7 +112,12 @@ export class AIVerificationStrategy implements VerificationStrategy {
     const confidenceThreshold = resolveConfidenceThreshold(taskConfig);
     const model = resolveVisionModel(taskConfig);
 
-    log.debug("Starting AI vision verification", { taskType, userId, model });
+    const hashedUserId = hashUserId(userId);
+    log.debug("Starting AI vision verification", {
+      taskType,
+      hashedUserId,
+      model,
+    });
 
     const visionResult = await verifyScreenshotWithAI({
       imageUrl,
@@ -131,7 +145,7 @@ export class AIVerificationStrategy implements VerificationStrategy {
       log.error("AI vision verification failed", {
         error: visionResult.error,
         code: visionResult.code,
-        userId,
+        hashedUserId,
         taskType,
       });
       return {

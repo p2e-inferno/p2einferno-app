@@ -151,6 +151,17 @@ export default function SubmissionReviewModal({
       ? verificationData.verifiedAt
       : null;
 
+  const formattedAIConfidence =
+    aiConfidence !== null
+      ? (() => {
+          const asPercent =
+            aiConfidence <= 1 ? aiConfidence * 100 : aiConfidence;
+          const clamped = Math.min(100, Math.max(0, asPercent));
+          const rounded = Math.round(clamped * 10) / 10;
+          return `${rounded}%`;
+        })()
+      : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
@@ -256,7 +267,7 @@ export default function SubmissionReviewModal({
                 {aiConfidence !== null && (
                   <p className="text-gray-300">
                     <span className="text-gray-400">Confidence:</span>{" "}
-                    {aiConfidence}
+                    {formattedAIConfidence}
                   </p>
                 )}
                 {aiModel && (
