@@ -17,6 +17,8 @@ const TYPE_EMOJI: Record<string, string> = {
   application_status: "\uD83D\uDCDD", // 📝
   task_reviewed: "\uD83D\uDCEC", // 📬
   quest_created: "\uD83C\uDD95", // 🆕
+  daily_quest_created: "\uD83C\uDD95", // 🆕
+  daily_quest_refresh: "\uD83D\uDD04", // 🔄
 };
 
 function escapeHtml(text: string): string {

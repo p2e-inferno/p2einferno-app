@@ -1,0 +1,291 @@
+import { NextApiRequest, NextApiResponse } from "next";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+import {
+  getPrivyUser,
+  extractAndValidateWalletFromHeader,
+  WalletValidationError,
+} from "@/lib/auth/privy";
+import { getVerificationStrategy } from "@/lib/quests/verification/registry";
+import {
+  isValidTransactionHash,
+  normalizeTransactionHash,
+} from "@/lib/quests/txHash";
+import {
+  isTxHashRequiredTaskType,
+  isVendorBlockchainTaskType,
+} from "@/lib/quests/vendorTaskTypes";
+import { registerDailyQuestTransaction } from "@/lib/quests/daily-quests/replay-prevention";
+
+const log = getLogger("api:daily-quests:complete-task");
+
+function isRunActiveWindow(run: any) {
+  const now = Date.now();
+  const starts = Date.parse(run.starts_at);
+  const ends = Date.parse(run.ends_at);
+  return run.status === "active" && now >= starts && now <= ends;
+}
+
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  const {
+    dailyQuestRunId,
+    dailyQuestRunTaskId,
+    verificationData: clientVerificationData,
+  } = (req.body || {}) as {
+    dailyQuestRunId?: string;
+    dailyQuestRunTaskId?: string;
+    verificationData?: Record<string, unknown>;
+  };
+
+  if (!dailyQuestRunId || !dailyQuestRunTaskId) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  try {
+    const authUser = await getPrivyUser(req);
+    if (!authUser?.id) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+    const userId = authUser.id;
+
+    const rawActiveWalletHeader = req.headers?.["x-active-wallet"];
+    if (Array.isArray(rawActiveWalletHeader)) {
+      return res
+        .status(400)
+        .json({ error: "Multiple X-Active-Wallet headers provided" });
+    }
+
+    let activeWallet: string | null = null;
+    try {
+      activeWallet = await extractAndValidateWalletFromHeader({
+        userId,
+        activeWalletHeader: rawActiveWalletHeader,
+        context: "daily-quests:complete-task",
+        required: true,
+      });
+    } catch (walletErr: unknown) {
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Invalid X-Active-Wallet header";
+      const status =
+        walletErr instanceof WalletValidationError &&
+        walletErr.code === "NOT_OWNED"
+          ? 403
+          : 400;
+      return res.status(status).json({ error: message });
+    }
+
+    const supabase = createAdminClient();
+
+    const { data: run, error: runErr } = await supabase
+      .from("daily_quest_runs")
+      .select("*")
+      .eq("id", dailyQuestRunId)
+      .maybeSingle();
+    if (runErr) return res.status(500).json({ error: "Failed to fetch run" });
+    if (!run) return res.status(404).json({ error: "Run not found" });
+
+    if (!isRunActiveWindow(run)) {
+      return res.status(409).json({ error: "RUN_CLOSED" });
+    }
+
+    const { data: progress, error: progErr } = await supabase
+      .from("user_daily_quest_progress")
+      .select("*")
+      .eq("user_id", userId)
+      .eq("daily_quest_run_id", dailyQuestRunId)
+      .maybeSingle();
+    if (progErr) {
+      return res.status(500).json({ error: "Failed to fetch progress" });
+    }
+    if (!progress) {
+      return res.status(400).json({ error: "Daily quest not started" });
+    }
+
+    const { data: task, error: taskErr } = await supabase
+      .from("daily_quest_run_tasks")
+      .select("*")
+      .eq("id", dailyQuestRunTaskId)
+      .eq("daily_quest_run_id", dailyQuestRunId)
+      .maybeSingle();
+
+    if (taskErr) return res.status(500).json({ error: "Failed to fetch task" });
+    if (!task) return res.status(404).json({ error: "Task not found" });
+
+    const strategy = getVerificationStrategy(task.task_type);
+    if (!strategy) {
+      return res.status(400).json({
+        error: "Unsupported verification method for task type",
+        code: "UNSUPPORTED_VERIFICATION",
+      });
+    }
+
+    const rawClientTxHash =
+      clientVerificationData && typeof clientVerificationData === "object"
+        ? (clientVerificationData as { transactionHash?: string })
+            .transactionHash
+        : undefined;
+    const clientTxHash =
+      typeof rawClientTxHash === "string" && rawClientTxHash.trim()
+        ? normalizeTransactionHash(rawClientTxHash)
+        : undefined;
+
+    const txRequired = isTxHashRequiredTaskType(task.task_type);
+    if (txRequired) {
+      if (!clientTxHash || !isValidTransactionHash(clientTxHash)) {
+        return res.status(400).json({
+          error: "Valid transaction hash is required",
+          code: "TX_HASH_REQUIRED",
+        });
+      }
+    }
+
+    const requiresVerification = Boolean(
+      task.verification_method === "blockchain" ||
+      task.verification_method === "automatic" ||
+      isVendorBlockchainTaskType(task.task_type),
+    );
+
+    if (!requiresVerification) {
+      return res.status(400).json({
+        error: "Unsupported verification method for task type",
+        code: "UNSUPPORTED_VERIFICATION",
+      });
+    }
+
+    const verifyResult = await strategy.verify(
+      task.task_type,
+      txRequired ? { transactionHash: clientTxHash } : {},
+      userId,
+      activeWallet || "",
+      { taskConfig: task.task_config || null, taskId: task.id },
+    );
+
+    if (!verifyResult.success) {
+      return res.status(400).json({
+        error: verifyResult.error || "Verification failed",
+        code: verifyResult.code || "VERIFICATION_FAILED",
+      });
+    }
+
+    // Register tx hash for replay prevention (tx-based tasks only; daily_checkin is excluded by isTxHashRequiredTaskType)
+    if (txRequired && clientTxHash) {
+      const metadata = verifyResult.metadata || {};
+      const registerData = await registerDailyQuestTransaction(supabase, {
+        txHash: clientTxHash,
+        userId,
+        taskId: task.id,
+        taskType: task.task_type,
+        metadata: {
+          amount:
+            typeof metadata.amount === "string"
+              ? metadata.amount
+              : typeof (metadata as any).inputAmount === "string"
+                ? String((metadata as any).inputAmount)
+                : null,
+          eventName:
+            task.task_type === "deploy_lock"
+              ? "NewLock"
+              : task.task_type === "uniswap_swap"
+                ? "Swap"
+                : typeof (metadata as any).eventName === "string"
+                  ? String((metadata as any).eventName)
+                  : null,
+          blockNumber:
+            typeof (metadata as any).blockNumber === "string"
+              ? String((metadata as any).blockNumber)
+              : null,
+          logIndex:
+            typeof (metadata as any).logIndex === "number"
+              ? (metadata as any).logIndex
+              : null,
+        },
+      });
+
+      if (!registerData.success) {
+        if (registerData.kind === "rpc_error") {
+          return res.status(500).json({
+            error: "Failed to register transaction",
+            code: "TX_REGISTER_FAILED",
+          });
+        }
+
+        return res.status(400).json({
+          error:
+            registerData.error ||
+            "This transaction has already been used to complete a daily quest task",
+          code: "TX_ALREADY_USED",
+        });
+      }
+    }
+
+    // Insert completion idempotently (unique(user_id, daily_quest_run_id, daily_quest_run_task_id))
+    await supabase.from("user_daily_task_completions").upsert(
+      {
+        user_id: userId,
+        daily_quest_run_id: dailyQuestRunId,
+        daily_quest_run_task_id: dailyQuestRunTaskId,
+        verification_data: {
+          ...(verifyResult.metadata || {}),
+          txHash: txRequired ? clientTxHash || null : null,
+          verificationMethod: task.verification_method,
+        },
+        submission_status: "completed",
+      },
+      {
+        onConflict: "user_id,daily_quest_run_id,daily_quest_run_task_id",
+        ignoreDuplicates: true,
+      },
+    );
+
+    // Recompute completion count and set progress.completed_at when last task completes
+    const { data: totalTasks, error: totalErr } = await supabase
+      .from("daily_quest_run_tasks")
+      .select("id")
+      .eq("daily_quest_run_id", dailyQuestRunId);
+    if (totalErr) {
+      return res.status(500).json({ error: "Failed to compute task totals" });
+    }
+
+    const { data: completions, error: compErr } = await supabase
+      .from("user_daily_task_completions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("daily_quest_run_id", dailyQuestRunId);
+    if (compErr) {
+      return res
+        .status(500)
+        .json({ error: "Failed to compute completion state" });
+    }
+
+    const totalCount = (totalTasks || []).length;
+    const completedCount = (completions || []).length;
+
+    if (
+      totalCount > 0 &&
+      completedCount === totalCount &&
+      !progress.completed_at
+    ) {
+      await supabase
+        .from("user_daily_quest_progress")
+        .update({ completed_at: new Date().toISOString() })
+        .eq("id", progress.id)
+        .eq("user_id", userId)
+        .eq("daily_quest_run_id", dailyQuestRunId)
+        .is("completed_at", null);
+    }
+
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    log.error("Error in daily quest complete-task API:", error);
+    return res.status(500).json({ error: "Internal server error" });
+  }
+}
