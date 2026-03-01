@@ -1,3 +1,6 @@
+# Local automation scripts and outputs
+automation/
+
 # Logs
 logs
 *.log
