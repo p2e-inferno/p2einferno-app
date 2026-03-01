@@ -12,6 +12,7 @@ import { useDGNationKey } from "@/hooks/useDGNationKey";
 import { useKeyPurchase } from "@/hooks/unlock/useKeyPurchase";
 import { LockPriceDisplay } from "@/components/subscription/LockPriceDisplay";
 import { useLockInfo } from "@/hooks/unlock/useLockInfo";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 
 /**
  * Displays a card prompting the user to obtain a DG Nation membership when membership is required for access.
@@ -27,7 +28,12 @@ export function AccessRequirementCard() {
   const lockAddress = process.env
     .NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
 
-  const { hasValidKey, isLoading: isLoadingKey } = useDGNationKey();
+  const {
+    hasValidKey,
+    hasValidKeyAnyLinked,
+    validWalletAddress,
+    isLoading: isLoadingKey,
+  } = useDGNationKey();
   const { purchaseKey, isLoading: isPurchasing } = useKeyPurchase();
   const lockInfo = useLockInfo(lockAddress);
 
@@ -61,6 +67,29 @@ export function AccessRequirementCard() {
 
   if (isLoadingKey || hasValidKey || (isSuccess && !showPurchaseModal)) {
     return null; // Don't show if loading, user already has access, or purchase was successful
+  }
+
+  if (hasValidKeyAnyLinked && validWalletAddress) {
+    return (
+      <div className="p-6 bg-gradient-to-br from-indigo-500/10 via-transparent to-orange-500/5 border border-indigo-500/20 rounded-2xl relative overflow-hidden backdrop-blur-sm">
+        <div className="relative z-10">
+          <h3 className="text-lg font-black text-white mb-2 tracking-tight uppercase">
+            Membership Found on Another Wallet
+          </h3>
+          <p className="text-gray-400 text-sm leading-relaxed mb-2 max-w-md">
+            Your DG Nation membership exists on{" "}
+            <span className="font-mono text-gray-200">
+              {formatWalletAddress(validWalletAddress)}
+            </span>
+            . You don&apos;t need to purchase another membership.
+          </p>
+          <p className="text-gray-500 text-xs leading-relaxed max-w-md">
+            Withdrawals are gated per-user across linked wallets, but purchases
+            should be avoided to prevent duplicate memberships.
+          </p>
+        </div>
+      </div>
+    );
   }
 
   const handleOpenPurchaseModal = () => {

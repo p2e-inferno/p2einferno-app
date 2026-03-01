@@ -8,6 +8,7 @@
 import React from "react";
 import { useDGNationKey } from "@/hooks/useDGNationKey";
 import { formatDistanceToNow } from "date-fns";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 
 interface SubscriptionBadgeProps {
   showExpiry?: boolean;
@@ -18,7 +19,14 @@ export function SubscriptionBadge({
   showExpiry = true,
   compact = false,
 }: SubscriptionBadgeProps) {
-  const { hasValidKey, expiresAt, isLoading, error } = useDGNationKey();
+  const {
+    hasValidKey,
+    hasValidKeyAnyLinked,
+    validWalletAddress,
+    expiresAt,
+    isLoading,
+    error,
+  } = useDGNationKey();
 
   const baseClasses =
     "inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold backdrop-blur-md border transition-all duration-300";
@@ -45,6 +53,20 @@ export function SubscriptionBadge({
   }
 
   if (!hasValidKey) {
+    if (hasValidKeyAnyLinked && validWalletAddress) {
+      return (
+        <div
+          className={`${baseClasses} bg-yellow-500/10 border-yellow-500/20 text-yellow-300`}
+        >
+          <div className="w-1.5 h-1.5 rounded-full bg-yellow-300 mr-2 shadow-[0_0_8px_rgba(253,224,71,0.4)]" />
+          Membership on{" "}
+          <span className="ml-1 font-mono">
+            {formatWalletAddress(validWalletAddress)}
+          </span>
+        </div>
+      );
+    }
+
     return (
       <div
         className={`${baseClasses} bg-white/5 border-white/10 text-white/60`}

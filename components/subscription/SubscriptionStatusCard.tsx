@@ -15,6 +15,7 @@ import { XpRenewalModal } from "./XpRenewalModal";
 import { CryptoRenewalModal } from "./CryptoRenewalModal";
 import { MethodSelectionModal } from "./MethodSelectionModal";
 import { Loader, X } from "lucide-react";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 
 interface Props {
   onRenewalComplete?: () => void;
@@ -25,7 +26,14 @@ export const SubscriptionStatusCard = ({
   onRenewalComplete,
   className = "",
 }: Props) => {
-  const { hasValidKey, expiresAt, isLoading, error } = useDGNationKey();
+  const {
+    hasValidKey,
+    hasValidKeyAnyLinked,
+    validWalletAddress,
+    expiresAt,
+    isLoading,
+    error,
+  } = useDGNationKey();
   const [isDismissed, setIsDismissed] = useState(false);
   const [showMethodModal, setShowMethodModal] = useState(false);
   const [selectedMethod, setSelectedMethod] = useState<
@@ -66,6 +74,28 @@ export const SubscriptionStatusCard = ({
   }
 
   if (!hasValidKey) {
+    if (hasValidKeyAnyLinked && validWalletAddress) {
+      return (
+        <div
+          className={`card p-6 bg-gray-800 border border-gray-700 ${className}`}
+        >
+          <h3 className="text-lg font-semibold text-white">
+            DG Nation Membership
+          </h3>
+          <p className="text-sm text-gray-400 mt-2">
+            Membership found on another linked wallet:{" "}
+            <span className="font-mono text-gray-200">
+              {formatWalletAddress(validWalletAddress)}
+            </span>
+          </p>
+          <p className="text-xs text-gray-500 mt-2">
+            Switch to that wallet to view status and renew without accidentally
+            purchasing a second membership.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <>
         <div

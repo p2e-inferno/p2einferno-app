@@ -1,24 +1,21 @@
 import { useUser } from "@privy-io/react-auth";
 import { useReadContract } from "wagmi";
-import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
+import { useDGNationKey } from "@/hooks/useDGNationKey";
 
 const VENDOR_ADDRESS = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
 
 export function useDGVendorAccess() {
-  const { user } = useUser();
-  const { walletAddress } = useDetectConnectedWalletAddress(user);
-
+  // useUser is kept to align hook lifetime with auth state, even though membership
+  // checks are centralized in useDGNationKey.
+  useUser();
   const {
-    data: hasKeyData,
+    hasValidKey,
+    hasValidKeyAnyLinked,
+    validWalletAddress,
+    activeWalletAddress,
     isLoading: isKeyLoading,
-  } = useReadContract({
-    address: VENDOR_ADDRESS,
-    abi: DG_TOKEN_VENDOR_ABI,
-    functionName: "hasValidKey",
-    args: [walletAddress! as `0x${string}`],
-    query: { enabled: !!walletAddress },
-  });
+  } = useDGNationKey();
 
   const {
     data: pausedData,
@@ -30,7 +27,11 @@ export function useDGVendorAccess() {
   });
 
   return {
-    isKeyHolder: Boolean(hasKeyData),
+    isKeyHolder: hasValidKey,
+    hasKeyOnAnotherLinkedWallet:
+      !hasValidKey && hasValidKeyAnyLinked && !!validWalletAddress,
+    keyHoldingWalletAddress: validWalletAddress,
+    activeWalletAddress,
     isPaused: Boolean(pausedData),
     isLoading: isKeyLoading || isPausedLoading,
   };

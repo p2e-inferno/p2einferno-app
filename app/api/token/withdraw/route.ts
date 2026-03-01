@@ -28,10 +28,7 @@ import {
   validateWalletOwnership,
 } from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
-import {
-  transferDGTokens,
-  hasValidDGNationKey,
-} from "@/lib/token-withdrawal/functions/dg-transfer-service";
+import { transferDGTokens } from "@/lib/token-withdrawal/functions/dg-transfer-service";
 import {
   getWithdrawalDomain,
   WITHDRAWAL_TYPES,
@@ -45,6 +42,7 @@ import {
   sendEmailWithDedup,
 } from "@/lib/email";
 import { isEASEnabled } from "@/lib/attestation/core/config";
+import { checkUserKeyOwnership } from "@/lib/services/user-key-service";
 
 const log = getLogger("api:token:withdraw");
 
@@ -99,13 +97,13 @@ export async function POST(req: NextRequest) {
 
     // 2. Check DG Nation membership (if required)
     if (DG_NATION_LOCK) {
-      const hasAccess = await hasValidDGNationKey(
+      const keyCheck = await checkUserKeyOwnership(
         publicClient,
-        walletAddress as Address,
+        user.id,
         DG_NATION_LOCK,
       );
 
-      if (!hasAccess) {
+      if (!keyCheck.hasValidKey) {
         return NextResponse.json(
           { success: false, error: "DG Nation membership required" },
           { status: 403 },

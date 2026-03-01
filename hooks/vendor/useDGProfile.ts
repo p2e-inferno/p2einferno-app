@@ -11,6 +11,7 @@ import { useReadContract, useWriteContract } from "wagmi";
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
 import { USER_STAGE_LABELS } from "@/lib/blockchain/shared/vendor-constants";
 import type { StageConfigStruct, UserStateStruct } from "@/lib/blockchain/shared/vendor-types";
+import { useDGNationKey } from "@/hooks/useDGNationKey";
 
 const VENDOR_ADDRESS = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
 
@@ -27,6 +28,11 @@ export function useDGProfile() {
   const { user } = useUser();
   const { walletAddress } = useDetectConnectedWalletAddress(user);
   const { writeContract, data: hash, isPending } = useWriteContract();
+  const {
+    hasValidKey: hasValidMembershipOnActiveWallet,
+    hasValidKeyAnyLinked,
+    validWalletAddress,
+  } = useDGNationKey();
 
   // Read user state
   const { data: userStateRaw, refetch: refetchState } = useReadContract({
@@ -48,14 +54,6 @@ export function useDGProfile() {
         dailyWindowStart: raw.dailyWindowStart,
       }
     : undefined;
-
-  const { data: hasKeyData } = useReadContract({
-    address: VENDOR_ADDRESS,
-    abi: DG_TOKEN_VENDOR_ABI,
-    functionName: "hasValidKey",
-    args: [walletAddress! as `0x${string}`],
-    query: { enabled: !!walletAddress },
-  });
 
   const { data: pausedData } = useReadContract({
     address: VENDOR_ADDRESS,
@@ -82,7 +80,7 @@ export function useDGProfile() {
       ? USER_STAGE_LABELS[userState.stage]
       : "Unknown";
 
-  const isKeyHolder = Boolean(hasKeyData);
+  const isKeyHolder = hasValidMembershipOnActiveWallet;
   const isPaused = Boolean(pausedData);
 
   const pointsRequired = nextStageConfig?.upgradePointsThreshold;
@@ -118,7 +116,12 @@ export function useDGProfile() {
 
   const upgradeBlockedReason = (() => {
     if (isMaxStage) return "Max stage reached";
-    if (!isKeyHolder) return "Valid NFT key required";
+    if (!isKeyHolder) {
+      if (hasValidKeyAnyLinked && validWalletAddress) {
+        return "Membership found on another linked wallet — switch wallets to upgrade";
+      }
+      return "Valid NFT key required";
+    }
     if (isPaused) return "Vendor is paused";
     if (!hasPoints) return "Insufficient points";
     if (!hasFuel) return "Insufficient fuel";
