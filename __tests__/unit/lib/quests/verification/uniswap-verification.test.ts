@@ -699,7 +699,9 @@ describe("UniswapVerificationStrategy", () => {
       expect(result.code).toBe("ROUTE_MISMATCH");
     });
   });
+});
 
+describe("Uniswap verification helper functions", () => {
   describe("resolveTaskVerificationMethod", () => {
     it("should map uniswap_swap to blockchain", () => {
       const {
