@@ -46,7 +46,7 @@ function extractScreenshotUrl(
     verificationData.inputData,
     verificationData.submissionUrl,
     verificationData.url,
-    verificationData.file_url as unknown,
+    verificationData.file_url,
   ];
 
   for (const candidate of candidates) {
