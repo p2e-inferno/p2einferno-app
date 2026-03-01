@@ -14,6 +14,7 @@ import { useTransactionStepper } from "@/hooks/useTransactionStepper";
 import type { DeploymentStep } from "@/lib/transaction-stepper/types";
 import { useTokenApproval } from "@/hooks/useTokenApproval";
 import { useCallback, useMemo, useState } from "react";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 
 const VENDOR_ADDRESS = process.env
   .NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
@@ -28,7 +29,13 @@ export default function LightUpButton() {
     executeLightUpTx,
   } = useDGLightUp();
   const { approveIfNeededTx } = useTokenApproval();
-  const { isKeyHolder, isPaused } = useDGVendorAccess();
+  const {
+    isKeyHolder,
+    isPaused,
+    hasKeyOnAnotherLinkedWallet,
+    keyHoldingWalletAddress,
+    activeWalletAddress,
+  } = useDGVendorAccess();
 
   const [isStepperOpen, setIsStepperOpen] = useState(false);
   const [stepperSteps, setStepperSteps] = useState<DeploymentStep[]>([]);
@@ -51,7 +58,13 @@ export default function LightUpButton() {
   );
 
   const blockedReason = !isKeyHolder
-    ? "Valid NFT key required to light up."
+    ? hasKeyOnAnotherLinkedWallet && keyHoldingWalletAddress
+      ? `You’re connected as ${formatWalletAddress(
+          activeWalletAddress,
+        )}. Membership is on ${formatWalletAddress(
+          keyHoldingWalletAddress,
+        )} — switch to light up.`
+      : "Valid NFT key required to light up."
     : isPaused
       ? "Vendor is paused."
       : isLoadingConfig

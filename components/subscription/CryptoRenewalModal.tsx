@@ -12,6 +12,7 @@ import { useExtendKey } from "@/hooks/unlock/useExtendKey";
 import { useDGNationKey } from "@/hooks/useDGNationKey";
 import { useLockInfo } from "@/hooks/unlock/useLockInfo";
 import { LockPriceDisplay } from "./LockPriceDisplay";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 
 interface Props {
   mode: "purchase" | "renewal";
@@ -38,15 +39,29 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
   const {
     expirationTimestamp: currentExpiration,
     hasValidKey,
+    hasValidKeyAnyLinked,
+    validWalletAddress,
     tokenId,
   } = useDGNationKey();
   const lockInfo = useLockInfo(lockAddress);
 
   const isLoading = isPurchasing || isExtending;
+  const hasMembershipOnOtherWallet =
+    !hasValidKey && hasValidKeyAnyLinked && !!validWalletAddress;
 
   const handleAction = async () => {
     if (!lockAddress) {
       setError("Lock address not configured");
+      setStep("error");
+      return;
+    }
+
+    if (hasMembershipOnOtherWallet) {
+      setError(
+        `Membership exists on another linked wallet (${formatWalletAddress(
+          validWalletAddress!,
+        )}). Switch wallets to avoid purchasing or renewing the wrong key.`,
+      );
       setStep("error");
       return;
     }
@@ -273,6 +288,18 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
           {/* Price Display */}
           <LockPriceDisplay lockAddress={lockAddress} className="mb-4" />
 
+          {hasMembershipOnOtherWallet && (
+            <div className="p-4 bg-yellow-900/20 rounded-lg border border-yellow-500/30 mb-4">
+              <p className="text-sm text-yellow-200">
+                Membership found on{" "}
+                <span className="font-mono">
+                  {formatWalletAddress(validWalletAddress)}
+                </span>
+                . Switch wallets to continue.
+              </p>
+            </div>
+          )}
+
           {/* Info message */}
           {!lockInfo.isLoading && !lockInfo.error && (
             <div className="p-4 bg-blue-900/20 rounded-lg border border-blue-500/30 mb-4">
@@ -296,7 +323,12 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
           <button
             className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             onClick={handleAction}
-            disabled={lockInfo.isLoading || !!lockInfo.error || isLoading}
+            disabled={
+              lockInfo.isLoading ||
+              !!lockInfo.error ||
+              isLoading ||
+              hasMembershipOnOtherWallet
+            }
           >
             {isLoading
               ? "Processing..."

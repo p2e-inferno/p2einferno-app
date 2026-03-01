@@ -29,7 +29,11 @@ export interface WithdrawalAccessOptions {
  */
 export function useWithdrawalAccess(options: WithdrawalAccessOptions = {}) {
   const { minAmount = 3000, isLoadingLimits = false } = options;
-  const { hasValidKey, isLoading: isLoadingKey, error: keyError } = useDGNationKey();
+  const {
+    hasValidKeyAnyLinked,
+    isLoading: isLoadingKey,
+    error: keyError,
+  } = useDGNationKey();
   const [accessInfo, setAccessInfo] = useState<WithdrawalAccessInfo>({
     canWithdraw: false,
     reason: null,
@@ -44,11 +48,18 @@ export function useWithdrawalAccess(options: WithdrawalAccessOptions = {}) {
 
   // Fetch XP data
   useEffect(() => {
+    let isMounted = true;
+    const controller = new AbortController();
+
     async function fetchXP() {
       try {
-        setIsLoadingXp(true);
-        const response = await fetch('/api/user/experience-points');
+        if (isMounted) setIsLoadingXp(true);
+        const response = await fetch('/api/user/experience-points', {
+          signal: controller.signal,
+        });
         const data = await response.json();
+
+        if (!isMounted || controller.signal.aborted) return;
 
         if (response.ok && data.success) {
           setXpData({ xp: data.xp || 0 });
@@ -56,13 +67,22 @@ export function useWithdrawalAccess(options: WithdrawalAccessOptions = {}) {
           setXpError(data.error || 'Failed to fetch XP');
         }
       } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        if (!isMounted || controller.signal.aborted) return;
         setXpError(error instanceof Error ? error.message : 'Failed to fetch XP');
       } finally {
+        if (!isMounted || controller.signal.aborted) return;
         setIsLoadingXp(false);
       }
     }
 
     fetchXP();
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, []);
 
   useEffect(() => {
@@ -71,8 +91,18 @@ export function useWithdrawalAccess(options: WithdrawalAccessOptions = {}) {
       return;
     }
 
+    if (xpError) {
+      setAccessInfo({
+        canWithdraw: false,
+        reason: xpError,
+        xpBalance: xpData?.xp || 0,
+        isLoading: false
+      });
+      return;
+    }
+
     // First check NFT requirement
-    if (!hasValidKey) {
+    if (!hasValidKeyAnyLinked) {
       setAccessInfo({
         canWithdraw: false,
         reason: keyError || 'DG Nation membership required to pull out DG tokens',
@@ -92,7 +122,16 @@ export function useWithdrawalAccess(options: WithdrawalAccessOptions = {}) {
       isLoading: false
     });
 
-  }, [hasValidKey, isLoadingKey, isLoadingXp, isLoadingLimits, xpData, keyError, xpError, minAmount]);
+  }, [
+    hasValidKeyAnyLinked,
+    isLoadingKey,
+    isLoadingXp,
+    isLoadingLimits,
+    xpData,
+    keyError,
+    minAmount,
+    xpError,
+  ]);
 
   return accessInfo;
 }

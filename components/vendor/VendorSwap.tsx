@@ -21,6 +21,7 @@ import {
 } from "@/lib/vendor/math";
 import { PercentPresets } from "@/components/vendor/PercentPresets";
 import UniswapSwapTab from "@/components/vendor/UniswapSwapTab";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 
 type Mode = "buy" | "sell";
 type BuyEstimate = ReturnType<typeof estimateBuy>;
@@ -43,7 +44,13 @@ export default function VendorSwap() {
     swapTokenAddress,
   } = useDGMarket();
   const { base, swap } = useDGTokenBalances(baseTokenAddress, swapTokenAddress);
-  const { isKeyHolder, isPaused } = useDGVendorAccess();
+  const {
+    isKeyHolder,
+    isPaused,
+    hasKeyOnAnotherLinkedWallet,
+    keyHoldingWalletAddress,
+    activeWalletAddress,
+  } = useDGVendorAccess();
 
   const [activeTab, setActiveTab] = useState<"vendor" | "uniswap">("vendor");
   const [mode, setMode] = useState<Mode>("buy");
@@ -314,7 +321,13 @@ export default function VendorSwap() {
             {(isPaused || !isKeyHolder) && (
               <p className="text-xs text-red-400">
                 {!isKeyHolder
-                  ? "Active DG Nation Membership is required to trade."
+                  ? hasKeyOnAnotherLinkedWallet && keyHoldingWalletAddress
+                    ? `You’re connected as ${formatWalletAddress(
+                        activeWalletAddress,
+                      )}. Membership is on ${formatWalletAddress(
+                        keyHoldingWalletAddress,
+                      )} — switch to trade.`
+                    : "Active DG Nation Membership is required to trade."
                   : "Vendor is paused."}
               </p>
             )}
