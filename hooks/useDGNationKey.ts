@@ -38,11 +38,37 @@ type KeyCheckData = {
 };
 
 const DG_NATION_KEY_CACHE_TTL_MS = 60_000;
+const MAX_KEY_CACHE_ENTRIES = 50;
+const IN_FLIGHT_CHECK_TTL_MS = 60_000;
 const keyCache = new Map<
   string,
   { data: KeyCheckData; fetchedAt: number; error: string | null }
 >();
-const inFlightChecks = new Map<string, Promise<KeyCheckData>>();
+const inFlightChecks = new Map<
+  string,
+  { promise: Promise<KeyCheckData>; startedAt: number }
+>();
+
+function purgeCaches(now = Date.now()) {
+  for (const [key, entry] of keyCache) {
+    if (now - entry.fetchedAt > DG_NATION_KEY_CACHE_TTL_MS) {
+      keyCache.delete(key);
+    }
+  }
+
+  for (const [key, entry] of inFlightChecks) {
+    if (now - entry.startedAt > IN_FLIGHT_CHECK_TTL_MS) {
+      inFlightChecks.delete(key);
+    }
+  }
+
+  while (keyCache.size > MAX_KEY_CACHE_ENTRIES) {
+    const oldestKey = keyCache.keys().next().value as string | undefined;
+    if (!oldestKey) break;
+    keyCache.delete(oldestKey);
+    inFlightChecks.delete(oldestKey);
+  }
+}
 
 function normalizeAddress(address: string): `0x${string}` {
   return address.toLowerCase() as `0x${string}`;
@@ -59,7 +85,10 @@ export function useDGNationKey() {
   const lockAddress = process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
 
   const linkedWalletAddresses = useMemo(() => {
-    return getWalletAddressesFromUser(user).map(normalizeAddress);
+    const normalized = getWalletAddressesFromUser(user).map(normalizeAddress);
+    const unique = Array.from(new Set(normalized));
+    unique.sort();
+    return unique;
   }, [user]);
 
   const [data, setData] = useState<KeyCheckData>({
@@ -124,8 +153,12 @@ export function useDGNationKey() {
       }
 
       const cacheKey = `${user.id}|${lockAddress}|${linkedWalletAddresses.join(",")}`;
+      purgeCaches();
       const cached = keyCache.get(cacheKey);
       if (cached && Date.now() - cached.fetchedAt < DG_NATION_KEY_CACHE_TTL_MS) {
+        // Touch LRU position
+        keyCache.delete(cacheKey);
+        keyCache.set(cacheKey, cached);
         setData(cached.data);
         setRuntimeError(cached.error);
         setIsLoading(false);
@@ -136,7 +169,7 @@ export function useDGNationKey() {
       setRuntimeError(null);
 
       try {
-        const existing = inFlightChecks.get(cacheKey);
+        const existing = inFlightChecks.get(cacheKey)?.promise;
         const promise =
           existing ??
           (async () => {
@@ -230,15 +263,14 @@ export function useDGNationKey() {
               fetchedAt: Date.now(),
               error: null,
             });
+            purgeCaches();
 
             return result;
           })();
 
         if (!existing) {
-          inFlightChecks.set(cacheKey, promise);
-          promise.finally(() => {
-            inFlightChecks.delete(cacheKey);
-          });
+          inFlightChecks.set(cacheKey, { promise, startedAt: Date.now() });
+          promise.finally(() => inFlightChecks.delete(cacheKey));
         }
 
         const result = await promise;
@@ -256,7 +288,6 @@ export function useDGNationKey() {
           error instanceof Error ? error.message : "Failed to check DG Nation status";
         setRuntimeError(message);
         setIsLoading(false);
-        const cacheKey = `${user.id}|${lockAddress}|${linkedWalletAddresses.join(",")}`;
         setData({
           checkedAddresses: linkedWalletAddresses,
           validAddresses: [],
@@ -279,6 +310,7 @@ export function useDGNationKey() {
           fetchedAt: Date.now(),
           error: message,
         });
+        purgeCaches();
       }
     }
 

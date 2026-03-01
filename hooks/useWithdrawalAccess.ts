@@ -83,6 +83,16 @@ export function useWithdrawalAccess(options: WithdrawalAccessOptions = {}) {
       return;
     }
 
+    if (xpError) {
+      setAccessInfo({
+        canWithdraw: false,
+        reason: xpError,
+        xpBalance: xpData?.xp || 0,
+        isLoading: false
+      });
+      return;
+    }
+
     // First check NFT requirement
     if (!hasValidKeyAnyLinked) {
       setAccessInfo({
@@ -111,8 +121,8 @@ export function useWithdrawalAccess(options: WithdrawalAccessOptions = {}) {
     isLoadingLimits,
     xpData,
     keyError,
-    xpError,
     minAmount,
+    xpError,
   ]);
 
   return accessInfo;
