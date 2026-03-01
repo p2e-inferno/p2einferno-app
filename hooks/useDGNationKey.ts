@@ -12,6 +12,7 @@ import { abi as lockAbi } from '@/constants/public_lock_abi';
 import { getLogger } from '@/lib/utils/logger';
 import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalletAddress";
 import { getWalletAddressesFromUser } from "@/lib/utils/wallet-selection";
+import { normalizeAddress } from "@/lib/utils/address";
 
 const log = getLogger('hooks:useDGNationKey');
 
@@ -70,8 +71,11 @@ function purgeCaches(now = Date.now()) {
   }
 }
 
-function normalizeAddress(address: string): `0x${string}` {
-  return address.toLowerCase() as `0x${string}`;
+function normalizeWalletAddress(
+  address?: string | null,
+): `0x${string}` | null {
+  const normalized = normalizeAddress(address);
+  return normalized ? (normalized as `0x${string}`) : null;
 }
 
 /**
@@ -81,11 +85,13 @@ function normalizeAddress(address: string): `0x${string}` {
 export function useDGNationKey() {
   const { user } = useUser();
   const { walletAddress } = useDetectConnectedWalletAddress(user);
-  const activeWallet = walletAddress ? normalizeAddress(walletAddress) : null;
+  const activeWallet = normalizeWalletAddress(walletAddress);
   const lockAddress = process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS as `0x${string}`;
 
   const linkedWalletAddresses = useMemo(() => {
-    const normalized = getWalletAddressesFromUser(user).map(normalizeAddress);
+    const normalized = getWalletAddressesFromUser(user)
+      .map(normalizeWalletAddress)
+      .filter((address): address is `0x${string}` => !!address);
     const unique = Array.from(new Set(normalized));
     unique.sort();
     return unique;
@@ -215,6 +221,13 @@ export function useDGNationKey() {
               .filter((r) => r.error)
               .map((r) => ({ address: r.address, error: r.error! }));
 
+            const aggregatedError =
+              errors.length === checkResults.length && checkResults.length > 0
+                ? `All per-address checks failed: ${errors
+                    .map((e) => `${e.address}: ${e.error}`)
+                    .join("; ")}`
+                : null;
+
             let tokenId: bigint | null = null;
             let expirationTimestamp: bigint | null = null;
             let expiresAt: Date | null = null;
@@ -261,7 +274,7 @@ export function useDGNationKey() {
             keyCache.set(cacheKey, {
               data: result,
               fetchedAt: Date.now(),
-              error: null,
+              error: aggregatedError,
             });
             purgeCaches();
 
@@ -276,7 +289,7 @@ export function useDGNationKey() {
         const result = await promise;
         if (cancelled) return;
         setData(result);
-        setRuntimeError(null);
+        setRuntimeError(keyCache.get(cacheKey)?.error ?? null);
         setIsLoading(false);
       } catch (error) {
         if (cancelled) return;
