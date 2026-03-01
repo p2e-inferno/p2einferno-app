@@ -14,6 +14,7 @@ interface SubmissionReviewModalProps {
     user_id: string;
     task_id: string;
     submission_data: any;
+    verification_data?: any;
     submission_status?: SubmissionStatus;
     admin_feedback?: string;
     completed_at: string;
@@ -117,6 +118,49 @@ export default function SubmissionReviewModal({
   };
 
   const submissionText = formatSubmissionData(submission.submission_data);
+  const verificationData =
+    submission.verification_data &&
+    typeof submission.verification_data === "object" &&
+    !Array.isArray(submission.verification_data)
+      ? (submission.verification_data as Record<string, unknown>)
+      : null;
+  const isAIVerification =
+    verificationData &&
+    (verificationData.verificationMethod === "ai" ||
+      typeof verificationData.aiDecision === "string" ||
+      typeof verificationData.aiModel === "string" ||
+      typeof verificationData.aiReason === "string");
+  const aiDecision =
+    verificationData && typeof verificationData.aiDecision === "string"
+      ? verificationData.aiDecision
+      : null;
+  const aiConfidence =
+    verificationData && typeof verificationData.aiConfidence === "number"
+      ? verificationData.aiConfidence
+      : null;
+  const aiReason =
+    verificationData && typeof verificationData.aiReason === "string"
+      ? verificationData.aiReason
+      : null;
+  const aiModel =
+    verificationData && typeof verificationData.aiModel === "string"
+      ? verificationData.aiModel
+      : null;
+  const aiVerifiedAt =
+    verificationData && typeof verificationData.verifiedAt === "string"
+      ? verificationData.verifiedAt
+      : null;
+
+  const formattedAIConfidence =
+    aiConfidence !== null
+      ? (() => {
+          const asPercent =
+            aiConfidence <= 1 ? aiConfidence * 100 : aiConfidence;
+          const clamped = Math.min(100, Math.max(0, asPercent));
+          const rounded = Math.round(clamped * 10) / 10;
+          return `${rounded}%`;
+        })()
+      : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -208,6 +252,46 @@ export default function SubmissionReviewModal({
               )}
             </div>
           </div>
+
+          {/* AI Verification Context */}
+          {isAIVerification && (
+            <div className="bg-gray-800/50 rounded-lg p-4">
+              <h4 className="font-medium text-white mb-2">AI Verification</h4>
+              <div className="bg-gray-900 rounded p-3 border border-gray-700 space-y-2 text-sm">
+                {aiDecision && (
+                  <p className="text-gray-300">
+                    <span className="text-gray-400">Decision:</span>{" "}
+                    <span className="capitalize">{aiDecision}</span>
+                  </p>
+                )}
+                {aiConfidence !== null && (
+                  <p className="text-gray-300">
+                    <span className="text-gray-400">Confidence:</span>{" "}
+                    {formattedAIConfidence}
+                  </p>
+                )}
+                {aiModel && (
+                  <p className="text-gray-300">
+                    <span className="text-gray-400">Model:</span> {aiModel}
+                  </p>
+                )}
+                {aiVerifiedAt && (
+                  <p className="text-gray-300">
+                    <span className="text-gray-400">Verified at:</span>{" "}
+                    {new Date(aiVerifiedAt).toLocaleString()}
+                  </p>
+                )}
+                {aiReason && (
+                  <div className="pt-2 border-t border-gray-800">
+                    <p className="text-gray-400">Reason:</p>
+                    <p className="text-gray-300 whitespace-pre-wrap break-words mt-1">
+                      {aiReason}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Current Status */}
           {submission.submission_status &&

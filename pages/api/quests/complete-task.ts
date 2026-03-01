@@ -206,6 +206,24 @@ export default async function handler(
       });
     }
 
+    // Basic input validation for proof submissions to prevent bypasses via crafted requests.
+    if (task?.task_type === "submit_proof") {
+      const proofUrlFromClient =
+        clientVerificationData &&
+        typeof clientVerificationData === "object" &&
+        typeof (clientVerificationData as any).inputData === "string"
+          ? String((clientVerificationData as any).inputData).trim()
+          : typeof inputData === "string"
+            ? inputData.trim()
+            : "";
+      if (!proofUrlFromClient) {
+        return res.status(400).json({
+          error: "Screenshot proof URL is required",
+          code: "PROOF_URL_REQUIRED",
+        });
+      }
+    }
+
     let pendingTxRegistration: {
       txHash: string;
       taskType: string;
@@ -271,6 +289,93 @@ export default async function handler(
       }
     }
 
+    // AI verification for submit_proof tasks with AI config
+    let aiApproved = false;
+    let aiDeferred = false;
+    let aiRetry = false;
+    let aiRetryFeedback: string | null = null;
+    const requiresAIVerification = Boolean(
+      strategy &&
+      !requiresBlockchainVerification &&
+      task.task_type === "submit_proof",
+    );
+
+    if (requiresAIVerification && strategy) {
+      const proofUrl =
+        clientVerificationData &&
+        typeof clientVerificationData === "object" &&
+        typeof (clientVerificationData as any).inputData === "string"
+          ? String((clientVerificationData as any).inputData).trim()
+          : typeof inputData === "string"
+            ? inputData.trim()
+            : null;
+
+      const aiInput = {
+        ...(typeof clientVerificationData === "object" && clientVerificationData
+          ? clientVerificationData
+          : {}),
+        ...(typeof inputData === "object" && inputData ? inputData : {}),
+      } as Record<string, unknown>;
+
+      const result = await strategy.verify(
+        task.task_type,
+        aiInput,
+        effectiveUserId,
+        userWallet || "",
+        { taskConfig: task.task_config || null, taskId },
+      );
+
+      if (!result.success && result.code === "AI_IMAGE_REQUIRED") {
+        return res.status(400).json({
+          error: result.error || "Screenshot proof is required",
+          code: "AI_IMAGE_REQUIRED",
+        });
+      }
+
+      if (result.success) {
+        aiApproved = true;
+        verificationData = {
+          ...(typeof clientVerificationData === "object" &&
+          clientVerificationData
+            ? clientVerificationData
+            : {}),
+          ...(proofUrl ? { proofUrl } : {}),
+          ...(result.metadata || {}),
+          verificationMethod: "ai",
+        };
+      } else if (
+        result.code === "AI_RETRY" ||
+        result.code === "AI_LOW_CONFIDENCE"
+      ) {
+        aiRetry = true;
+        aiRetryFeedback = result.error || "Please resubmit your proof";
+        verificationData = {
+          ...(typeof clientVerificationData === "object" &&
+          clientVerificationData
+            ? clientVerificationData
+            : {}),
+          ...(proofUrl ? { proofUrl } : {}),
+          ...(result.metadata || {}),
+          verificationMethod: "ai",
+          aiRetry: true,
+        };
+      } else if (result.code !== "AI_NOT_CONFIGURED") {
+        aiDeferred = true;
+        // AI ran but didn't approve — store metadata for admin context
+        verificationData = {
+          ...(typeof clientVerificationData === "object" &&
+          clientVerificationData
+            ? clientVerificationData
+            : {}),
+          ...(proofUrl ? { proofUrl } : {}),
+          ...(result.metadata || {}),
+          verificationMethod: "ai",
+          aiDeferred: true,
+        };
+      }
+      // If AI_NOT_CONFIGURED, verificationData stays null — normal manual flow
+    }
+
     if (pendingTxRegistration) {
       // Intentionally register before persisting completion to claim tx hash early
       // and prevent replay attacks. Tradeoff: if completion INSERT/UPDATE fails
@@ -301,7 +406,16 @@ export default async function handler(
     }
 
     // Determine initial status
-    const initialStatus = task?.requires_admin_review ? "pending" : "completed";
+    // AI-approved tasks bypass admin review. If AI ran and deferred, always send to admin review.
+    const initialStatus = aiApproved
+      ? "completed"
+      : aiRetry
+        ? "retry"
+        : aiDeferred
+          ? "pending"
+          : task?.requires_admin_review
+            ? "pending"
+            : "completed";
 
     if (task?.task_type === "link_farcaster") {
       // Verify Farcaster linkage via Privy server SDK and use server-trusted data
@@ -384,7 +498,7 @@ export default async function handler(
           verification_data: verificationData,
           submission_data: inputData,
           submission_status: initialStatus,
-          admin_feedback: null, // Clear previous feedback
+          admin_feedback: initialStatus === "retry" ? aiRetryFeedback : null, // Clear previous feedback unless AI requested retry
           reviewed_at: null, // Clear review timestamp
           reviewed_by: null, // Clear reviewer
           completed_at: new Date().toISOString(), // Update submission time
@@ -400,6 +514,7 @@ export default async function handler(
         verification_data: verificationData,
         submission_data: inputData,
         submission_status: initialStatus,
+        admin_feedback: initialStatus === "retry" ? aiRetryFeedback : null,
         reward_claimed: false,
       });
       completionError = error;
@@ -411,11 +526,7 @@ export default async function handler(
     }
 
     // Send admin notification if review required (only on NEW submissions, not updates)
-    if (
-      task.requires_admin_review &&
-      initialStatus === "pending" &&
-      !existingCompletion
-    ) {
+    if (initialStatus === "pending" && !existingCompletion) {
       sendQuestReviewNotification(taskId, effectiveUserId, questId).catch(
         (err) =>
           log.error("Failed to send quest review email", {
@@ -442,10 +553,14 @@ export default async function handler(
 
     res.status(200).json({
       success: true,
+      submissionStatus: initialStatus,
+      feedback: initialStatus === "retry" ? aiRetryFeedback : undefined,
       message:
         initialStatus === "pending"
           ? "Task submitted for review"
-          : "Task completed successfully",
+          : initialStatus === "retry"
+            ? "Please adjust your proof and resubmit"
+            : "Task completed successfully",
     });
   } catch (error) {
     log.error("Error in complete task API:", error);

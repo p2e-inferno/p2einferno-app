@@ -750,6 +750,27 @@ export default function QuestForm({
         setError(`Task ${i + 1}: Valid reward amount is required`);
         return false;
       }
+
+      // AI prompt enforcement for submit_proof tasks (admin-configured)
+      if (task.task_type === "submit_proof") {
+        const taskConfig =
+          task.task_config &&
+          typeof task.task_config === "object" &&
+          !Array.isArray(task.task_config)
+            ? (task.task_config as Record<string, unknown>)
+            : null;
+        const promptRequired = Boolean((taskConfig as any)?.ai_prompt_required);
+        const prompt =
+          taskConfig && typeof taskConfig.ai_verification_prompt === "string"
+            ? taskConfig.ai_verification_prompt.trim()
+            : "";
+        if (promptRequired && !prompt) {
+          setError(
+            `Task ${i + 1}: AI prompt is required (disable "Require AI Prompt" or set ai_verification_prompt)`,
+          );
+          return false;
+        }
+      }
     }
 
     if (isPrerequisiteSelectionInvalid) {

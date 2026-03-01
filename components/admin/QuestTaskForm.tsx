@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import Toggle from "@/components/ui/toggle";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { Button } from "@/components/ui/button";
@@ -621,6 +622,138 @@ export default function QuestTaskForm({
                   </div>
                 );
               })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {localTask.task_type === "submit_proof" && (
+        <div className="border border-gray-700 rounded-lg p-4 space-y-3 bg-gray-800/50">
+          <h4 className="font-semibold text-white flex items-center gap-2">
+            <Sparkles className="w-4 h-4" />
+            AI Screenshot Verification
+          </h4>
+
+          <div className="bg-gray-900/40 border border-gray-700 rounded-lg p-3">
+            <div className="flex items-center justify-between">
+              <div className="flex-1">
+                <label
+                  htmlFor={`ai-prompt-required-${index}`}
+                  className="text-sm font-medium text-gray-300 cursor-pointer"
+                >
+                  Require AI Prompt (block save)
+                </label>
+                <p className="text-xs text-gray-400 mt-1">
+                  When enabled, this quest cannot be saved unless the AI
+                  verification prompt is set for this task.
+                </p>
+              </div>
+              <div className="ml-4">
+                <Toggle
+                  id={`ai-prompt-required-${index}`}
+                  checked={Boolean((vendorConfig as any).ai_prompt_required)}
+                  onCheckedChange={(checked) =>
+                    updateTaskConfig({ ai_prompt_required: checked })
+                  }
+                  ariaLabel="Require AI Prompt"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label
+              htmlFor={`ai-verification-prompt-${index}`}
+              className="text-white"
+            >
+              AI Verification Prompt
+            </Label>
+            <Textarea
+              id={`ai-verification-prompt-${index}`}
+              value={
+                typeof vendorConfig.ai_verification_prompt === "string"
+                  ? vendorConfig.ai_verification_prompt
+                  : ""
+              }
+              onChange={(e) =>
+                updateTaskConfig({ ai_verification_prompt: e.target.value })
+              }
+              placeholder='Example: "The screenshot must show the user has completed Lesson 3 and the completion badge is visible."'
+              className="bg-transparent border-gray-700 text-gray-100 placeholder:text-gray-400 focus:ring-flame-yellow focus:ring-offset-0"
+            />
+            {Boolean((vendorConfig as any).ai_prompt_required) &&
+              !(
+                typeof vendorConfig.ai_verification_prompt === "string" &&
+                vendorConfig.ai_verification_prompt.trim()
+              ) && (
+                <p className="text-xs text-red-300">
+                  AI prompt is required when this toggle is enabled.
+                </p>
+              )}
+            <p className="text-xs text-gray-400">
+              Required for AI-powered auto-approval. If unset, submissions will
+              always go to admin review.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor={`ai-model-${index}`} className="text-white">
+                AI Model (optional)
+              </Label>
+              <Input
+                id={`ai-model-${index}`}
+                value={
+                  typeof vendorConfig.ai_model === "string"
+                    ? vendorConfig.ai_model
+                    : ""
+                }
+                onChange={(e) =>
+                  updateTaskConfig({ ai_model: e.target.value.trim() })
+                }
+                placeholder="google/gemini-2.0-flash-001"
+                className="bg-transparent border-gray-700 text-gray-100"
+              />
+              <p className="text-xs text-gray-400">
+                Leave blank to use the default vision model.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label
+                htmlFor={`ai-confidence-threshold-${index}`}
+                className="text-white"
+              >
+                Auto-Approve Confidence Threshold
+              </Label>
+              <Input
+                id={`ai-confidence-threshold-${index}`}
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={(() => {
+                  const raw = (vendorConfig as any).ai_confidence_threshold;
+                  const parsed =
+                    typeof raw === "number"
+                      ? raw
+                      : typeof raw === "string"
+                        ? Number(raw)
+                        : NaN;
+                  return Number.isFinite(parsed) ? parsed : 0.7;
+                })()}
+                onChange={(e) => {
+                  const next = Number(e.target.value);
+                  const clamped = Number.isFinite(next)
+                    ? Math.min(1, Math.max(0, next))
+                    : 0.7;
+                  updateTaskConfig({ ai_confidence_threshold: clamped });
+                }}
+                className="bg-transparent border-gray-700 text-gray-100"
+              />
+              <p className="text-xs text-gray-400">
+                Default: 0.7. Higher = stricter auto-approval.
+              </p>
             </div>
           </div>
         </div>

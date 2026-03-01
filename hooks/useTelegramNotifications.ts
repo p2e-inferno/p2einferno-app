@@ -96,6 +96,7 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
     const currentGeneration = pollGenerationRef.current;
     let attempts = 0;
     pollRef.current = setInterval(async () => {
+      if (currentGeneration !== pollGenerationRef.current) return;
       if (pollRequestInFlightRef.current) return;
 
       attempts++;
@@ -120,10 +121,16 @@ export function useTelegramNotifications(): TelegramNotificationStatus {
       } catch {
         // Ignore fetch errors during polling
       } finally {
-        pollRequestInFlightRef.current = false;
+        // Don't let stale/in-flight callbacks affect a newer polling cycle.
+        if (currentGeneration === pollGenerationRef.current) {
+          pollRequestInFlightRef.current = false;
+        }
       }
 
-      if (attempts >= POLL_MAX_ATTEMPTS) {
+      if (
+        currentGeneration === pollGenerationRef.current &&
+        attempts >= POLL_MAX_ATTEMPTS
+      ) {
         stopPolling();
         setLinking(false);
       }

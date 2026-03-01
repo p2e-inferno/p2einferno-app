@@ -6,6 +6,7 @@ import {
   checkQuestPrerequisites,
   getUserPrimaryWallet,
 } from "@/lib/quests/prerequisite-checker";
+import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
 
 jest.mock("@/lib/utils/logger", () => ({
   getLogger: () => ({
@@ -20,12 +21,15 @@ jest.mock("@/lib/quests/verification/registry");
 jest.mock("@/lib/supabase/server");
 jest.mock("@/lib/auth/privy");
 jest.mock("@/lib/quests/prerequisite-checker");
+jest.mock("@/lib/email/admin-notifications");
 
 const mockGetVerificationStrategy = getVerificationStrategy as jest.Mock;
 const mockCreateAdminClient = createAdminClient as jest.Mock;
 const mockGetPrivyUser = getPrivyUser as jest.Mock;
 const mockCheckQuestPrerequisites = checkQuestPrerequisites as jest.Mock;
 const mockGetUserPrimaryWallet = getUserPrimaryWallet as jest.Mock;
+const mockSendQuestReviewNotification =
+  sendQuestReviewNotification as jest.Mock;
 
 const makeSupabase = (overrides?: {
   rpc?: jest.Mock;
@@ -111,6 +115,164 @@ describe("POST /api/quests/complete-task", () => {
       "0x000000000000000000000000000000000000bEEF",
     );
     mockCheckQuestPrerequisites.mockResolvedValue({ canProceed: true });
+    mockSendQuestReviewNotification.mockResolvedValue(undefined);
+  });
+
+  it("blocks submit_proof completion when proof URL is missing", async () => {
+    const verify = jest.fn().mockResolvedValue({
+      success: false,
+      error: "Screenshot proof is required",
+      code: "AI_IMAGE_REQUIRED",
+    });
+    mockGetVerificationStrategy.mockReturnValue({ verify });
+
+    const supabase = makeSupabase({
+      task: {
+        task_type: "submit_proof",
+        verification_method: "manual_review",
+        requires_admin_review: false,
+        input_required: true,
+        task_config: { ai_verification_prompt: "must show the badge" },
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase);
+
+    const req = {
+      method: "POST",
+      body: {
+        questId: "quest-1",
+        taskId: "task-1",
+        verificationData: {}, // missing inputData / url
+        inputData: "",
+      },
+    } as any;
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "PROOF_URL_REQUIRED" }),
+    );
+    expect((supabase as any)._insertFn).not.toHaveBeenCalled();
+  });
+
+  it("sends admin notification for AI-deferred pending submissions even when requires_admin_review is false", async () => {
+    const verify = jest.fn().mockResolvedValue({
+      success: false,
+      code: "AI_DEFER",
+      error: "Not confident enough",
+      metadata: {
+        aiVerified: false,
+        aiConfidence: 0.4,
+        aiReason: "Ambiguous screenshot",
+        aiModel: "openai/gpt-4o-mini",
+      },
+    });
+    mockGetVerificationStrategy.mockReturnValue({ verify });
+
+    const supabase = makeSupabase({
+      task: {
+        task_type: "submit_proof",
+        verification_method: "manual_review",
+        requires_admin_review: false,
+        input_required: true,
+        task_config: { ai_verification_prompt: "must show the badge" },
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase);
+
+    const req = {
+      method: "POST",
+      body: {
+        questId: "quest-1",
+        taskId: "task-1",
+        verificationData: { inputData: "https://example.com/proof.png" },
+        inputData: "https://example.com/proof.png",
+      },
+    } as any;
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect((supabase as any)._insertFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        submission_status: "pending",
+        verification_data: expect.objectContaining({
+          aiDeferred: true,
+          proofUrl: "https://example.com/proof.png",
+          inputData: "https://example.com/proof.png",
+          verificationMethod: "ai",
+        }),
+      }),
+    );
+    expect(mockSendQuestReviewNotification).toHaveBeenCalledWith(
+      "task-1",
+      "user-1",
+      "quest-1",
+    );
+  });
+
+  it("sets retry status and user feedback for AI retry without notifying admins", async () => {
+    const verify = jest.fn().mockResolvedValue({
+      success: false,
+      code: "AI_RETRY",
+      error: "Please resubmit with the completion badge visible",
+      metadata: {
+        aiDecision: "retry",
+        aiVerified: false,
+        aiConfidence: 0.6,
+        aiReason: "Badge not visible",
+        aiModel: "google/gemini-2.0-flash-001",
+      },
+    });
+    mockGetVerificationStrategy.mockReturnValue({ verify });
+
+    const supabase = makeSupabase({
+      task: {
+        task_type: "submit_proof",
+        verification_method: "manual_review",
+        requires_admin_review: false,
+        input_required: true,
+        task_config: { ai_verification_prompt: "must show the badge" },
+      },
+    });
+    mockCreateAdminClient.mockReturnValue(supabase);
+
+    const req = {
+      method: "POST",
+      body: {
+        questId: "quest-1",
+        taskId: "task-1",
+        verificationData: { inputData: "https://example.com/proof.png" },
+        inputData: "https://example.com/proof.png",
+      },
+    } as any;
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect((supabase as any)._insertFn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        submission_status: "retry",
+        admin_feedback: expect.stringContaining("completion badge"),
+      }),
+    );
+    expect(mockSendQuestReviewNotification).not.toHaveBeenCalled();
   });
 
   it("invokes verification strategy and blocks completion on failure", async () => {
