@@ -237,6 +237,7 @@ const QuestDetailsPage = () => {
         case "vendor_buy":
         case "vendor_sell":
         case "vendor_light_up":
+        case "uniswap_swap":
           // If inputData is an object (from specialized forms), it contains transactionHash
           // If it's a string (from generic input), assume it's the transactionHash
           const txHash =

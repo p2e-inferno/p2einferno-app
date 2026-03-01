@@ -11,5 +11,8 @@ export function resolveTaskVerificationMethod(
   if (task.task_type === "deploy_lock") {
     return "blockchain";
   }
+  if (task.task_type === "uniswap_swap") {
+    return "blockchain";
+  }
   return task.verification_method ?? undefined;
 }

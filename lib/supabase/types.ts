@@ -124,6 +124,10 @@ export type TaskType =
   | "link_wallet"
   | "link_farcaster"
   | "link_telegram"
+  | "link_discord"
+  | "link_x"
+  | "link_github"
+  | "link_tiktok"
   | "sign_tos"
   | "submit_url"
   | "submit_text"
@@ -134,7 +138,8 @@ export type TaskType =
   | "vendor_sell"
   | "vendor_light_up"
   | "vendor_level_up"
-  | "deploy_lock";
+  | "deploy_lock"
+  | "uniswap_swap";
 
 export type InputValidationType =
   | "url"
@@ -323,4 +328,11 @@ export interface Enrollment {
     start_date: string;
     end_date: string;
   };
+}
+
+export interface UniswapSwapTaskConfig {
+  pair: import("@/lib/uniswap/types").SwapPair;
+  direction: import("@/lib/uniswap/types").SwapDirection;
+  /** Base-10 integer string in raw token units (wei for ETH/UP, 6-decimal units for USDC) */
+  required_amount_in: string;
 }

@@ -96,6 +96,15 @@ describe("QuestTaskForm - Vendor Task Types", () => {
       });
       expect(levelUpButton).toBeInTheDocument();
     });
+
+    it("should include uniswap_swap task type option", () => {
+      render(<QuestTaskForm {...defaultProps} />);
+
+      const uniswapSwapButton = screen.getByRole("button", {
+        name: /uniswap.*swap/i,
+      });
+      expect(uniswapSwapButton).toBeInTheDocument();
+    });
   });
 
   describe("Vendor Task Type Selection", () => {

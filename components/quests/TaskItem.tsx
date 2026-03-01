@@ -21,6 +21,7 @@ import {
   Upload,
   X,
   MessageCircle,
+  Repeat,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Input } from "@/components/ui/input";
@@ -30,7 +31,7 @@ import { DeployLockTaskForm } from "./DeployLockTaskForm";
 import { RichText } from "@/components/common/RichText";
 import { validateFile } from "@/lib/utils/validation";
 import { isValidTransactionHash } from "@/lib/quests/txHash";
-import { isVendorTxTaskType } from "@/lib/quests/vendorTaskTypes";
+import { isTxHashRequiredTaskType } from "@/lib/quests/vendorTaskTypes";
 
 import type { QuestTask, UserTaskCompletion } from "@/lib/supabase/types";
 import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
@@ -100,6 +101,9 @@ const getTaskIcon = (taskType: string): React.ReactNode => {
     case "vendor_level_up":
       specificIcon = <TrendingUp {...iconProps} />;
       break;
+    case "uniswap_swap":
+      specificIcon = <Repeat {...iconProps} />;
+      break;
     case "custom":
       specificIcon = <Circle {...iconProps} />;
       break;
@@ -135,8 +139,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
     !!task.task_config &&
     typeof task.task_config === "object";
   const requiresTxHashInput =
-    isVendorTxTaskType(task.task_type) ||
-    (task.task_type === "deploy_lock" && !hasDeployLockForm);
+    isTxHashRequiredTaskType(task.task_type) &&
+    !(task.task_type === "deploy_lock" && hasDeployLockForm);
   const hasValidTxHash = isValidTransactionHash(txHashInput);
   const verificationTxHash = useMemo(() => {
     const verificationData = completion?.verification_data as
