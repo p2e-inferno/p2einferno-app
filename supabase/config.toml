@@ -277,6 +277,11 @@ url = ""
 # Low-risk: can only send Telegram messages, no DB access.
 verify_jwt = false
 
+[functions.materialize-daily-quest-runs]
+# Intended to be invoked by Supabase Scheduler (cron) at/after 00:00 UTC.
+# Idempotent: safe to run multiple times per day.
+verify_jwt = false
+
 [edge_runtime]
 enabled = true
 inspector_port = 54327

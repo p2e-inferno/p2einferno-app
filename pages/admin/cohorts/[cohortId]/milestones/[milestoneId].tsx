@@ -16,7 +16,6 @@ import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
 import { useTransferFeeBasisPoints } from "@/hooks/unlock/useTransferFeeBasisPoints";
 import { getLogger } from "@/lib/utils/logger";
-import { toast } from "react-hot-toast";
 import type { Address } from "viem";
 import { RichText } from "@/components/common/RichText";
 import { NON_TRANSFERABLE_FEE_BPS } from "@/hooks/unlock/useSyncLockTransferabilityState";
@@ -416,12 +415,12 @@ export default function MilestoneDetailsPage() {
                   lockAddress={milestone.lock_address}
                   grantFailureReason={milestone.grant_failure_reason}
                   onSuccess={() => {
-                    toast.success("Database updated successfully");
                     fetchMilestone(); // Refresh milestone data
                     checkActualManagerStatus(); // Refresh blockchain status
                   }}
                   onError={(error) => {
-                    toast.error(`Update failed: ${error}`);
+                    // Error is already toasted by the child component
+                    log.error("Lock manager retry failed", { error });
                   }}
                 />
               )}
@@ -568,12 +567,12 @@ export default function MilestoneDetailsPage() {
                   lockAddress={milestone.lock_address}
                   maxKeysFailureReason={milestone.max_keys_failure_reason}
                   onSuccess={() => {
-                    toast.success("Lock purchases disabled successfully");
                     fetchMilestone(); // Refresh milestone data
                     checkActualMaxKeysValue(); // Refresh blockchain status
                   }}
                   onError={(error) => {
-                    toast.error(`Security update failed: ${error}`);
+                    // Error is already toasted by the child component
+                    log.error("Max keys security update failed", { error });
                   }}
                 />
               )}
@@ -590,12 +589,14 @@ export default function MilestoneDetailsPage() {
                       milestone.transferability_failure_reason
                     }
                     onSuccess={() => {
-                      toast.success("Lock transfers disabled successfully");
                       fetchMilestone();
                       checkActualTransferFeeBps();
                     }}
                     onError={(error) => {
-                      toast.error(`Security update failed: ${error}`);
+                      // Error is already toasted by the child component
+                      log.error("Transferability security update failed", {
+                        error,
+                      });
                     }}
                   />
                 )}

@@ -139,7 +139,8 @@ export type TaskType =
   | "vendor_light_up"
   | "vendor_level_up"
   | "deploy_lock"
-  | "uniswap_swap";
+  | "uniswap_swap"
+  | "daily_checkin";
 
 export type InputValidationType =
   | "url"
@@ -335,4 +336,107 @@ export interface UniswapSwapTaskConfig {
   direction: import("@/lib/uniswap/types").SwapDirection;
   /** Base-10 integer string in raw token units (wei for ETH/UP, 6-decimal units for USDC) */
   required_amount_in: string;
+}
+
+export interface DailyQuestTemplate {
+  id: string;
+  title: string;
+  description: string;
+  image_url?: string | null;
+  /**
+   * Template completion bonus (admin-defined). Awarded only after a successful daily completion key claim.
+   * Not derived from individual task reward_amount fields.
+   */
+  completion_bonus_reward_amount: number;
+  is_active: boolean;
+  lock_address?: string | null;
+  lock_manager_granted: boolean;
+  grant_failure_reason?: string | null;
+  /**
+   * JSONB stored on daily_quest_templates. Keys use snake_case to match existing task_config conventions.
+   * All fields optional and independently combinable.
+   */
+  eligibility_config: {
+    min_vendor_stage?: number;
+    requires_gooddollar_verification?: boolean;
+    required_lock_address?: string;
+    required_erc20?: { token: string; min_balance: string };
+  };
+  created_at: string;
+  updated_at: string;
+  daily_quest_tasks?: DailyQuestTask[];
+}
+
+export interface DailyQuestTask {
+  id: string;
+  daily_quest_template_id: string;
+  title: string;
+  description: string;
+  task_type: TaskType;
+  verification_method: string;
+  reward_amount: number;
+  order_index: number;
+  task_config?: Record<string, unknown> | null;
+  input_required?: boolean;
+  input_label?: string;
+  input_placeholder?: string;
+  input_validation?: InputValidationType;
+  requires_admin_review?: boolean;
+}
+
+export interface DailyQuestRun {
+  id: string;
+  daily_quest_template_id: string;
+  run_date: string; // YYYY-MM-DD
+  starts_at: string;
+  ends_at: string;
+  status: "active" | "closed";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DailyQuestRunTask {
+  id: string;
+  daily_quest_run_id: string;
+  daily_quest_template_task_id?: string | null;
+  title: string;
+  description: string;
+  task_type: TaskType;
+  verification_method: string;
+  reward_amount: number;
+  order_index: number;
+  task_config: Record<string, unknown>;
+  input_required?: boolean;
+  input_label?: string | null;
+  input_placeholder?: string | null;
+  input_validation?: InputValidationType | null;
+  requires_admin_review?: boolean;
+}
+
+export interface UserDailyQuestProgress {
+  id: string;
+  user_id: string;
+  daily_quest_run_id: string;
+  started_at: string;
+  completed_at?: string | null;
+  reward_claimed: boolean;
+  key_claim_tx_hash?: string | null;
+  key_claim_token_id?: string | number | null;
+  completion_bonus_claimed: boolean;
+  completion_bonus_amount: number;
+  completion_bonus_claimed_at?: string | null;
+  updated_at: string;
+}
+
+export interface UserDailyTaskCompletion {
+  id: string;
+  user_id: string;
+  daily_quest_run_id: string;
+  daily_quest_run_task_id: string;
+  completed_at: string;
+  verification_data?: any;
+  submission_data?: any;
+  submission_status?: SubmissionStatus;
+  reward_claimed: boolean;
+  updated_at: string;
 }
