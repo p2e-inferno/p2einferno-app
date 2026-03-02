@@ -36,26 +36,23 @@ function extractMetadataForRegistration(
   blockNumber: string | null;
   logIndex: number | null;
 } {
+  const toStringOrNull = (value: unknown): string | null => {
+    if (typeof value === "string") return value;
+    if (typeof value === "number") return String(value);
+    return null;
+  };
+
   const amount =
-    typeof metadata.amount === "string"
-      ? metadata.amount
-      : typeof metadata.inputAmount === "string"
-        ? String(metadata.inputAmount)
-        : null;
+    toStringOrNull(metadata.amount) ?? toStringOrNull(metadata.inputAmount);
 
   const eventName =
     taskType === "deploy_lock"
       ? "NewLock"
       : taskType === "uniswap_swap"
         ? "Swap"
-        : typeof metadata.eventName === "string"
-          ? String(metadata.eventName)
-          : null;
+        : toStringOrNull(metadata.eventName);
 
-  const blockNumber =
-    typeof metadata.blockNumber === "string"
-      ? String(metadata.blockNumber)
-      : null;
+  const blockNumber = toStringOrNull(metadata.blockNumber);
 
   const logIndex =
     typeof metadata.logIndex === "number" ? metadata.logIndex : null;
@@ -75,14 +72,21 @@ export default async function handler(
     dailyQuestRunId,
     dailyQuestRunTaskId,
     verificationData: clientVerificationData,
-  } = (req.body || {}) as {
-    dailyQuestRunId?: string;
-    dailyQuestRunTaskId?: string;
-    verificationData?: Record<string, unknown>;
-  };
+  } = (req.body || {}) as Record<string, unknown>;
 
-  if (!dailyQuestRunId || !dailyQuestRunTaskId) {
-    return res.status(400).json({ error: "Missing required fields" });
+  const normalizedDailyQuestRunId =
+    typeof dailyQuestRunId === "string" && dailyQuestRunId.trim()
+      ? dailyQuestRunId.trim()
+      : null;
+  const normalizedDailyQuestRunTaskId =
+    typeof dailyQuestRunTaskId === "string" && dailyQuestRunTaskId.trim()
+      ? dailyQuestRunTaskId.trim()
+      : null;
+
+  if (!normalizedDailyQuestRunId || !normalizedDailyQuestRunTaskId) {
+    return res.status(400).json({
+      error: "Invalid or missing dailyQuestRunId/dailyQuestRunTaskId",
+    });
   }
 
   try {
@@ -119,13 +123,16 @@ export default async function handler(
           : 400;
       return res.status(status).json({ error: message });
     }
+    if (!activeWallet || !activeWallet.trim()) {
+      return res.status(400).json({ error: "Invalid X-Active-Wallet header" });
+    }
 
     const supabase = createAdminClient();
 
     const { data: run, error: runErr } = await supabase
       .from("daily_quest_runs")
       .select("*")
-      .eq("id", dailyQuestRunId)
+      .eq("id", normalizedDailyQuestRunId)
       .maybeSingle();
     if (runErr) return res.status(500).json({ error: "Failed to fetch run" });
     if (!run) return res.status(404).json({ error: "Run not found" });
@@ -138,7 +145,7 @@ export default async function handler(
       .from("user_daily_quest_progress")
       .select("*")
       .eq("user_id", userId)
-      .eq("daily_quest_run_id", dailyQuestRunId)
+      .eq("daily_quest_run_id", normalizedDailyQuestRunId)
       .maybeSingle();
     if (progErr) {
       return res.status(500).json({ error: "Failed to fetch progress" });
@@ -150,8 +157,8 @@ export default async function handler(
     const { data: task, error: taskErr } = await supabase
       .from("daily_quest_run_tasks")
       .select("*")
-      .eq("id", dailyQuestRunTaskId)
-      .eq("daily_quest_run_id", dailyQuestRunId)
+      .eq("id", normalizedDailyQuestRunTaskId)
+      .eq("daily_quest_run_id", normalizedDailyQuestRunId)
       .maybeSingle();
 
     if (taskErr) return res.status(500).json({ error: "Failed to fetch task" });
@@ -202,7 +209,7 @@ export default async function handler(
       task.task_type,
       txRequired ? { transactionHash: clientTxHash } : {},
       userId,
-      activeWallet || "",
+      activeWallet,
       { taskConfig: task.task_config || null, taskId: task.id },
     );
 
@@ -247,8 +254,8 @@ export default async function handler(
       .upsert(
         {
           user_id: userId,
-          daily_quest_run_id: dailyQuestRunId,
-          daily_quest_run_task_id: dailyQuestRunTaskId,
+          daily_quest_run_id: normalizedDailyQuestRunId,
+          daily_quest_run_task_id: normalizedDailyQuestRunTaskId,
           verification_data: {
             ...(verifyResult.metadata || {}),
             txHash: txRequired ? clientTxHash || null : null,
@@ -265,8 +272,8 @@ export default async function handler(
     if (completionUpsertErr) {
       log.error("Failed to upsert daily task completion", {
         userId,
-        dailyQuestRunId,
-        dailyQuestRunTaskId,
+        dailyQuestRunId: normalizedDailyQuestRunId,
+        dailyQuestRunTaskId: normalizedDailyQuestRunTaskId,
         completionUpsertErr,
       });
       return res.status(500).json({ error: "Failed to save task completion" });
@@ -274,12 +281,12 @@ export default async function handler(
 
     const { error: finalizeErr } = await supabase.rpc(
       "try_finalize_daily_quest_progress",
-      { p_user_id: userId, p_run_id: dailyQuestRunId },
+      { p_user_id: userId, p_run_id: normalizedDailyQuestRunId },
     );
     if (finalizeErr) {
       log.error("Failed to finalize daily quest progress", {
         userId,
-        dailyQuestRunId,
+        dailyQuestRunId: normalizedDailyQuestRunId,
         progressId: progress.id,
         finalizeErr,
       });

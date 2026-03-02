@@ -19,6 +19,29 @@ function getTodayUtc(): string {
 }
 
 type TemplateRow = { id: string; title: string };
+type DailyQuestRunRow = { id: string };
+type DailyQuestTaskRow = {
+  id: string;
+  title: string;
+  description: string;
+  task_type: string;
+  verification_method: string | null;
+  reward_amount: number | null;
+  order_index: number;
+  task_config: Record<string, unknown> | null;
+  input_required: boolean | null;
+  input_label: string | null;
+  input_placeholder: string | null;
+  input_validation: string | null;
+  requires_admin_review: boolean | null;
+};
+
+function getErrorCode(error: unknown): string | null {
+  if (!error || typeof error !== "object") return null;
+  if (!("code" in error)) return null;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : null;
+}
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -64,7 +87,7 @@ Deno.serve(async (req) => {
   const endsAt = `${todayUtc}T23:59:59.999Z`;
 
   const { data: templates, error: templateError } = await supabaseAdmin
-    .from("daily_quest_templates")
+    .from<TemplateRow>("daily_quest_templates")
     .select("id,title")
     .eq("is_active", true);
 
@@ -79,9 +102,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  const templateRows: TemplateRow[] = Array.isArray(templates)
-    ? (templates as TemplateRow[])
-    : [];
+  const templateRows = Array.isArray(templates) ? templates : [];
   let processed = 0;
 
   for (const tmpl of templateRows) {
@@ -111,7 +132,7 @@ Deno.serve(async (req) => {
     }
 
     const { data: runRow, error: runError } = await supabaseAdmin
-      .from("daily_quest_runs")
+      .from<DailyQuestRunRow>("daily_quest_runs")
       .select("id")
       .eq("daily_quest_template_id", templateId)
       .eq("run_date", todayUtc)
@@ -122,11 +143,13 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const runId = (runRow as any).id as string;
+    const runId = runRow.id;
 
     const { data: tasks, error: taskError } = await supabaseAdmin
-      .from("daily_quest_tasks")
-      .select("*")
+      .from<DailyQuestTaskRow>("daily_quest_tasks")
+      .select(
+        "id,title,description,task_type,verification_method,reward_amount,order_index,task_config,input_required,input_label,input_placeholder,input_validation,requires_admin_review",
+      )
       .eq("daily_quest_template_id", templateId)
       .order("order_index");
 
@@ -135,12 +158,12 @@ Deno.serve(async (req) => {
       continue;
     }
 
-    const taskRows = Array.isArray(tasks) ? tasks : [];
+    const taskRows: DailyQuestTaskRow[] = Array.isArray(tasks) ? tasks : [];
     if (taskRows.length > 0) {
       const { error: snapshotError } = await supabaseAdmin
         .from("daily_quest_run_tasks")
         .upsert(
-          taskRows.map((t: any) => ({
+          taskRows.map((t) => ({
             daily_quest_run_id: runId,
             daily_quest_template_task_id: t.id,
             title: t.title,
@@ -181,7 +204,8 @@ Deno.serve(async (req) => {
         notification_type: "daily_quest_refresh",
       });
 
-    if (dedupeErr && (dedupeErr as any).code !== "23505") {
+    const dedupeCode = getErrorCode(dedupeErr);
+    if (dedupeErr && dedupeCode !== "23505") {
       log.warn("daily quest refresh dedupe insert failed", {
         templateId,
         todayUtc,
