@@ -12,7 +12,6 @@ import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import { useTransferFeeBasisPoints } from "@/hooks/unlock/useTransferFeeBasisPoints";
 import { getLogger } from "@/lib/utils/logger";
-import { toast } from "react-hot-toast";
 import type { Address } from "viem";
 import { NON_TRANSFERABLE_FEE_BPS } from "@/hooks/unlock/useSyncLockTransferabilityState";
 
@@ -311,12 +310,12 @@ export default function EditCohortPage() {
                 cohort.transferability_failure_reason
               }
               onSuccess={() => {
-                toast.success("Lock transfers disabled successfully");
                 fetchCohort();
                 checkActualTransferFeeBps();
               }}
               onError={(error) => {
-                toast.error(`Security update failed: ${error}`);
+                // Error is already toasted by the child component
+                log.error("Transferability security update failed", { error });
               }}
             />
           </div>
@@ -331,12 +330,12 @@ export default function EditCohortPage() {
             lockAddress={cohort.lock_address}
             grantFailureReason={cohort.grant_failure_reason}
             onSuccess={() => {
-              toast.success("Database updated successfully");
               fetchCohort(); // Refresh cohort data
               checkActualManagerStatus(); // Refresh blockchain status
             }}
             onError={(error) => {
-              toast.error(`Update failed: ${error}`);
+              // Error is already toasted by the child component
+              log.error("Lock manager retry failed", { error });
             }}
           />
         </div>

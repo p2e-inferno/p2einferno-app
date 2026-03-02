@@ -14,5 +14,8 @@ export function resolveTaskVerificationMethod(
   if (task.task_type === "uniswap_swap") {
     return "blockchain";
   }
+  if (task.task_type === "daily_checkin") {
+    return "automatic";
+  }
   return task.verification_method ?? undefined;
 }
