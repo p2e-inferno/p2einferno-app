@@ -32,9 +32,10 @@ export function DailyQuestList() {
   const fetchRows = useCallback(async () => {
     try {
       setError(null);
-      const result = await adminFetch<{ success: boolean; data: any[] }>(
-        "/api/admin/daily-quests",
-      );
+      const result = await adminFetch<{
+        success: boolean;
+        data: DailyQuestTemplateRow[];
+      }>("/api/admin/daily-quests");
       if (result.error) throw new Error(result.error);
       const data = Array.isArray(result.data?.data) ? result.data.data : [];
       setRows(data);

@@ -258,56 +258,20 @@ export default async function handler(
       return res.status(500).json({ error: "Failed to save task completion" });
     }
 
-    // Recompute completion count and set progress.completed_at when last task completes
-    const { data: totalTasks, error: totalErr } = await supabase
-      .from("daily_quest_run_tasks")
-      .select("id")
-      .eq("daily_quest_run_id", dailyQuestRunId);
-    if (totalErr) {
-      return res.status(500).json({ error: "Failed to compute task totals" });
-    }
-
-    const { data: completions, error: compErr } = await supabase
-      .from("user_daily_task_completions")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("daily_quest_run_id", dailyQuestRunId);
-    if (compErr) {
+    const { error: finalizeErr } = await supabase.rpc(
+      "try_finalize_daily_quest_progress",
+      { p_user_id: userId, p_run_id: dailyQuestRunId },
+    );
+    if (finalizeErr) {
+      log.error("Failed to finalize daily quest progress", {
+        userId,
+        dailyQuestRunId,
+        progressId: progress.id,
+        finalizeErr,
+      });
       return res
         .status(500)
-        .json({ error: "Failed to compute completion state" });
-    }
-
-    const totalCount = (totalTasks || []).length;
-    const completedCount = (completions || []).length;
-
-    if (
-      totalCount > 0 &&
-      completedCount === totalCount &&
-      !progress.completed_at
-    ) {
-      const { error: progressUpdateErr } = await supabase
-        .from("user_daily_quest_progress")
-        .update({ completed_at: new Date().toISOString() })
-        .eq("id", progress.id)
-        .eq("user_id", userId)
-        .eq("daily_quest_run_id", dailyQuestRunId)
-        .is("completed_at", null);
-
-      if (progressUpdateErr) {
-        log.error(
-          "Failed to update daily quest progress completion timestamp",
-          {
-            userId,
-            dailyQuestRunId,
-            progressId: progress.id,
-            progressUpdateErr,
-          },
-        );
-        return res
-          .status(500)
-          .json({ error: "Failed to update daily quest progress" });
-      }
+        .json({ error: "Failed to update daily quest progress" });
     }
 
     return res.status(200).json({ success: true });

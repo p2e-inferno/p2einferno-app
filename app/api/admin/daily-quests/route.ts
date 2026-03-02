@@ -127,6 +127,43 @@ async function validateEligibilityConfig(
   return { ok: true as const };
 }
 
+function normalizeEligibilityConfig(
+  eligibility: DailyQuestTemplatePayload["eligibility_config"] | undefined,
+) {
+  if (!eligibility) return {};
+  const normalized: NonNullable<
+    DailyQuestTemplatePayload["eligibility_config"]
+  > = { ...eligibility };
+
+  if (typeof normalized.required_lock_address === "string") {
+    const trimmed = normalized.required_lock_address.trim();
+    if (trimmed) {
+      normalized.required_lock_address = trimmed;
+    } else {
+      delete normalized.required_lock_address;
+    }
+  }
+
+  if (normalized.required_erc20) {
+    const token =
+      typeof normalized.required_erc20.token === "string"
+        ? normalized.required_erc20.token.trim()
+        : "";
+    const minBalance =
+      typeof normalized.required_erc20.min_balance === "string"
+        ? normalized.required_erc20.min_balance.trim()
+        : "";
+
+    if (token && minBalance) {
+      normalized.required_erc20 = { token, min_balance: minBalance };
+    } else {
+      delete normalized.required_erc20;
+    }
+  }
+
+  return normalized;
+}
+
 export async function GET(req: NextRequest) {
   const guard = await ensureAdminOrRespond(req);
   if (guard) return guard;
@@ -162,7 +199,9 @@ export async function GET(req: NextRequest) {
     const { data: runs, error: runErr } = templateIds.length
       ? await supabase
           .from("daily_quest_runs")
-          .select("id,daily_quest_template_id,run_date,starts_at,ends_at,status")
+          .select(
+            "id,daily_quest_template_id,run_date,starts_at,ends_at,status",
+          )
           .in("daily_quest_template_id", templateIds)
           .eq("run_date", todayUtc)
       : { data: [], error: null };
@@ -215,16 +254,26 @@ export async function POST(req: NextRequest) {
       : [];
     const lockAddress = (payload.lock_address || "").trim();
 
-    if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    if (!title)
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
     if (!description) {
-      return NextResponse.json({ error: "Description is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Description is required" },
+        { status: 400 },
+      );
     }
     if (!tasks.length) {
-      return NextResponse.json({ error: "At least one task is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "At least one task is required" },
+        { status: 400 },
+      );
     }
 
     if (lockAddress && !isAddress(lockAddress)) {
-      return NextResponse.json({ error: "Invalid lock address" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid lock address" },
+        { status: 400 },
+      );
     }
 
     const bonus = payload.completion_bonus_reward_amount ?? 0;
@@ -236,7 +285,8 @@ export async function POST(req: NextRequest) {
     }
 
     const orderErr = validateOrderIndexes(tasks);
-    if (orderErr) return NextResponse.json({ error: orderErr }, { status: 400 });
+    if (orderErr)
+      return NextResponse.json({ error: orderErr }, { status: 400 });
 
     const eligibilityValidation = await validateEligibilityConfig(
       payload.eligibility_config,
@@ -248,6 +298,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedEligibility = normalizeEligibilityConfig(
+      payload.eligibility_config,
+    );
+
     const taskCfgValidation = await validateVendorTaskConfig(
       tasks.map((t) => ({
         title: t.title,
@@ -256,7 +310,10 @@ export async function POST(req: NextRequest) {
       })),
     );
     if (!taskCfgValidation.ok) {
-      return NextResponse.json({ error: taskCfgValidation.error }, { status: 400 });
+      return NextResponse.json(
+        { error: taskCfgValidation.error },
+        { status: 400 },
+      );
     }
 
     const { data: tmpl, error: tmplErr } = await supabase
@@ -270,7 +327,7 @@ export async function POST(req: NextRequest) {
         lock_address: lockAddress || null,
         lock_manager_granted: payload.lock_manager_granted ?? false,
         grant_failure_reason: payload.grant_failure_reason ?? null,
-        eligibility_config: payload.eligibility_config ?? {},
+        eligibility_config: normalizedEligibility,
       })
       .select("*")
       .single();
@@ -313,7 +370,10 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      return NextResponse.json({ error: taskInsertErr.message }, { status: 400 });
+      return NextResponse.json(
+        { error: taskInsertErr.message },
+        { status: 400 },
+      );
     }
 
     // On template creation (is_active=true): insert refresh dedupe row for today so first ensureTodayDailyRuns() call
@@ -327,7 +387,10 @@ export async function POST(req: NextRequest) {
           notification_type: "daily_quest_refresh",
         });
       if (dedupeErr && dedupeErr.code !== "23505") {
-        throw dedupeErr;
+        log.error("daily quest notification dedupe insert failed", {
+          dailyQuestTemplateId: tmpl.id,
+          dedupeErr,
+        });
       }
 
       broadcastTelegramNotification(

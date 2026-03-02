@@ -9,6 +9,11 @@ import {
 import { getUserPrimaryWallet } from "@/lib/quests/prerequisite-checker";
 import { ensureTodayDailyRuns } from "@/lib/quests/daily-quests/runs";
 import { evaluateDailyQuestEligibility } from "@/lib/quests/daily-quests/constraints";
+import type {
+  DailyQuestRun,
+  DailyQuestRunTask,
+  DailyQuestTemplate,
+} from "@/lib/supabase/types";
 
 const log = getLogger("api:daily-quests:index");
 
@@ -39,8 +44,11 @@ export default async function handler(
       });
     }
 
-    const runIds = (runs || []).map((r: any) => r.id);
-    const templateIds = (runs || []).map((r: any) => r.daily_quest_template_id);
+    const typedRuns = (runs || []) as DailyQuestRun[];
+    const runIds = typedRuns.map((r: DailyQuestRun) => r.id);
+    const templateIds = typedRuns.map(
+      (r: DailyQuestRun) => r.daily_quest_template_id,
+    );
 
     const { data: templates, error: tmplErr } = templateIds.length
       ? await supabase
@@ -71,12 +79,14 @@ export default async function handler(
       });
     }
 
-    const templatesById = new Map<string, any>();
-    for (const t of templates || []) templatesById.set((t as any).id, t);
+    const typedTemplates = (templates || []) as DailyQuestTemplate[];
+    const templatesById = new Map<string, DailyQuestTemplate>();
+    for (const t of typedTemplates) templatesById.set(t.id, t);
 
-    const tasksByRunId = new Map<string, any[]>();
-    for (const t of runTasks || []) {
-      const runId = (t as any).daily_quest_run_id;
+    const typedRunTasks = (runTasks || []) as DailyQuestRunTask[];
+    const tasksByRunId = new Map<string, DailyQuestRunTask[]>();
+    for (const t of typedRunTasks) {
+      const runId = t.daily_quest_run_id;
       if (!tasksByRunId.has(runId)) tasksByRunId.set(runId, []);
       tasksByRunId.get(runId)!.push(t);
     }
@@ -119,7 +129,7 @@ export default async function handler(
     }
 
     const enriched = await Promise.all(
-      (runs || []).map(async (run: any) => {
+      typedRuns.map(async (run: DailyQuestRun) => {
         const template = templatesById.get(run.daily_quest_template_id) || null;
         const tasks = tasksByRunId.get(run.id) || [];
 

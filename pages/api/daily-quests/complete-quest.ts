@@ -11,10 +11,11 @@ import { createPublicClientUnified } from "@/lib/blockchain/config/clients/publi
 import { grantKeyToUser } from "@/lib/services/user-key-service";
 import { extractTokenTransfers } from "@/lib/blockchain/shared/transaction-utils";
 import { randomUUID } from "crypto";
+import { DailyQuestRun } from "@/lib/supabase/types";
 
 const log = getLogger("api:daily-quests:complete-quest");
 
-function isRunActiveWindow(run: any) {
+function isRunActiveWindow(run: DailyQuestRun) {
   const now = Date.now();
   const starts = Date.parse(run.starts_at);
   const ends = Date.parse(run.ends_at);
@@ -287,37 +288,48 @@ export default async function handler(
     // Claim-gate before the on-chain write so concurrent requests cannot double-grant.
     // Uses key_claim_tx_hash as a "pending:<uuid>" marker while reward_claimed=false.
     const claimToken = `pending:${randomUUID()}`;
-    const nowIso = new Date().toISOString();
-    const { data: claimGate, error: claimGateErr } = await supabase
-      .from("user_daily_quest_progress")
-      .update({
-        key_claim_tx_hash: claimToken,
-        updated_at: nowIso,
-      })
-      .eq("id", progress.id)
-      .eq("user_id", userId)
-      .eq("daily_quest_run_id", dailyQuestRunId)
-      .eq("reward_claimed", false)
-      .is("key_claim_tx_hash", null)
-      .select("id")
-      .maybeSingle();
+    let claimGate: { id: string } | null = null;
+    let gateAttempt = 0;
 
-    if (claimGateErr) {
-      log.error("Failed to gate daily quest key claim", {
-        dailyQuestRunId,
-        userId,
-        claimGateErr,
-      });
-      return res.status(503).json({
-        error: "CLAIM_GATE_FAILED",
-        message: "Daily quest completion was not finalized. Please retry.",
-      });
-    }
+    while (!claimGate && gateAttempt < 2) {
+      gateAttempt += 1;
+      const nowIso = new Date().toISOString();
+      const { data, error: claimGateErr } = await supabase
+        .from("user_daily_quest_progress")
+        .update({
+          key_claim_tx_hash: claimToken,
+          updated_at: nowIso,
+        })
+        .eq("id", progress.id)
+        .eq("user_id", userId)
+        .eq("daily_quest_run_id", dailyQuestRunId)
+        .eq("reward_claimed", false)
+        .is("key_claim_tx_hash", null)
+        .select("id")
+        .maybeSingle();
 
-    if (!claimGate) {
+      if (claimGateErr) {
+        log.error("Failed to gate daily quest key claim", {
+          dailyQuestRunId,
+          userId,
+          claimGateErr,
+        });
+        return res.status(503).json({
+          error: "CLAIM_GATE_FAILED",
+          message: "Daily quest completion was not finalized. Please retry.",
+        });
+      }
+
+      if (data) {
+        claimGate = data;
+        break;
+      }
+
       const { data: latest, error: latestErr } = await supabase
         .from("user_daily_quest_progress")
-        .select("reward_claimed,key_claim_tx_hash,key_claim_token_id")
+        .select(
+          "reward_claimed,key_claim_tx_hash,key_claim_token_id,completion_bonus_claimed,updated_at",
+        )
         .eq("id", progress.id)
         .eq("user_id", userId)
         .eq("daily_quest_run_id", dailyQuestRunId)
@@ -335,6 +347,43 @@ export default async function handler(
         });
       }
 
+      const latestClaimHash = latest?.key_claim_tx_hash || null;
+      const latestUpdatedAtMs =
+        typeof latest?.updated_at === "string"
+          ? Date.parse(latest.updated_at)
+          : Number.NaN;
+      const isStalePending =
+        typeof latestClaimHash === "string" &&
+        latestClaimHash.startsWith("pending:") &&
+        Number.isFinite(latestUpdatedAtMs) &&
+        Date.now() - latestUpdatedAtMs > 2 * 60 * 1000;
+
+      if (isStalePending && gateAttempt === 1) {
+        const { data: cleared, error: clearErr } = await supabase
+          .from("user_daily_quest_progress")
+          .update({ key_claim_tx_hash: null, updated_at: nowIso })
+          .eq("id", progress.id)
+          .eq("user_id", userId)
+          .eq("daily_quest_run_id", dailyQuestRunId)
+          .eq("reward_claimed", false)
+          .eq("key_claim_tx_hash", latestClaimHash)
+          .select("id")
+          .maybeSingle();
+
+        if (clearErr) {
+          log.warn("Failed to clear stale pending daily quest claim token", {
+            dailyQuestRunId,
+            userId,
+            latestClaimHash,
+            clearErr,
+          });
+        }
+
+        if (cleared) {
+          continue;
+        }
+      }
+
       if (latest?.reward_claimed) {
         return res.status(200).json({
           success: true,
@@ -345,7 +394,7 @@ export default async function handler(
             : null,
           completionBonusRewardAmount:
             Number(template.completion_bonus_reward_amount || 0) || 0,
-          completionBonusAwarded: Boolean(progress.completion_bonus_claimed),
+          completionBonusAwarded: Boolean(latest?.completion_bonus_claimed),
           attestationRequired: false,
         });
       }
@@ -427,14 +476,14 @@ export default async function handler(
         } else if (transfers.length > 0) {
           keyTokenId = transfers[0]!.tokenId.toString();
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.warn(
           "Failed to extract tokenId from daily quest key grant receipt",
           {
             dailyQuestRunId,
             userId,
             transactionHash,
-            error: error?.message || String(error),
+            error: error instanceof Error ? error.message : String(error),
           },
         );
       }
@@ -597,12 +646,12 @@ export default async function handler(
               message:
                 "Key grant succeeded but progress persistence failed; please refresh and contact support if this repeats.",
               code: updateError.code ?? null,
-              details: updateError.message,
+              details: "internal persistence error",
             },
           }
         : {}),
     });
-  } catch (error) {
+  } catch (error: unknown) {
     log.error("Error in daily quest complete-quest API:", error);
     return res.status(500).json({ error: "Internal server error" });
   }

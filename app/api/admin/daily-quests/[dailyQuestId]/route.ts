@@ -59,7 +59,9 @@ function validateOrderIndexes(
 }
 
 async function validateEligibilityConfig(
-  eligibility: DailyQuestTemplateUpdatePayload["eligibility_config"] | undefined,
+  eligibility:
+    | DailyQuestTemplateUpdatePayload["eligibility_config"]
+    | undefined,
 ) {
   if (!eligibility) return { ok: true as const };
 
@@ -126,6 +128,45 @@ async function validateEligibilityConfig(
   return { ok: true as const };
 }
 
+function normalizeEligibilityConfig(
+  eligibility:
+    | DailyQuestTemplateUpdatePayload["eligibility_config"]
+    | undefined,
+) {
+  if (!eligibility) return {};
+  const normalized: NonNullable<
+    DailyQuestTemplateUpdatePayload["eligibility_config"]
+  > = { ...eligibility };
+
+  if (typeof normalized.required_lock_address === "string") {
+    const trimmed = normalized.required_lock_address.trim();
+    if (trimmed) {
+      normalized.required_lock_address = trimmed;
+    } else {
+      delete normalized.required_lock_address;
+    }
+  }
+
+  if (normalized.required_erc20) {
+    const token =
+      typeof normalized.required_erc20.token === "string"
+        ? normalized.required_erc20.token.trim()
+        : "";
+    const minBalance =
+      typeof normalized.required_erc20.min_balance === "string"
+        ? normalized.required_erc20.min_balance.trim()
+        : "";
+
+    if (token && minBalance) {
+      normalized.required_erc20 = { token, min_balance: minBalance };
+    } else {
+      delete normalized.required_erc20;
+    }
+  }
+
+  return normalized;
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ dailyQuestId: string }> },
@@ -142,15 +183,21 @@ export async function GET(
       .select("*")
       .eq("id", dailyQuestId)
       .maybeSingle();
-    if (tmplErr) return NextResponse.json({ error: tmplErr.message }, { status: 400 });
-    if (!tmpl) return NextResponse.json({ error: "Daily quest not found" }, { status: 404 });
+    if (tmplErr)
+      return NextResponse.json({ error: tmplErr.message }, { status: 400 });
+    if (!tmpl)
+      return NextResponse.json(
+        { error: "Daily quest not found" },
+        { status: 404 },
+      );
 
     const { data: tasks, error: taskErr } = await supabase
       .from("daily_quest_tasks")
       .select("*")
       .eq("daily_quest_template_id", dailyQuestId)
       .order("order_index");
-    if (taskErr) return NextResponse.json({ error: taskErr.message }, { status: 400 });
+    if (taskErr)
+      return NextResponse.json({ error: taskErr.message }, { status: 400 });
 
     return NextResponse.json(
       { success: true, data: { ...tmpl, daily_quest_tasks: tasks || [] } },
@@ -161,7 +208,10 @@ export async function GET(
       error instanceof Error
         ? { message: error.message, stack: error.stack }
         : { message: String(error) };
-    log.error("daily quests admin GET by id error", { ...errorInfo, dailyQuestId });
+    log.error("daily quests admin GET by id error", {
+      ...errorInfo,
+      dailyQuestId,
+    });
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
@@ -186,16 +236,26 @@ export async function PUT(
       : [];
     const lockAddress = (payload.lock_address || "").trim();
 
-    if (!title) return NextResponse.json({ error: "Title is required" }, { status: 400 });
+    if (!title)
+      return NextResponse.json({ error: "Title is required" }, { status: 400 });
     if (!description) {
-      return NextResponse.json({ error: "Description is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Description is required" },
+        { status: 400 },
+      );
     }
     if (!tasks.length) {
-      return NextResponse.json({ error: "At least one task is required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "At least one task is required" },
+        { status: 400 },
+      );
     }
 
     if (lockAddress && !isAddress(lockAddress)) {
-      return NextResponse.json({ error: "Invalid lock address" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Invalid lock address" },
+        { status: 400 },
+      );
     }
 
     const bonus = payload.completion_bonus_reward_amount ?? 0;
@@ -207,7 +267,8 @@ export async function PUT(
     }
 
     const orderErr = validateOrderIndexes(tasks);
-    if (orderErr) return NextResponse.json({ error: orderErr }, { status: 400 });
+    if (orderErr)
+      return NextResponse.json({ error: orderErr }, { status: 400 });
 
     const eligibilityValidation = await validateEligibilityConfig(
       payload.eligibility_config,
@@ -219,6 +280,10 @@ export async function PUT(
       );
     }
 
+    const normalizedEligibility = normalizeEligibilityConfig(
+      payload.eligibility_config,
+    );
+
     const taskCfgValidation = await validateVendorTaskConfig(
       tasks.map((t) => ({
         title: t.title,
@@ -227,7 +292,10 @@ export async function PUT(
       })),
     );
     if (!taskCfgValidation.ok) {
-      return NextResponse.json({ error: taskCfgValidation.error }, { status: 400 });
+      return NextResponse.json(
+        { error: taskCfgValidation.error },
+        { status: 400 },
+      );
     }
 
     const insertTasks = tasks.map((t) => ({
@@ -253,12 +321,14 @@ export async function PUT(
         p_title: title,
         p_description: description,
         p_image_url: payload.image_url ?? null,
-        p_is_active: payload.is_active ?? true,
+        ...(typeof payload.is_active === "boolean"
+          ? { p_is_active: payload.is_active }
+          : {}),
         p_completion_bonus_reward_amount: bonus,
         p_lock_address: lockAddress || null,
         p_lock_manager_granted: payload.lock_manager_granted ?? false,
         p_grant_failure_reason: payload.grant_failure_reason ?? null,
-        p_eligibility_config: payload.eligibility_config ?? {},
+        p_eligibility_config: normalizedEligibility,
         p_tasks: insertTasks,
       },
     );
@@ -271,7 +341,10 @@ export async function PUT(
       (rpcData as { success?: boolean; error?: string; data?: unknown }) || {};
     if (!response.success) {
       if (response.error === "NOT_FOUND") {
-        return NextResponse.json({ error: "Daily quest not found" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Daily quest not found" },
+          { status: 404 },
+        );
       }
       return NextResponse.json(
         { error: response.error || "Failed to update daily quest" },
@@ -281,7 +354,10 @@ export async function PUT(
 
     const updated = response.data;
     if (!updated) {
-      return NextResponse.json({ error: "Daily quest not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Daily quest not found" },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json({ success: true, data: updated }, { status: 200 });
@@ -308,17 +384,28 @@ export async function PATCH(
   try {
     const payload = (await req.json()) as { is_active?: boolean };
     if (typeof payload.is_active !== "boolean") {
-      return NextResponse.json({ error: "is_active must be boolean" }, { status: 400 });
+      return NextResponse.json(
+        { error: "is_active must be boolean" },
+        { status: 400 },
+      );
     }
 
     const { data, error } = await supabase
       .from("daily_quest_templates")
-      .update({ is_active: payload.is_active, updated_at: new Date().toISOString() })
+      .update({
+        is_active: payload.is_active,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", dailyQuestId)
       .select("*")
       .maybeSingle();
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-    if (!data) return NextResponse.json({ error: "Daily quest not found" }, { status: 404 });
+    if (error)
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (!data)
+      return NextResponse.json(
+        { error: "Daily quest not found" },
+        { status: 404 },
+      );
     return NextResponse.json({ success: true, data }, { status: 200 });
   } catch (error: unknown) {
     const errorInfo =

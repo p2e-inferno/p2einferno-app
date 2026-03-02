@@ -430,7 +430,7 @@ CREATE OR REPLACE FUNCTION public.admin_replace_daily_quest_template_and_tasks(
   p_title text,
   p_description text,
   p_image_url text,
-  p_is_active boolean,
+  p_is_active boolean DEFAULT NULL,
   p_completion_bonus_reward_amount integer,
   p_lock_address text,
   p_lock_manager_granted boolean,
@@ -451,7 +451,7 @@ BEGIN
     title = p_title,
     description = p_description,
     image_url = p_image_url,
-    is_active = p_is_active,
+    is_active = COALESCE(p_is_active, is_active),
     completion_bonus_reward_amount = p_completion_bonus_reward_amount,
     lock_address = p_lock_address,
     lock_manager_granted = p_lock_manager_granted,
@@ -529,6 +529,45 @@ GRANT EXECUTE ON FUNCTION public.admin_replace_daily_quest_template_and_tasks(
   jsonb,
   jsonb
 ) TO service_role;
+
+-- Atomically set user_daily_quest_progress.completed_at when the last task is completed.
+CREATE OR REPLACE FUNCTION public.try_finalize_daily_quest_progress(
+  p_user_id text,
+  p_run_id uuid
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = 'public'
+AS $$
+DECLARE
+  v_updated boolean;
+BEGIN
+  WITH totals AS (
+    SELECT
+      (SELECT count(*) FROM public.daily_quest_run_tasks WHERE daily_quest_run_id = p_run_id) AS total_tasks,
+      (SELECT count(*) FROM public.user_daily_task_completions
+        WHERE user_id = p_user_id
+          AND daily_quest_run_id = p_run_id
+          AND submission_status = 'completed') AS completed_tasks
+  )
+  UPDATE public.user_daily_quest_progress p
+  SET completed_at = now(),
+      updated_at = now()
+  FROM totals
+  WHERE p.user_id = p_user_id
+    AND p.daily_quest_run_id = p_run_id
+    AND p.completed_at IS NULL
+    AND totals.total_tasks > 0
+    AND totals.completed_tasks = totals.total_tasks;
+
+  GET DIAGNOSTICS v_updated = ROW_COUNT > 0;
+  RETURN jsonb_build_object('updated', v_updated);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.try_finalize_daily_quest_progress(text, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.try_finalize_daily_quest_progress(text, uuid) TO service_role;
 
 -- SECURITY: award_xp_to_user is server-only (SECURITY DEFINER).
 REVOKE EXECUTE ON FUNCTION public.award_xp_to_user(uuid, integer, text, jsonb) FROM PUBLIC;
