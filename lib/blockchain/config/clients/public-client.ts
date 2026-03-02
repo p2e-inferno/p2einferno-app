@@ -30,6 +30,10 @@ import { createSequentialHttpTransport } from "../transport/viem-transport";
 let cachedServerPublicClient: PublicClient | null = null;
 let cachedBrowserPublicClient: PublicClient | null = null;
 
+// Cache for clients created for specific chains (e.g. Uniswap on Base mainnet)
+const customChainClients: Record<number, PublicClient> = {};
+const customChainServerClients: Record<number, PublicClient> = {};
+
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -188,15 +192,22 @@ export const createPublicClientUnified = (): PublicClient => {
 export const createPublicClientForChain = (
   targetChain: Chain,
 ): PublicClient => {
+  const isBrowser = typeof window !== "undefined";
+  const cache = isBrowser ? customChainClients : customChainServerClients;
+
+  if (targetChain?.id && cache[targetChain.id]) {
+    return cache[targetChain.id]!;
+  }
+
   const { timeoutMs, stallMs, retryCount, retryDelay } =
     getRpcFallbackSettings();
   // Use prioritized fallback for known chains (Base mainnet/sepolia, Ethereum mainnet)
   if (targetChain?.id) {
     let { urls, hosts } = resolveRpcUrls(targetChain.id);
 
-    // Browser: push public Base endpoints to the end (or drop them) when
+    // Browser: push public .base.org endpoints to the end (or drop them) when
     // keyed providers exist, matching createPublicClientUnified behaviour.
-    if (typeof window !== "undefined") {
+    if (isBrowser) {
       const parseHost = (u: string) => {
         try {
           return new URL(u).host;
@@ -223,6 +234,7 @@ export const createPublicClientForChain = (
     blockchainLogger.info("RPC fallback configured (custom chain)", {
       operation: "config:rpc",
       chainId: targetChain.id,
+      endpoints: hosts.length,
       order: hosts,
       timeoutMs,
       stallMs,
@@ -230,13 +242,18 @@ export const createPublicClientForChain = (
       retryDelay,
     });
 
-    return createPublicClient({
+    const client = createPublicClient({
       chain: targetChain,
       transport: fallback(
         urls.map((u) => http(u, { timeout: timeoutMs })),
-        { rank: { timeout: stallMs }, retryCount, retryDelay },
+        { rank: false, retryCount, retryDelay },
       ),
     }) as unknown as PublicClient;
+
+    if (targetChain.id) {
+      cache[targetChain.id] = client;
+    }
+    return client;
   }
 
   // Fallback: default http transport

@@ -65,7 +65,7 @@ export const resolveChain = (): ChainConfig => {
         chain: base,
         rpcUrl: createAlchemyRpcUrl(
           process.env.NEXT_PUBLIC_BASE_MAINNET_RPC_URL ||
-            "https://base-mainnet.g.alchemy.com/v2/"
+          "https://base-mainnet.g.alchemy.com/v2/"
         ),
         usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_MAINNET,
         networkName: "Base Mainnet",
@@ -87,7 +87,7 @@ export const resolveChain = (): ChainConfig => {
         chain: baseSepolia,
         rpcUrl: createAlchemyRpcUrl(
           process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL ||
-            "https://base-sepolia.g.alchemy.com/v2/"
+          "https://base-sepolia.g.alchemy.com/v2/"
         ),
         usdcTokenAddress: process.env.NEXT_PUBLIC_USDC_ADDRESS_BASE_SEPOLIA,
         networkName: "Base Sepolia",
@@ -122,6 +122,7 @@ type ChainRpcConfig = {
   infuraBase?: string;
   infuraEnv?: string;
   publicFallback: string;
+  alternateFallbacks?: string[];
 };
 
 /**
@@ -146,6 +147,11 @@ export const resolveRpcUrls = (chainId: number): RpcUrlsResult => {
       infuraBase: "https://base-mainnet.infura.io/v3/",
       infuraEnv: process.env.NEXT_PUBLIC_INFURA_BASE_MAINNET_RPC_URL,
       publicFallback: "https://mainnet.base.org",
+      alternateFallbacks: [
+        "https://base.llamarpc.com",
+        "https://1rpc.io/base",
+        "https://rpc.ankr.com/base",
+      ],
     },
     [baseSepolia.id]: {
       alchemyBase:
@@ -174,12 +180,30 @@ export const resolveRpcUrls = (chainId: number): RpcUrlsResult => {
   if (config) {
     // 1. Resolve Alchemy URL
     let alchemyUrl: string | undefined;
-    if (config.alchemyBase && alchemyKey) {
-      const base =
+    if (config.alchemyBase) {
+      const baseUrl =
         typeof config.alchemyBase === "function"
           ? config.alchemyBase()
           : config.alchemyBase;
-      alchemyUrl = `${base}${alchemyKey}`;
+
+      if (alchemyKey) {
+        // If it's a standard Alchemy base URL, append the key.
+        // Otherwise, if it's already a full URL (including key), use it as is.
+        if (baseUrl.endsWith("/v2/") || baseUrl.endsWith("/")) {
+          alchemyUrl = `${baseUrl}${alchemyKey}`;
+        } else {
+          alchemyUrl = baseUrl;
+        }
+      } else {
+        // No key provided, but if the URL looks like it already has a key or isn't a standard base, use it.
+        // Standard bases: base-mainnet.g.alchemy.com/v2/, etc.
+        const isStandardBase =
+          baseUrl.includes("alchemy.com") &&
+          (baseUrl.endsWith("/v2/") || baseUrl.endsWith("/"));
+        if (!isStandardBase) {
+          alchemyUrl = baseUrl;
+        }
+      }
     }
 
     // 2. Resolve Infura URL
@@ -187,7 +211,12 @@ export const resolveRpcUrls = (chainId: number): RpcUrlsResult => {
     if (config.infuraEnv) {
       infuraUrl = config.infuraEnv;
     } else if (config.infuraBase && infuraKey) {
-      infuraUrl = `${config.infuraBase}${infuraKey}`;
+      const baseUrl = config.infuraBase;
+      if (baseUrl.endsWith("/v3/") || baseUrl.endsWith("/")) {
+        infuraUrl = `${baseUrl}${infuraKey}`;
+      } else {
+        infuraUrl = baseUrl;
+      }
     }
 
     // 3. Push keyed providers in preferred order
@@ -199,8 +228,11 @@ export const resolveRpcUrls = (chainId: number): RpcUrlsResult => {
       if (infuraUrl) urls.push(infuraUrl);
     }
 
-    // 4. Push public fallback
+    // 4. Push public fallbacks
     urls.push(config.publicFallback);
+    if (config.alternateFallbacks) {
+      urls.push(...config.alternateFallbacks);
+    }
   }
 
   // De-duplicate while preserving order

@@ -423,11 +423,6 @@ export default function UniswapSwapTab() {
         {buttonState.label}
       </Button>
 
-      {/* Fee disclosure */}
-      <p className="text-center text-[10px] text-slate-500">
-        {feeBips / 100}% swap fee applied
-      </p>
-
       <TransactionStepperModal
         open={isStepperOpen}
         title="Swap in Progress"
