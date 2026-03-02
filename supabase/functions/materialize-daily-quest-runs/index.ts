@@ -69,7 +69,9 @@ Deno.serve(async (req) => {
   }
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
-  const serviceRoleKey = Deno.env.get("NEXT_SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRoleKey =
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ||
+    Deno.env.get("NEXT_SUPABASE_SERVICE_ROLE_KEY");
   if (!supabaseUrl || !serviceRoleKey) {
     log.error("Missing env vars", {
       hasSupabaseUrl: Boolean(supabaseUrl),
@@ -106,7 +108,6 @@ Deno.serve(async (req) => {
   let processed = 0;
 
   for (const tmpl of templateRows) {
-    processed += 1;
     const templateId = tmpl.id;
     const templateTitle = tmpl.title;
 
@@ -213,6 +214,8 @@ Deno.serve(async (req) => {
         dedupeErr,
       });
     }
+
+    processed += 1;
   }
 
   return new Response(
