@@ -68,6 +68,8 @@ export function useUniswapSwap() {
   // the response's requestId matches the current ref value.
   const quoteRequestIdRef = useRef(0);
 
+  const walletAddress = wallet?.address as `0x${string}` | undefined;
+
   /**
    * Fetch user's balance for the input side of a swap.
    */
@@ -76,11 +78,11 @@ export function useUniswapSwap() {
       pair: SwapPair,
       direction: SwapDirection,
     ): Promise<bigint | null> => {
-      if (!wallet?.address) return null;
+      if (!walletAddress) return null;
 
       try {
         const publicClient = createPublicClientForChain(base);
-        const userAddress = wallet.address as `0x${string}`;
+        const userAddress = walletAddress;
 
         const isEthPair = pair === "ETH_UP" || pair === "ETH_USDC";
         const isBuySide = direction === "A_TO_B";
@@ -119,7 +121,7 @@ export function useUniswapSwap() {
         return null;
       }
     },
-    [wallet?.address, addresses],
+    [walletAddress, addresses],
   );
 
   /**
@@ -128,7 +130,12 @@ export function useUniswapSwap() {
    */
   const clearQuote = useCallback(() => {
     quoteRequestIdRef.current += 1; // Invalidate any in-flight requests
-    setState((prev) => ({ ...prev, quote: null, error: null, isQuoting: false }));
+    setState((prev) => ({
+      ...prev,
+      quote: null,
+      error: null,
+      isQuoting: false,
+    }));
   }, []);
 
   const getQuote = useCallback(
@@ -137,6 +144,8 @@ export function useUniswapSwap() {
       direction: SwapDirection,
       amountIn: bigint,
     ): Promise<SwapQuote | null> => {
+      if (!walletAddress) return null;
+
       // Increment requestId to invalidate previous requests, then capture it.
       quoteRequestIdRef.current += 1;
       const thisRequestId = quoteRequestIdRef.current;
@@ -231,7 +240,7 @@ export function useUniswapSwap() {
         return null;
       }
     },
-    [addresses],
+    [addresses, walletAddress],
   );
 
   /**
@@ -476,7 +485,7 @@ export function useUniswapSwap() {
 
       return steps;
     },
-    [wallet, addresses],
+    [walletAddress, addresses, wallet],
   );
 
   return {

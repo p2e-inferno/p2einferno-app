@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import toast from "react-hot-toast";
 import { useDGMarket } from "@/hooks/vendor/useDGMarket";
 import { useDGTokenBalances } from "@/hooks/vendor/useDGTokenBalances";
 import { useGoodDollarVerification } from "@/hooks/useGoodDollarVerification";
@@ -203,13 +204,15 @@ export default function VendorSwap() {
     setAmount(formatAmountForInput(selected, inputDecimals));
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!canSubmit || parsedAmount === null) return;
-    if (mode === "buy") {
-      buyTokens(parsedAmount);
-      return;
+    const result =
+      mode === "buy"
+        ? await buyTokens(parsedAmount)
+        : await sellTokens(parsedAmount);
+    if (!result.success) {
+      toast.error(result.error ?? "Transaction failed");
     }
-    sellTokens(parsedAmount);
   };
 
   return (

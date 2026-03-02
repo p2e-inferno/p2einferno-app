@@ -26,9 +26,19 @@ export const useSmartWalletSelection = () => {
   const { user } = useUser();
   const { ready } = usePrivy();
 
+  // Determine available wallet identifiers to stabilize memoization
+  const walletStateKey = useMemo(() => {
+    return (
+      wallets.map((w) => `${w.address}-${w.walletClientType}`).join(",") +
+      "|" +
+      (user?.id ?? "none") +
+      "|" +
+      (user?.linkedAccounts?.length ?? 0)
+    );
+  }, [wallets, user]);
+
   const selectedWallet = useMemo(() => {
-    log.debug("Available wallets", { wallets });
-    log.debug("User linked accounts", { linkedAccounts: user?.linkedAccounts });
+    log.debug("Recalculating selected wallet", { walletStateKey });
 
     // Priority 1 & 2: Select from linked accounts with device availability check
     const linkedWallet = selectLinkedWallet(user, wallets);
@@ -37,13 +47,14 @@ export const useSmartWalletSelection = () => {
 
       log.info(
         `✅ Found ${isExternal ? "external" : "embedded"} wallet from linked accounts`,
-        { linkedWallet }
+        { address: linkedWallet.address },
       );
 
       return {
         address: linkedWallet.address,
         walletClientType: linkedWallet.walletClientType || "privy",
-        connectorType: linkedWallet.connectorType || (isExternal ? "injected" : "embedded"),
+        connectorType:
+          linkedWallet.connectorType || (isExternal ? "injected" : "embedded"),
         type: "ethereum" as const,
         chainId: `eip155:${CHAIN_ID}`,
       };
@@ -51,18 +62,15 @@ export const useSmartWalletSelection = () => {
 
     // Priority 3: Fallback to useWallets (should rarely happen - means no linked accounts)
     if (wallets.length > 0) {
-      log.warn(
-        "⚠️ Falling back to browser wallet (not in linked accounts)",
-        {
-          wallet: wallets[0],
-        }
-      );
+      log.warn("⚠️ Falling back to browser wallet (not in linked accounts)", {
+        address: wallets[0]?.address,
+      });
       return wallets[0];
     }
 
     log.info("❌ No wallets available");
     return null;
-  }, [wallets, user]);
+  }, [walletStateKey, wallets, user]);
 
   // Track initialization state for delayed toast
   const [initializationComplete, setInitializationComplete] = useState(false);
@@ -137,7 +145,7 @@ export const useSmartWalletSelection = () => {
       fallbackToastState.toastId = null;
       fallbackToastState.checkStartTime = 0;
     }
-  }, [initializationComplete, wallets, ready, user?.linkedAccounts, selectedWallet]);
+  }, [initializationComplete, ready, user, selectedWallet]);
 
   return selectedWallet;
 };

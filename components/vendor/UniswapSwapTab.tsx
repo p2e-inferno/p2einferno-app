@@ -89,7 +89,7 @@ export default function UniswapSwapTab() {
     getQuote,
     clearQuote,
     fetchBalance,
-    feeBips,
+    feeBips: _feeBips,
   } = useUniswapSwap();
 
   // --- Stepper state ---
@@ -422,11 +422,6 @@ export default function UniswapSwapTab() {
       >
         {buttonState.label}
       </Button>
-
-      {/* Fee disclosure */}
-      <p className="text-center text-[10px] text-slate-500">
-        {feeBips / 100}% swap fee applied
-      </p>
 
       <TransactionStepperModal
         open={isStepperOpen}

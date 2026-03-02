@@ -4,9 +4,17 @@
  * Displays user stage progress and provides upgrade functionality.
  */
 
+import Link from "next/link";
 import { useDGProfile } from "@/hooks/vendor/useDGProfile";
 import { Button } from "@/components/ui/button";
-import { ArrowUpCircle, Zap, Star } from "lucide-react";
+import {
+  ArrowUpCircle,
+  Zap,
+  Star,
+  ArrowRightLeft,
+  KeyRound,
+} from "lucide-react";
+import { formatWalletAddress } from "@/lib/utils/wallet-address";
 
 export default function LevelUpCard() {
   const {
@@ -16,6 +24,8 @@ export default function LevelUpCard() {
     isPending,
     canUpgrade,
     upgradeBlockedReason,
+    hasKeyOnOtherWalletOnly,
+    keyHoldingWalletAddress,
     pointsProgress,
     fuelProgress,
     upgradeProgress,
@@ -93,11 +103,42 @@ export default function LevelUpCard() {
       >
         {isPending ? "Upgrading..." : "Upgrade Stage"}
       </Button>
-      {upgradeBlockedReason && (
+
+      {/* Membership on another wallet — actionable guidance */}
+      {hasKeyOnOtherWalletOnly && (
+        <div className="mt-3 space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
+          <p className="text-center text-xs text-amber-300/90">
+            Membership detected on{" "}
+            <span className="font-mono font-medium text-amber-200">
+              {formatWalletAddress(keyHoldingWalletAddress)}
+            </span>
+          </p>
+          <div className="flex gap-2">
+            <span
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-200"
+              title="Switch your active wallet in your wallet provider"
+            >
+              <ArrowRightLeft className="h-3 w-3 text-amber-400" />
+              Switch wallet
+            </span>
+            <Link
+              href="/lobby/profile"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:bg-white/10"
+            >
+              <KeyRound className="h-3 w-3 text-purple-400" />
+              Get key for this wallet
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Other blocked reasons (not the wallet-switch case) */}
+      {upgradeBlockedReason && !hasKeyOnOtherWalletOnly && (
         <p className="mt-2 text-center text-xs text-red-400">
           {upgradeBlockedReason}
         </p>
       )}
+
       {!upgradeBlockedReason && userState && (
         <p className="mt-2 text-center text-xs text-slate-400">
           {Math.round(pointsProgress * 100)}% points ·{" "}

@@ -321,9 +321,7 @@ export async function PUT(
         p_title: title,
         p_description: description,
         p_image_url: payload.image_url ?? null,
-        ...(typeof payload.is_active === "boolean"
-          ? { p_is_active: payload.is_active }
-          : {}),
+        p_is_active: typeof payload.is_active === "boolean" ? payload.is_active : null,
         p_completion_bonus_reward_amount: bonus,
         p_lock_address: lockAddress || null,
         p_lock_manager_granted: payload.lock_manager_granted ?? false,

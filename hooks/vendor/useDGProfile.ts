@@ -10,10 +10,14 @@ import { useDetectConnectedWalletAddress } from "@/hooks/useDetectConnectedWalle
 import { useReadContract, useWriteContract } from "wagmi";
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
 import { USER_STAGE_LABELS } from "@/lib/blockchain/shared/vendor-constants";
-import type { StageConfigStruct, UserStateStruct } from "@/lib/blockchain/shared/vendor-types";
-import { useDGNationKey } from "@/hooks/useDGNationKey";
+import type {
+  StageConfigStruct,
+  UserStateStruct,
+} from "@/lib/blockchain/shared/vendor-types";
+import { useDGVendorAccess } from "@/hooks/vendor/useDGVendorAccess";
 
-const VENDOR_ADDRESS = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
+const VENDOR_ADDRESS = process.env
+  .NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
 
 export interface UserState {
   stage: number;
@@ -29,10 +33,10 @@ export function useDGProfile() {
   const { walletAddress } = useDetectConnectedWalletAddress(user);
   const { writeContract, data: hash, isPending } = useWriteContract();
   const {
-    hasValidKey: hasValidMembershipOnActiveWallet,
-    hasValidKeyAnyLinked,
-    validWalletAddress,
-  } = useDGNationKey();
+    isKeyHolder: hasValidMembershipOnActiveWallet,
+    hasKeyOnAnotherLinkedWallet: hasKeyOnOtherWalletOnly,
+    keyHoldingWalletAddress: validWalletAddress,
+  } = useDGVendorAccess();
 
   // Read user state
   const { data: userStateRaw, refetch: refetchState } = useReadContract({
@@ -88,10 +92,7 @@ export function useDGProfile() {
 
   const pointsProgress =
     pointsRequired && pointsRequired > 0n && userState
-      ? Math.min(
-          Number(userState.points) / Number(pointsRequired),
-          1,
-        )
+      ? Math.min(Number(userState.points) / Number(pointsRequired), 1)
       : 0;
 
   const fuelProgress =
@@ -117,8 +118,8 @@ export function useDGProfile() {
   const upgradeBlockedReason = (() => {
     if (isMaxStage) return "Max stage reached";
     if (!isKeyHolder) {
-      if (hasValidKeyAnyLinked && validWalletAddress) {
-        return "Membership found on another linked wallet — switch wallets to upgrade";
+      if (hasKeyOnOtherWalletOnly) {
+        return "No membership on this wallet";
       }
       return "Valid NFT key required";
     }
@@ -128,10 +129,10 @@ export function useDGProfile() {
     return null;
   })();
 
-    /**
-     * Upgrade to the next stage
-     * User must meet points and fuel thresholds
-     */
+  /**
+   * Upgrade to the next stage
+   * User must meet points and fuel thresholds
+   */
   const upgradeStage = () => {
     writeContract({
       address: VENDOR_ADDRESS,
@@ -147,6 +148,8 @@ export function useDGProfile() {
     isPaused,
     canUpgrade,
     upgradeBlockedReason,
+    hasKeyOnOtherWalletOnly,
+    keyHoldingWalletAddress: validWalletAddress,
     pointsProgress,
     fuelProgress,
     upgradeProgress,
