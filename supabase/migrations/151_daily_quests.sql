@@ -430,7 +430,7 @@ CREATE OR REPLACE FUNCTION public.admin_replace_daily_quest_template_and_tasks(
   p_title text,
   p_description text,
   p_image_url text,
-  p_is_active boolean DEFAULT NULL,
+  p_is_active boolean,
   p_completion_bonus_reward_amount integer,
   p_lock_address text,
   p_lock_manager_granted boolean,
@@ -541,7 +541,7 @@ SECURITY DEFINER
 SET search_path = 'public'
 AS $$
 DECLARE
-  v_updated boolean;
+  v_row_count integer;
 BEGIN
   WITH totals AS (
     SELECT
@@ -561,8 +561,8 @@ BEGIN
     AND totals.total_tasks > 0
     AND totals.completed_tasks = totals.total_tasks;
 
-  GET DIAGNOSTICS v_updated = ROW_COUNT > 0;
-  RETURN jsonb_build_object('updated', v_updated);
+  GET DIAGNOSTICS v_row_count = ROW_COUNT;
+  RETURN jsonb_build_object('updated', v_row_count > 0);
 END;
 $$;
 
