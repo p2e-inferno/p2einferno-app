@@ -3,7 +3,7 @@
  * Integrates Wagmi v3 with existing blockchain infrastructure
  */
 
-import { createConfig, http, createStorage, cookieStorage } from "wagmi";
+import { createConfig, http, fallback, createStorage, cookieStorage } from "wagmi";
 import { base, baseSepolia, mainnet, celo } from "wagmi/chains";
 import { resolveRpcUrls } from "@/lib/blockchain/config/core/chain-resolution";
 import { getLogger } from "@/lib/utils/logger";
@@ -16,6 +16,18 @@ const log = getLogger("wagmi:config");
 export const chains = [base, baseSepolia, mainnet, celo] as const;
 
 /**
+ * Build a fallback transport from all resolved RPC URLs for a chain.
+ * Mirrors the approach used by createPublicClientForChain.
+ */
+function buildFallbackTransport(rpc: ReturnType<typeof resolveRpcUrls>) {
+  return fallback(
+    rpc.urls.map((url) =>
+      http(url, { timeout: 10_000, retryCount: 2, retryDelay: 150 }),
+    ),
+  );
+}
+
+/**
  * Get RPC transports for each chain
  * Uses existing RPC fallback infrastructure (Alchemy → Infura → Public)
  */
@@ -26,33 +38,17 @@ function getTransports() {
   const celoRpc = resolveRpcUrls(celo.id);
 
   log.info("Wagmi RPC transports configured", {
-    base: baseRpc.hosts[0],
-    baseSepolia: baseSepoliaRpc.hosts[0],
-    mainnet: mainnetRpc.hosts[0],
-    celo: celoRpc.hosts[0],
+    base: baseRpc.hosts,
+    baseSepolia: baseSepoliaRpc.hosts,
+    mainnet: mainnetRpc.hosts,
+    celo: celoRpc.hosts,
   });
 
   return {
-    [base.id]: http(baseRpc.urls[0], {
-      timeout: 10000, // 10 second timeout
-      retryCount: 3,
-      retryDelay: 150,
-    }),
-    [baseSepolia.id]: http(baseSepoliaRpc.urls[0], {
-      timeout: 10000,
-      retryCount: 3,
-      retryDelay: 150,
-    }),
-    [mainnet.id]: http(mainnetRpc.urls[0], {
-      timeout: 10000,
-      retryCount: 3,
-      retryDelay: 150,
-    }),
-    [celo.id]: http(celoRpc.urls[0], {
-      timeout: 10000,
-      retryCount: 3,
-      retryDelay: 150,
-    }),
+    [base.id]: buildFallbackTransport(baseRpc),
+    [baseSepolia.id]: buildFallbackTransport(baseSepoliaRpc),
+    [mainnet.id]: buildFallbackTransport(mainnetRpc),
+    [celo.id]: buildFallbackTransport(celoRpc),
   };
 }
 

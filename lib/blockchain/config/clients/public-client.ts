@@ -180,6 +180,10 @@ export const createPublicClientUnified = (): PublicClient => {
 /**
  * Create a public client for an arbitrary chain.
  * Uses fallback transport for Base/Base Sepolia; defaults for others.
+ *
+ * On the client side, deprioritises public .base.org endpoints when keyed
+ * providers (Alchemy / Infura) are available — the same filtering that
+ * createPublicClientUnified applies to the app's default chain.
  */
 export const createPublicClientForChain = (
   targetChain: Chain,
@@ -188,7 +192,33 @@ export const createPublicClientForChain = (
     getRpcFallbackSettings();
   // Use prioritized fallback for known chains (Base mainnet/sepolia, Ethereum mainnet)
   if (targetChain?.id) {
-    const { urls, hosts } = resolveRpcUrls(targetChain.id);
+    let { urls, hosts } = resolveRpcUrls(targetChain.id);
+
+    // Browser: push public Base endpoints to the end (or drop them) when
+    // keyed providers exist, matching createPublicClientUnified behaviour.
+    if (typeof window !== "undefined") {
+      const parseHost = (u: string) => {
+        try {
+          return new URL(u).host;
+        } catch {
+          return "[unparseable]";
+        }
+      };
+      const keyedPred = (h: string) =>
+        /alchemy\.com$/i.test(h) || /infura\.io$/i.test(h);
+      const publicBasePred = (h: string) => /\.base\.org$/i.test(h);
+      const hasKeyed = hosts.some(keyedPred);
+      if (hasKeyed) {
+        const keyed = urls.filter((u) => keyedPred(parseHost(u)));
+        const publicBase = urls.filter((u) => publicBasePred(parseHost(u)));
+        const others = urls.filter(
+          (u) => !keyed.includes(u) && !publicBase.includes(u),
+        );
+        // Keep public endpoints as last-resort fallback only
+        urls = [...keyed, ...others, ...publicBase];
+        hosts = urls.map(parseHost);
+      }
+    }
 
     blockchainLogger.info("RPC fallback configured (custom chain)", {
       operation: "config:rpc",

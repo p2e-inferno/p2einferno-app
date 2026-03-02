@@ -11,7 +11,7 @@ import { useReadContract, useWriteContract } from "wagmi";
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
 import { USER_STAGE_LABELS } from "@/lib/blockchain/shared/vendor-constants";
 import type { StageConfigStruct, UserStateStruct } from "@/lib/blockchain/shared/vendor-types";
-import { useDGNationKey } from "@/hooks/useDGNationKey";
+import { useDGVendorAccess } from "@/hooks/vendor/useDGVendorAccess";
 
 const VENDOR_ADDRESS = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS as `0x${string}`;
 
@@ -29,10 +29,10 @@ export function useDGProfile() {
   const { walletAddress } = useDetectConnectedWalletAddress(user);
   const { writeContract, data: hash, isPending } = useWriteContract();
   const {
-    hasValidKey: hasValidMembershipOnActiveWallet,
+    isKeyHolder: hasValidMembershipOnActiveWallet,
     hasValidKeyAnyLinked,
-    validWalletAddress,
-  } = useDGNationKey();
+    keyHoldingWalletAddress: validWalletAddress,
+  } = useDGVendorAccess();
 
   // Read user state
   const { data: userStateRaw, refetch: refetchState } = useReadContract({
@@ -114,11 +114,14 @@ export function useDGProfile() {
   const canUpgrade =
     !isPaused && isKeyHolder && !isMaxStage && hasPoints && hasFuel;
 
+  const hasKeyOnOtherWalletOnly =
+    !isKeyHolder && hasValidKeyAnyLinked && !!validWalletAddress;
+
   const upgradeBlockedReason = (() => {
     if (isMaxStage) return "Max stage reached";
     if (!isKeyHolder) {
-      if (hasValidKeyAnyLinked && validWalletAddress) {
-        return "Membership found on another linked wallet — switch wallets to upgrade";
+      if (hasKeyOnOtherWalletOnly) {
+        return "No membership on this wallet";
       }
       return "Valid NFT key required";
     }
@@ -147,6 +150,8 @@ export function useDGProfile() {
     isPaused,
     canUpgrade,
     upgradeBlockedReason,
+    hasKeyOnOtherWalletOnly,
+    keyHoldingWalletAddress: validWalletAddress,
     pointsProgress,
     fuelProgress,
     upgradeProgress,
