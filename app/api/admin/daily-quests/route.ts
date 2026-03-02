@@ -8,6 +8,11 @@ import { broadcastTelegramNotification } from "@/lib/notifications/telegram";
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
 import { ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { isAddress } from "viem";
+import type {
+  DailyQuestRun,
+  DailyQuestTask,
+  DailyQuestTemplate,
+} from "@/lib/supabase/types";
 
 const log = getLogger("api:admin:daily-quests");
 
@@ -183,7 +188,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: tmplErr.message }, { status: 400 });
     }
 
-    const templateIds = (templates || []).map((t: any) => t.id);
+    const typedTemplates = (templates || []) as DailyQuestTemplate[];
+    const templateIds = typedTemplates.map((t: DailyQuestTemplate) => t.id);
 
     const { data: tasks, error: taskErr } = templateIds.length
       ? await supabase
@@ -209,19 +215,21 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: runErr.message }, { status: 400 });
     }
 
-    const tasksByTemplate = new Map<string, any[]>();
-    for (const t of tasks || []) {
-      const key = (t as any).daily_quest_template_id;
+    const typedTasks = (tasks || []) as DailyQuestTask[];
+    const tasksByTemplate = new Map<string, DailyQuestTask[]>();
+    for (const t of typedTasks) {
+      const key = t.daily_quest_template_id;
       if (!tasksByTemplate.has(key)) tasksByTemplate.set(key, []);
       tasksByTemplate.get(key)!.push(t);
     }
 
-    const runByTemplate = new Map<string, any>();
-    for (const r of runs || []) {
-      runByTemplate.set((r as any).daily_quest_template_id, r);
+    const typedRuns = (runs || []) as DailyQuestRun[];
+    const runByTemplate = new Map<string, DailyQuestRun>();
+    for (const r of typedRuns) {
+      runByTemplate.set(r.daily_quest_template_id, r);
     }
 
-    const data = (templates || []).map((t: any) => ({
+    const data = typedTemplates.map((t: DailyQuestTemplate) => ({
       ...t,
       daily_quest_tasks: tasksByTemplate.get(t.id) || [],
       today_run: runByTemplate.get(t.id) || null,

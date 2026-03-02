@@ -7,7 +7,6 @@ import {
   WalletValidationError,
 } from "@/lib/auth/privy";
 import { getUserPrimaryWallet } from "@/lib/quests/prerequisite-checker";
-import { ensureTodayDailyRuns } from "@/lib/quests/daily-quests/runs";
 import { evaluateDailyQuestEligibility } from "@/lib/quests/daily-quests/constraints";
 import type {
   DailyQuestRun,
@@ -27,7 +26,6 @@ export default async function handler(
 
   try {
     const supabase = createAdminClient();
-    await ensureTodayDailyRuns(supabase);
 
     const todayUtc = new Date().toISOString().slice(0, 10);
 

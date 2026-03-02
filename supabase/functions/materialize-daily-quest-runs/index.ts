@@ -18,6 +18,8 @@ function getTodayUtc(): string {
   return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
+type TemplateRow = { id: string; title: string };
+
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
@@ -77,13 +79,15 @@ Deno.serve(async (req) => {
     );
   }
 
-  const templateRows = Array.isArray(templates) ? templates : [];
+  const templateRows: TemplateRow[] = Array.isArray(templates)
+    ? (templates as TemplateRow[])
+    : [];
   let processed = 0;
 
   for (const tmpl of templateRows) {
     processed += 1;
-    const templateId = (tmpl as any).id as string;
-    const templateTitle = (tmpl as any).title as string;
+    const templateId = tmpl.id;
+    const templateTitle = tmpl.title;
 
     const { error: upsertError } = await supabaseAdmin
       .from("daily_quest_runs")

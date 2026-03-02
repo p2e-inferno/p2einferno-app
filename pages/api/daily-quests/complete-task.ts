@@ -16,14 +16,51 @@ import {
   isVendorBlockchainTaskType,
 } from "@/lib/quests/vendorTaskTypes";
 import { registerDailyQuestTransaction } from "@/lib/quests/daily-quests/replay-prevention";
+import type { DailyQuestRun } from "@/lib/supabase/types";
 
 const log = getLogger("api:daily-quests:complete-task");
 
-function isRunActiveWindow(run: any) {
+function isRunActiveWindow(run: DailyQuestRun) {
   const now = Date.now();
   const starts = Date.parse(run.starts_at);
   const ends = Date.parse(run.ends_at);
   return run.status === "active" && now >= starts && now <= ends;
+}
+
+function extractMetadataForRegistration(
+  metadata: Record<string, unknown>,
+  taskType: string,
+): {
+  amount: string | null;
+  eventName: string | null;
+  blockNumber: string | null;
+  logIndex: number | null;
+} {
+  const amount =
+    typeof metadata.amount === "string"
+      ? metadata.amount
+      : typeof metadata.inputAmount === "string"
+        ? String(metadata.inputAmount)
+        : null;
+
+  const eventName =
+    taskType === "deploy_lock"
+      ? "NewLock"
+      : taskType === "uniswap_swap"
+        ? "Swap"
+        : typeof metadata.eventName === "string"
+          ? String(metadata.eventName)
+          : null;
+
+  const blockNumber =
+    typeof metadata.blockNumber === "string"
+      ? String(metadata.blockNumber)
+      : null;
+
+  const logIndex =
+    typeof metadata.logIndex === "number" ? metadata.logIndex : null;
+
+  return { amount, eventName, blockNumber, logIndex };
 }
 
 export default async function handler(
@@ -184,30 +221,7 @@ export default async function handler(
         userId,
         taskId: task.id,
         taskType: task.task_type,
-        metadata: {
-          amount:
-            typeof metadata.amount === "string"
-              ? metadata.amount
-              : typeof (metadata as any).inputAmount === "string"
-                ? String((metadata as any).inputAmount)
-                : null,
-          eventName:
-            task.task_type === "deploy_lock"
-              ? "NewLock"
-              : task.task_type === "uniswap_swap"
-                ? "Swap"
-                : typeof (metadata as any).eventName === "string"
-                  ? String((metadata as any).eventName)
-                  : null,
-          blockNumber:
-            typeof (metadata as any).blockNumber === "string"
-              ? String((metadata as any).blockNumber)
-              : null,
-          logIndex:
-            typeof (metadata as any).logIndex === "number"
-              ? (metadata as any).logIndex
-              : null,
-        },
+        metadata: extractMetadataForRegistration(metadata, task.task_type),
       });
 
       if (!registerData.success) {

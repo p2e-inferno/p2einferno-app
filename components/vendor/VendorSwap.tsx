@@ -212,17 +212,6 @@ export default function VendorSwap() {
     sellTokens(parsedAmount);
   };
 
-  console.log({
-    isKeyHolder,
-    isPaused,
-    hasConfig,
-    parsedAmount,
-    isBelowMin,
-    isOverBalance,
-    isSellOutputZero,
-    canSubmit,
-  });
-
   return (
     <div className="rounded-2xl border border-white/5 bg-gradient-to-b from-slate-900/90 to-slate-900/60 p-6 shadow-2xl shadow-black/40 space-y-4">
       {/* Tab Navigation */}

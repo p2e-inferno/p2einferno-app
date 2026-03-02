@@ -63,9 +63,13 @@ export function DailyQuestList() {
       });
       if (result.error) throw new Error(result.error);
       await fetchRows();
-    } catch (err: any) {
+    } catch (err: unknown) {
       log.error("Failed to toggle daily quest status", err);
-      toast.error(err?.message || "Failed to update daily quest status");
+      const message =
+        err instanceof Error
+          ? err.message
+          : String(err) || "Failed to update daily quest status";
+      toast.error(message);
     } finally {
       setIsToggling(null);
     }
