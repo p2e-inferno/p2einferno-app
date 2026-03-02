@@ -114,16 +114,13 @@ export default function LevelUpCard() {
             </span>
           </p>
           <div className="flex gap-2">
-            <button
-              type="button"
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:bg-white/10"
-              onClick={() => {
-                /* wallet switch is handled externally by the user */
-              }}
+            <span
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-200"
+              title="Switch your active wallet in your wallet provider"
             >
               <ArrowRightLeft className="h-3 w-3 text-amber-400" />
               Switch wallet
-            </button>
+            </span>
             <Link
               href="/lobby/profile"
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2 py-1.5 text-[11px] font-medium text-slate-200 transition-colors hover:bg-white/10"

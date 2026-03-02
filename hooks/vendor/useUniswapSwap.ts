@@ -130,7 +130,12 @@ export function useUniswapSwap() {
    */
   const clearQuote = useCallback(() => {
     quoteRequestIdRef.current += 1; // Invalidate any in-flight requests
-    setState((prev) => ({ ...prev, quote: null, error: null, isQuoting: false }));
+    setState((prev) => ({
+      ...prev,
+      quote: null,
+      error: null,
+      isQuoting: false,
+    }));
   }, []);
 
   const getQuote = useCallback(
@@ -163,13 +168,13 @@ export function useUniswapSwap() {
           const path =
             direction === "A_TO_B"
               ? encodePacked(
-                ["address", "uint24", "address", "uint24", "address"],
-                [addresses.up, 3000, addresses.weth, 500, addresses.usdc],
-              )
+                  ["address", "uint24", "address", "uint24", "address"],
+                  [addresses.up, 3000, addresses.weth, 500, addresses.usdc],
+                )
               : encodePacked(
-                ["address", "uint24", "address", "uint24", "address"],
-                [addresses.usdc, 500, addresses.weth, 3000, addresses.up],
-              );
+                  ["address", "uint24", "address", "uint24", "address"],
+                  [addresses.usdc, 500, addresses.weth, 3000, addresses.up],
+                );
           quoteResult = await getQuoteExactInput(
             publicClient,
             addresses.quoterV2,
@@ -235,7 +240,7 @@ export function useUniswapSwap() {
         return null;
       }
     },
-    [addresses],
+    [addresses, walletAddress],
   );
 
   /**
