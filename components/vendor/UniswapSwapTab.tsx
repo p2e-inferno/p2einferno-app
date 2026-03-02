@@ -89,7 +89,7 @@ export default function UniswapSwapTab() {
     getQuote,
     clearQuote,
     fetchBalance,
-    feeBips,
+    feeBips: _feeBips,
   } = useUniswapSwap();
 
   // --- Stepper state ---

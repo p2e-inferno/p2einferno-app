@@ -7,7 +7,13 @@
 import Link from "next/link";
 import { useDGProfile } from "@/hooks/vendor/useDGProfile";
 import { Button } from "@/components/ui/button";
-import { ArrowUpCircle, Zap, Star, ArrowRightLeft, KeyRound } from "lucide-react";
+import {
+  ArrowUpCircle,
+  Zap,
+  Star,
+  ArrowRightLeft,
+  KeyRound,
+} from "lucide-react";
 import { formatWalletAddress } from "@/lib/utils/wallet-address";
 
 export default function LevelUpCard() {
