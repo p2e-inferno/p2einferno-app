@@ -8,7 +8,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getPrivyUserFromNextRequest } from "@/lib/auth/privy";
+import {
+  getPrivyUserFromNextRequest,
+  walletValidationErrorToHttpStatus,
+} from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
@@ -127,11 +130,16 @@ export async function POST(req: NextRequest) {
       }
 
       userWallet = extractedWallet;
-    } catch (error: any) {
-      const status = error.message?.includes("required") ? 400 : 403;
+    } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
+      const safeStatus = status === 500 ? 403 : status;
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Wallet validation failed";
       return NextResponse.json(
-        { success: false, error: error.message },
-        { status },
+        { success: false, error: message },
+        { status: safeStatus },
       );
     }
 
@@ -164,10 +172,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const decodedTxHashRaw = getDecodedFieldValue(
-      decoded,
-      "withdrawalTxHash",
-    );
+    const decodedTxHashRaw = getDecodedFieldValue(decoded, "withdrawalTxHash");
     const expectedTxHashRaw = withdrawal.transaction_hash;
 
     const decodedTxHash =

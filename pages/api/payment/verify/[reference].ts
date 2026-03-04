@@ -19,6 +19,7 @@ import {
 import {
   validateWalletOwnership,
   PrivyUnavailableError,
+  WalletValidationError,
 } from "@/lib/auth/privy";
 
 const log = getLogger("api:payment:verify:[reference]");
@@ -195,6 +196,14 @@ async function grantKeyToUserForPayment(
       if (validationError instanceof PrivyUnavailableError) {
         log.error(
           `Privy API unavailable while validating wallet ownership for user ${userProfile.privy_user_id}`,
+          { error: validationError },
+        );
+      } else if (
+        validationError instanceof WalletValidationError &&
+        validationError.code === "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP"
+      ) {
+        log.error(
+          `Wallet already linked to another account for user ${userProfile.privy_user_id}`,
           { error: validationError },
         );
       } else {

@@ -777,6 +777,302 @@ export type Database = {
         }
         Relationships: []
       }
+      daily_quest_notifications: {
+        Row: {
+          created_at: string | null
+          daily_quest_template_id: string
+          id: string
+          notification_type: string
+          run_date: string
+        }
+        Insert: {
+          created_at?: string | null
+          daily_quest_template_id: string
+          id?: string
+          notification_type: string
+          run_date: string
+        }
+        Update: {
+          created_at?: string | null
+          daily_quest_template_id?: string
+          id?: string
+          notification_type?: string
+          run_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_quest_notifications_daily_quest_template_id_fkey"
+            columns: ["daily_quest_template_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_quest_run_tasks: {
+        Row: {
+          daily_quest_run_id: string
+          daily_quest_template_task_id: string | null
+          description: string
+          id: string
+          input_label: string | null
+          input_placeholder: string | null
+          input_required: boolean | null
+          input_validation: string | null
+          order_index: number
+          requires_admin_review: boolean | null
+          reward_amount: number
+          task_config: Json
+          task_type: string
+          title: string
+          verification_method: string
+        }
+        Insert: {
+          daily_quest_run_id: string
+          daily_quest_template_task_id?: string | null
+          description: string
+          id?: string
+          input_label?: string | null
+          input_placeholder?: string | null
+          input_required?: boolean | null
+          input_validation?: string | null
+          order_index?: number
+          requires_admin_review?: boolean | null
+          reward_amount?: number
+          task_config?: Json
+          task_type: string
+          title: string
+          verification_method: string
+        }
+        Update: {
+          daily_quest_run_id?: string
+          daily_quest_template_task_id?: string | null
+          description?: string
+          id?: string
+          input_label?: string | null
+          input_placeholder?: string | null
+          input_required?: boolean | null
+          input_validation?: string | null
+          order_index?: number
+          requires_admin_review?: boolean | null
+          reward_amount?: number
+          task_config?: Json
+          task_type?: string
+          title?: string
+          verification_method?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_quest_run_tasks_daily_quest_run_id_fkey"
+            columns: ["daily_quest_run_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_quest_run_tasks_daily_quest_template_task_id_fkey"
+            columns: ["daily_quest_template_task_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_quest_runs: {
+        Row: {
+          created_at: string
+          daily_quest_template_id: string
+          ends_at: string
+          id: string
+          run_date: string
+          starts_at: string
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_quest_template_id: string
+          ends_at: string
+          id?: string
+          run_date: string
+          starts_at: string
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_quest_template_id?: string
+          ends_at?: string
+          id?: string
+          run_date?: string
+          starts_at?: string
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_quest_runs_daily_quest_template_id_fkey"
+            columns: ["daily_quest_template_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_quest_tasks: {
+        Row: {
+          daily_quest_template_id: string
+          description: string
+          id: string
+          input_label: string | null
+          input_placeholder: string | null
+          input_required: boolean | null
+          input_validation: string | null
+          order_index: number
+          requires_admin_review: boolean | null
+          reward_amount: number
+          task_config: Json | null
+          task_type: string
+          title: string
+          verification_method: string
+        }
+        Insert: {
+          daily_quest_template_id: string
+          description: string
+          id?: string
+          input_label?: string | null
+          input_placeholder?: string | null
+          input_required?: boolean | null
+          input_validation?: string | null
+          order_index?: number
+          requires_admin_review?: boolean | null
+          reward_amount?: number
+          task_config?: Json | null
+          task_type: string
+          title: string
+          verification_method: string
+        }
+        Update: {
+          daily_quest_template_id?: string
+          description?: string
+          id?: string
+          input_label?: string | null
+          input_placeholder?: string | null
+          input_required?: boolean | null
+          input_validation?: string | null
+          order_index?: number
+          requires_admin_review?: boolean | null
+          reward_amount?: number
+          task_config?: Json | null
+          task_type?: string
+          title?: string
+          verification_method?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_quest_tasks_daily_quest_template_id_fkey"
+            columns: ["daily_quest_template_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_quest_templates: {
+        Row: {
+          completion_bonus_reward_amount: number
+          created_at: string | null
+          description: string
+          eligibility_config: Json
+          grant_failure_reason: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean
+          lock_address: string | null
+          lock_manager_granted: boolean
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          completion_bonus_reward_amount?: number
+          created_at?: string | null
+          description: string
+          eligibility_config?: Json
+          grant_failure_reason?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          lock_address?: string | null
+          lock_manager_granted?: boolean
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          completion_bonus_reward_amount?: number
+          created_at?: string | null
+          description?: string
+          eligibility_config?: Json
+          grant_failure_reason?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          lock_address?: string | null
+          lock_manager_granted?: boolean
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      daily_quest_verified_transactions: {
+        Row: {
+          block_number: number | null
+          chain_id: number
+          created_at: string | null
+          event_name: string | null
+          id: string
+          log_index: number | null
+          task_id: string
+          task_type: string
+          transaction_hash: string
+          user_id: string
+          verified_amount: string | null
+        }
+        Insert: {
+          block_number?: number | null
+          chain_id?: number
+          created_at?: string | null
+          event_name?: string | null
+          id?: string
+          log_index?: number | null
+          task_id: string
+          task_type: string
+          transaction_hash: string
+          user_id: string
+          verified_amount?: string | null
+        }
+        Update: {
+          block_number?: number | null
+          chain_id?: number
+          created_at?: string | null
+          event_name?: string | null
+          id?: string
+          log_index?: number | null
+          task_id?: string
+          task_type?: string
+          transaction_hash?: string
+          user_id?: string
+          verified_amount?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_quest_verified_transactions_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_run_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dg_token_withdrawals: {
         Row: {
           amount_dg: number
@@ -1005,6 +1301,39 @@ export type Database = {
           target_id?: string | null
           template_data?: Json
           template_name?: string
+        }
+        Relationships: []
+      }
+      gooddollar_verified_wallet_map: {
+        Row: {
+          created_at: string
+          first_verified_at: string
+          last_seen_at: string
+          privy_user_id: string
+          proof_hash: string | null
+          source: string
+          updated_at: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          first_verified_at?: string
+          last_seen_at?: string
+          privy_user_id: string
+          proof_hash?: string | null
+          source?: string
+          updated_at?: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          first_verified_at?: string
+          last_seen_at?: string
+          privy_user_id?: string
+          proof_hash?: string | null
+          source?: string
+          updated_at?: string
+          wallet_address?: string
         }
         Relationships: []
       }
@@ -2134,6 +2463,113 @@ export type Database = {
           },
         ]
       }
+      user_daily_quest_progress: {
+        Row: {
+          completed_at: string | null
+          completion_bonus_amount: number
+          completion_bonus_claimed: boolean
+          completion_bonus_claimed_at: string | null
+          daily_quest_run_id: string
+          id: string
+          key_claim_token_id: number | null
+          key_claim_tx_hash: string | null
+          reward_claimed: boolean | null
+          started_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          completion_bonus_amount?: number
+          completion_bonus_claimed?: boolean
+          completion_bonus_claimed_at?: string | null
+          daily_quest_run_id: string
+          id?: string
+          key_claim_token_id?: number | null
+          key_claim_tx_hash?: string | null
+          reward_claimed?: boolean | null
+          started_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          completion_bonus_amount?: number
+          completion_bonus_claimed?: boolean
+          completion_bonus_claimed_at?: string | null
+          daily_quest_run_id?: string
+          id?: string
+          key_claim_token_id?: number | null
+          key_claim_tx_hash?: string | null
+          reward_claimed?: boolean | null
+          started_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_daily_quest_progress_daily_quest_run_id_fkey"
+            columns: ["daily_quest_run_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_daily_task_completions: {
+        Row: {
+          completed_at: string | null
+          daily_quest_run_id: string
+          daily_quest_run_task_id: string
+          id: string
+          reward_claimed: boolean | null
+          submission_data: Json | null
+          submission_status: string | null
+          updated_at: string
+          user_id: string
+          verification_data: Json | null
+        }
+        Insert: {
+          completed_at?: string | null
+          daily_quest_run_id: string
+          daily_quest_run_task_id: string
+          id?: string
+          reward_claimed?: boolean | null
+          submission_data?: Json | null
+          submission_status?: string | null
+          updated_at?: string
+          user_id: string
+          verification_data?: Json | null
+        }
+        Update: {
+          completed_at?: string | null
+          daily_quest_run_id?: string
+          daily_quest_run_task_id?: string
+          id?: string
+          reward_claimed?: boolean | null
+          submission_data?: Json | null
+          submission_status?: string | null
+          updated_at?: string
+          user_id?: string
+          verification_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_daily_task_completions_daily_quest_run_id_fkey"
+            columns: ["daily_quest_run_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_daily_task_completions_daily_quest_run_task_id_fkey"
+            columns: ["daily_quest_run_task_id"]
+            isOneToOne: false
+            referencedRelation: "daily_quest_run_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_journey_preferences: {
         Row: {
           created_at: string
@@ -2657,6 +3093,36 @@ export type Database = {
           },
         ]
       }
+      wallet_link_map: {
+        Row: {
+          created_at: string
+          first_linked_at: string
+          last_seen_at: string
+          privy_user_id: string
+          source: string
+          updated_at: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          first_linked_at?: string
+          last_seen_at?: string
+          privy_user_id: string
+          source?: string
+          updated_at?: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          first_linked_at?: string
+          last_seen_at?: string
+          privy_user_id?: string
+          source?: string
+          updated_at?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       all_applications_view: {
@@ -2807,6 +3273,22 @@ export type Database = {
     }
     Functions: {
       activate_milestone_key_completion: { Args: never; Returns: boolean }
+      admin_replace_daily_quest_template_and_tasks: {
+        Args: {
+          p_completion_bonus_reward_amount: number
+          p_description: string
+          p_eligibility_config: Json
+          p_grant_failure_reason: string
+          p_image_url: string
+          p_is_active: boolean
+          p_lock_address: string
+          p_lock_manager_granted: boolean
+          p_tasks: Json
+          p_template_id: string
+          p_title: string
+        }
+        Returns: Json
+      }
       award_xp_to_user: {
         Args: {
           p_activity_data: Json
@@ -2986,6 +3468,20 @@ export type Database = {
           user_profile_id: string
         }[]
       }
+      register_daily_quest_transaction: {
+        Args: {
+          p_block_number?: number
+          p_chain_id: number
+          p_event_name?: string
+          p_log_index?: number
+          p_task_id: string
+          p_task_type: string
+          p_tx_hash: string
+          p_user_id: string
+          p_verified_amount?: string
+        }
+        Returns: Json
+      }
       register_quest_transaction: {
         Args: {
           p_block_number?: number
@@ -3012,6 +3508,10 @@ export type Database = {
           restored_xp: number
           success: boolean
         }[]
+      }
+      try_finalize_daily_quest_progress: {
+        Args: { p_run_id: string; p_user_id: string }
+        Returns: Json
       }
     }
     Enums: {

@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  walletValidationErrorToHttpStatus,
+} from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
@@ -62,9 +65,14 @@ export default async function handler(
         return res.status(400).json({ error: "Wallet is required" });
       }
       userWallet = wallet;
-    } catch (error: any) {
-      const status = error.message?.includes("required") ? 400 : 403;
-      return res.status(status).json({ error: error.message });
+    } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
+      const safeStatus = status === 500 ? 403 : status;
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Wallet validation failed";
+      return res.status(safeStatus).json({ error: message });
     }
 
     const supabase = createAdminClient();
