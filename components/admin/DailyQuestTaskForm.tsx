@@ -114,6 +114,69 @@ export function DailyQuestTaskForm(props: {
     setLocalTask(task);
   }, [task]);
 
+  // Local display states to allow typing decimals without "trailing zero snapping"
+  const [vendorAmountDisplay, setVendorAmountDisplay] = useState("");
+  const [uniAmountDisplay, setUniAmountDisplay] = useState("");
+
+  const cfg =
+    localTask.task_config && typeof localTask.task_config === "object"
+      ? (localTask.task_config as Record<string, any>)
+      : {};
+
+  // Sync vendorAmountDisplay
+  useEffect(() => {
+    const raw = cfg.required_amount as string;
+    if (raw && raw !== "0") {
+      try {
+        const formatted = formatUnits(BigInt(raw), 18);
+        setVendorAmountDisplay((prev) => {
+          try {
+            if (prev === "" || parseUnits(prev, 18).toString() !== raw) {
+              return formatted;
+            }
+          } catch {
+            return formatted;
+          }
+          return prev;
+        });
+      } catch {
+        // ignore
+      }
+    } else if (raw === "0") {
+      setVendorAmountDisplay("0");
+    } else {
+      setVendorAmountDisplay("");
+    }
+  }, [cfg.required_amount]);
+
+  // Sync uniAmountDisplay
+  useEffect(() => {
+    const raw = cfg.required_amount_in as string;
+    const pair = (cfg.pair as string) || "";
+    const direction = (cfg.direction as string) || "";
+    const decimals = getUniswapDecimals(pair, direction);
+
+    if (raw && raw !== "") {
+      try {
+        const formatted = formatUnits(BigInt(raw), decimals);
+        setUniAmountDisplay((prev) => {
+          try {
+            if (prev === "" || parseUnits(prev, decimals).toString() !== raw) {
+              return formatted;
+            }
+          } catch {
+            return formatted;
+          }
+          return prev;
+        });
+      } catch {
+        // ignore
+      }
+    } else {
+      setUniAmountDisplay("");
+    }
+  }, [cfg.required_amount_in, cfg.pair, cfg.direction]);
+
   const handleChange = (field: keyof DailyQuestTask, value: any) => {
     const updated = { ...localTask, [field]: value };
     setLocalTask(updated);
@@ -151,11 +214,6 @@ export function DailyQuestTaskForm(props: {
   const isDeployLock = type === "deploy_lock";
   const isUniswapSwap = type === "uniswap_swap";
   const isDailyCheckin = type === "daily_checkin";
-
-  const cfg =
-    localTask.task_config && typeof localTask.task_config === "object"
-      ? (localTask.task_config as Record<string, any>)
-      : {};
 
   return (
     <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
@@ -274,42 +332,34 @@ export function DailyQuestTaskForm(props: {
               <Label className="text-white">Minimum Amount (UP/DG)</Label>
               <Input
                 type="text"
-                value={
-                  cfg.required_amount && typeof cfg.required_amount === "string"
-                    ? (
-                      BigInt(cfg.required_amount) / BigInt(10 ** 18)
-                    ).toString() +
-                    (BigInt(cfg.required_amount) % BigInt(10 ** 18) > 0
-                      ? "." +
-                      (BigInt(cfg.required_amount) % BigInt(10 ** 18))
-                        .toString()
-                        .padStart(18, "0")
-                        .replace(/0+$/, "")
-                      : "")
-                    : ""
-                }
+                value={vendorAmountDisplay}
                 onChange={(e) => {
                   const value = e.target.value;
+                  // Only allow numeric input: digits and a single optional period
+                  if (value !== "" && !/^\d*\.?\d*$/.test(value)) {
+                    return;
+                  }
+                  setVendorAmountDisplay(value);
+
                   if (value === "" || value === "0") {
                     updateTaskConfig({
                       required_amount: "0",
                       required_token: isVendorSell ? "swap" : "base",
                     });
-                  } else {
-                    const [whole, decimal] = value.split(".");
-                    const wholeBigInt = BigInt(whole || "0") * BigInt(10 ** 18);
-                    const decimalBigInt = decimal
-                      ? BigInt(decimal.padEnd(18, "0").slice(0, 18))
-                      : BigInt(0);
-                    const weiAmount = (wholeBigInt + decimalBigInt).toString();
-                    updateTaskConfig({
-                      required_amount: weiAmount,
-                      required_token: isVendorSell ? "swap" : "base",
-                    });
+                  } else if (/^\d*\.?\d*$/.test(value)) {
+                    try {
+                      const weiAmount = parseUnits(value, 18).toString();
+                      updateTaskConfig({
+                        required_amount: weiAmount,
+                        required_token: isVendorSell ? "swap" : "base",
+                      });
+                    } catch {
+                      // ignore
+                    }
                   }
                 }}
                 placeholder="0 for any amount"
-                className="bg-transparent border-gray-700 text-gray-100"
+                className="bg-transparent border-gray-700 text-gray-100 placeholder:text-gray-500"
               />
               <p className="text-xs text-gray-400">
                 {isVendorBuy
@@ -523,21 +573,15 @@ export function DailyQuestTaskForm(props: {
             </Label>
             <Input
               type="text"
-              value={(() => {
-                const raw = cfg.required_amount_in as string;
-                if (!raw) return "";
-                const decimals = getUniswapDecimals(
-                  (cfg.pair as string) || "",
-                  (cfg.direction as string) || "",
-                );
-                try {
-                  return formatUnits(BigInt(raw), decimals);
-                } catch {
-                  return raw;
-                }
-              })()}
+              value={uniAmountDisplay}
               onChange={(e) => {
-                const val = e.target.value.trim();
+                const val = e.target.value;
+                // Only allow numeric input: digits and a single optional period
+                if (val !== "" && !/^\d*\.?\d*$/.test(val)) {
+                  return;
+                }
+                setUniAmountDisplay(val);
+
                 if (!val) {
                   updateTaskConfig({ required_amount_in: "" });
                   return;
@@ -547,10 +591,10 @@ export function DailyQuestTaskForm(props: {
                   (cfg.direction as string) || "",
                 );
                 try {
-                  if (!/^\d*\.?\d*$/.test(val)) return;
-
-                  const parsed = parseUnits(val, decimals);
-                  updateTaskConfig({ required_amount_in: parsed.toString() });
+                  if (/^\d*\.?\d*$/.test(val)) {
+                    const parsed = parseUnits(val, decimals);
+                    updateTaskConfig({ required_amount_in: parsed.toString() });
+                  }
                 } catch {
                   // Keep as is
                 }
