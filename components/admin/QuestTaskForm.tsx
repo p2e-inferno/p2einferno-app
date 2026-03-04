@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatUnits, parseUnits } from "viem";
 import {
   Mail,
   Wallet,
@@ -56,104 +57,104 @@ const taskTypeOptions: {
   icon: React.ReactNode;
   description: string;
 }[] = [
-  {
-    value: "link_email",
-    label: "Link Email",
-    icon: <Mail className="w-4 h-4" />,
-    description: "User links their email address",
-  },
-  {
-    value: "link_wallet",
-    label: "Link Wallet",
-    icon: <Wallet className="w-4 h-4" />,
-    description: "User connects their Web3 wallet",
-  },
-  {
-    value: "link_farcaster",
-    label: "Link Farcaster",
-    icon: <Share2 className="w-4 h-4" />,
-    description: "User connects their Farcaster account",
-  },
-  {
-    value: "link_telegram",
-    label: "Link Telegram",
-    icon: <MessageCircle className="w-4 h-4" />,
-    description: "User enables Telegram notifications",
-  },
-  {
-    value: "sign_tos",
-    label: "Sign Terms",
-    icon: <FileSignature className="w-4 h-4" />,
-    description: "User signs terms of service",
-  },
-  {
-    value: "submit_url",
-    label: "Submit URL",
-    icon: <Link2 className="w-4 h-4" />,
-    description: "User submits a URL (e.g., social post)",
-  },
-  {
-    value: "submit_text",
-    label: "Submit Text",
-    icon: <FileText className="w-4 h-4" />,
-    description: "User submits text response",
-  },
-  {
-    value: "submit_proof",
-    label: "Submit Proof",
-    icon: <Camera className="w-4 h-4" />,
-    description: "User submits proof (screenshot, etc.)",
-  },
-  {
-    value: "complete_external",
-    label: "External Task",
-    icon: <CheckCircle className="w-4 h-4" />,
-    description: "User completes external task",
-  },
-  {
-    value: "custom",
-    label: "Custom Task",
-    icon: <Sparkles className="w-4 h-4" />,
-    description: "Custom verification logic",
-  },
-  // Vendor Task Types
-  {
-    value: "vendor_buy",
-    label: "Buy DG Tokens",
-    icon: <Coins className="w-4 h-4" />,
-    description: "User must buy DG tokens from vendor",
-  },
-  {
-    value: "vendor_sell",
-    label: "Sell DG Tokens",
-    icon: <Coins className="w-4 h-4" />,
-    description: "User must sell DG tokens to vendor",
-  },
-  {
-    value: "vendor_light_up",
-    label: "Light Up",
-    icon: <Flame className="w-4 h-4" />,
-    description: "User must execute Light Up action",
-  },
-  {
-    value: "vendor_level_up",
-    label: "Level Up / Upgrade Stage",
-    icon: <ArrowUpCircle className="w-4 h-4" />,
-    description: "User must reach a specific vendor stage",
-  },
-  {
-    value: "deploy_lock",
-    label: "Deploy Lock",
-    icon: <Network className="w-4 h-4" />,
-    description: "User must deploy an Unlock Protocol lock",
-  },
-  {
-    value: "uniswap_swap",
-    label: "Uniswap Swap",
-    icon: <Repeat className="w-4 h-4" />,
-    description: "User must complete a Uniswap swap for a supported pair",
-  },
-];
+    {
+      value: "link_email",
+      label: "Link Email",
+      icon: <Mail className="w-4 h-4" />,
+      description: "User links their email address",
+    },
+    {
+      value: "link_wallet",
+      label: "Link Wallet",
+      icon: <Wallet className="w-4 h-4" />,
+      description: "User connects their Web3 wallet",
+    },
+    {
+      value: "link_farcaster",
+      label: "Link Farcaster",
+      icon: <Share2 className="w-4 h-4" />,
+      description: "User connects their Farcaster account",
+    },
+    {
+      value: "link_telegram",
+      label: "Link Telegram",
+      icon: <MessageCircle className="w-4 h-4" />,
+      description: "User enables Telegram notifications",
+    },
+    {
+      value: "sign_tos",
+      label: "Sign Terms",
+      icon: <FileSignature className="w-4 h-4" />,
+      description: "User signs terms of service",
+    },
+    {
+      value: "submit_url",
+      label: "Submit URL",
+      icon: <Link2 className="w-4 h-4" />,
+      description: "User submits a URL (e.g., social post)",
+    },
+    {
+      value: "submit_text",
+      label: "Submit Text",
+      icon: <FileText className="w-4 h-4" />,
+      description: "User submits text response",
+    },
+    {
+      value: "submit_proof",
+      label: "Submit Proof",
+      icon: <Camera className="w-4 h-4" />,
+      description: "User submits proof (screenshot, etc.)",
+    },
+    {
+      value: "complete_external",
+      label: "External Task",
+      icon: <CheckCircle className="w-4 h-4" />,
+      description: "User completes external task",
+    },
+    {
+      value: "custom",
+      label: "Custom Task",
+      icon: <Sparkles className="w-4 h-4" />,
+      description: "Custom verification logic",
+    },
+    // Vendor Task Types
+    {
+      value: "vendor_buy",
+      label: "Buy DG Tokens",
+      icon: <Coins className="w-4 h-4" />,
+      description: "User must buy DG tokens from vendor",
+    },
+    {
+      value: "vendor_sell",
+      label: "Sell DG Tokens",
+      icon: <Coins className="w-4 h-4" />,
+      description: "User must sell DG tokens to vendor",
+    },
+    {
+      value: "vendor_light_up",
+      label: "Light Up",
+      icon: <Flame className="w-4 h-4" />,
+      description: "User must execute Light Up action",
+    },
+    {
+      value: "vendor_level_up",
+      label: "Level Up / Upgrade Stage",
+      icon: <ArrowUpCircle className="w-4 h-4" />,
+      description: "User must reach a specific vendor stage",
+    },
+    {
+      value: "deploy_lock",
+      label: "Deploy Lock",
+      icon: <Network className="w-4 h-4" />,
+      description: "User must deploy an Unlock Protocol lock",
+    },
+    {
+      value: "uniswap_swap",
+      label: "Uniswap Swap",
+      icon: <Repeat className="w-4 h-4" />,
+      description: "User must complete a Uniswap swap for a supported pair",
+    },
+  ];
 
 const validationOptions: { value: InputValidationType; label: string }[] = [
   { value: "text", label: "Text" },
@@ -163,6 +164,13 @@ const validationOptions: { value: InputValidationType; label: string }[] = [
   { value: "textarea", label: "Long Text" },
   { value: "file", label: "File Upload" },
 ];
+
+const getUniswapDecimals = (pair: string, direction: string): number => {
+  if (pair === "ETH_USDC" || pair === "UP_USDC") {
+    return direction === "B_TO_A" ? 6 : 18;
+  }
+  return 18; // ETH_UP or default
+};
 
 export default function QuestTaskForm({
   task,
@@ -342,11 +350,10 @@ export default function QuestTaskForm({
               key={type.value}
               type="button"
               onClick={() => handleTaskTypeChange(type.value)}
-              className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
-                localTask.task_type === type.value
+              className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${localTask.task_type === type.value
                   ? "border-flame-yellow bg-flame-yellow/10 text-white"
                   : "border-gray-700 hover:border-gray-600 text-gray-300"
-              }`}
+                }`}
             >
               {type.icon}
               <span className="text-sm font-medium">{type.label}</span>
@@ -429,23 +436,23 @@ export default function QuestTaskForm({
                   step="0.000000000000000001"
                   value={
                     vendorConfig.required_amount &&
-                    typeof vendorConfig.required_amount === "string"
+                      typeof vendorConfig.required_amount === "string"
                       ? (
-                          BigInt(vendorConfig.required_amount) /
-                          BigInt(10 ** 18)
-                        ).toString() +
-                        (BigInt(vendorConfig.required_amount) %
-                          BigInt(10 ** 18) >
+                        BigInt(vendorConfig.required_amount) /
+                        BigInt(10 ** 18)
+                      ).toString() +
+                      (BigInt(vendorConfig.required_amount) %
+                        BigInt(10 ** 18) >
                         0
-                          ? "." +
-                            (
-                              BigInt(vendorConfig.required_amount) %
-                              BigInt(10 ** 18)
-                            )
-                              .toString()
-                              .padStart(18, "0")
-                              .replace(/0+$/, "")
-                          : "")
+                        ? "." +
+                        (
+                          BigInt(vendorConfig.required_amount) %
+                          BigInt(10 ** 18)
+                        )
+                          .toString()
+                          .padStart(18, "0")
+                          .replace(/0+$/, "")
+                        : "")
                       : ""
                   }
                   onChange={(e) => {
@@ -703,20 +710,45 @@ export default function QuestTaskForm({
 
           <div className="space-y-2">
             <Label htmlFor={`uni-amount-${index}`} className="text-white">
-              Minimum Input Amount (raw token units)
+              Minimum Input Amount (human readable)
             </Label>
             <Input
               id={`uni-amount-${index}`}
               type="text"
-              value={
-                typeof vendorConfig.required_amount_in === "string"
-                  ? vendorConfig.required_amount_in
-                  : ""
-              }
-              onChange={(e) =>
-                updateTaskConfig({ required_amount_in: e.target.value.trim() })
-              }
-              placeholder="e.g. 1000000000000000000 (1 ETH in wei)"
+              value={(() => {
+                const raw = vendorConfig.required_amount_in as string;
+                if (!raw) return "";
+                const decimals = getUniswapDecimals(
+                  (vendorConfig.pair as string) || "",
+                  (vendorConfig.direction as string) || "",
+                );
+                try {
+                  return formatUnits(BigInt(raw), decimals);
+                } catch {
+                  return raw;
+                }
+              })()}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                if (!val) {
+                  updateTaskConfig({ required_amount_in: "" });
+                  return;
+                }
+                const decimals = getUniswapDecimals(
+                  (vendorConfig.pair as string) || "",
+                  (vendorConfig.direction as string) || "",
+                );
+                try {
+                  // Basic validation of numeric input before parsing
+                  if (!/^\d*\.?\d*$/.test(val)) return;
+
+                  const parsed = parseUnits(val, decimals);
+                  updateTaskConfig({ required_amount_in: parsed.toString() });
+                } catch {
+                  // Keep whatever is there if invalid
+                }
+              }}
+              placeholder="e.g. 1.0 (for 1 ETH or 1 UP)"
               className="bg-transparent border-gray-700 text-gray-100 font-mono"
             />
             <p className="text-xs text-gray-400">
@@ -725,16 +757,16 @@ export default function QuestTaskForm({
                 const d = vendorConfig.direction;
                 if (p === "ETH_UP")
                   return d === "A_TO_B"
-                    ? "ETH amount in wei (18 decimals)"
-                    : "UP amount in wei (18 decimals)";
+                    ? "ETH amount (18 decimals)"
+                    : "UP amount (18 decimals)";
                 if (p === "ETH_USDC")
                   return d === "A_TO_B"
-                    ? "ETH amount in wei (18 decimals)"
-                    : "USDC amount in raw units (6 decimals)";
+                    ? "ETH amount (18 decimals)"
+                    : "USDC amount (6 decimals)";
                 if (p === "UP_USDC")
                   return d === "A_TO_B"
-                    ? "UP amount in wei (18 decimals)"
-                    : "USDC amount in raw units (6 decimals)";
+                    ? "UP amount (18 decimals)"
+                    : "USDC amount (6 decimals)";
                 return "Select a pair and direction first";
               })()}
             </p>

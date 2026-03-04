@@ -1,5 +1,6 @@
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
 import { createViemPublicClient } from "@/lib/blockchain/providers/privy-viem";
+import { formatUnits } from "viem";
 import { getLogger } from "@/lib/utils/logger";
 import { validateDeployLockConfig } from "./verification/deploy-lock-utils";
 import type { SwapDirection, SwapPair } from "@/lib/uniswap/types";
@@ -152,14 +153,14 @@ export async function validateVendorTaskConfig(
     if (task.task_type === "vendor_buy" && required < constants.minBuyAmount) {
       return {
         ok: false,
-        error: `Required buy amount must be >= contract minimum (${constants.minBuyAmount.toString()})`,
+        error: `Required buy amount must be >= contract minimum (${formatUnits(constants.minBuyAmount, 18)} UP)`,
       };
     }
 
     if (task.task_type === "vendor_sell" && required < constants.minSellAmount) {
       return {
         ok: false,
-        error: `Required sell amount must be >= contract minimum (${constants.minSellAmount.toString()})`,
+        error: `Required sell amount must be >= contract minimum (${formatUnits(constants.minSellAmount, 18)} DG)`,
       };
     }
   }

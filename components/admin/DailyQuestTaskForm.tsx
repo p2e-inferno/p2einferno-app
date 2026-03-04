@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatUnits, parseUnits } from "viem";
 import {
   Coins,
   Flame,
@@ -34,49 +35,56 @@ const taskTypeOptions: {
   icon: React.ReactNode;
   description: string;
 }[] = [
-  {
-    value: "vendor_buy",
-    label: "Buy DG Tokens",
-    icon: <Coins className="w-4 h-4" />,
-    description: "User must buy DG tokens from vendor",
-  },
-  {
-    value: "vendor_sell",
-    label: "Sell DG Tokens",
-    icon: <Coins className="w-4 h-4" />,
-    description: "User must sell DG tokens to vendor",
-  },
-  {
-    value: "vendor_light_up",
-    label: "Light Up",
-    icon: <Flame className="w-4 h-4" />,
-    description: "User must execute Light Up action",
-  },
-  {
-    value: "vendor_level_up",
-    label: "Level Up / Upgrade Stage",
-    icon: <ArrowUpCircle className="w-4 h-4" />,
-    description: "User must reach a specific vendor stage",
-  },
-  {
-    value: "deploy_lock",
-    label: "Deploy Lock",
-    icon: <Network className="w-4 h-4" />,
-    description: "User must deploy an Unlock Protocol lock",
-  },
-  {
-    value: "uniswap_swap",
-    label: "Uniswap Swap",
-    icon: <Repeat className="w-4 h-4" />,
-    description: "User must complete a Uniswap swap for a supported pair",
-  },
-  {
-    value: "daily_checkin",
-    label: "Daily Check-in",
-    icon: <CalendarCheck2 className="w-4 h-4" />,
-    description: "Verify the user has completed their daily GM check-in today",
-  },
-];
+    {
+      value: "vendor_buy",
+      label: "Buy DG Tokens",
+      icon: <Coins className="w-4 h-4" />,
+      description: "User must buy DG tokens from vendor",
+    },
+    {
+      value: "vendor_sell",
+      label: "Sell DG Tokens",
+      icon: <Coins className="w-4 h-4" />,
+      description: "User must sell DG tokens to vendor",
+    },
+    {
+      value: "vendor_light_up",
+      label: "Light Up",
+      icon: <Flame className="w-4 h-4" />,
+      description: "User must execute Light Up action",
+    },
+    {
+      value: "vendor_level_up",
+      label: "Level Up / Upgrade Stage",
+      icon: <ArrowUpCircle className="w-4 h-4" />,
+      description: "User must reach a specific vendor stage",
+    },
+    {
+      value: "deploy_lock",
+      label: "Deploy Lock",
+      icon: <Network className="w-4 h-4" />,
+      description: "User must deploy an Unlock Protocol lock",
+    },
+    {
+      value: "uniswap_swap",
+      label: "Uniswap Swap",
+      icon: <Repeat className="w-4 h-4" />,
+      description: "User must complete a Uniswap swap for a supported pair",
+    },
+    {
+      value: "daily_checkin",
+      label: "Daily Check-in",
+      icon: <CalendarCheck2 className="w-4 h-4" />,
+      description: "Verify the user has completed their daily GM check-in today",
+    },
+  ];
+
+const getUniswapDecimals = (pair: string, direction: string): number => {
+  if (pair === "ETH_USDC" || pair === "UP_USDC") {
+    return direction === "B_TO_A" ? 6 : 18;
+  }
+  return 18; // ETH_UP or default
+};
 
 export function DailyQuestTaskForm(props: {
   task: TaskWithTempId;
@@ -269,15 +277,15 @@ export function DailyQuestTaskForm(props: {
                 value={
                   cfg.required_amount && typeof cfg.required_amount === "string"
                     ? (
-                        BigInt(cfg.required_amount) / BigInt(10 ** 18)
-                      ).toString() +
-                      (BigInt(cfg.required_amount) % BigInt(10 ** 18) > 0
-                        ? "." +
-                          (BigInt(cfg.required_amount) % BigInt(10 ** 18))
-                            .toString()
-                            .padStart(18, "0")
-                            .replace(/0+$/, "")
-                        : "")
+                      BigInt(cfg.required_amount) / BigInt(10 ** 18)
+                    ).toString() +
+                    (BigInt(cfg.required_amount) % BigInt(10 ** 18) > 0
+                      ? "." +
+                      (BigInt(cfg.required_amount) % BigInt(10 ** 18))
+                        .toString()
+                        .padStart(18, "0")
+                        .replace(/0+$/, "")
+                      : "")
                     : ""
                 }
                 onChange={(e) => {
@@ -511,21 +519,64 @@ export function DailyQuestTaskForm(props: {
 
           <div className="space-y-2">
             <Label className="text-white">
-              Minimum Input Amount (raw token units)
+              Minimum Input Amount (human readable)
             </Label>
             <Input
               type="text"
-              value={
-                typeof cfg.required_amount_in === "string"
-                  ? cfg.required_amount_in
-                  : ""
-              }
-              onChange={(e) =>
-                updateTaskConfig({ required_amount_in: e.target.value.trim() })
-              }
-              placeholder="e.g. 1000000000000000000 (1 ETH in wei)"
+              value={(() => {
+                const raw = cfg.required_amount_in as string;
+                if (!raw) return "";
+                const decimals = getUniswapDecimals(
+                  (cfg.pair as string) || "",
+                  (cfg.direction as string) || "",
+                );
+                try {
+                  return formatUnits(BigInt(raw), decimals);
+                } catch {
+                  return raw;
+                }
+              })()}
+              onChange={(e) => {
+                const val = e.target.value.trim();
+                if (!val) {
+                  updateTaskConfig({ required_amount_in: "" });
+                  return;
+                }
+                const decimals = getUniswapDecimals(
+                  (cfg.pair as string) || "",
+                  (cfg.direction as string) || "",
+                );
+                try {
+                  if (!/^\d*\.?\d*$/.test(val)) return;
+
+                  const parsed = parseUnits(val, decimals);
+                  updateTaskConfig({ required_amount_in: parsed.toString() });
+                } catch {
+                  // Keep as is
+                }
+              }}
+              placeholder="e.g. 1.0 (for 1 ETH or 1 UP)"
               className="bg-transparent border-gray-700 text-gray-100 font-mono"
             />
+            <p className="text-xs text-gray-400">
+              {(() => {
+                const p = cfg.pair;
+                const d = cfg.direction;
+                if (p === "ETH_UP")
+                  return d === "A_TO_B"
+                    ? "ETH amount (18 decimals)"
+                    : "UP amount (18 decimals)";
+                if (p === "ETH_USDC")
+                  return d === "A_TO_B"
+                    ? "ETH amount (18 decimals)"
+                    : "USDC amount (6 decimals)";
+                if (p === "UP_USDC")
+                  return d === "A_TO_B"
+                    ? "UP amount (18 decimals)"
+                    : "USDC amount (6 decimals)";
+                return "Select a pair and direction first";
+              })()}
+            </p>
           </div>
         </div>
       )}

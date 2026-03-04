@@ -13,15 +13,21 @@ import { AIVerificationStrategy } from "./ai-vision-verification";
 import { UniswapVerificationStrategy } from "./uniswap-verification";
 import { DailyCheckinVerificationStrategy } from "./daily-checkin-verification";
 import { createViemPublicClient } from "@/lib/blockchain/providers/privy-viem";
+import { createPublicClientForChain } from "@/lib/blockchain/config/clients/public-client";
+import { base } from "viem/chains";
 
-// Create a shared public client instance
+// Create a shared public client instance (app default chain)
 const publicClient = createViemPublicClient();
+
+// Uniswap verification must always query Base Mainnet regardless of the app's
+// configured default chain (which may be Base Sepolia in non-prod environments).
+const baseMainnetClient = createPublicClientForChain(base);
 
 // Singleton strategy instances
 const vendorStrategy = new VendorVerificationStrategy(publicClient);
 const deployLockStrategy = new DeployLockVerificationStrategy();
 const aiStrategy = new AIVerificationStrategy();
-const uniswapStrategy = new UniswapVerificationStrategy(publicClient);
+const uniswapStrategy = new UniswapVerificationStrategy(baseMainnetClient);
 const dailyCheckinStrategy = new DailyCheckinVerificationStrategy();
 
 // Map of task types to their verification strategies
