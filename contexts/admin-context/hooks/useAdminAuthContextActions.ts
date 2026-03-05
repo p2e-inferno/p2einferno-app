@@ -193,7 +193,7 @@ export const useAdminAuthContextActions = (
             if (
               account.type === "wallet" &&
               account.address?.toLowerCase() ===
-                currentWalletAddress.toLowerCase()
+              currentWalletAddress.toLowerCase()
             ) {
               walletBelongsToUser = true;
               log.debug("Connected wallet found in linked accounts");
@@ -237,13 +237,13 @@ export const useAdminAuthContextActions = (
 
           if (keyInfo && keyInfo.isValid) {
             hasValidKey = true;
+            const timestamp = Number(keyInfo.expirationTimestamp);
+            const MAX_SAFE_DATE_TIMESTAMP = 253402300799; // Year 9999
+
             log.info(
-              `✅ Admin access GRANTED for ${currentWalletAddress}, expires: ${
-                keyInfo.expirationTimestamp > BigInt(Number.MAX_SAFE_INTEGER)
-                  ? "Never (infinite)"
-                  : new Date(
-                      Number(keyInfo.expirationTimestamp) * 1000,
-                    ).toLocaleString()
+              `✅ Admin access GRANTED for ${currentWalletAddress}, expires: ${timestamp > MAX_SAFE_DATE_TIMESTAMP
+                ? "Unlimited (infinite)"
+                : new Date(timestamp * 1000).toLocaleString()
               }`,
             );
           } else {

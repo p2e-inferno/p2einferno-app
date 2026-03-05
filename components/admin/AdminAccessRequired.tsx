@@ -71,15 +71,25 @@ export default function AdminAccessRequired({
         );
 
         if (keyInfo && keyInfo.isValid) {
-          // Convert timestamp to readable date
-          const expirationDate = new Date(
-            Number(keyInfo.expirationTimestamp) * 1000,
-          ).toLocaleDateString();
+          // Handle unlimited/very large expiration dates
+          const MAX_SAFE_DATE_TIMESTAMP = 253402300799; // Year 9999
+          const timestamp = Number(keyInfo.expirationTimestamp);
+
+          let expirationDate = "Unlimited";
+          if (timestamp < MAX_SAFE_DATE_TIMESTAMP) {
+            expirationDate = new Date(timestamp * 1000).toLocaleDateString();
+          }
+
           setAccessStatus({
             hasAccess: true,
             expirationDate,
             isChecking: false,
           });
+
+          // AUTO-REFRESH: If we detected access locally, tell the context to refresh
+          // so it can unlock the gate automatically without manual user action
+          log.info("Admin access detected, triggering context refresh...");
+          refreshAdminStatus();
         } else {
           setAccessStatus({
             hasAccess: false,
@@ -95,10 +105,8 @@ export default function AdminAccessRequired({
           isChecking: false,
         });
       }
-
-      // No further actions here; avoid recursive calls.
     },
-    [adminLockAddress, checkHasValidKey],
+    [adminLockAddress, checkHasValidKey, refreshAdminStatus],
   );
 
   // Run access check whenever wallet address changes
@@ -243,11 +251,10 @@ export default function AdminAccessRequired({
                     disabled={isRefreshing || accessStatus.isChecking}
                   >
                     <RefreshCcw
-                      className={`h-4 w-4 mr-2 ${
-                        isRefreshing || accessStatus.isChecking
-                          ? "animate-spin"
-                          : ""
-                      }`}
+                      className={`h-4 w-4 mr-2 ${isRefreshing || accessStatus.isChecking
+                        ? "animate-spin"
+                        : ""
+                        }`}
                     />
                     <span>
                       {isRefreshing
@@ -301,41 +308,41 @@ export default function AdminAccessRequired({
                   </p>
                 </div>
               ) : accessStatus.hasAccess ? (
-                <div className="bg-green-900/30 p-3 rounded-md border border-green-800 text-center">
-                  <p className="text-sm text-green-300">
-                    You have admin access until {accessStatus.expirationDate}
+                <div className="bg-green-900/30 p-4 rounded-md border border-green-800 text-center animate-pulse">
+                  <p className="text-sm text-green-300 font-semibold">
+                    Admin access verified until {accessStatus.expirationDate}
                   </p>
-                  <p className="text-xs text-green-400 mt-1">
-                    Please refresh the page to continue
+                  <p className="text-xs text-green-400 mt-2">
+                    Access granted. Opening admin portal...
                   </p>
                 </div>
               ) : /* Admin Access Information */
-              adminLockAddress ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-400">
-                    You need a key for the admin lock to access this area,
-                    contact support if you need access.
-                  </p>
-                  {/* <UnlockPurchaseButton
+                adminLockAddress ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-400">
+                      You need a key for the admin lock to access this area,
+                      contact support if you need access.
+                    </p>
+                    {/* <UnlockPurchaseButton
                     lockAddress={adminLockAddress}
                     className="w-full bg-steel-red hover:bg-steel-red/90"
                   >
                     Purchase Admin Access
                   </UnlockPurchaseButton> */}
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <p className="text-sm text-gray-400">
-                    Admin lock address not configured. Please contact the
-                    administrator.
-                  </p>
-                  <Link href="/">
-                    <Button variant="outline" className="w-full">
-                      Return to Homepage
-                    </Button>
-                  </Link>
-                </div>
-              )}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm text-gray-400">
+                      Admin lock address not configured. Please contact the
+                      administrator.
+                    </p>
+                    <Link href="/">
+                      <Button variant="outline" className="w-full">
+                        Return to Homepage
+                      </Button>
+                    </Link>
+                  </div>
+                )}
             </>
           )}
 

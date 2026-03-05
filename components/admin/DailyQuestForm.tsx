@@ -23,7 +23,17 @@ import { TransactionStepperModal } from "@/components/admin/TransactionStepperMo
 import { useTransactionStepper } from "@/hooks/useTransactionStepper";
 import { buildQuestDeploymentFlow } from "@/lib/blockchain/deployment-flows";
 import type { DeploymentStep } from "@/lib/transaction-stepper/types";
-import { applyDeploymentOutcome } from "@/lib/blockchain/shared/grant-state";
+import {
+  applyDeploymentOutcome,
+  effectiveGrantForSave,
+  effectiveMaxKeysForSave,
+  effectiveTransferabilityForSave,
+} from "@/lib/blockchain/shared/grant-state";
+import LockManagerToggle from "@/components/admin/LockManagerToggle";
+import { useLockManagerState } from "@/hooks/useLockManagerState";
+import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
+import { useTransferabilitySecurityState } from "@/hooks/useTransferabilitySecurityState";
+import { useAdminQuestOptions } from "@/hooks/useAdminQuestOptions";
 import { DailyQuestTaskForm } from "@/components/admin/DailyQuestTaskForm";
 import { getStageOptions } from "@/lib/blockchain/shared/vendor-constants";
 import { isAddress } from "viem";
@@ -37,23 +47,6 @@ import {
 
 const log = getLogger("admin:DailyQuestForm");
 
-type TaskWithTempId = {
-  id?: string;
-  tempId?: string;
-  title?: string;
-  description?: string;
-  task_type?: string;
-  verification_method?: string;
-  reward_amount?: number;
-  order_index?: number;
-  task_config?: Record<string, unknown> | null;
-  input_required?: boolean;
-  input_label?: string | null;
-  input_placeholder?: string | null;
-  input_validation?: string | null;
-  requires_admin_review?: boolean;
-};
-
 export function DailyQuestForm(props: { dailyQuestId?: string }) {
   const router = useRouter();
   const { adminFetch } = useAdminApi();
@@ -64,6 +57,9 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(Boolean(props.dailyQuestId));
 
+  const [existingDailyQuest, setExistingDailyQuest] = useState<any>(null);
+  const isEditing = Boolean(props.dailyQuestId);
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -71,17 +67,51 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
   const [completionBonus, setCompletionBonus] = useState(0);
 
   const [lockAddress, setLockAddress] = useState<string>("");
-  const [lockManagerGranted, setLockManagerGranted] = useState(false);
-  const [grantFailureReason, setGrantFailureReason] = useState<string>("");
+  const [showAutoLockCreation, setShowAutoLockCreation] = useState(true);
+
+  // Use the reusable hook for lock manager state management
+  const {
+    lockManagerGranted,
+    setLockManagerGranted,
+    grantFailureReason,
+    setGrantFailureReason,
+  } = useLockManagerState(isEditing, existingDailyQuest);
+
+  const {
+    maxKeysSecured,
+    setMaxKeysSecured,
+    maxKeysFailureReason,
+    setMaxKeysFailureReason,
+  } = useMaxKeysSecurityState(isEditing, existingDailyQuest);
+
+  const {
+    transferabilitySecured,
+    setTransferabilitySecured,
+    transferabilityFailureReason,
+    setTransferabilityFailureReason,
+  } = useTransferabilitySecurityState(isEditing, existingDailyQuest);
+
+  // Track the most recent grant/config outcomes during submit to avoid async state races
+  const deploymentOutcomeRef = useRef<{
+    grantFailed?: boolean;
+    grantError?: string;
+    configFailed?: boolean;
+    configError?: string;
+    transferFailed?: boolean;
+    transferError?: string;
+  }>({});
 
   const [eligMinVendorStage, setEligMinVendorStage] = useState<string>("");
   const [eligGoodDollar, setEligGoodDollar] = useState(false);
+  const [showRequiredLock, setShowRequiredLock] = useState(false);
   const [eligRequiredLock, setEligRequiredLock] = useState<string>("");
+  const { questOptions, loading: loadingQuests } = useAdminQuestOptions();
+  const [selectedQuestId, setSelectedQuestId] = useState<string>("");
   const [showErc20, setShowErc20] = useState(false);
   const [erc20Token, setErc20Token] = useState<string>("");
   const [erc20MinBalance, setErc20MinBalance] = useState<string>("");
 
-  const [tasks, setTasks] = useState<TaskWithTempId[]>([
+  const [tasks, setTasks] = useState<any[]>([
     { tempId: nanoid(), order_index: 0 },
   ]);
 
@@ -153,6 +183,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       );
       if (result.error) throw new Error(result.error);
       const tmpl = result.data?.data;
+      setExistingDailyQuest(tmpl);
       setTitle(tmpl?.title || "");
       setDescription(tmpl?.description || "");
       setImageUrl(tmpl?.image_url ?? null);
@@ -162,8 +193,9 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       );
 
       setLockAddress(tmpl?.lock_address || "");
-      setLockManagerGranted(Boolean(tmpl?.lock_manager_granted));
-      setGrantFailureReason(tmpl?.grant_failure_reason || "");
+      if (tmpl?.lock_address) {
+        setShowAutoLockCreation(false);
+      }
 
       const elig = tmpl?.eligibility_config || {};
       setEligMinVendorStage(
@@ -173,6 +205,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       );
       setEligGoodDollar(Boolean(elig.requires_gooddollar_verification));
       setEligRequiredLock(elig.required_lock_address || "");
+      setShowRequiredLock(Boolean(elig.required_lock_address));
       const hasErc20 = Boolean(
         elig.required_erc20?.token || elig.required_erc20?.min_balance,
       );
@@ -199,6 +232,22 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
   useEffect(() => {
     fetchExisting();
   }, [fetchExisting]);
+
+  // Sync selectedQuestId dropdown if eligRequiredLock changes manually
+  useEffect(() => {
+    if (questOptions.length > 0) {
+      const match = questOptions.find(
+        (q) =>
+          q.lock_address?.toLowerCase() === eligRequiredLock.toLowerCase() &&
+          eligRequiredLock.length > 0,
+      );
+      if (match) {
+        setSelectedQuestId(match.id);
+      } else {
+        setSelectedQuestId("");
+      }
+    }
+  }, [eligRequiredLock, questOptions]);
 
   const normalizedTasks = useMemo(() => {
     return tasks
@@ -330,9 +379,33 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       }
 
       setLockAddress(deployedLockAddress);
+
+      // Record outcomes in ref for the final save
+      deploymentOutcomeRef.current = {
+        grantFailed: deploymentResult.grantFailed,
+        grantError: deploymentResult.grantError,
+        configFailed: deploymentResult.configFailed,
+        configError: deploymentResult.configError,
+        transferFailed: (deploymentResult as any).transferFailed,
+        transferError: (deploymentResult as any).transferConfigError,
+      };
+
       const outcome = applyDeploymentOutcome(deploymentResult);
       setLockManagerGranted(outcome.granted);
-      setGrantFailureReason(outcome.reason || "");
+      setGrantFailureReason(outcome.reason);
+
+      // Also update security outcomes in state
+      if (deploymentResult.configFailed) {
+        setMaxKeysSecured(false);
+      }
+      setMaxKeysFailureReason(deploymentResult.configError);
+
+      if ((deploymentResult as any).transferFailed) {
+        setTransferabilitySecured(false);
+      }
+      setTransferabilityFailureReason(
+        (deploymentResult as any).transferConfigError,
+      );
 
       if (deploymentResult.grantFailed) {
         toast(
@@ -375,7 +448,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       if (eligGoodDollar) {
         eligibility_config.requires_gooddollar_verification = true;
       }
-      if (eligRequiredLock.trim()) {
+      if (showRequiredLock && eligRequiredLock.trim()) {
         eligibility_config.required_lock_address = eligRequiredLock.trim();
       }
       if (showErc20 && erc20Token.trim() && erc20MinBalance.trim()) {
@@ -385,6 +458,37 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         };
       }
 
+      // Prepare effective lock config outcomes using shared utils
+      const effectiveGrant = effectiveGrantForSave({
+        outcome: {
+          lastGrantFailed: deploymentOutcomeRef.current.grantFailed,
+          lastGrantError: deploymentOutcomeRef.current.grantError,
+        },
+        lockAddress: trimmedLockAddress,
+        currentGranted: lockManagerGranted,
+        currentReason: grantFailureReason,
+      });
+
+      const effectiveMaxKeys = effectiveMaxKeysForSave({
+        outcome: {
+          lastConfigFailed: deploymentOutcomeRef.current.configFailed,
+          lastConfigError: deploymentOutcomeRef.current.configError,
+        },
+        lockAddress: trimmedLockAddress,
+        currentSecured: maxKeysSecured,
+        currentReason: maxKeysFailureReason,
+      });
+
+      const effectiveTransferability = effectiveTransferabilityForSave({
+        outcome: {
+          lastTransferFailed: deploymentOutcomeRef.current.transferFailed,
+          lastTransferError: deploymentOutcomeRef.current.transferError,
+        },
+        lockAddress: trimmedLockAddress,
+        currentSecured: transferabilitySecured,
+        currentReason: transferabilityFailureReason,
+      });
+
       const payload = {
         title: title.trim(),
         description: description.trim(),
@@ -392,10 +496,12 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         is_active: isActive,
         completion_bonus_reward_amount: completionBonus,
         lock_address: trimmedLockAddress || null,
-        lock_manager_granted: lockManagerGranted,
-        grant_failure_reason: lockManagerGranted
-          ? null
-          : grantFailureReason || null,
+        lock_manager_granted: effectiveGrant.granted,
+        grant_failure_reason: effectiveGrant.reason || null,
+        max_keys_secured: effectiveMaxKeys.secured,
+        max_keys_failure_reason: effectiveMaxKeys.reason || null,
+        transferability_secured: effectiveTransferability.secured,
+        transferability_failure_reason: effectiveTransferability.reason || null,
         eligibility_config,
         daily_quest_tasks: normalizedTasks.map((t, idx) => ({
           id: t.id,
@@ -414,7 +520,6 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         })),
       };
 
-      const isEditing = Boolean(props.dailyQuestId);
       const endpoint = isEditing
         ? `/api/admin/daily-quests/${props.dailyQuestId}`
         : "/api/admin/daily-quests";
@@ -456,9 +561,14 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         onClose={handleStepperClose}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-6">
-          <div className="space-y-2">
+      {/* Quest Basic Info */}
+      <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 space-y-6">
+        <h2 className="text-xl font-bold text-white mb-4">
+          Daily Quest Information
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="space-y-2 md:col-span-2">
             <Label className="text-white">Title</Label>
             <Input
               value={title}
@@ -467,7 +577,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 md:col-span-2">
             <Label className="text-white">Description</Label>
             <RichTextEditor
               value={description}
@@ -476,7 +586,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
             />
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2 md:col-span-2">
             <Label className="text-white">Image</Label>
             <ImageUpload
               value={imageUrl || undefined}
@@ -485,173 +595,269 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
             />
           </div>
         </div>
+      </div>
 
-        <div className="space-y-6">
-          <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
-            <h3 className="text-white font-semibold flex items-center gap-2">
-              <Shield className="w-4 h-4" />
-              Lock Configuration
-            </h3>
+      {/* Quest Configuration Sections */}
+      <div className="space-y-6">
+        <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
+          <h3 className="text-white font-semibold flex items-center gap-2">
+            <Shield className="w-4 h-4" />
+            Lock Configuration
+          </h3>
 
-            <div className="space-y-2">
-              <Label className="text-white">Lock Address</Label>
-              <Input
-                value={lockAddress}
-                onChange={(e) => setLockAddress(e.target.value)}
-                placeholder="0x..."
-                className="bg-transparent border-gray-700 text-gray-100 font-mono"
-              />
-            </div>
-
+          <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-200">Auto deploy lock</div>
-                <div className="text-xs text-gray-400">
-                  Deploy and grant server wallet manager role.
+              <Label className="text-white">Lock Address</Label>
+              {!isEditing && !lockAddress && (
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id="auto_lock_creation"
+                    checked={showAutoLockCreation}
+                    onChange={(e) => setShowAutoLockCreation(e.target.checked)}
+                    className="rounded border-gray-700 bg-transparent text-flame-yellow focus:ring-flame-yellow"
+                  />
+                  <Label
+                    htmlFor="auto_lock_creation"
+                    className="text-sm text-gray-300 cursor-pointer"
+                  >
+                    Auto-create lock
+                  </Label>
+                </div>
+              )}
+            </div>
+            <Input
+              value={lockAddress}
+              onChange={(e) => setLockAddress(e.target.value)}
+              placeholder={
+                showAutoLockCreation && !isEditing
+                  ? "Will be auto-generated..."
+                  : "0x..."
+              }
+              className="bg-transparent border-gray-700 text-gray-100 font-mono"
+              disabled={(showAutoLockCreation && !isEditing) || isSubmitting}
+            />
+
+            {/* Lock Manager Status Toggle */}
+            <LockManagerToggle
+              isGranted={lockManagerGranted}
+              onToggle={setLockManagerGranted}
+              lockAddress={lockAddress}
+              isEditing={isEditing}
+            />
+
+            {showAutoLockCreation &&
+              !isEditing &&
+              !lockAddress &&
+              completionBonus > 0 && (
+                <p className="text-sm text-blue-400 mt-1">
+                  ✨ A new completion lock will be automatically deployed for
+                  this daily quest using your connected wallet
+                </p>
+              )}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-200">Manually deploy lock</div>
+              <div className="text-xs text-gray-400">
+                Deploy and grant server wallet manager role.
+              </div>
+            </div>
+            <Button
+              type="button"
+              className="bg-flame-yellow hover:bg-flame-yellow/90 text-black font-semibold border-none rounded-lg h-9 px-4 text-xs transition-all active:scale-95 shadow-[0_0_15px_rgba(251,191,36,0.3)]"
+              onClick={deployLock}
+              disabled={isSubmitting}
+            >
+              Deploy Lock
+            </Button>
+          </div>
+        </div>
+
+        <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
+          <h3 className="text-white font-semibold">
+            Completion Bonus Reward
+          </h3>
+          <div className="space-y-2">
+            <Label className="text-white">Completion Bonus (xDG)</Label>
+            <Input
+              type="number"
+              min={0}
+              step={1}
+              value={completionBonus}
+              onChange={(e) =>
+                setCompletionBonus(Number(e.target.value || 0))
+              }
+              className="bg-transparent border-gray-700 text-gray-100"
+            />
+          </div>
+        </div>
+
+        <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
+          <h3 className="text-white font-semibold">
+            Eligibility Requirements
+          </h3>
+
+          <div className="space-y-2">
+            <Label className="text-white">Minimum Vendor Level</Label>
+            <Select
+              value={eligMinVendorStage || "none"}
+              onValueChange={(v) =>
+                setEligMinVendorStage(v === "none" ? "" : v)
+              }
+            >
+              <SelectTrigger className="bg-transparent border-gray-700 text-gray-100">
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {getStageOptions().map((opt) => (
+                  <SelectItem key={opt.value} value={String(opt.value)}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-200">
+                GoodDollar Verification
+              </div>
+            </div>
+            <Toggle
+              checked={eligGoodDollar}
+              onCheckedChange={setEligGoodDollar}
+              ariaLabel="Requires GoodDollar verification"
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-200">Required Lock Key</div>
+            </div>
+            <Toggle
+              checked={showRequiredLock}
+              onCheckedChange={setShowRequiredLock}
+              ariaLabel="Requires holding a specific lock key"
+            />
+          </div>
+
+          {showRequiredLock && (
+            <div className="space-y-3 pt-2">
+              <div className="bg-gray-800/20 p-3 rounded-lg border border-gray-700/50 space-y-3">
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                    Quick Selector
+                  </p>
+                  <select
+                    value={selectedQuestId}
+                    onChange={(e) => {
+                      const questId = e.target.value;
+                      setSelectedQuestId(questId);
+                      if (questId) {
+                        const selected = questOptions.find(
+                          (q) => q.id === questId,
+                        );
+                        if (selected?.lock_address) {
+                          setEligRequiredLock(selected.lock_address);
+                        }
+                      }
+                    }}
+                    className="w-full bg-gray-900/50 border border-gray-700 text-gray-100 rounded-md px-3 py-2 text-sm focus:border-flame-yellow/50 transition-colors"
+                    disabled={loadingQuests}
+                  >
+                    <option value="" className="bg-gray-900 text-gray-400">
+                      Select existing mission...
+                    </option>
+                    {questOptions.map((option) => (
+                      <option
+                        key={option.id}
+                        value={option.id}
+                        className="bg-gray-900"
+                      >
+                        {option.title}
+                        {!option.lock_address ? " (missing lock)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                    Custom Lock Address
+                  </p>
+                  <div className="relative">
+                    <Input
+                      value={eligRequiredLock}
+                      onChange={(e) => setEligRequiredLock(e.target.value)}
+                      placeholder="0x..."
+                      className="bg-gray-900/50 border-gray-700 text-gray-100 font-mono focus:border-flame-yellow/50"
+                    />
+                    {!isAddress(eligRequiredLock) &&
+                      eligRequiredLock.length > 0 && (
+                        <p className="text-[10px] text-red-400 mt-1 pl-1">
+                          Invalid Ethereum address
+                        </p>
+                      )}
+                  </div>
                 </div>
               </div>
-              <Button type="button" variant="outline" onClick={deployLock}>
-                Deploy Lock
-              </Button>
+              <p className="text-[11px] text-gray-400 leading-relaxed italic pr-4">
+                Select an existing mission to auto-load its address, or enter a
+                custom lock address manually.
+              </p>
             </div>
+          )}
 
-            <div className="space-y-2">
-              <Label className="text-white">Lock Manager Granted</Label>
-              <Input
-                value={lockManagerGranted ? "true" : "false"}
-                disabled
-                className="bg-transparent border-gray-700 text-gray-400"
-              />
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-gray-200">
+                Required ERC20 Balance
+              </div>
             </div>
+            <Toggle
+              checked={showErc20}
+              onCheckedChange={setShowErc20}
+              ariaLabel="Enable ERC20 requirement"
+            />
+          </div>
 
-            {!lockManagerGranted && (
+          {showErc20 && (
+            <div className="space-y-3 border border-gray-800 rounded-lg p-4 bg-gray-900/30">
               <div className="space-y-2">
-                <Label className="text-white">Grant Failure Reason</Label>
+                <Label className="text-white">Token Contract</Label>
                 <Input
-                  value={grantFailureReason}
-                  onChange={(e) => setGrantFailureReason(e.target.value)}
+                  value={erc20Token}
+                  onChange={(e) => setErc20Token(e.target.value)}
+                  placeholder="0x..."
+                  className="bg-transparent border-gray-700 text-gray-100 font-mono"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-white">Minimum Balance</Label>
+                <Input
+                  value={erc20MinBalance}
+                  onChange={(e) => setErc20MinBalance(e.target.value)}
+                  placeholder='e.g. "0.02"'
                   className="bg-transparent border-gray-700 text-gray-100"
                 />
               </div>
-            )}
-          </div>
-
-          <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
-            <h3 className="text-white font-semibold">
-              Completion Bonus Reward
-            </h3>
-            <div className="space-y-2">
-              <Label className="text-white">Completion Bonus (xDG)</Label>
-              <Input
-                type="number"
-                min={0}
-                step={1}
-                value={completionBonus}
-                onChange={(e) =>
-                  setCompletionBonus(Number(e.target.value || 0))
-                }
-                className="bg-transparent border-gray-700 text-gray-100"
-              />
             </div>
-          </div>
+          )}
+        </div>
 
-          <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
-            <h3 className="text-white font-semibold">
-              Eligibility Requirements
-            </h3>
-
-            <div className="space-y-2">
-              <Label className="text-white">Minimum Vendor Level</Label>
-              <Select
-                value={eligMinVendorStage || "none"}
-                onValueChange={(v) =>
-                  setEligMinVendorStage(v === "none" ? "" : v)
-                }
-              >
-                <SelectTrigger className="bg-transparent border-gray-700 text-gray-100">
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
-                  {getStageOptions().map((opt) => (
-                    <SelectItem key={opt.value} value={String(opt.value)}>
-                      {opt.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-200">
-                  GoodDollar Verification
-                </div>
-              </div>
-              <Toggle
-                checked={eligGoodDollar}
-                onCheckedChange={setEligGoodDollar}
-                ariaLabel="Requires GoodDollar verification"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-white">Required Lock Key</Label>
-              <Input
-                value={eligRequiredLock}
-                onChange={(e) => setEligRequiredLock(e.target.value)}
-                placeholder="0x..."
-                className="bg-transparent border-gray-700 text-gray-100 font-mono"
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm text-gray-200">
-                  Required ERC20 Balance
-                </div>
-              </div>
-              <Toggle
-                checked={showErc20}
-                onCheckedChange={setShowErc20}
-                ariaLabel="Enable ERC20 requirement"
-              />
-            </div>
-
-            {showErc20 && (
-              <div className="space-y-3 border border-gray-800 rounded-lg p-4 bg-gray-900/30">
-                <div className="space-y-2">
-                  <Label className="text-white">Token Contract</Label>
-                  <Input
-                    value={erc20Token}
-                    onChange={(e) => setErc20Token(e.target.value)}
-                    placeholder="0x..."
-                    className="bg-transparent border-gray-700 text-gray-100 font-mono"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-white">Minimum Balance</Label>
-                  <Input
-                    value={erc20MinBalance}
-                    onChange={(e) => setErc20MinBalance(e.target.value)}
-                    placeholder='e.g. "0.02"'
-                    className="bg-transparent border-gray-700 text-gray-100"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
-            <h3 className="text-white font-semibold">Status</h3>
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-200">Active</div>
-              <Toggle
-                checked={isActive}
-                onCheckedChange={setIsActive}
-                ariaLabel="Active"
-              />
-            </div>
+        <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
+          <h3 className="text-white font-semibold">Status</h3>
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-200">Active</div>
+            <Toggle
+              checked={isActive}
+              onCheckedChange={setIsActive}
+              ariaLabel="Active"
+            />
           </div>
         </div>
       </div>
