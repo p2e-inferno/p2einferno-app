@@ -847,6 +847,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       const shouldAutoDeploy =
         !isEditing && showAutoLockCreation && !trimmedLockAddress && totalReward > 0;
 
+      let runTaskSyncStatus: string | undefined;
       const persist = async (resolvedLockAddress: string) => {
         const payload = buildPayload(resolvedLockAddress);
         const result = await adminFetch(endpoint, {
@@ -854,6 +855,12 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
           body: JSON.stringify(payload),
         });
         if (result.error) throw new Error(result.error);
+        const responseData = result.data as
+          | {
+              run_task_sync?: { status?: string };
+            }
+          | undefined;
+        runTaskSyncStatus = responseData?.run_task_sync?.status;
         return payload;
       };
 
@@ -910,6 +917,14 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
 
       const createMode = !isEditing;
       toast.success(createMode ? "Daily quest created" : "Daily quest updated");
+      if (
+        isEditing &&
+        runTaskSyncStatus === "skipped_existing_completions"
+      ) {
+        showInfoToast(
+          "Today's run already has progress, so task snapshot was not live-updated. New task changes will apply at next UTC reset.",
+        );
+      }
       if (createMode) {
         removeDraft(draftEntityType, draftScopeKey);
         void router.push("/admin/quests?tab=daily");

@@ -190,6 +190,99 @@ function normalizeEligibilityConfig(
   return normalized;
 }
 
+async function syncTodayRunTasksIfSafe(
+  supabase: ReturnType<typeof createAdminClient>,
+  dailyQuestId: string,
+) {
+  const todayUtc = new Date().toISOString().slice(0, 10);
+
+  const { data: run, error: runErr } = await supabase
+    .from("daily_quest_runs")
+    .select("id")
+    .eq("daily_quest_template_id", dailyQuestId)
+    .eq("run_date", todayUtc)
+    .eq("status", "active")
+    .maybeSingle();
+
+  if (runErr || !run?.id) {
+    return { attempted: false as const, status: "no_active_run" as const };
+  }
+
+  const { data: completionRows, error: completionErr } = await supabase
+    .from("user_daily_task_completions")
+    .select("id")
+    .eq("daily_quest_run_id", run.id)
+    .limit(1);
+
+  if (completionErr) {
+    return {
+      attempted: true as const,
+      status: "skipped_completion_check_error" as const,
+    };
+  }
+  if ((completionRows || []).length > 0) {
+    // Preserve snapshot consistency for runs with recorded completions.
+    return {
+      attempted: true as const,
+      status: "skipped_existing_completions" as const,
+    };
+  }
+
+  const { data: templateTasks, error: templateTasksErr } = await supabase
+    .from("daily_quest_tasks")
+    .select("*")
+    .eq("daily_quest_template_id", dailyQuestId)
+    .order("order_index");
+  if (templateTasksErr) {
+    return {
+      attempted: true as const,
+      status: "skipped_template_fetch_error" as const,
+    };
+  }
+
+  const { error: deleteErr } = await supabase
+    .from("daily_quest_run_tasks")
+    .delete()
+    .eq("daily_quest_run_id", run.id);
+  if (deleteErr) {
+    return {
+      attempted: true as const,
+      status: "skipped_run_delete_error" as const,
+    };
+  }
+
+  if (!templateTasks?.length) {
+    return { attempted: true as const, status: "synced_empty" as const };
+  }
+
+  const { error: insertErr } = await supabase.from("daily_quest_run_tasks").insert(
+    templateTasks.map((t: any) => ({
+      daily_quest_run_id: run.id,
+      daily_quest_template_task_id: t.id,
+      title: t.title,
+      description: t.description,
+      task_type: t.task_type,
+      verification_method: t.verification_method,
+      reward_amount: t.reward_amount,
+      order_index: t.order_index,
+      task_config: t.task_config ?? {},
+      input_required: t.input_required ?? false,
+      input_label: t.input_label ?? null,
+      input_placeholder: t.input_placeholder ?? null,
+      input_validation: t.input_validation ?? null,
+      requires_admin_review: t.requires_admin_review ?? false,
+    })),
+  );
+  if (insertErr) {
+    return {
+      attempted: true as const,
+      status: "skipped_run_insert_error" as const,
+    };
+  }
+
+  return { attempted: true as const, status: "synced" as const };
+}
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ dailyQuestId: string }> },
@@ -381,7 +474,33 @@ export async function PUT(
       );
     }
 
-    return NextResponse.json({ success: true, data: updated }, { status: 200 });
+    let runTaskSyncStatus:
+      | {
+          attempted: boolean;
+          status:
+            | "no_active_run"
+            | "skipped_existing_completions"
+            | "skipped_completion_check_error"
+            | "skipped_template_fetch_error"
+            | "skipped_run_delete_error"
+            | "skipped_run_insert_error"
+            | "synced_empty"
+            | "synced";
+        }
+      | undefined;
+    try {
+      runTaskSyncStatus = await syncTodayRunTasksIfSafe(supabase, dailyQuestId);
+    } catch (syncErr) {
+      log.warn("daily quests run snapshot sync skipped", {
+        dailyQuestId,
+        syncErr,
+      });
+    }
+
+    return NextResponse.json(
+      { success: true, data: updated, run_task_sync: runTaskSyncStatus },
+      { status: 200 },
+    );
   } catch (error: unknown) {
     const errorInfo =
       error instanceof Error
