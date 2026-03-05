@@ -52,6 +52,8 @@ interface TaskItemProps {
   onAction: (task: Task, inputData?: any) => void; // Handler for completing a task
   onClaimReward: (completionId: string, amount: number) => void; // Handler for claiming reward
   processingTaskId: string | null; // ID of the task currently being processed (for loading states)
+  rewardExpiryMessage?: string;
+  rewardsExpired?: boolean;
 }
 
 const getTaskIcon = (taskType: string): React.ReactNode => {
@@ -123,6 +125,8 @@ const TaskItem: React.FC<TaskItemProps> = ({
   onAction,
   onClaimReward,
   processingTaskId,
+  rewardExpiryMessage,
+  rewardsExpired = false,
 }) => {
   const [inputValue, setInputValue] = useState("");
   const [txHashInput, setTxHashInput] = useState("");
@@ -654,15 +658,28 @@ const TaskItem: React.FC<TaskItemProps> = ({
 
             {/* Claim Reward Button */}
             {canClaim && isQuestStarted && (
-              <button
-                onClick={() => onClaimReward(completion.id, task.reward_amount)}
-                disabled={isProcessing || !isQuestStarted}
-                className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-bold py-2 px-6 rounded-lg hover:from-yellow-600 hover:to-yellow-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isProcessing
-                  ? "Claiming..."
-                  : `Claim ${task.reward_amount} DG`}
-              </button>
+              <div className="space-y-2">
+                {rewardExpiryMessage ? (
+                  <div
+                    className={`text-sm ${rewardsExpired ? "text-red-300" : "text-amber-300"}`}
+                  >
+                    {rewardExpiryMessage}
+                  </div>
+                ) : null}
+                <button
+                  onClick={() =>
+                    onClaimReward(completion.id, task.reward_amount)
+                  }
+                  disabled={isProcessing || !isQuestStarted || rewardsExpired}
+                  className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-bold py-2 px-6 rounded-lg hover:from-yellow-600 hover:to-yellow-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isProcessing
+                    ? "Claiming..."
+                    : rewardsExpired
+                      ? "Rewards Expired"
+                      : `Claim ${task.reward_amount} DG`}
+                </button>
+              </div>
             )}
 
             {/* Status Display */}

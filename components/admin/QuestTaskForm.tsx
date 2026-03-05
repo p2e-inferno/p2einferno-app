@@ -172,6 +172,11 @@ const getUniswapDecimals = (pair: string, direction: string): number => {
   return 18; // ETH_UP or default
 };
 
+const formatContractMinimum = (value: bigint | undefined): string => {
+  if (value === undefined || value === null) return "unavailable";
+  return formatUnits(value, 18);
+};
+
 export default function QuestTaskForm({
   task,
   index,
@@ -491,7 +496,7 @@ export default function QuestTaskForm({
                   htmlFor={`required-amount-${index}`}
                   className="text-white"
                 >
-                  Minimum Required Amount ({isVendorBuy ? "UP" : "DG"})
+                  Minimum Amount ({isVendorBuy ? "UP/DG" : "DG/UP"})
                 </Label>
                 <Input
                   id={`required-amount-${index}`}
@@ -527,8 +532,8 @@ export default function QuestTaskForm({
                 />
                 <p className="text-xs text-gray-400">
                   {isVendorBuy
-                    ? `Contract minimum: ${minBuyAmount ? (BigInt(minBuyAmount.toString()) / BigInt(10 ** 18)).toString() : "unavailable"} UP`
-                    : `Contract minimum: ${minSellAmount ? (BigInt(minSellAmount.toString()) / BigInt(10 ** 18)).toString() : "unavailable"} DG`}
+                    ? `Contract minimum: ${formatContractMinimum(minBuyAmount)} UP`
+                    : `Contract minimum: ${formatContractMinimum(minSellAmount)} DG`}
                 </p>
                 <p className="text-xs text-gray-400">
                   Enter 0 or leave blank for any amount. User must{" "}

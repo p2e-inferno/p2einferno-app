@@ -86,6 +86,11 @@ const getUniswapDecimals = (pair: string, direction: string): number => {
   return 18; // ETH_UP or default
 };
 
+const formatContractMinimum = (value: bigint | undefined): string => {
+  if (value === undefined || value === null) return "unavailable";
+  return formatUnits(value, 18);
+};
+
 export function DailyQuestTaskForm(props: {
   task: TaskWithTempId;
   index: number;
@@ -329,7 +334,9 @@ export function DailyQuestTaskForm(props: {
 
           {(isVendorBuy || isVendorSell) && (
             <div className="space-y-2">
-              <Label className="text-white">Minimum Amount (UP/DG)</Label>
+              <Label className="text-white">
+                Minimum Amount ({isVendorBuy ? "UP/DG" : "DG/UP"})
+              </Label>
               <Input
                 type="text"
                 value={vendorAmountDisplay}
@@ -363,8 +370,8 @@ export function DailyQuestTaskForm(props: {
               />
               <p className="text-xs text-gray-400">
                 {isVendorBuy
-                  ? `Contract minimum: ${minBuyAmount ? (BigInt(minBuyAmount.toString()) / BigInt(10 ** 18)).toString() : "unavailable"} UP`
-                  : `Contract minimum: ${minSellAmount ? (BigInt(minSellAmount.toString()) / BigInt(10 ** 18)).toString() : "unavailable"} DG`}
+                  ? `Contract minimum: ${formatContractMinimum(minBuyAmount)} UP`
+                  : `Contract minimum: ${formatContractMinimum(minSellAmount)} DG`}
               </p>
               <p className="text-xs text-gray-400">
                 Enter 0 or leave blank for any amount.

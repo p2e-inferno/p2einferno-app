@@ -11,6 +11,7 @@ import { nanoid } from "nanoid";
 import { PlusCircle, Save, X, Shield } from "lucide-react";
 import { useAdminApi } from "@/hooks/useAdminApi";
 import { getLogger } from "@/lib/utils/logger";
+import { showInfoToast } from "@/lib/utils/toast-utils";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { useDeployAdminLock } from "@/hooks/unlock/useDeployAdminLock";
@@ -18,6 +19,7 @@ import {
   generateQuestLockConfig,
   createLockConfigWithManagers,
 } from "@/lib/blockchain/legacy";
+import { getBlockExplorerUrl } from "@/lib/blockchain/services/transaction-service";
 import { convertLockConfigToDeploymentParams } from "@/lib/blockchain/shared/lock-config-converter";
 import { TransactionStepperModal } from "@/components/admin/TransactionStepperModal";
 import { useTransactionStepper } from "@/hooks/useTransactionStepper";
@@ -29,6 +31,13 @@ import {
   effectiveMaxKeysForSave,
   effectiveTransferabilityForSave,
 } from "@/lib/blockchain/shared/grant-state";
+import {
+  saveDraft,
+  removeDraft,
+  getDraft,
+  updateDraftWithDeploymentResult,
+} from "@/lib/utils/lock-deployment-state";
+import { resolveDraftById } from "@/lib/utils/draft";
 import LockManagerToggle from "@/components/admin/LockManagerToggle";
 import { useLockManagerState } from "@/hooks/useLockManagerState";
 import { useMaxKeysSecurityState } from "@/hooks/useMaxKeysSecurityState";
@@ -44,21 +53,26 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { NetworkSelector } from "@/components/blockchain/NetworkSelector";
 
 const log = getLogger("admin:DailyQuestForm");
 
 export function DailyQuestForm(props: { dailyQuestId?: string }) {
   const router = useRouter();
   const { adminFetch } = useAdminApi();
+  const { adminFetch: silentFetch } = useAdminApi({ suppressToasts: true });
   const wallet = useSmartWalletSelection();
   const { isAdmin } = useAdminAuthContext();
   const { createAdminLockDeploymentSteps } = useDeployAdminLock({ isAdmin });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(Boolean(props.dailyQuestId));
 
   const [existingDailyQuest, setExistingDailyQuest] = useState<any>(null);
   const isEditing = Boolean(props.dailyQuestId);
+  const draftEntityType = "daily_quest" as const;
+  const draftScopeKey = "daily-quest:global";
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -110,6 +124,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
   const [showErc20, setShowErc20] = useState(false);
   const [erc20Token, setErc20Token] = useState<string>("");
   const [erc20MinBalance, setErc20MinBalance] = useState<string>("");
+  const [erc20ChainId, setErc20ChainId] = useState<string>("8453");
 
   const [tasks, setTasks] = useState<any[]>([
     { tempId: nanoid(), order_index: 0 },
@@ -212,6 +227,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       setShowErc20(hasErc20);
       setErc20Token(elig.required_erc20?.token || "");
       setErc20MinBalance(elig.required_erc20?.min_balance || "");
+      setErc20ChainId(String(elig.required_erc20?.chain_id || "8453"));
 
       const existingTasks = Array.isArray(tmpl?.daily_quest_tasks)
         ? tmpl.daily_quest_tasks
@@ -258,6 +274,194 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       .filter((t) => (t.title || "").trim() && (t.description || "").trim());
   }, [tasks]);
 
+  const totalReward = useMemo(
+    () =>
+      normalizedTasks.reduce(
+        (sum, task) => sum + (Number(task.reward_amount || 0) || 0),
+        0,
+      ) + (Number.isInteger(completionBonus) ? completionBonus : 0),
+    [normalizedTasks, completionBonus],
+  );
+
+  const buildDraftPayload = useCallback(() => {
+    return {
+      title,
+      description,
+      image_url: imageUrl,
+      is_active: isActive,
+      completion_bonus_reward_amount: completionBonus,
+      lock_address: lockAddress,
+      auto_lock_creation: showAutoLockCreation,
+      lock_manager_granted: lockManagerGranted,
+      grant_failure_reason: grantFailureReason,
+      max_keys_secured: maxKeysSecured,
+      max_keys_failure_reason: maxKeysFailureReason,
+      transferability_secured: transferabilitySecured,
+      transferability_failure_reason: transferabilityFailureReason,
+      eligibility_config: {
+        ...(eligMinVendorStage !== ""
+          ? { min_vendor_stage: Number(eligMinVendorStage) }
+          : {}),
+        ...(eligGoodDollar ? { requires_gooddollar_verification: true } : {}),
+        ...(showRequiredLock && eligRequiredLock.trim()
+          ? { required_lock_address: eligRequiredLock.trim() }
+          : {}),
+        ...(showErc20 && erc20Token.trim() && erc20MinBalance.trim()
+          ? {
+              required_erc20: {
+                token: erc20Token.trim(),
+                min_balance: erc20MinBalance.trim(),
+                chain_id: Number(erc20ChainId),
+              },
+            }
+          : {}),
+      },
+      daily_quest_tasks: tasks,
+    };
+  }, [
+    title,
+    description,
+    imageUrl,
+    isActive,
+    completionBonus,
+    lockAddress,
+    showAutoLockCreation,
+    lockManagerGranted,
+    grantFailureReason,
+    maxKeysSecured,
+    maxKeysFailureReason,
+    transferabilitySecured,
+    transferabilityFailureReason,
+    eligMinVendorStage,
+    eligGoodDollar,
+    showRequiredLock,
+    eligRequiredLock,
+    showErc20,
+    erc20Token,
+    erc20MinBalance,
+    erc20ChainId,
+    tasks,
+  ]);
+
+  useEffect(() => {
+    if (isEditing) return;
+    const draft = getDraft(draftEntityType, draftScopeKey);
+    if (!draft) return;
+
+    let cancelled = false;
+    const form = (draft.formData || {}) as any;
+
+    const hydrateDraft = (showRestoreToast = true) => {
+      setTitle(form.title || "");
+      setDescription(form.description || "");
+      setImageUrl(form.image_url ?? null);
+      setIsActive(form.is_active ?? true);
+      setCompletionBonus(Number(form.completion_bonus_reward_amount || 0) || 0);
+      setLockAddress(form.lock_address || "");
+      setShowAutoLockCreation(Boolean(form.auto_lock_creation ?? true));
+      if (form.lock_address) {
+        setShowAutoLockCreation(false);
+      }
+
+      setLockManagerGranted(Boolean(form.lock_manager_granted ?? true));
+      setGrantFailureReason(form.grant_failure_reason || null);
+      setMaxKeysSecured(Boolean(form.max_keys_secured ?? true));
+      setMaxKeysFailureReason(form.max_keys_failure_reason || null);
+      setTransferabilitySecured(Boolean(form.transferability_secured ?? true));
+      setTransferabilityFailureReason(
+        form.transferability_failure_reason || null,
+      );
+
+      const elig = form.eligibility_config || {};
+      setEligMinVendorStage(
+        typeof elig.min_vendor_stage === "number"
+          ? String(elig.min_vendor_stage)
+          : "",
+      );
+      setEligGoodDollar(Boolean(elig.requires_gooddollar_verification));
+      setEligRequiredLock(elig.required_lock_address || "");
+      setShowRequiredLock(Boolean(elig.required_lock_address));
+      const hasErc20 = Boolean(
+        elig.required_erc20?.token || elig.required_erc20?.min_balance,
+      );
+      setShowErc20(hasErc20);
+      setErc20Token(elig.required_erc20?.token || "");
+      setErc20MinBalance(elig.required_erc20?.min_balance || "");
+      setErc20ChainId(String(elig.required_erc20?.chain_id || "8453"));
+
+      const draftTasks = Array.isArray(form.daily_quest_tasks)
+        ? form.daily_quest_tasks
+        : [];
+      setTasks(
+        draftTasks.length
+          ? draftTasks.map((t: any, idx: number) => ({
+              ...t,
+              tempId: t.tempId || nanoid(),
+              order_index:
+                typeof t.order_index === "number" ? t.order_index : idx,
+            }))
+          : [{ tempId: nanoid(), order_index: 0 }],
+      );
+
+      if (showRestoreToast) {
+        toast.success(
+          form.lock_address
+            ? "Restored daily quest draft with deployed lock"
+            : "Restored daily quest draft",
+        );
+      }
+    };
+
+    const fetchExistingDraftById = async (id: string) => {
+      const response = await silentFetch<{ success: boolean; data: any }>(
+        `/api/admin/daily-quests/${id}`,
+      );
+      if (response.error) return null;
+      return response.data?.data ?? null;
+    };
+
+    const resolveDraft = async () => {
+      const hadDraftId = Boolean(form?.id);
+      const resolution = await resolveDraftById({
+        draft: draft as any,
+        fetchExisting: fetchExistingDraftById,
+      });
+
+      if (cancelled) return;
+
+      if (resolution.mode === "existing") {
+        removeDraft(draftEntityType, draftScopeKey);
+        toast.success("Draft already saved — redirecting to daily quest editor.");
+        router.replace(`/admin/quests/daily/${resolution.draftId}/edit`);
+        return;
+      }
+
+      if (hadDraftId) {
+        showInfoToast(
+          "Saved daily quest not found — continuing with draft as a new daily quest.",
+        );
+      }
+      hydrateDraft(!hadDraftId);
+    };
+
+    void resolveDraft();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isEditing,
+    draftEntityType,
+    draftScopeKey,
+    silentFetch,
+    router,
+    setLockManagerGranted,
+    setGrantFailureReason,
+    setMaxKeysSecured,
+    setMaxKeysFailureReason,
+    setTransferabilitySecured,
+    setTransferabilityFailureReason,
+  ]);
+
   const validateClient = () => {
     if (!title.trim()) return "Title is required";
     if (!description.trim()) return "Description is required";
@@ -286,6 +490,10 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       }
       if (!(Number(erc20MinBalance.trim()) > 0)) {
         return "ERC20 minimum balance must be > 0";
+      }
+      const chainId = Number(erc20ChainId);
+      if (!Number.isInteger(chainId) || chainId <= 0) {
+        return "Please select a valid ERC20 token network";
       }
     }
 
@@ -319,6 +527,9 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
 
   const deployLock = async () => {
     try {
+      if (!isEditing) {
+        saveDraft(draftEntityType, buildDraftPayload(), draftScopeKey);
+      }
       if (!wallet)
         throw new Error("Please connect your wallet to deploy the lock");
       if (!title.trim())
@@ -379,6 +590,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       }
 
       setLockAddress(deployedLockAddress);
+      setShowAutoLockCreation(false);
 
       // Record outcomes in ref for the final save
       deploymentOutcomeRef.current = {
@@ -386,8 +598,8 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         grantError: deploymentResult.grantError,
         configFailed: deploymentResult.configFailed,
         configError: deploymentResult.configError,
-        transferFailed: (deploymentResult as any).transferFailed,
-        transferError: (deploymentResult as any).transferConfigError,
+        transferFailed: deploymentResult.transferConfigFailed,
+        transferError: deploymentResult.transferConfigError,
       };
 
       const outcome = applyDeploymentOutcome(deploymentResult);
@@ -395,17 +607,11 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       setGrantFailureReason(outcome.reason);
 
       // Also update security outcomes in state
-      if (deploymentResult.configFailed) {
-        setMaxKeysSecured(false);
-      }
+      if (deploymentResult.configFailed) setMaxKeysSecured(false);
       setMaxKeysFailureReason(deploymentResult.configError);
 
-      if ((deploymentResult as any).transferFailed) {
-        setTransferabilitySecured(false);
-      }
-      setTransferabilityFailureReason(
-        (deploymentResult as any).transferConfigError,
-      );
+      setTransferabilitySecured(!deploymentResult.transferConfigFailed);
+      setTransferabilityFailureReason(deploymentResult.transferConfigError);
 
       if (deploymentResult.grantFailed) {
         toast(
@@ -413,11 +619,46 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
             Lock deployed successfully!
             <br />
             ⚠️ Grant manager role failed.
+            <br />
+            {deploymentResult.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(deploymentResult.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
           </>,
           { duration: 8000, icon: "⚠️" },
         );
       } else {
-        toast.success("Lock deployed successfully!");
+        toast.success(
+          <>
+            Lock deployed successfully!
+            <br />
+            {deploymentResult.transactionHash && (
+              <a
+                href={getBlockExplorerUrl(deploymentResult.transactionHash)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline"
+              >
+                View deployment
+              </a>
+            )}
+          </>,
+          { duration: 5000 },
+        );
+      }
+
+      if (!isEditing) {
+        updateDraftWithDeploymentResult(draftEntityType, draftScopeKey, {
+          lockAddress: deployedLockAddress,
+          grantFailed: deploymentResult.grantFailed,
+          grantError: deploymentResult.grantError,
+        });
       }
     } catch (err: any) {
       log.error("Daily quest lock deployment failed", err);
@@ -426,21 +667,52 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
     }
   };
 
-  const handleSave = async () => {
-    const err = validateClient();
-    if (err) {
-      toast.error(err);
-      return;
-    }
+  const runStepperFlow = useCallback(
+    async (steps: DeploymentStep[], title: string) => {
+      setDeploymentSteps(steps);
+      setStepperTitle(title);
+      setIsStepperOpen(true);
+      await stepperWaitForSteps(steps.length);
+      try {
+        await stepperStart();
+      } catch (initialErr: any) {
+        let err = initialErr;
+        while (true) {
+          const decision = await new Promise<"retry" | "cancel" | "skip">(
+            (resolve) => {
+              stepperDecisionResolverRef.current = resolve;
+            },
+          );
+          stepperDecisionResolverRef.current = null;
+          if (decision === "cancel") {
+            stepperCancel();
+            setIsStepperOpen(false);
+            throw err;
+          }
+          if (decision === "skip") {
+            try {
+              await stepperSkip();
+              break;
+            } catch (skipErr) {
+              err = skipErr;
+              continue;
+            }
+          }
+          try {
+            await stepperRetry();
+            break;
+          } catch (retryErr) {
+            err = retryErr;
+          }
+        }
+      }
+      setIsStepperOpen(false);
+    },
+    [stepperWaitForSteps, stepperStart, stepperCancel, stepperSkip, stepperRetry],
+  );
 
-    const trimmedLockAddress = lockAddress.trim();
-    if (trimmedLockAddress && !isAddress(trimmedLockAddress)) {
-      toast.error("Invalid lock address");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
+  const buildPayload = useCallback(
+    (resolvedLockAddress: string) => {
       const eligibility_config: any = {};
       if (eligMinVendorStage !== "") {
         eligibility_config.min_vendor_stage = Number(eligMinVendorStage);
@@ -455,16 +727,16 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         eligibility_config.required_erc20 = {
           token: erc20Token.trim(),
           min_balance: erc20MinBalance.trim(),
+          chain_id: Number(erc20ChainId),
         };
       }
 
-      // Prepare effective lock config outcomes using shared utils
       const effectiveGrant = effectiveGrantForSave({
         outcome: {
           lastGrantFailed: deploymentOutcomeRef.current.grantFailed,
           lastGrantError: deploymentOutcomeRef.current.grantError,
         },
-        lockAddress: trimmedLockAddress,
+        lockAddress: resolvedLockAddress,
         currentGranted: lockManagerGranted,
         currentReason: grantFailureReason,
       });
@@ -474,7 +746,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
           lastConfigFailed: deploymentOutcomeRef.current.configFailed,
           lastConfigError: deploymentOutcomeRef.current.configError,
         },
-        lockAddress: trimmedLockAddress,
+        lockAddress: resolvedLockAddress,
         currentSecured: maxKeysSecured,
         currentReason: maxKeysFailureReason,
       });
@@ -484,18 +756,18 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
           lastTransferFailed: deploymentOutcomeRef.current.transferFailed,
           lastTransferError: deploymentOutcomeRef.current.transferError,
         },
-        lockAddress: trimmedLockAddress,
+        lockAddress: resolvedLockAddress,
         currentSecured: transferabilitySecured,
         currentReason: transferabilityFailureReason,
       });
 
-      const payload = {
+      return {
         title: title.trim(),
         description: description.trim(),
         image_url: imageUrl,
         is_active: isActive,
         completion_bonus_reward_amount: completionBonus,
-        lock_address: trimmedLockAddress || null,
+        lock_address: resolvedLockAddress || null,
         lock_manager_granted: effectiveGrant.granted,
         grant_failure_reason: effectiveGrant.reason || null,
         max_keys_secured: effectiveMaxKeys.secured,
@@ -519,23 +791,139 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
           requires_admin_review: Boolean(t.requires_admin_review),
         })),
       };
+    },
+    [
+      title,
+      description,
+      imageUrl,
+      isActive,
+      completionBonus,
+      eligMinVendorStage,
+      eligGoodDollar,
+      showRequiredLock,
+      eligRequiredLock,
+      showErc20,
+      erc20Token,
+      erc20MinBalance,
+      erc20ChainId,
+      lockManagerGranted,
+      grantFailureReason,
+      maxKeysSecured,
+      maxKeysFailureReason,
+      transferabilitySecured,
+      transferabilityFailureReason,
+      normalizedTasks,
+    ],
+  );
+
+  const handleSave = async () => {
+    setError(null);
+    const err = validateClient();
+    if (err) {
+      setError(err);
+      toast.error(err);
+      return;
+    }
+
+    const trimmedLockAddress = lockAddress.trim();
+    if (trimmedLockAddress && !isAddress(trimmedLockAddress)) {
+      setError("Invalid lock address");
+      toast.error("Invalid lock address");
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      deploymentOutcomeRef.current = {};
+      if (!isEditing) {
+        saveDraft(draftEntityType, buildDraftPayload(), draftScopeKey);
+      }
 
       const endpoint = isEditing
         ? `/api/admin/daily-quests/${props.dailyQuestId}`
         : "/api/admin/daily-quests";
       const method = isEditing ? "PUT" : "POST";
-      const result = await adminFetch(endpoint, {
-        method,
-        body: JSON.stringify(payload),
-      });
-      if (result.error) {
-        throw new Error(result.error);
+
+      const shouldAutoDeploy =
+        !isEditing && showAutoLockCreation && !trimmedLockAddress && totalReward > 0;
+
+      const persist = async (resolvedLockAddress: string) => {
+        const payload = buildPayload(resolvedLockAddress);
+        const result = await adminFetch(endpoint, {
+          method,
+          body: JSON.stringify(payload),
+        });
+        if (result.error) throw new Error(result.error);
+        return payload;
+      };
+
+      let payload: any;
+      if (shouldAutoDeploy) {
+        if (!wallet) {
+          throw new Error("Please connect your wallet to deploy the lock");
+        }
+        const lockConfig = generateQuestLockConfig({ title } as any);
+        const deployConfig = createLockConfigWithManagers(lockConfig);
+        const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+        const deployment = createAdminLockDeploymentSteps(params);
+        const steps = [...deployment.steps];
+        steps.push({
+          id: "daily-quest:create-db",
+          title: "Create daily quest",
+          description: "Save daily quest details and tasks to database.",
+          execute: async () => {
+            const result = deployment.getResult();
+            if (!result?.success || !result.lockAddress) {
+              throw new Error("Lock deployment failed");
+            }
+            setLockAddress(result.lockAddress);
+            setShowAutoLockCreation(false);
+            deploymentOutcomeRef.current = {
+              grantFailed: result.grantFailed,
+              grantError: result.grantError,
+              configFailed: result.configFailed,
+              configError: result.configError,
+              transferFailed: result.transferConfigFailed,
+              transferError: result.transferConfigError,
+            };
+            const outcome = applyDeploymentOutcome(result);
+            setLockManagerGranted(outcome.granted);
+            setGrantFailureReason(outcome.reason);
+            setMaxKeysSecured(!result.configFailed);
+            setMaxKeysFailureReason(result.configError);
+            setTransferabilitySecured(!result.transferConfigFailed);
+            setTransferabilityFailureReason(result.transferConfigError);
+            updateDraftWithDeploymentResult(draftEntityType, draftScopeKey, {
+              lockAddress: result.lockAddress,
+              grantFailed: result.grantFailed,
+              grantError: result.grantError,
+            });
+            payload = await persist(result.lockAddress);
+            return { data: { lockAddress: result.lockAddress } };
+          },
+        });
+
+        await runStepperFlow(steps, `Create quest: ${title.trim() || "Daily quest"}`);
+      } else {
+        payload = await persist(trimmedLockAddress);
       }
 
-      toast.success("Daily quest saved");
-      router.push("/admin/quests?tab=daily");
+      const createMode = !isEditing;
+      toast.success(createMode ? "Daily quest created" : "Daily quest updated");
+      if (createMode) {
+        removeDraft(draftEntityType, draftScopeKey);
+        void router.push("/admin/quests?tab=daily");
+      } else {
+        setExistingDailyQuest((prev: any) => ({
+          ...(prev || {}),
+          ...(payload || {}),
+          id: props.dailyQuestId || prev?.id,
+          daily_quest_tasks: payload?.daily_quest_tasks || prev?.daily_quest_tasks,
+        }));
+      }
     } catch (err: any) {
       log.error("Failed to save daily quest", err);
+      setError(err?.message || "Failed to save daily quest");
       toast.error(err?.message || "Failed to save daily quest");
     } finally {
       setIsSubmitting(false);
@@ -560,6 +948,11 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         onCancel={handleStepperCancel}
         onClose={handleStepperClose}
       />
+      {error && (
+        <div className="bg-red-900/20 border border-red-700 text-red-300 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
 
       {/* Quest Basic Info */}
       <div className="bg-gray-900/50 border border-gray-800 rounded-lg p-6 space-y-6">
@@ -649,7 +1042,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
             {showAutoLockCreation &&
               !isEditing &&
               !lockAddress &&
-              completionBonus > 0 && (
+              totalReward > 0 && (
                 <p className="text-sm text-blue-400 mt-1">
                   ✨ A new completion lock will be automatically deployed for
                   this daily quest using your connected wallet
@@ -826,7 +1219,12 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
           </div>
 
           {showErc20 && (
-            <div className="space-y-3 border border-gray-800 rounded-lg p-4 bg-gray-900/30">
+            <div className="space-y-4 border border-gray-800 rounded-lg p-4 bg-gray-900/30">
+              <NetworkSelector
+                chainId={erc20ChainId}
+                onChange={setErc20ChainId}
+                label="Choose Token Network"
+              />
               <div className="space-y-2">
                 <Label className="text-white">Token Contract</Label>
                 <Input
@@ -901,7 +1299,13 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         </Button>
         <Button type="button" onClick={handleSave} disabled={isSubmitting}>
           <Save className="w-4 h-4 mr-2" />
-          {isSubmitting ? "Saving..." : "Save"}
+          {isSubmitting
+            ? isEditing
+              ? "Updating..."
+              : "Creating..."
+            : isEditing
+              ? "Update quest"
+              : "Create quest"}
         </Button>
       </div>
     </div>

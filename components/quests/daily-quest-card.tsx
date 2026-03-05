@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@/components/common/RichText";
+import { DailyQuestCountdown } from "@/components/quests/DailyQuestCountdown";
 import type { DailyQuestRunListItem } from "@/hooks/useDailyQuests";
 
 function badgeLabelForFailure(failure: { type: string; message: string }) {
@@ -101,13 +102,13 @@ export function DailyQuestCard(props: {
           <div className="absolute top-2 right-2 flex flex-col gap-2 items-end">
             {eligibility && eligibility.eligible === false
               ? (eligibility.failures || []).map((f) => (
-                  <div
-                    key={f.type}
-                    className="bg-gray-800/80 backdrop-blur-sm border border-gray-600 text-gray-300 px-3 py-1 rounded-full text-sm font-semibold"
-                  >
-                    {badgeLabelForFailure(f)}
-                  </div>
-                ))
+                <div
+                  key={f.type}
+                  className="bg-gray-800/80 backdrop-blur-sm border border-gray-600 text-gray-300 px-3 py-1 rounded-full text-sm font-semibold"
+                >
+                  {badgeLabelForFailure(f)}
+                </div>
+              ))
               : null}
           </div>
         </div>
@@ -121,9 +122,7 @@ export function DailyQuestCard(props: {
           className="text-gray-400 mb-3 line-clamp-2"
         />
 
-        <div className="text-sm text-gray-400 mb-2">
-          Resets daily at 00:00 UTC
-        </div>
+        <DailyQuestCountdown className="mb-2" />
 
         {run.completion_bonus_reward_amount > 0 && (
           <div className="text-sm text-cyan-300 mb-4">

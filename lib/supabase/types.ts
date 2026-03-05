@@ -360,7 +360,7 @@ export interface DailyQuestTemplate {
     min_vendor_stage?: number;
     requires_gooddollar_verification?: boolean;
     required_lock_address?: string;
-    required_erc20?: { token: string; min_balance: string };
+    required_erc20?: { token: string; min_balance: string; chain_id?: number };
   };
   created_at: string;
   updated_at: string;

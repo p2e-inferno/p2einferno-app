@@ -127,6 +127,7 @@ export default function DraftRecoveryPage() {
         cohort: "/api/admin/cohorts",
         quest: "/api/admin/quests-v2", // v2 API handles tasks in POST body
         milestone: "/api/admin/milestones",
+        daily_quest: "/api/admin/daily-quests",
       };
 
       const endpoint = endpoints[deployment.entityType];
