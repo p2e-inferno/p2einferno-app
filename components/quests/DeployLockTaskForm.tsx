@@ -306,7 +306,8 @@ export const DeployLockTaskForm: React.FC<DeployLockTaskFormProps> = ({
             <AlertCircle className="w-5 h-5 text-red-400 mr-2 mt-0.5 flex-shrink-0" />
             <div className="flex-1">
               <p className="text-red-300 font-semibold mb-1">{error.message}</p>
-              {error.code === "TX_NOT_FOUND_MULTI_NETWORK" && (
+              {(error.code === "TX_NOT_FOUND" ||
+                error.code === "TX_NOT_FOUND_MULTI_NETWORK") && (
                 <p className="text-red-400 text-sm">
                   Make sure you deployed to one of the accepted networks above.
                 </p>

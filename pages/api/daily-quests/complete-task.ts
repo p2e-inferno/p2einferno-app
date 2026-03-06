@@ -17,6 +17,7 @@ import {
 } from "@/lib/quests/vendorTaskTypes";
 import { registerDailyQuestTransaction } from "@/lib/quests/daily-quests/replay-prevention";
 import type { DailyQuestRun } from "@/lib/supabase/types";
+import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
 
 const log = getLogger("api:daily-quests:complete-task");
 
@@ -58,6 +59,44 @@ function extractMetadataForRegistration(
     typeof metadata.logIndex === "number" ? metadata.logIndex : null;
 
   return { amount, eventName, blockNumber, logIndex };
+}
+
+function buildVerificationTaskConfig(
+  taskType: string,
+  rawTaskConfig: unknown,
+  run: DailyQuestRun,
+): unknown {
+  if (taskType !== "deploy_lock") {
+    return rawTaskConfig || null;
+  }
+
+  const runStartsAtMs = Date.parse(run.starts_at);
+  const runStartUnix =
+    Number.isFinite(runStartsAtMs) && runStartsAtMs > 0
+      ? Math.floor(runStartsAtMs / 1000)
+      : null;
+
+  if (!runStartUnix) {
+    return rawTaskConfig || null;
+  }
+
+  const baseConfig =
+    rawTaskConfig && typeof rawTaskConfig === "object"
+      ? { ...(rawTaskConfig as Record<string, unknown>) }
+      : {};
+
+  const existingMinTimestamp = Number(
+    (baseConfig as Partial<DeployLockTaskConfig>).min_timestamp,
+  );
+  const hasExistingMinTimestamp = Number.isFinite(existingMinTimestamp);
+
+  return {
+    ...baseConfig,
+    // Daily runs must always enforce "new deployment only".
+    min_timestamp: hasExistingMinTimestamp
+      ? Math.max(existingMinTimestamp, runStartUnix)
+      : runStartUnix,
+  };
 }
 
 export default async function handler(
@@ -207,7 +246,14 @@ export default async function handler(
       txRequired ? { transactionHash: clientTxHash } : {},
       userId,
       activeWallet,
-      { taskConfig: task.task_config || null, taskId: task.id },
+      {
+        taskConfig: buildVerificationTaskConfig(
+          task.task_type,
+          task.task_config,
+          run,
+        ),
+        taskId: task.id,
+      },
     );
 
     if (!verifyResult.success) {

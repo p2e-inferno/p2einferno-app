@@ -4,6 +4,7 @@
  * Configuration helpers and constants for multi-network lock deployment verification.
  * Supports Base, Optimism, Arbitrum, Celo, and Base Sepolia.
  */
+import { UNLOCK_FACTORY_ADDRESSES as SHARED_UNLOCK_FACTORY_ADDRESSES } from "@/constants/unlock_factory_addresses";
 
 /**
  * Supported networks for lock deployment quests
@@ -17,16 +18,15 @@ export const SUPPORTED_DEPLOY_NETWORKS = {
 } as const;
 
 /**
- * Official Unlock Protocol factory addresses per network
- * These addresses emit the NewLock event when locks are deployed
- * Using deterministic deployment, same address across all chains
+ * Official Unlock Protocol factory addresses by chain ID.
+ * Imported from shared constants to avoid drift with deployment flows.
  */
 export const UNLOCK_FACTORY_ADDRESSES: Record<number, `0x${string}`> = {
-  8453: "0x1FF7e338d5E582138C46044dc238543Ce555C963", // Base Mainnet
-  84532: "0x1FF7e338d5E582138C46044dc238543Ce555C963", // Base Sepolia
-  10: "0x1FF7e338d5E582138C46044dc238543Ce555C963", // Optimism
-  42161: "0x1FF7e338d5E582138C46044dc238543Ce555C963", // Arbitrum One
-  42220: "0x1FF7e338d5E582138C46044dc238543Ce555C963", // Celo
+  8453: SHARED_UNLOCK_FACTORY_ADDRESSES[8453], // Base Mainnet
+  84532: SHARED_UNLOCK_FACTORY_ADDRESSES[84532], // Base Sepolia
+  10: SHARED_UNLOCK_FACTORY_ADDRESSES[10], // Optimism
+  42161: SHARED_UNLOCK_FACTORY_ADDRESSES[42161], // Arbitrum One
+  42220: SHARED_UNLOCK_FACTORY_ADDRESSES[42220], // Celo
 };
 
 /**
@@ -61,7 +61,7 @@ export interface DeployLockTaskConfig {
  */
 export function getNetworkDisplayName(chainId: number): string {
   const network = Object.values(SUPPORTED_DEPLOY_NETWORKS).find(
-    (n) => n.chainId === chainId
+    (n) => n.chainId === chainId,
   );
   return network?.name || `Chain ${chainId}`;
 }
@@ -73,7 +73,7 @@ export function getNetworkDisplayName(chainId: number): string {
  */
 export function isValidDeployNetwork(chainId: number): boolean {
   return Object.values(SUPPORTED_DEPLOY_NETWORKS).some(
-    (n) => n.chainId === chainId
+    (n) => n.chainId === chainId,
   );
 }
 
@@ -91,10 +91,10 @@ export function isValidDeployNetwork(chainId: number): boolean {
 export function calculateRewardAmount(
   baseReward: number,
   chainId: number,
-  config: DeployLockTaskConfig
+  config: DeployLockTaskConfig,
 ): number {
   const networkConfig = config.allowed_networks.find(
-    (n) => n.chain_id === chainId
+    (n) => n.chain_id === chainId,
   );
   const multiplier = networkConfig?.reward_ratio || 1.0;
   return Math.floor(baseReward * multiplier);
@@ -105,9 +105,10 @@ export function calculateRewardAmount(
  * @param config Task configuration to validate
  * @returns Validation result with success flag and error message
  */
-export function validateDeployLockConfig(
-  config: unknown
-): { success: boolean; error?: string } {
+export function validateDeployLockConfig(config: unknown): {
+  success: boolean;
+  error?: string;
+} {
   if (!config || typeof config !== "object") {
     return { success: false, error: "Task configuration missing" };
   }
@@ -179,7 +180,8 @@ export function validateDeployLockConfig(
     ) {
       return {
         success: false,
-        error: "Invalid min_timestamp: must be a positive number (Unix timestamp)",
+        error:
+          "Invalid min_timestamp: must be a positive number (Unix timestamp)",
       };
     }
   }
@@ -194,9 +196,10 @@ export const ERROR_MESSAGES: Record<string, string> = {
   TX_HASH_REQUIRED: "Please enter a transaction hash",
   INVALID_TX_HASH:
     "Invalid transaction hash format. Must be 0x followed by 64 hex characters.",
-  TX_NOT_FOUND: "Transaction not found. Please verify the transaction hash and try again.",
+  TX_NOT_FOUND:
+    "Transaction not found on allowed network(s). Please verify the hash and network, then try again.",
   TX_NOT_FOUND_MULTI_NETWORK:
-    "Transaction not found on any allowed network. Did you deploy to the correct network?",
+    "Transaction not found on allowed network(s). Please verify the hash and network, then try again.",
   TX_FAILED:
     "This transaction failed on-chain. Please submit a successful deployment.",
   SENDER_MISMATCH: "This transaction was not sent from your connected wallet.",
@@ -210,7 +213,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
     "This transaction exists on multiple networks. Please submit a transaction that exists on only one network.",
   TX_ALREADY_USED: "This transaction has already been used for a quest task.",
   INVALID_CONFIG: "Quest configuration error. Please contact support.",
-  VERIFICATION_ERROR: "Verification failed. Please try again or contact support.",
+  VERIFICATION_ERROR:
+    "Verification failed. Please try again or contact support.",
 };
 
 /**
@@ -220,6 +224,8 @@ export const ERROR_MESSAGES: Record<string, string> = {
  */
 export function getErrorMessage(code: string): string {
   return (
-    ERROR_MESSAGES[code] ?? ERROR_MESSAGES.VERIFICATION_ERROR ?? "Verification failed"
+    ERROR_MESSAGES[code] ??
+    ERROR_MESSAGES.VERIFICATION_ERROR ??
+    "Verification failed"
   );
 }

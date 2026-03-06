@@ -64,37 +64,44 @@ export default function DailyQuestDetailPage() {
   const [data, setData] = useState<DailyQuestDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [processingTaskId, setProcessingTaskId] = useState<string | null>(null);
+  const [claimingCompletionId, setClaimingCompletionId] = useState<
+    string | null
+  >(null);
   const [starting, setStarting] = useState(false);
   const [claimingKey, setClaimingKey] = useState(false);
   const [checkinError, setCheckinError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const { signAttestation } = useGaslessAttestation();
 
-  const fetchDetail = useCallback(async () => {
-    if (!runId) return;
-    setLoading(true);
-    try {
-      const headers: Record<string, string> = {};
-      if (authenticated && selectedWallet?.address) {
-        headers["X-Active-Wallet"] = selectedWallet.address;
+  const fetchDetail = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!runId) return;
+      const silent = Boolean(options?.silent);
+      if (!silent) setLoading(true);
+      try {
+        const headers: Record<string, string> = {};
+        if (authenticated && selectedWallet?.address) {
+          headers["X-Active-Wallet"] = selectedWallet.address;
+        }
+        const resp = await fetch(`/api/daily-quests/${runId}`, { headers });
+        const json = (await resp
+          .json()
+          .catch(() => ({}))) as DailyQuestDetailResponse;
+        if (!resp.ok) {
+          throw new Error((json as any)?.error || "Failed to load daily quest");
+        }
+        setData(json);
+      } catch (err) {
+        log.error("Failed to fetch daily quest detail", err);
+        toast.error(
+          err instanceof Error ? err.message : "Failed to load daily quest",
+        );
+      } finally {
+        if (!silent) setLoading(false);
       }
-      const resp = await fetch(`/api/daily-quests/${runId}`, { headers });
-      const json = (await resp
-        .json()
-        .catch(() => ({}))) as DailyQuestDetailResponse;
-      if (!resp.ok) {
-        throw new Error((json as any)?.error || "Failed to load daily quest");
-      }
-      setData(json);
-    } catch (err) {
-      log.error("Failed to fetch daily quest detail", err);
-      toast.error(
-        err instanceof Error ? err.message : "Failed to load daily quest",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [runId, authenticated, selectedWallet?.address]);
+    },
+    [runId, authenticated, selectedWallet?.address],
+  );
 
   useEffect(() => {
     if (ready && runId) {
@@ -289,112 +296,130 @@ export default function DailyQuestDetailPage() {
       toast.error("Wallet not connected");
       return;
     }
-    let attestationSignature: any = null;
+    if (claimingCompletionId) return;
+    setClaimingCompletionId(completionId);
     try {
+      let attestationSignature: any = null;
       if (isEASEnabled()) {
-        const completion = completions.find((c) => c.id === completionId);
-        const task = tasks.find(
-          (t) => t.id === completion?.daily_quest_run_task_id,
-        );
-        const questLockAddress =
-          typeof data?.template?.lock_address === "string"
-            ? data.template.lock_address
-            : null;
-        if (!completion || !task) {
-          throw new Error("Task completion context missing");
+        try {
+          const completion = completions.find((c) => c.id === completionId);
+          const task = tasks.find(
+            (t) => t.id === completion?.daily_quest_run_task_id,
+          );
+          const questLockAddress =
+            typeof data?.template?.lock_address === "string"
+              ? data.template.lock_address
+              : null;
+          if (!completion || !task) {
+            throw new Error("Task completion context missing");
+          }
+          if (!questLockAddress) {
+            throw new Error("Quest lock address missing");
+          }
+          attestationSignature = await signAttestation({
+            schemaKey: "quest_task_reward_claim",
+            recipient: selectedWallet.address,
+            schemaData: [
+              {
+                name: "questId",
+                type: "string",
+                value: String(data?.template?.id || ""),
+              },
+              { name: "taskId", type: "string", value: String(task.id) },
+              {
+                name: "taskType",
+                type: "string",
+                value: String(task.task_type || ""),
+              },
+              {
+                name: "userAddress",
+                type: "address",
+                value: selectedWallet.address,
+              },
+              {
+                name: "questLockAddress",
+                type: "address",
+                value: questLockAddress,
+              },
+              {
+                name: "rewardAmount",
+                type: "uint256",
+                value: BigInt(Number(task.reward_amount || 0)),
+              },
+              {
+                name: "claimTimestamp",
+                type: "uint256",
+                value: BigInt(Math.floor(Date.now() / 1000)),
+              },
+            ],
+          });
+        } catch (err: any) {
+          const code = err?.code ?? err?.error?.code;
+          const message = String(err?.message || "").toLowerCase();
+          const isUserCancelled =
+            code === 4001 ||
+            code === "ACTION_REJECTED" ||
+            message.includes("rejected") ||
+            message.includes("denied") ||
+            message.includes("cancel");
+          toast.error(
+            isUserCancelled
+              ? "Claim cancelled"
+              : err?.message || "Failed to sign claim attestation",
+          );
+          return;
         }
-        if (!questLockAddress) {
-          throw new Error("Quest lock address missing");
-        }
-        attestationSignature = await signAttestation({
-          schemaKey: "quest_task_reward_claim",
-          recipient: selectedWallet.address,
-          schemaData: [
-            {
-              name: "questId",
-              type: "string",
-              value: String(data?.template?.id || ""),
-            },
-            { name: "taskId", type: "string", value: String(task.id) },
-            {
-              name: "taskType",
-              type: "string",
-              value: String(task.task_type || ""),
-            },
-            {
-              name: "userAddress",
-              type: "address",
-              value: selectedWallet.address,
-            },
-            {
-              name: "questLockAddress",
-              type: "address",
-              value: questLockAddress,
-            },
-            {
-              name: "rewardAmount",
-              type: "uint256",
-              value: BigInt(Number(task.reward_amount || 0)),
-            },
-            {
-              name: "claimTimestamp",
-              type: "uint256",
-              value: BigInt(Math.floor(Date.now() / 1000)),
-            },
-          ],
-        });
       }
-    } catch (err: any) {
-      const code = err?.code ?? err?.error?.code;
-      const message = String(err?.message || "").toLowerCase();
-      const isUserCancelled =
-        code === 4001 ||
-        code === "ACTION_REJECTED" ||
-        message.includes("rejected") ||
-        message.includes("denied") ||
-        message.includes("cancel");
-      toast.error(
-        isUserCancelled
-          ? "Claim cancelled"
-          : err?.message || "Failed to sign claim attestation",
-      );
-      return;
-    }
-    const resp = await fetch("/api/daily-quests/claim-task-reward", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Active-Wallet": selectedWallet.address,
-      },
-      body: JSON.stringify({ completionId, attestationSignature }),
-    });
-    const json = await resp.json().catch(() => ({}));
-    if (!resp.ok) {
-      if (resp.status === 409) {
-        await fetchDetail();
+
+      const resp = await fetch("/api/daily-quests/claim-task-reward", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Active-Wallet": selectedWallet.address,
+        },
+        body: JSON.stringify({ completionId, attestationSignature }),
+      });
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        if (resp.status === 409) {
+          await fetchDetail({ silent: true });
+          return;
+        }
+        toast.error(json?.message || json?.error || "Failed to claim reward");
         return;
       }
-      toast.error(json?.message || json?.error || "Failed to claim reward");
-      return;
+      toast.success(
+        <div className="text-sm leading-relaxed">
+          Claimed {(json as any)?.rewardAmount ?? "task"} DG tokens!
+          {(json as any)?.attestationScanUrl && (
+            <div className="text-xs mt-1 break-all">
+              <a
+                href={(json as any).attestationScanUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-cyan-500 underline"
+              >
+                View attestation on EAS Scan
+              </a>
+            </div>
+          )}
+        </div>,
+      );
+      setData((prev) => {
+        if (!prev?.completions) return prev;
+        return {
+          ...prev,
+          completions: prev.completions.map((completion) =>
+            completion.id === completionId
+              ? { ...completion, reward_claimed: true }
+              : completion,
+          ),
+        };
+      });
+      void fetchDetail({ silent: true });
+    } finally {
+      setClaimingCompletionId(null);
     }
-    toast.success(
-      <div className="text-sm leading-relaxed">
-        Claimed {(json as any)?.rewardAmount ?? "task"} DG tokens!
-        {(json as any)?.attestationScanUrl && (
-          <div className="text-xs mt-1 break-all">
-            <a
-              href={(json as any).attestationScanUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="text-cyan-500 underline"
-            >
-              View attestation on EAS Scan
-            </a>
-          </div>
-        )}
-      </div>,
-    );
-    await fetchDetail();
   };
 
   const handleClaimKey = async () => {
@@ -722,7 +747,8 @@ export default function DailyQuestDetailPage() {
                   This daily quest has ended.
                 </h3>
                 <p className="text-sm text-amber-100/90 mt-1">
-                  A new daily quest is available now. Go to today&apos;s quest to continue earning rewards.
+                  A new daily quest is available now. Go to today&apos;s quest
+                  to continue earning rewards.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -799,7 +825,8 @@ export default function DailyQuestDetailPage() {
                             !progress ||
                             ineligible ||
                             isRunStale ||
-                            processingTaskId === t.id
+                            processingTaskId === t.id ||
+                            claimingCompletionId === completion?.id
                           }
                           className="bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-75 disabled:cursor-not-allowed"
                         >
@@ -825,14 +852,14 @@ export default function DailyQuestDetailPage() {
                             onClick={() => handleClaimReward(completion.id)}
                             disabled={
                               processingTaskId === t.id ||
-                              processingTaskId === completion.id ||
+                              claimingCompletionId === completion.id ||
                               !progress ||
                               ineligible ||
                               rewardsExpired
                             }
                             className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-black font-bold py-2 px-6 rounded-lg hover:from-yellow-600 hover:to-yellow-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {processingTaskId === completion.id
+                            {claimingCompletionId === completion.id
                               ? "Claiming..."
                               : rewardsExpired
                                 ? "Rewards Expired"
@@ -868,7 +895,7 @@ export default function DailyQuestDetailPage() {
                   onClaimReward={(completionId) =>
                     handleClaimReward(completionId)
                   }
-                  processingTaskId={processingTaskId}
+                  processingTaskId={claimingCompletionId ?? processingTaskId}
                   rewardExpiryMessage={rewardExpiryMessage}
                   rewardsExpired={rewardsExpired}
                 />
