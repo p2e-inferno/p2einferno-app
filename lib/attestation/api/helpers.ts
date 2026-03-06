@@ -152,6 +152,8 @@ export async function handleGaslessAttestation(params: {
       schemaUid: resolvedSchemaUid,
       recipient,
       network: resolvedNetwork,
+      signatureNetwork: signature.network || null,
+      signatureChainId: signature.chainId,
     });
 
     // Create delegated attestation using service wallet

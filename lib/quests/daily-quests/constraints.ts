@@ -117,12 +117,12 @@ export async function evaluateDailyQuestEligibility(
     requirements.push({
       type: "lock_key",
       status: errorOccurred ? "error" : isMet ? "met" : "unmet",
-      label: "Membership Key",
+      label: "Keyholder Required",
       message: errorOccurred
         ? "Unable to verify key ownership"
         : isMet
-          ? "Valid membership key found"
-          : "Required membership key not found",
+          ? "Valid key found"
+          : "Required key not found",
     });
 
     if (!isMet || errorOccurred) {

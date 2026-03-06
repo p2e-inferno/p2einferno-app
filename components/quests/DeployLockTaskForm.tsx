@@ -39,7 +39,9 @@ interface DeployLockTaskFormProps {
   /** Callback when submission is successful */
   onSuccess?: (verificationData: Record<string, unknown>) => void;
   /** Callback for submitting the transaction hash */
-  onSubmit?: (transactionHash: string) => Promise<void>;
+  onSubmit?: (transactionHash: string) => Promise<void> | void;
+  /** Whether the task is currently processing */
+  isProcessing?: boolean;
 }
 
 /**
@@ -67,6 +69,7 @@ export const DeployLockTaskForm: React.FC<DeployLockTaskFormProps> = ({
   baseReward,
   isCompleted = false,
   isQuestStarted = true,
+  isProcessing = false,
   onSuccess,
   onSubmit,
 }) => {
@@ -318,20 +321,19 @@ export const DeployLockTaskForm: React.FC<DeployLockTaskFormProps> = ({
         </div>
       )}
 
-      {/* Submit Button */}
       <Button
         type="submit"
-        disabled={!isQuestStarted || isSubmitting || !txHash}
-        className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold py-3 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-busy={isSubmitting}
+        disabled={!isQuestStarted || isSubmitting || isProcessing || !txHash}
+        className="bg-gradient-to-r from-orange-500 to-red-500 text-white font-bold py-2 px-6 rounded-lg hover:from-orange-600 hover:to-red-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        aria-busy={isSubmitting || isProcessing}
       >
-        {isSubmitting ? (
+        {isSubmitting || isProcessing ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
             Verifying on {allowedNetworks.length} network(s)...
           </>
         ) : (
-          "Submit Deployment"
+          "Complete Task"
         )}
       </Button>
 

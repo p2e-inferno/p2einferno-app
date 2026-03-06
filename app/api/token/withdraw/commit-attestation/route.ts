@@ -45,6 +45,14 @@ export async function POST(req: NextRequest) {
       attestationSignature?: DelegatedAttestationSignature | null;
     };
 
+    log.info("Withdrawal attestation commit requested", {
+      userId: user.id,
+      withdrawalId,
+      hasSignature: Boolean(attestationSignature),
+      signatureNetwork: attestationSignature?.network || null,
+      signatureChainId: attestationSignature?.chainId || null,
+    });
+
     if (!withdrawalId) {
       return NextResponse.json(
         { success: false, error: "withdrawalId is required" },
@@ -99,6 +107,11 @@ export async function POST(req: NextRequest) {
 
     // Idempotency: if UID already exists, return it without resubmitting.
     if (withdrawal.attestation_uid) {
+      log.info("Withdrawal attestation already exists (idempotent)", {
+        userId: user.id,
+        withdrawalId,
+        attestationUid: withdrawal.attestation_uid,
+      });
       return NextResponse.json({
         success: true,
         attestationUid: withdrawal.attestation_uid,
@@ -158,14 +171,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const networkForDecode =
+      attestationSignature.network?.toLowerCase() || getDefaultNetworkName();
+
     const decoded = await decodeAttestationDataFromDb({
       supabase,
       schemaKey: "dg_withdrawal",
-      network: getDefaultNetworkName(),
+      network: networkForDecode,
       encodedData: attestationSignature.data,
     });
 
     if (!decoded) {
+      log.warn("Withdrawal attestation decode failed", {
+        userId: user.id,
+        withdrawalId,
+        schemaKey: "dg_withdrawal",
+        networkForDecode,
+        signatureSchemaUid: attestationSignature.schemaUid,
+      });
       return NextResponse.json(
         { success: false, error: "Invalid attestation payload" },
         { status: 400 },
@@ -187,6 +210,12 @@ export async function POST(req: NextRequest) {
         : null);
 
     if (!decodedTxHash || !expectedTxHash) {
+      log.warn("Withdrawal commit missing tx hash for verification", {
+        userId: user.id,
+        withdrawalId,
+        decodedTxHash,
+        expectedTxHash,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -197,6 +226,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (decodedTxHash !== expectedTxHash) {
+      log.warn("Withdrawal attestation payload mismatch", {
+        userId: user.id,
+        withdrawalId,
+        decodedTxHash,
+        expectedTxHash,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -214,10 +249,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (!attestationResult.success || !attestationResult.uid) {
+      log.error("Withdrawal attestation submission failed", {
+        userId: user.id,
+        withdrawalId,
+        error: attestationResult.error || "unknown",
+      });
       return NextResponse.json({
         success: true,
         attestationUid: null,
         attestationScanUrl: null,
+        attestationError:
+          attestationResult.error || "Attestation submission failed",
       });
     }
 

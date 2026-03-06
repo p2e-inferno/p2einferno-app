@@ -916,11 +916,13 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       }
 
       const createMode = !isEditing;
-      toast.success(createMode ? "Daily quest created" : "Daily quest updated");
-      if (
-        isEditing &&
-        runTaskSyncStatus === "skipped_existing_completions"
-      ) {
+      const skippedLiveSyncForProgressedRun =
+        isEditing && runTaskSyncStatus === "skipped_existing_completions";
+
+      if (!skippedLiveSyncForProgressedRun) {
+        toast.success(createMode ? "Daily quest created" : "Daily quest updated");
+      }
+      if (skippedLiveSyncForProgressedRun) {
         showInfoToast(
           "Today's run already has progress, so task snapshot was not live-updated. New task changes will apply at next UTC reset.",
         );

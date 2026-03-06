@@ -12,6 +12,7 @@ import { grantKeyToUser } from "@/lib/services/user-key-service";
 import { extractTokenTransfers } from "@/lib/blockchain/shared/transaction-utils";
 import { randomUUID } from "crypto";
 import { DailyQuestRun } from "@/lib/supabase/types";
+import { isEASEnabled } from "@/lib/attestation/core/config";
 
 const log = getLogger("api:daily-quests:complete-quest");
 
@@ -278,7 +279,7 @@ export default async function handler(
         completionBonusRewardAmount:
           Number(template.completion_bonus_reward_amount || 0) || 0,
         completionBonusAwarded,
-        attestationRequired: false,
+        attestationRequired: isEASEnabled(),
       });
     }
 
@@ -392,7 +393,7 @@ export default async function handler(
           completionBonusRewardAmount:
             Number(template.completion_bonus_reward_amount || 0) || 0,
           completionBonusAwarded: Boolean(latest?.completion_bonus_claimed),
-          attestationRequired: false,
+          attestationRequired: isEASEnabled(),
         });
       }
 
@@ -636,7 +637,7 @@ export default async function handler(
       keyTokenId,
       completionBonusRewardAmount: bonusAmount,
       completionBonusAwarded,
-      attestationRequired: false,
+      attestationRequired: isEASEnabled(),
       ...(updateError
         ? {
             dbWarning: {

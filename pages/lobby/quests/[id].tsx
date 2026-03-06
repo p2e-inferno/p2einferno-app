@@ -624,6 +624,29 @@ const QuestDetailsPage = () => {
               },
             );
             const commitJson = await commitResp.json().catch(() => ({}));
+            if (!commitResp.ok || commitJson?.success === false) {
+              log.error(
+                "Quest completion attestation commit API returned error",
+                {
+                  questId,
+                  status: commitResp.status,
+                  body: commitJson,
+                },
+              );
+            } else if (!commitJson?.attestationUid) {
+              log.warn(
+                "Quest completion attestation commit completed without UID",
+                {
+                  questId,
+                  body: commitJson,
+                },
+              );
+            } else {
+              log.info("Quest completion attestation commit succeeded", {
+                questId,
+                attestationUid: commitJson?.attestationUid,
+              });
+            }
             attestationScanUrl = commitJson?.attestationScanUrl || null;
           } catch (err: any) {
             if (isUserRejectedError(err)) {

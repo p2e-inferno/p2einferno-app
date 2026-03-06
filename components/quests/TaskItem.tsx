@@ -165,6 +165,13 @@ const TaskItem: React.FC<TaskItemProps> = ({
   const isProcessing =
     processingTaskId === task.id || processingTaskId === completion?.id;
 
+  const showDeployLockForm =
+    task.task_type === "deploy_lock" &&
+    !isCompleted &&
+    !isPending &&
+    isQuestStarted &&
+    hasDeployLockForm;
+
   // Allow editing/resubmission for tasks that require user-provided proof.
   const canEdit =
     (isPending || isRetry || isFailed) &&
@@ -435,27 +442,24 @@ const TaskItem: React.FC<TaskItemProps> = ({
             />
 
             {/* Deploy Lock Task Form */}
-            {task.task_type === "deploy_lock" &&
-              !isCompleted &&
-              !isPending &&
-              isQuestStarted &&
-              hasDeployLockForm && (
-                <div className="mb-4">
-                  <DeployLockTaskForm
-                    taskId={task.id}
-                    questId={questId}
-                    taskConfig={
-                      task.task_config as unknown as DeployLockTaskConfig
-                    }
-                    baseReward={task.reward_amount}
-                    isCompleted={isCompleted}
-                    isQuestStarted={isQuestStarted}
-                    onSubmit={async (txHash) => {
-                      onAction(task, { transactionHash: txHash });
-                    }}
-                  />
-                </div>
-              )}
+            {showDeployLockForm && (
+              <div className="mb-4">
+                <DeployLockTaskForm
+                  taskId={task.id}
+                  questId={questId}
+                  taskConfig={
+                    task.task_config as unknown as DeployLockTaskConfig
+                  }
+                  baseReward={task.reward_amount}
+                  isCompleted={isCompleted}
+                  isQuestStarted={isQuestStarted}
+                  isProcessing={isProcessing}
+                  onSubmit={async (txHash) => {
+                    onAction(task, { transactionHash: txHash });
+                  }}
+                />
+              </div>
+            )}
 
             {/* Input Field for input-based tasks */}
             {requiresTxHashInput && !isCompleted && isQuestStarted && (
@@ -611,7 +615,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
               )}
 
             {/* Task Actions */}
-            {!isCompleted && isQuestStarted && (
+            {!isCompleted && isQuestStarted && !showDeployLockForm && (
               <div className="space-y-2">
                 <button
                   onClick={handleTaskAction}

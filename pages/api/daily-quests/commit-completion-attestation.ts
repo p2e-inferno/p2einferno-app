@@ -20,7 +20,7 @@ import {
   normalizeUint,
 } from "@/lib/attestation/api/commit-guards";
 
-const log = getLogger("api:quests:commit-completion-attestation");
+const log = getLogger("api:daily-quests:commit-completion-attestation");
 
 export default async function handler(
   req: NextApiRequest,
@@ -36,21 +36,21 @@ export default async function handler(
       return res.status(401).json({ error: "Unauthorized" });
     }
 
-    const { questId, attestationSignature } = (req.body || {}) as {
-      questId?: string;
+    const { dailyQuestRunId, attestationSignature } = (req.body || {}) as {
+      dailyQuestRunId?: string;
       attestationSignature?: DelegatedAttestationSignature | null;
     };
 
-    log.info("Quest completion attestation commit requested", {
+    log.info("Daily quest completion attestation commit requested", {
       userId: authUser.id,
-      questId,
+      dailyQuestRunId,
       hasSignature: Boolean(attestationSignature),
       signatureNetwork: attestationSignature?.network || null,
       signatureChainId: attestationSignature?.chainId || null,
     });
 
-    if (!questId) {
-      return res.status(400).json({ error: "questId is required" });
+    if (!dailyQuestRunId) {
+      return res.status(400).json({ error: "dailyQuestRunId is required" });
     }
 
     if (!isEASEnabled()) {
@@ -61,13 +61,12 @@ export default async function handler(
       });
     }
 
-    // Extract and validate wallet from attestation signature
     let userWallet: string;
     try {
       const wallet = await extractAndValidateWalletFromSignature({
         userId: authUser.id,
         attestationSignature: attestationSignature ?? null,
-        context: "quest-completion-commit",
+        context: "daily-quest-completion-commit",
       });
       if (!wallet) {
         return res.status(400).json({ error: "Wallet is required" });
@@ -86,36 +85,37 @@ export default async function handler(
     const supabase = createAdminClient();
 
     const { data: progress, error: progressError } = await supabase
-      .from("user_quest_progress")
+      .from("user_daily_quest_progress")
       .select(
-        "reward_claimed, is_completed, key_claim_attestation_uid, key_claim_tx_hash, key_claim_token_id",
+        "id,reward_claimed,key_claim_attestation_uid,key_claim_tx_hash,key_claim_token_id,daily_quest_run_id",
       )
       .eq("user_id", authUser.id)
-      .eq("quest_id", questId)
+      .eq("daily_quest_run_id", dailyQuestRunId)
       .maybeSingle();
 
     if (progressError) {
-      log.error("Failed to fetch quest progress for attestation commit", {
-        questId,
+      log.error("Failed to fetch daily quest progress for commit", {
+        dailyQuestRunId,
         userId: authUser.id,
         error: progressError,
       });
-      return res.status(500).json({ error: "Failed to verify quest progress" });
+      return res
+        .status(500)
+        .json({ error: "Failed to verify daily quest progress" });
     }
 
-    if (!progress?.reward_claimed || !progress?.is_completed) {
-      return res.status(400).json({ error: "Quest not completed/claimed yet" });
+    if (!progress?.reward_claimed) {
+      return res.status(400).json({ error: "Daily quest key not claimed yet" });
     }
 
-    // Idempotency: if an attestation UID already exists, don't resubmit.
     const existingUid = (progress as any)?.key_claim_attestation_uid as
       | string
       | null
       | undefined;
     if (existingUid) {
-      log.info("Quest completion attestation already exists (idempotent)", {
+      log.info("Daily completion attestation already exists (idempotent)", {
         userId: authUser.id,
-        questId,
+        dailyQuestRunId,
         attestationUid: existingUid,
       });
       return res.status(200).json({
@@ -131,6 +131,26 @@ export default async function handler(
         .json({ error: "Attestation signature is required" });
     }
 
+    const { data: run, error: runError } = await supabase
+      .from("daily_quest_runs")
+      .select("id,daily_quest_template_id")
+      .eq("id", dailyQuestRunId)
+      .maybeSingle();
+
+    if (runError || !run) {
+      return res.status(404).json({ error: "Daily quest run not found" });
+    }
+
+    const { data: template, error: templateError } = await supabase
+      .from("daily_quest_templates")
+      .select("id,title,lock_address,completion_bonus_reward_amount")
+      .eq("id", run.daily_quest_template_id)
+      .maybeSingle();
+
+    if (templateError || !template) {
+      return res.status(404).json({ error: "Daily quest template not found" });
+    }
+
     const networkForDecode =
       attestationSignature.network?.toLowerCase() || getDefaultNetworkName();
 
@@ -142,9 +162,9 @@ export default async function handler(
     });
 
     if (!decoded) {
-      log.warn("Quest completion attestation decode failed", {
+      log.warn("Daily completion attestation decode failed", {
         userId: authUser.id,
-        questId,
+        dailyQuestRunId,
         schemaKey: "quest_completion",
         networkForDecode,
         signatureSchemaUid: attestationSignature.schemaUid,
@@ -158,6 +178,10 @@ export default async function handler(
     const decodedTokenId = normalizeUint(
       getDecodedFieldValue(decoded, "keyTokenId"),
     );
+    const decodedQuestLockAddressRaw = getDecodedFieldValue(
+      decoded,
+      "questLockAddress",
+    );
 
     const expectedGrantTxHash = normalizeBytes32(
       (progress as any)?.key_claim_tx_hash,
@@ -165,17 +189,25 @@ export default async function handler(
     const expectedTokenId = normalizeUint(
       (progress as any)?.key_claim_token_id,
     );
+    const expectedQuestLockAddress =
+      typeof template.lock_address === "string"
+        ? template.lock_address.toLowerCase()
+        : null;
+    const decodedQuestLockAddress =
+      typeof decodedQuestLockAddressRaw === "string"
+        ? decodedQuestLockAddressRaw.toLowerCase()
+        : null;
 
     if (!expectedGrantTxHash || expectedTokenId === null) {
-      log.warn("Quest completion commit missing stored grant details", {
+      log.warn("Daily completion commit missing stored grant details", {
         userId: authUser.id,
-        questId,
+        dailyQuestRunId,
         expectedGrantTxHash,
         expectedTokenId:
           expectedTokenId === null ? null : expectedTokenId.toString(),
       });
       return res.status(400).json({
-        error: "Grant details not recorded for this quest completion",
+        error: "Grant details not recorded for this daily quest completion",
       });
     }
 
@@ -185,9 +217,9 @@ export default async function handler(
       decodedGrantTxHash !== expectedGrantTxHash ||
       decodedTokenId !== expectedTokenId
     ) {
-      log.warn("Quest completion attestation payload mismatch", {
+      log.warn("Daily completion attestation payload mismatch", {
         userId: authUser.id,
-        questId,
+        dailyQuestRunId,
         decodedGrantTxHash,
         expectedGrantTxHash,
         decodedTokenId:
@@ -200,6 +232,22 @@ export default async function handler(
       });
     }
 
+    if (
+      !decodedQuestLockAddress ||
+      !expectedQuestLockAddress ||
+      decodedQuestLockAddress !== expectedQuestLockAddress
+    ) {
+      log.warn("Daily completion attestation lock mismatch", {
+        userId: authUser.id,
+        dailyQuestRunId,
+        decodedQuestLockAddress,
+        expectedQuestLockAddress,
+      });
+      return res.status(400).json({
+        error: "Attestation payload does not match daily quest lock",
+      });
+    }
+
     const attestationResult = await handleGaslessAttestation({
       signature: attestationSignature,
       schemaKey: "quest_completion",
@@ -208,12 +256,11 @@ export default async function handler(
     });
 
     if (!attestationResult.success) {
-      log.error("Quest completion attestation submission failed", {
+      log.error("Daily completion attestation submission failed", {
         userId: authUser.id,
-        questId,
+        dailyQuestRunId,
         error: attestationResult.error || "unknown",
       });
-      // On-chain action already happened; do not block the flow here.
       return res.status(200).json({
         success: true,
         attestationUid: null,
@@ -228,14 +275,14 @@ export default async function handler(
 
     if (uid) {
       const { error: updateError } = await supabase
-        .from("user_quest_progress")
+        .from("user_daily_quest_progress")
         .update({ key_claim_attestation_uid: uid })
         .eq("user_id", authUser.id)
-        .eq("quest_id", questId);
+        .eq("daily_quest_run_id", dailyQuestRunId);
 
       if (updateError) {
-        log.error("Failed to persist quest key claim attestation UID", {
-          questId,
+        log.error("Failed to persist daily key claim attestation UID", {
+          dailyQuestRunId,
           userId: authUser.id,
           uid,
           error: updateError,
@@ -249,7 +296,7 @@ export default async function handler(
       attestationScanUrl,
     });
   } catch (error: any) {
-    log.error("commit completion attestation error", { error });
+    log.error("Daily commit completion attestation error", { error });
     return res.status(500).json({ error: "Internal server error" });
   }
 }

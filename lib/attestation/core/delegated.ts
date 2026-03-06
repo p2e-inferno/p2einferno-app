@@ -1,14 +1,14 @@
-import { ethers } from 'ethers';
-import { EAS } from '@ethereum-attestation-service/eas-sdk';
-import { createAdminClient } from '@/lib/supabase/server';
-import { getLogger } from '@/lib/utils/logger';
-import { resolveRpcUrls } from '@/lib/blockchain/config/core/chain-resolution';
+import { ethers } from "ethers";
+import { EAS } from "@ethereum-attestation-service/eas-sdk";
+import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+import { resolveRpcUrls } from "@/lib/blockchain/config/core/chain-resolution";
 import {
   isRpcResolverSupportedChain,
   resolveChainById,
-} from '@/lib/blockchain/config/core/chain-map';
+} from "@/lib/blockchain/config/core/chain-map";
 
-const log = getLogger('attestation:delegated');
+const log = getLogger("attestation:delegated");
 
 export interface CreateDelegatedAttestationParams {
   schemaUid: string;
@@ -39,7 +39,7 @@ export interface CreateDelegatedAttestationResult {
  * 4. Waits for the transaction and extracts the real UID
  */
 export async function createDelegatedAttestation(
-  params: CreateDelegatedAttestationParams
+  params: CreateDelegatedAttestationParams,
 ): Promise<CreateDelegatedAttestationResult> {
   try {
     const {
@@ -51,17 +51,17 @@ export async function createDelegatedAttestation(
       chainId,
       expirationTime = 0,
       revocable = false,
-      refUID = '0x0000000000000000000000000000000000000000000000000000000000000000',
+      refUID = "0x0000000000000000000000000000000000000000000000000000000000000000",
     } = params;
 
     // 1. Verify deadline hasn't expired
     const now = Math.floor(Date.now() / 1000);
     const deadlineNumber = Number(deadline);
     if (deadlineNumber < now) {
-      log.warn('Signature deadline expired', { deadline: deadlineNumber, now });
+      log.warn("Signature deadline expired", { deadline: deadlineNumber, now });
       return {
         success: false,
-        error: 'Signature deadline expired',
+        error: "Signature deadline expired",
       };
     }
 
@@ -72,44 +72,47 @@ export async function createDelegatedAttestation(
     if (!isHex32(schemaUid)) {
       return {
         success: false,
-        error: 'Invalid schema UID format',
+        error: "Invalid schema UID format",
       };
     }
 
     if (!ethers.isAddress(recipient)) {
       return {
         success: false,
-        error: 'Invalid recipient address',
+        error: "Invalid recipient address",
       };
     }
 
     if (!isHex(data)) {
       return {
         success: false,
-        error: 'Invalid encoded data format',
+        error: "Invalid encoded data format",
       };
     }
 
     // 3. Get service wallet (LOCK_MANAGER_PRIVATE_KEY - same wallet used for milestone claims, key grants)
     const LOCK_MANAGER_PK = process.env.LOCK_MANAGER_PRIVATE_KEY;
     if (!LOCK_MANAGER_PK) {
-      log.error('Service wallet not configured');
+      log.error("Service wallet not configured");
       return {
         success: false,
-        error: 'Server configuration error - service wallet not configured',
+        error: "Server configuration error - service wallet not configured",
       };
     }
 
     // 4. Get network configuration
     const supabase = createAdminClient();
     const { data: networkData, error: networkError } = await supabase
-      .from('eas_networks')
-      .select('*')
-      .eq('chain_id', chainId)
+      .from("eas_networks")
+      .select("*")
+      .eq("chain_id", chainId)
       .maybeSingle();
 
     if (networkError || !networkData) {
-      log.error('Failed to get network config', { chainId, error: networkError });
+      log.error("Failed to get network config", {
+        chainId,
+        error: networkError,
+      });
       return {
         success: false,
         error: `Chain ${chainId} not supported or not configured`,
@@ -132,7 +135,7 @@ export async function createDelegatedAttestation(
       };
     }
 
-    log.debug('Creating delegated attestation', {
+    log.debug("Creating delegated attestation", {
       schemaUid,
       recipient,
       chainId,
@@ -165,7 +168,7 @@ export async function createDelegatedAttestation(
     );
     const signer = new ethers.Wallet(LOCK_MANAGER_PK, provider);
 
-    log.debug('Service wallet address', {
+    log.debug("Service wallet address", {
       address: signer.address,
     });
 
@@ -178,16 +181,16 @@ export async function createDelegatedAttestation(
     try {
       sigTuple = ethers.Signature.from(signature);
     } catch (error) {
-      log.error('Failed to parse signature', { error });
+      log.error("Failed to parse signature", { error });
       return {
         success: false,
-        error: 'Invalid signature format',
+        error: "Invalid signature format",
       };
     }
 
     // 7.5. Robust Gas and Nonce Management
     const [nonce, feeData] = await Promise.all([
-      provider.getTransactionCount(signer.address, 'pending'),
+      provider.getTransactionCount(signer.address, "pending"),
       provider.getFeeData(),
     ]);
 
@@ -197,7 +200,7 @@ export async function createDelegatedAttestation(
       : undefined;
 
     // 8. Submit delegated attestation with overrides
-    log.info('Submitting delegated attestation', {
+    log.info("Submitting delegated attestation", {
       schemaUid,
       recipient,
       attester: recipient,
@@ -205,31 +208,36 @@ export async function createDelegatedAttestation(
       maxPriorityFee: maxPriorityFeePerGas?.toString(),
     });
 
-    const transaction = await eas.attestByDelegation({
-      schema: schemaUid,
-      data: {
-        recipient,
-        expirationTime: BigInt(expirationTime),
-        revocable: Boolean(revocable),
-        refUID,
-        data,
-        value: 0n,
+    const transaction = await eas.attestByDelegation(
+      {
+        schema: schemaUid,
+        data: {
+          recipient,
+          expirationTime: BigInt(expirationTime),
+          revocable: Boolean(revocable),
+          refUID,
+          data,
+          value: 0n,
+        },
+        signature: { v: sigTuple.v, r: sigTuple.r, s: sigTuple.s },
+        attester: recipient, // USER is the attester (not service wallet!)
+        deadline: BigInt(deadline),
       },
-      signature: { v: sigTuple.v, r: sigTuple.r, s: sigTuple.s },
-      attester: recipient, // USER is the attester (not service wallet!)
-      deadline: BigInt(deadline),
-    }, {
-      nonce,
-      maxPriorityFeePerGas,
-      maxFeePerGas: feeData.maxFeePerGas,
-    });
+      {
+        nonce,
+        maxPriorityFeePerGas,
+        maxFeePerGas: feeData.maxFeePerGas,
+      },
+    );
 
     // 9. Wait for transaction and get real UID
     const newAttestationUID = await transaction.wait();
 
-    const txHash = (transaction as any)?.hash || (transaction as any)?.receipt?.transactionHash;
+    const txHash =
+      (transaction as any)?.hash ||
+      (transaction as any)?.receipt?.transactionHash;
 
-    log.info('Delegated attestation created successfully', {
+    log.info("Delegated attestation created successfully", {
       uid: newAttestationUID,
       txHash,
       recipient,
@@ -242,10 +250,14 @@ export async function createDelegatedAttestation(
       txHash,
     };
   } catch (error: any) {
-    const errorMessage = error?.message || 'Failed to create delegated attestation';
-    log.error('Failed to create delegated attestation', {
+    const errorMessage =
+      error?.message || "Failed to create delegated attestation";
+    log.error("Failed to create delegated attestation", {
       error: errorMessage,
       code: error?.code,
+      chainId: params.chainId,
+      schemaUid: params.schemaUid,
+      recipient: params.recipient,
     });
 
     return {

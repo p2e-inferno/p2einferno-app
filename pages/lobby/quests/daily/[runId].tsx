@@ -12,6 +12,9 @@ import { RichText } from "@/components/common/RichText";
 import { DailyQuestCountdown } from "@/components/quests/DailyQuestCountdown";
 import { isValidTransactionHash } from "@/lib/quests/txHash";
 import { getLogger } from "@/lib/utils/logger";
+import { isEASEnabled } from "@/lib/attestation/core/config";
+import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
+import { isUserRejectedError } from "@/lib/utils/walletErrors";
 
 const log = getLogger("lobby:daily-quests:[runId]");
 
@@ -65,6 +68,7 @@ export default function DailyQuestDetailPage() {
   const [claimingKey, setClaimingKey] = useState(false);
   const [checkinError, setCheckinError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const { signAttestation } = useGaslessAttestation();
 
   const fetchDetail = useCallback(async () => {
     if (!runId) return;
@@ -128,6 +132,7 @@ export default function DailyQuestDetailPage() {
   const runEndsAtMs = data?.run?.ends_at ? Date.parse(data.run.ends_at) : null;
   const rewardsExpired =
     typeof runEndsAtMs === "number" ? nowMs > runEndsAtMs : false;
+  const isRunStale = rewardsExpired;
   const rewardExpiryMessage =
     typeof runEndsAtMs === "number"
       ? rewardsExpired
@@ -284,13 +289,84 @@ export default function DailyQuestDetailPage() {
       toast.error("Wallet not connected");
       return;
     }
+    let attestationSignature: any = null;
+    try {
+      if (isEASEnabled()) {
+        const completion = completions.find((c) => c.id === completionId);
+        const task = tasks.find(
+          (t) => t.id === completion?.daily_quest_run_task_id,
+        );
+        const questLockAddress =
+          typeof data?.template?.lock_address === "string"
+            ? data.template.lock_address
+            : null;
+        if (!completion || !task) {
+          throw new Error("Task completion context missing");
+        }
+        if (!questLockAddress) {
+          throw new Error("Quest lock address missing");
+        }
+        attestationSignature = await signAttestation({
+          schemaKey: "quest_task_reward_claim",
+          recipient: selectedWallet.address,
+          schemaData: [
+            {
+              name: "questId",
+              type: "string",
+              value: String(data?.template?.id || ""),
+            },
+            { name: "taskId", type: "string", value: String(task.id) },
+            {
+              name: "taskType",
+              type: "string",
+              value: String(task.task_type || ""),
+            },
+            {
+              name: "userAddress",
+              type: "address",
+              value: selectedWallet.address,
+            },
+            {
+              name: "questLockAddress",
+              type: "address",
+              value: questLockAddress,
+            },
+            {
+              name: "rewardAmount",
+              type: "uint256",
+              value: BigInt(Number(task.reward_amount || 0)),
+            },
+            {
+              name: "claimTimestamp",
+              type: "uint256",
+              value: BigInt(Math.floor(Date.now() / 1000)),
+            },
+          ],
+        });
+      }
+    } catch (err: any) {
+      const code = err?.code ?? err?.error?.code;
+      const message = String(err?.message || "").toLowerCase();
+      const isUserCancelled =
+        code === 4001 ||
+        code === "ACTION_REJECTED" ||
+        message.includes("rejected") ||
+        message.includes("denied") ||
+        message.includes("cancel");
+      toast.error(
+        isUserCancelled
+          ? "Claim cancelled"
+          : err?.message || "Failed to sign claim attestation",
+      );
+      return;
+    }
     const resp = await fetch("/api/daily-quests/claim-task-reward", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "X-Active-Wallet": selectedWallet.address,
       },
-      body: JSON.stringify({ completionId }),
+      body: JSON.stringify({ completionId, attestationSignature }),
     });
     const json = await resp.json().catch(() => ({}));
     if (!resp.ok) {
@@ -301,7 +377,23 @@ export default function DailyQuestDetailPage() {
       toast.error(json?.message || json?.error || "Failed to claim reward");
       return;
     }
-    toast.success("Reward claimed!");
+    toast.success(
+      <div className="text-sm leading-relaxed">
+        Claimed {(json as any)?.rewardAmount ?? "task"} DG tokens!
+        {(json as any)?.attestationScanUrl && (
+          <div className="text-xs mt-1 break-all">
+            <a
+              href={(json as any).attestationScanUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-cyan-500 underline"
+            >
+              View attestation on EAS Scan
+            </a>
+          </div>
+        )}
+      </div>,
+    );
     await fetchDetail();
   };
 
@@ -334,7 +426,132 @@ export default function DailyQuestDetailPage() {
       if (!resp.ok) {
         throw new Error(json?.message || json?.error || "Failed to claim key");
       }
-      toast.success("Daily completion key claimed!");
+
+      let attestationScanUrl: string | null | undefined = null;
+      let proofCancelled = false;
+
+      if (isEASEnabled() && json?.attestationRequired) {
+        const questLockAddress =
+          typeof data?.template?.lock_address === "string" &&
+          data.template.lock_address
+            ? data.template.lock_address
+            : "0x0000000000000000000000000000000000000000";
+        const keyTokenId = BigInt(json?.keyTokenId || "0");
+        const grantTxHash =
+          json?.transactionHash ||
+          "0x0000000000000000000000000000000000000000000000000000000000000000";
+        const xpEarned = BigInt(
+          Number(data?.template?.completion_bonus_reward_amount || 0),
+        );
+
+        try {
+          const completionSignature = await signAttestation({
+            schemaKey: "quest_completion",
+            recipient: selectedWallet.address,
+            schemaData: [
+              {
+                name: "questId",
+                type: "string",
+                value: String(data?.template?.id || ""),
+              },
+              {
+                name: "questTitle",
+                type: "string",
+                value: String(data?.template?.title || ""),
+              },
+              {
+                name: "userAddress",
+                type: "address",
+                value: selectedWallet.address,
+              },
+              {
+                name: "questLockAddress",
+                type: "address",
+                value: questLockAddress,
+              },
+              { name: "keyTokenId", type: "uint256", value: keyTokenId },
+              { name: "grantTxHash", type: "bytes32", value: grantTxHash },
+              {
+                name: "completionDate",
+                type: "uint256",
+                value: BigInt(Math.floor(Date.now() / 1000)),
+              },
+              { name: "xpEarned", type: "uint256", value: xpEarned },
+              { name: "difficulty", type: "string", value: "daily" },
+            ],
+          });
+
+          const commitResp = await fetch(
+            "/api/daily-quests/commit-completion-attestation",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Active-Wallet": selectedWallet.address,
+              },
+              body: JSON.stringify({
+                dailyQuestRunId: runId,
+                attestationSignature: completionSignature,
+              }),
+            },
+          );
+          const commitJson = await commitResp.json().catch(() => ({}));
+
+          if (!commitResp.ok || commitJson?.success === false) {
+            log.error(
+              "Daily completion attestation commit API returned error",
+              {
+                dailyQuestRunId: runId,
+                status: commitResp.status,
+                body: commitJson,
+              },
+            );
+          } else if (!commitJson?.attestationUid) {
+            log.warn(
+              "Daily completion attestation commit completed without UID",
+              {
+                dailyQuestRunId: runId,
+                body: commitJson,
+              },
+            );
+          } else {
+            log.info("Daily completion attestation commit succeeded", {
+              dailyQuestRunId: runId,
+              attestationUid: commitJson?.attestationUid,
+            });
+          }
+          attestationScanUrl = commitJson?.attestationScanUrl || null;
+        } catch (err: any) {
+          if (isUserRejectedError(err)) {
+            proofCancelled = true;
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      toast.success(
+        <div className="text-sm leading-relaxed">
+          Daily completion key claimed!
+          {proofCancelled && (
+            <div className="text-xs mt-1 text-gray-300">
+              Completion proof cancelled — claim completed.
+            </div>
+          )}
+          {attestationScanUrl && (
+            <div className="text-xs mt-1 break-all">
+              <a
+                href={attestationScanUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-cyan-500 underline"
+              >
+                View attestation on EAS Scan
+              </a>
+            </div>
+          )}
+        </div>,
+      );
       await fetchDetail();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to claim key");
@@ -417,12 +634,13 @@ export default function DailyQuestDetailPage() {
                 {eligibility.requirements.map((req) => (
                   <div
                     key={req.type}
-                    className={`flex items-start p-3 rounded-lg border transition-all ${req.status === "met"
-                      ? "bg-green-500/5 border-green-500/20"
-                      : req.status === "error"
-                        ? "bg-red-500/5 border-red-500/20"
-                        : "bg-gray-800/40 border-gray-700"
-                      }`}
+                    className={`flex items-start p-3 rounded-lg border transition-all ${
+                      req.status === "met"
+                        ? "bg-green-500/5 border-green-500/20"
+                        : req.status === "error"
+                          ? "bg-red-500/5 border-red-500/20"
+                          : "bg-gray-800/40 border-gray-700"
+                    }`}
                   >
                     <div className="mt-1 mr-3 shrink-0">
                       {req.status === "met" ? (
@@ -438,10 +656,11 @@ export default function DailyQuestDetailPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2 mb-1">
                         <span
-                          className={`text-sm font-semibold truncate ${req.status === "met"
-                            ? "text-green-300"
-                            : "text-gray-300"
-                            }`}
+                          className={`text-sm font-semibold truncate ${
+                            req.status === "met"
+                              ? "text-green-300"
+                              : "text-gray-300"
+                          }`}
                         >
                           {req.label}
                         </span>
@@ -452,10 +671,11 @@ export default function DailyQuestDetailPage() {
                         )}
                       </div>
                       <p
-                        className={`text-sm leading-relaxed ${req.status === "met"
-                          ? "text-green-400/80"
-                          : "text-gray-400"
-                          }`}
+                        className={`text-sm leading-relaxed ${
+                          req.status === "met"
+                            ? "text-green-400/80"
+                            : "text-gray-400"
+                        }`}
                       >
                         {req.message}
                       </p>
@@ -481,7 +701,7 @@ export default function DailyQuestDetailPage() {
           {!progress ? (
             <Button
               onClick={handleStart}
-              disabled={starting || ineligible}
+              disabled={starting || ineligible || isRunStale}
               className="bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-75 disabled:cursor-not-allowed"
             >
               {starting ? "Starting..." : "Start Daily Quest"}
@@ -493,6 +713,35 @@ export default function DailyQuestDetailPage() {
             </div>
           )}
         </div>
+
+        {isRunStale && (
+          <div className="mb-6 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-amber-200">
+                  This daily quest has ended.
+                </h3>
+                <p className="text-sm text-amber-100/90 mt-1">
+                  A new daily quest is available now. Go to today&apos;s quest to continue earning rewards.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href="/lobby/quests?tab=daily"
+                  className="inline-flex items-center rounded-md bg-amber-400 px-3 py-2 text-sm font-semibold text-black hover:bg-amber-300 transition-colors"
+                >
+                  Go to today&apos;s quest
+                </Link>
+                <Link
+                  href="/lobby/quests?tab=daily"
+                  className="inline-flex items-center rounded-md border border-amber-300/50 px-3 py-2 text-sm font-medium text-amber-100 hover:bg-amber-500/10 transition-colors"
+                >
+                  Back to daily quests list
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="space-y-4">
           {tasks
@@ -519,8 +768,9 @@ export default function DailyQuestDetailPage() {
                         </div>
                         <div>
                           <h3
-                            className={`text-xl font-bold mb-2 ${isCompleted ? "text-green-400" : "text-white"
-                              }`}
+                            className={`text-xl font-bold mb-2 ${
+                              isCompleted ? "text-green-400" : "text-white"
+                            }`}
                           >
                             {t.title}
                           </h3>
@@ -546,7 +796,10 @@ export default function DailyQuestDetailPage() {
                         <Button
                           onClick={() => handleVerifyCheckin(t.id)}
                           disabled={
-                            !progress || ineligible || processingTaskId === t.id
+                            !progress ||
+                            ineligible ||
+                            isRunStale ||
+                            processingTaskId === t.id
                           }
                           className="bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-75 disabled:cursor-not-allowed"
                         >
@@ -598,10 +851,10 @@ export default function DailyQuestDetailPage() {
               };
               const completionForTaskItem = completion
                 ? {
-                  ...completion,
-                  quest_id: runId,
-                  task_id: t.id,
-                }
+                    ...completion,
+                    quest_id: runId,
+                    task_id: t.id,
+                  }
                 : undefined;
 
               return (
@@ -660,7 +913,7 @@ export default function DailyQuestDetailPage() {
               {!progress?.reward_claimed && (
                 <Button
                   onClick={handleClaimKey}
-                  disabled={claimingKey || ineligible}
+                  disabled={claimingKey || ineligible || isRunStale}
                   className="bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-75 disabled:cursor-not-allowed"
                 >
                   {claimingKey ? "Claiming..." : "Claim Daily Completion Key"}
