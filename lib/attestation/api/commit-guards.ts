@@ -5,6 +5,24 @@ const log = getLogger("lib:attestation:api:commit-guards");
 
 export type DecodedField = { name: string; value: any; type?: string };
 
+function unwrapDecodedFieldValue(value: any): any {
+  let current = value;
+  // Some runtimes return nested wrappers like { name, type, value }.
+  // Unwrap a few levels defensively to recover the primitive.
+  for (let i = 0; i < 4; i += 1) {
+    if (
+      current &&
+      typeof current === "object" &&
+      "value" in (current as Record<string, unknown>)
+    ) {
+      current = (current as { value: unknown }).value;
+      continue;
+    }
+    break;
+  }
+  return current;
+}
+
 export async function resolveSchemaDefinition(params: {
   supabase: SupabaseClient;
   schemaKey: string;
@@ -63,12 +81,49 @@ export function getDecodedFieldValue(
   fieldName: string,
 ): any | undefined {
   if (!decoded) return undefined;
-  return decoded.find((item) => item.name === fieldName)?.value;
+  const raw = decoded.find((item) => item.name === fieldName)?.value;
+  return unwrapDecodedFieldValue(raw);
 }
 
 export function normalizeBytes32(value: any): string | null {
-  if (typeof value !== "string") return null;
-  const normalized = value.toLowerCase();
+  let normalizedValue: string | null = null;
+
+  if (typeof value === "string") {
+    normalizedValue = value;
+  } else if (value instanceof Uint8Array) {
+    normalizedValue = `0x${Array.from(value)
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("")}`;
+  } else if (
+    value &&
+    typeof value === "object" &&
+    typeof (value as { hex?: unknown }).hex === "string"
+  ) {
+    normalizedValue = (value as { hex: string }).hex;
+  } else if (
+    value &&
+    typeof value === "object" &&
+    typeof (value as { toString?: unknown }).toString === "function"
+  ) {
+    const asString = (value as { toString: () => string }).toString();
+    if (typeof asString === "string" && asString.startsWith("0x")) {
+      normalizedValue = asString;
+    }
+  }
+
+  if (typeof normalizedValue !== "string") return null;
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => Number.isInteger(item) && item >= 0 && item <= 255)
+  ) {
+    normalizedValue = `0x${(value as number[])
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("")}`;
+  }
+
+  if (typeof normalizedValue !== "string") return null;
+  const normalized = normalizedValue.toLowerCase();
   if (!normalized.startsWith("0x") || normalized.length !== 66) return null;
   return normalized;
 }

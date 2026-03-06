@@ -7,7 +7,15 @@ import { usePrivy } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { Button } from "@/components/ui/button";
 import TaskItem from "@/components/quests/TaskItem";
-import { Flame, ChevronLeft, CheckCircle2 } from "lucide-react";
+import {
+  Flame,
+  ChevronLeft,
+  CheckCircle2,
+  Award,
+  Coins,
+  Copy,
+  Check,
+} from "lucide-react";
 import { RichText } from "@/components/common/RichText";
 import { DailyQuestCountdown } from "@/components/quests/DailyQuestCountdown";
 import { isValidTransactionHash } from "@/lib/quests/txHash";
@@ -69,6 +77,7 @@ export default function DailyQuestDetailPage() {
   >(null);
   const [starting, setStarting] = useState(false);
   const [claimingKey, setClaimingKey] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [checkinError, setCheckinError] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   const { signAttestation } = useGaslessAttestation();
@@ -175,7 +184,7 @@ export default function DailyQuestDetailPage() {
           json?.message || json?.error || "Failed to start daily quest",
         );
       }
-      await fetchDetail();
+      await fetchDetail({ silent: true });
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to start daily quest",
@@ -253,7 +262,7 @@ export default function DailyQuestDetailPage() {
           throw new Error("Unsupported task type");
       }
 
-      await fetchDetail();
+      await fetchDetail({ silent: true });
       toast.success("Task completed!");
     } catch (err: any) {
       toast.error(err?.message || "Failed to complete task");
@@ -267,7 +276,7 @@ export default function DailyQuestDetailPage() {
     try {
       setCheckinError(null);
       await postCompleteTask(taskId, {});
-      await fetchDetail();
+      await fetchDetail({ silent: true });
       toast.success("Daily check-in verified!");
     } catch (err: any) {
       const code = (err as any)?.code;
@@ -583,6 +592,13 @@ export default function DailyQuestDetailPage() {
     } finally {
       setClaimingKey(false);
     }
+  };
+
+  const handleCopyTxHash = (hash: string) => {
+    navigator.clipboard.writeText(hash);
+    setCopied(true);
+    toast.success("Transaction hash copied!");
+    setTimeout(() => setCopied(false), 2000);
   };
 
   if (loading) {
@@ -904,48 +920,124 @@ export default function DailyQuestDetailPage() {
         </div>
 
         {allTasksCompleted && lockAddress && (
-          <div className="mt-8 bg-gray-900 rounded-xl p-6 border border-gray-700">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-white mb-1">
-                  Daily Completion Key
-                </h2>
-                {progress?.reward_claimed ? (
-                  <div className="text-green-300">Key Claimed</div>
-                ) : (
-                  <div className="text-gray-300">
-                    Claim your daily completion key.
-                  </div>
-                )}
+          <div className="mt-8 relative overflow-hidden bg-gradient-to-br from-indigo-500/10 via-gray-900 to-orange-500/10 rounded-2xl p-6 border border-indigo-500/30 backdrop-blur-sm shadow-2xl">
+            {/* Background Aesthetic Elements */}
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
 
-                {progress?.reward_claimed && (
-                  <div className="text-sm text-gray-400 mt-2 break-all">
-                    {progress?.key_claim_tx_hash ? (
-                      <div>Tx: {progress.key_claim_tx_hash}</div>
-                    ) : null}
-                    {progress?.key_claim_token_id ? (
-                      <div>Token ID: {String(progress.key_claim_token_id)}</div>
-                    ) : null}
+            <div className="relative flex flex-col sm:flex-row items-center sm:items-start justify-between gap-6">
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 text-center sm:text-left">
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-indigo-500/20 blur-xl group-hover:bg-indigo-500/30 transition-all duration-500 rounded-full" />
+                  <div className="relative bg-indigo-600/20 p-4 rounded-2xl border border-indigo-500/30 shadow-inner">
+                    <Award className="w-8 h-8 text-indigo-400" />
                   </div>
-                )}
+                </div>
 
-                {progress?.completion_bonus_claimed ? (
-                  <div className="text-sm text-cyan-300 mt-2">
-                    Completion bonus awarded: {progress.completion_bonus_amount}{" "}
-                    xDG
-                  </div>
-                ) : null}
+                <div>
+                  <h2 className="text-2xl font-black text-white mb-1 uppercase tracking-tight">
+                    Daily Quest Completed
+                  </h2>
+                  {progress?.reward_claimed ? (
+                    <div className="flex items-center justify-center sm:justify-start gap-2 mb-3">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black bg-green-500/20 text-green-400 border border-green-500/30 uppercase tracking-widest shadow-lg shadow-green-500/10">
+                        <CheckCircle2 className="w-3 h-3 mr-1" />
+                        Key Claimed
+                      </span>
+                    </div>
+                  ) : (
+                    <p className="text-gray-400 text-sm font-medium mb-3">
+                      Outstanding performance! Claim your reward for today.
+                    </p>
+                  )}
+
+                  {progress?.reward_claimed && (
+                    <div className="mt-4 space-y-2 text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                      {progress?.key_claim_tx_hash && (
+                        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                          <span className="opacity-60 text-indigo-300">
+                            Transaction
+                          </span>
+                          <button
+                            onClick={() =>
+                              handleCopyTxHash(progress.key_claim_tx_hash)
+                            }
+                            className="group/copy flex items-center gap-2 text-gray-200 hover:text-white transition-colors normal-case tracking-normal bg-gray-800/80 hover:bg-gray-700/80 px-2 py-1 rounded border border-gray-700/50 hover:border-indigo-500/30 font-mono shadow-sm"
+                            title="Click to copy"
+                          >
+                            <code className="text-inherit">
+                              {progress.key_claim_tx_hash.slice(0, 10)}...
+                              {progress.key_claim_tx_hash.slice(-10)}
+                            </code>
+                            {copied ? (
+                              <Check className="w-3 h-3 text-green-400" />
+                            ) : (
+                              <Copy className="w-3 h-3 text-gray-500 group-hover/copy:text-indigo-400 transition-colors" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+                      {progress?.key_claim_token_id && (
+                        <div className="flex items-center justify-center sm:justify-start gap-2">
+                          <span className="opacity-60 text-indigo-300">
+                            You&apos;re #
+                          </span>
+                          <span className="text-gray-200 normal-case tracking-normal bg-gray-800/80 px-2 py-1 rounded border border-gray-700/50 font-mono shadow-sm">
+                            {String(progress.key_claim_token_id)}
+                          </span>{" "}
+                          to complete this quest today!
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              {!progress?.reward_claimed && (
-                <Button
-                  onClick={handleClaimKey}
-                  disabled={claimingKey || ineligible || isRunStale}
-                  className="bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-75 disabled:cursor-not-allowed"
-                >
-                  {claimingKey ? "Claiming..." : "Claim Daily Completion Key"}
-                </Button>
-              )}
+              <div className="flex flex-col items-center sm:items-end gap-4 mt-2 sm:mt-0">
+                {progress?.completion_bonus_claimed && (
+                  <div className="relative group">
+                    <div className="absolute inset-0 bg-cyan-400/15 blur-2xl group-hover:bg-cyan-400/25 transition-all duration-500" />
+                    <div className="relative bg-gradient-to-r from-cyan-900/40 to-indigo-900/40 backdrop-blur-md border border-cyan-500/30 px-5 py-3 rounded-2xl flex items-center gap-3 shadow-xl">
+                      <div className="bg-cyan-400/20 p-1.5 rounded-lg border border-cyan-400/30">
+                        <Coins className="w-5 h-5 text-cyan-400" />
+                      </div>
+                      <div className="flex flex-col items-start leading-none">
+                        <span className="text-[10px] font-black text-cyan-500 uppercase tracking-tighter mb-1">
+                          Bonus Awarded
+                        </span>
+                        <span className="text-xl font-black text-white group-hover:text-cyan-300 transition-colors">
+                          +{progress.completion_bonus_amount}{" "}
+                          <span className="text-cyan-400 font-extrabold">
+                            xDG
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!progress?.reward_claimed && (
+                  <Button
+                    onClick={handleClaimKey}
+                    disabled={claimingKey || ineligible || isRunStale}
+                    className="relative overflow-hidden bg-gradient-to-r from-orange-500 via-red-500 to-orange-600 hover:from-orange-600 hover:to-red-600 text-white font-black py-7 px-10 rounded-2xl shadow-2xl shadow-orange-500/20 active:scale-95 transition-all uppercase tracking-widest border border-white/10 group"
+                  >
+                    <div className="absolute inset-0 bg-white/10 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 ease-in-out pointer-events-none" />
+                    <span className="relative flex items-center gap-2">
+                      {claimingKey ? (
+                        "Securing Key..."
+                      ) : (
+                        <>
+                          Claim Reward
+                          <span className="bg-white/20 px-2 py-0.5 rounded text-[10px]">
+                            ULTIMATE
+                          </span>
+                        </>
+                      )}
+                    </span>
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         )}

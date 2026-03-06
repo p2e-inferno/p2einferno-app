@@ -72,50 +72,54 @@ const QuestDetailsPage = () => {
     return response.json();
   };
 
-  const loadQuestDetails = useCallback(async () => {
-    if (!questId || !user) return;
-    setLoading(true);
-    try {
-      const data = await fetchQuestDetailsAPI(questId as string);
-      if (data) {
-        setQuestData(data);
-        const tasks = data.quest?.quest_tasks || [];
-        const completions = data.completions || [];
+  const loadQuestDetails = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!questId || !user) return;
+      const silent = Boolean(options?.silent);
+      if (!silent) setLoading(true);
+      try {
+        const data = await fetchQuestDetailsAPI(questId as string);
+        if (data) {
+          setQuestData(data);
+          const tasks = data.quest?.quest_tasks || [];
+          const completions = data.completions || [];
 
-        const processedTasks = tasks
-          .map((task: any) => {
-            const completion = completions.find(
-              (c: any) => c.task_id === task.id,
-            );
-            return {
-              task,
-              completion,
-              isCompleted: completion?.submission_status === "completed",
-              canClaim:
-                completion?.submission_status === "completed" &&
-                !completion.reward_claimed,
-            };
-          })
-          .sort((a: any, b: any) => a.task.order_index - b.task.order_index);
+          const processedTasks = tasks
+            .map((task: any) => {
+              const completion = completions.find(
+                (c: any) => c.task_id === task.id,
+              );
+              return {
+                task,
+                completion,
+                isCompleted: completion?.submission_status === "completed",
+                canClaim:
+                  completion?.submission_status === "completed" &&
+                  !completion.reward_claimed,
+              };
+            })
+            .sort((a: any, b: any) => a.task.order_index - b.task.order_index);
 
-        setTasksWithCompletion(processedTasks);
+          setTasksWithCompletion(processedTasks);
 
-        const completedCount = processedTasks.filter(
-          (t: any) => t.isCompleted,
-        ).length;
-        setProgress(
-          tasks.length > 0
-            ? Math.round((completedCount / tasks.length) * 100)
-            : 0,
-        );
+          const completedCount = processedTasks.filter(
+            (t: any) => t.isCompleted,
+          ).length;
+          setProgress(
+            tasks.length > 0
+              ? Math.round((completedCount / tasks.length) * 100)
+              : 0,
+          );
+        }
+      } catch (error) {
+        log.error("Error loading quest details:", error);
+        toast.error("Failed to load quest details");
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } catch (error) {
-      log.error("Error loading quest details:", error);
-      toast.error("Failed to load quest details");
-    } finally {
-      setLoading(false);
-    }
-  }, [questId, user]); // eslint-disable-line react-hooks/exhaustive-deps
+    },
+    [questId, user],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (questId && user) {
@@ -327,7 +331,7 @@ const QuestDetailsPage = () => {
         };
 
         handleSubmissionToast();
-        await loadQuestDetails();
+        await loadQuestDetails({ silent: true });
       } else {
         toast.error(result.error || "Failed to perform task action");
       }
@@ -442,7 +446,7 @@ const QuestDetailsPage = () => {
             )}
           </div>,
         );
-        await loadQuestDetails(); // Refresh data
+        await loadQuestDetails({ silent: true });
       } else {
         toast.error(result.error || "Failed to claim reward");
       }
@@ -680,7 +684,7 @@ const QuestDetailsPage = () => {
           </div>,
         );
       }
-      await loadQuestDetails();
+      await loadQuestDetails({ silent: true });
     } catch (error: any) {
       log.error("Error claiming quest reward:", error);
       toast.error(error.message || "Failed to claim quest reward");

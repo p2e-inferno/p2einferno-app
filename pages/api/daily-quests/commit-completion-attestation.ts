@@ -172,9 +172,8 @@ export default async function handler(
       return res.status(400).json({ error: "Invalid attestation payload" });
     }
 
-    const decodedGrantTxHash = normalizeBytes32(
-      getDecodedFieldValue(decoded, "grantTxHash"),
-    );
+    const decodedGrantTxHashRaw = getDecodedFieldValue(decoded, "grantTxHash");
+    const decodedGrantTxHash = normalizeBytes32(decodedGrantTxHashRaw);
     const decodedTokenId = normalizeUint(
       getDecodedFieldValue(decoded, "keyTokenId"),
     );

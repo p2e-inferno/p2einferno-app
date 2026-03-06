@@ -24,11 +24,30 @@ import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
 import {
   decodeAttestationDataFromDb,
+  type DecodedField,
   getDecodedFieldValue,
   normalizeBytes32,
 } from "@/lib/attestation/api/commit-guards";
 
 const log = getLogger("api:token:withdraw:commit-attestation");
+
+function getDecodedTxHashValue(decoded: DecodedField[]): unknown {
+  const direct =
+    getDecodedFieldValue(decoded, "withdrawalTxHash") ??
+    getDecodedFieldValue(decoded, "withdrawal_tx_hash") ??
+    getDecodedFieldValue(decoded, "txHash") ??
+    getDecodedFieldValue(decoded, "transactionHash");
+  if (direct !== undefined) return direct;
+
+  const fuzzy = decoded.find((field) => {
+    const name = String(field.name || "").toLowerCase();
+    return (
+      name.includes("hash") &&
+      (name.includes("withdrawal") || name === "txhash")
+    );
+  });
+  return fuzzy?.value;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -195,7 +214,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const decodedTxHashRaw = getDecodedFieldValue(decoded, "withdrawalTxHash");
+    const decodedTxHashRaw = getDecodedTxHashValue(decoded);
     const expectedTxHashRaw = withdrawal.transaction_hash;
 
     const decodedTxHash =
