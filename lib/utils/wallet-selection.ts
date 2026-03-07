@@ -39,6 +39,25 @@ export function getWalletAddressesFromUser(user?: User | null): string[] {
 }
 
 /**
+ * Get normalized (lowercase) linked wallet addresses as a Set for fast membership checks.
+ */
+export function getLinkedWalletAddressSet(user?: User | null): Set<string> {
+  return new Set(getWalletAddressesFromUser(user).map((a) => a.toLowerCase()));
+}
+
+/**
+ * Check whether a wallet address is currently linked to the provided user.
+ */
+export function isWalletAddressLinkedToUser(
+  user: User | null | undefined,
+  walletAddress?: string | null,
+): boolean {
+  if (!walletAddress) return false;
+  const linked = getLinkedWalletAddressSet(user);
+  return linked.has(walletAddress.toLowerCase());
+}
+
+/**
  * Shared wallet selection logic with device-awareness.
  * This is the single source of truth for wallet prioritization across the app.
  *
