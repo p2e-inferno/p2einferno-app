@@ -56,11 +56,11 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
       return;
     }
 
-    if (hasMembershipOnOtherWallet) {
+    if (mode === "renewal" && hasMembershipOnOtherWallet) {
       setError(
         `Membership exists on another linked wallet (${formatWalletAddress(
           validWalletAddress!,
-        )}). Switch wallets to avoid purchasing or renewing the wrong key.`,
+        )}). Switch wallets to renew the existing membership.`,
       );
       setStep("error");
       return;
