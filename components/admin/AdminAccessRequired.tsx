@@ -251,10 +251,11 @@ export default function AdminAccessRequired({
                     disabled={isRefreshing || accessStatus.isChecking}
                   >
                     <RefreshCcw
-                      className={`h-4 w-4 mr-2 ${isRefreshing || accessStatus.isChecking
-                        ? "animate-spin"
-                        : ""
-                        }`}
+                      className={`h-4 w-4 mr-2 ${
+                        isRefreshing || accessStatus.isChecking
+                          ? "animate-spin"
+                          : ""
+                      }`}
                     />
                     <span>
                       {isRefreshing
@@ -317,32 +318,32 @@ export default function AdminAccessRequired({
                   </p>
                 </div>
               ) : /* Admin Access Information */
-                adminLockAddress ? (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-400">
-                      You need a key for the admin lock to access this area,
-                      contact support if you need access.
-                    </p>
-                    {/* <UnlockPurchaseButton
+              adminLockAddress ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-400">
+                    You need a key for the admin lock to access this area,
+                    contact support if you need access.
+                  </p>
+                  {/* <UnlockPurchaseButton
                     lockAddress={adminLockAddress}
                     className="w-full bg-steel-red hover:bg-steel-red/90"
                   >
                     Purchase Admin Access
                   </UnlockPurchaseButton> */}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <p className="text-sm text-gray-400">
-                      Admin lock address not configured. Please contact the
-                      administrator.
-                    </p>
-                    <Link href="/">
-                      <Button variant="outline" className="w-full">
-                        Return to Homepage
-                      </Button>
-                    </Link>
-                  </div>
-                )}
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-400">
+                    Admin lock address not configured. Please contact the
+                    administrator.
+                  </p>
+                  <Link href="/">
+                    <Button variant="outline" className="w-full">
+                      Return to Homepage
+                    </Button>
+                  </Link>
+                </div>
+              )}
             </>
           )}
 

@@ -300,7 +300,6 @@ const ProfilePage = () => {
     try {
       await unlinkWallet(unlinkWalletModal.address);
       toast.success("Wallet unlinked successfully");
-      refetch();
     } catch (error) {
       log.error("Error unlinking wallet:", error);
       toast.error(extractErrorMessage(error, "Failed to unlink wallet"));

@@ -65,9 +65,10 @@ function buildVerificationTaskConfig(
   taskType: string,
   rawTaskConfig: unknown,
   run: DailyQuestRun,
-): unknown {
+): Record<string, unknown> | null {
   if (taskType !== "deploy_lock") {
-    return rawTaskConfig || null;
+    if (!rawTaskConfig || typeof rawTaskConfig !== "object") return null;
+    return rawTaskConfig as Record<string, unknown>;
   }
 
   const runStartsAtMs = Date.parse(run.starts_at);
@@ -77,7 +78,8 @@ function buildVerificationTaskConfig(
       : null;
 
   if (!runStartUnix) {
-    return rawTaskConfig || null;
+    if (!rawTaskConfig || typeof rawTaskConfig !== "object") return null;
+    return rawTaskConfig as Record<string, unknown>;
   }
 
   const baseConfig =

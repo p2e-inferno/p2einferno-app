@@ -6,6 +6,14 @@
  */
 import { UNLOCK_FACTORY_ADDRESSES as SHARED_UNLOCK_FACTORY_ADDRESSES } from "@/constants/unlock_factory_addresses";
 
+function mustGetUnlockFactoryAddress(chainId: number): `0x${string}` {
+  const addr = SHARED_UNLOCK_FACTORY_ADDRESSES[chainId];
+  if (!addr) {
+    throw new Error(`Missing Unlock factory address for chainId=${chainId}`);
+  }
+  return addr;
+}
+
 /**
  * Supported networks for lock deployment quests
  */
@@ -22,11 +30,11 @@ export const SUPPORTED_DEPLOY_NETWORKS = {
  * Imported from shared constants to avoid drift with deployment flows.
  */
 export const UNLOCK_FACTORY_ADDRESSES: Record<number, `0x${string}`> = {
-  8453: SHARED_UNLOCK_FACTORY_ADDRESSES[8453], // Base Mainnet
-  84532: SHARED_UNLOCK_FACTORY_ADDRESSES[84532], // Base Sepolia
-  10: SHARED_UNLOCK_FACTORY_ADDRESSES[10], // Optimism
-  42161: SHARED_UNLOCK_FACTORY_ADDRESSES[42161], // Arbitrum One
-  42220: SHARED_UNLOCK_FACTORY_ADDRESSES[42220], // Celo
+  8453: mustGetUnlockFactoryAddress(8453), // Base Mainnet
+  84532: mustGetUnlockFactoryAddress(84532), // Base Sepolia
+  10: mustGetUnlockFactoryAddress(10), // Optimism
+  42161: mustGetUnlockFactoryAddress(42161), // Arbitrum One
+  42220: mustGetUnlockFactoryAddress(42220), // Celo
 };
 
 /**

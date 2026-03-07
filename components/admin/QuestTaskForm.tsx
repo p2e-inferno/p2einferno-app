@@ -57,104 +57,104 @@ const taskTypeOptions: {
   icon: React.ReactNode;
   description: string;
 }[] = [
-    {
-      value: "link_email",
-      label: "Link Email",
-      icon: <Mail className="w-4 h-4" />,
-      description: "User links their email address",
-    },
-    {
-      value: "link_wallet",
-      label: "Link Wallet",
-      icon: <Wallet className="w-4 h-4" />,
-      description: "User connects their Web3 wallet",
-    },
-    {
-      value: "link_farcaster",
-      label: "Link Farcaster",
-      icon: <Share2 className="w-4 h-4" />,
-      description: "User connects their Farcaster account",
-    },
-    {
-      value: "link_telegram",
-      label: "Link Telegram",
-      icon: <MessageCircle className="w-4 h-4" />,
-      description: "User enables Telegram notifications",
-    },
-    {
-      value: "sign_tos",
-      label: "Sign Terms",
-      icon: <FileSignature className="w-4 h-4" />,
-      description: "User signs terms of service",
-    },
-    {
-      value: "submit_url",
-      label: "Submit URL",
-      icon: <Link2 className="w-4 h-4" />,
-      description: "User submits a URL (e.g., social post)",
-    },
-    {
-      value: "submit_text",
-      label: "Submit Text",
-      icon: <FileText className="w-4 h-4" />,
-      description: "User submits text response",
-    },
-    {
-      value: "submit_proof",
-      label: "Submit Proof",
-      icon: <Camera className="w-4 h-4" />,
-      description: "User submits proof (screenshot, etc.)",
-    },
-    {
-      value: "complete_external",
-      label: "External Task",
-      icon: <CheckCircle className="w-4 h-4" />,
-      description: "User completes external task",
-    },
-    {
-      value: "custom",
-      label: "Custom Task",
-      icon: <Sparkles className="w-4 h-4" />,
-      description: "Custom verification logic",
-    },
-    // Vendor Task Types
-    {
-      value: "vendor_buy",
-      label: "Buy DG Tokens",
-      icon: <Coins className="w-4 h-4" />,
-      description: "User must buy DG tokens from vendor",
-    },
-    {
-      value: "vendor_sell",
-      label: "Sell DG Tokens",
-      icon: <Coins className="w-4 h-4" />,
-      description: "User must sell DG tokens to vendor",
-    },
-    {
-      value: "vendor_light_up",
-      label: "Light Up",
-      icon: <Flame className="w-4 h-4" />,
-      description: "User must execute Light Up action",
-    },
-    {
-      value: "vendor_level_up",
-      label: "Level Up / Upgrade Stage",
-      icon: <ArrowUpCircle className="w-4 h-4" />,
-      description: "User must reach a specific vendor stage",
-    },
-    {
-      value: "deploy_lock",
-      label: "Deploy Lock",
-      icon: <Network className="w-4 h-4" />,
-      description: "User must deploy an Unlock Protocol lock",
-    },
-    {
-      value: "uniswap_swap",
-      label: "Uniswap Swap",
-      icon: <Repeat className="w-4 h-4" />,
-      description: "User must complete a Uniswap swap for a supported pair",
-    },
-  ];
+  {
+    value: "link_email",
+    label: "Link Email",
+    icon: <Mail className="w-4 h-4" />,
+    description: "User links their email address",
+  },
+  {
+    value: "link_wallet",
+    label: "Link Wallet",
+    icon: <Wallet className="w-4 h-4" />,
+    description: "User connects their Web3 wallet",
+  },
+  {
+    value: "link_farcaster",
+    label: "Link Farcaster",
+    icon: <Share2 className="w-4 h-4" />,
+    description: "User connects their Farcaster account",
+  },
+  {
+    value: "link_telegram",
+    label: "Link Telegram",
+    icon: <MessageCircle className="w-4 h-4" />,
+    description: "User enables Telegram notifications",
+  },
+  {
+    value: "sign_tos",
+    label: "Sign Terms",
+    icon: <FileSignature className="w-4 h-4" />,
+    description: "User signs terms of service",
+  },
+  {
+    value: "submit_url",
+    label: "Submit URL",
+    icon: <Link2 className="w-4 h-4" />,
+    description: "User submits a URL (e.g., social post)",
+  },
+  {
+    value: "submit_text",
+    label: "Submit Text",
+    icon: <FileText className="w-4 h-4" />,
+    description: "User submits text response",
+  },
+  {
+    value: "submit_proof",
+    label: "Submit Proof",
+    icon: <Camera className="w-4 h-4" />,
+    description: "User submits proof (screenshot, etc.)",
+  },
+  {
+    value: "complete_external",
+    label: "External Task",
+    icon: <CheckCircle className="w-4 h-4" />,
+    description: "User completes external task",
+  },
+  {
+    value: "custom",
+    label: "Custom Task",
+    icon: <Sparkles className="w-4 h-4" />,
+    description: "Custom verification logic",
+  },
+  // Vendor Task Types
+  {
+    value: "vendor_buy",
+    label: "Buy DG Tokens",
+    icon: <Coins className="w-4 h-4" />,
+    description: "User must buy DG tokens from vendor",
+  },
+  {
+    value: "vendor_sell",
+    label: "Sell DG Tokens",
+    icon: <Coins className="w-4 h-4" />,
+    description: "User must sell DG tokens to vendor",
+  },
+  {
+    value: "vendor_light_up",
+    label: "Light Up",
+    icon: <Flame className="w-4 h-4" />,
+    description: "User must execute Light Up action",
+  },
+  {
+    value: "vendor_level_up",
+    label: "Level Up / Upgrade Stage",
+    icon: <ArrowUpCircle className="w-4 h-4" />,
+    description: "User must reach a specific vendor stage",
+  },
+  {
+    value: "deploy_lock",
+    label: "Deploy Lock",
+    icon: <Network className="w-4 h-4" />,
+    description: "User must deploy an Unlock Protocol lock",
+  },
+  {
+    value: "uniswap_swap",
+    label: "Uniswap Swap",
+    icon: <Repeat className="w-4 h-4" />,
+    description: "User must complete a Uniswap swap for a supported pair",
+  },
+];
 
 const validationOptions: { value: InputValidationType; label: string }[] = [
   { value: "text", label: "Text" },
@@ -419,10 +419,11 @@ export default function QuestTaskForm({
               key={type.value}
               type="button"
               onClick={() => handleTaskTypeChange(type.value)}
-              className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${localTask.task_type === type.value
-                ? "border-flame-yellow bg-flame-yellow/10 text-white"
-                : "border-gray-700 hover:border-gray-600 text-gray-300"
-                }`}
+              className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${
+                localTask.task_type === type.value
+                  ? "border-flame-yellow bg-flame-yellow/10 text-white"
+                  : "border-gray-700 hover:border-gray-600 text-gray-300"
+              }`}
             >
               {type.icon}
               <span className="text-sm font-medium">{type.label}</span>

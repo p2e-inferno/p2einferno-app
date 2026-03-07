@@ -118,12 +118,21 @@ export const useDashboardData = (): UseDashboardDataResult => {
             ?.map((w) => w.address) || [],
       };
 
+      const normalizedSelectedWallet = selectedWallet?.address?.toLowerCase();
+      const linkedWalletsLower = (userData.linkedWallets || [])
+        .filter((address): address is string => typeof address === "string")
+        .map((address) => address.toLowerCase());
+      const shouldSendActiveWalletHeader = Boolean(
+        normalizedSelectedWallet &&
+          linkedWalletsLower.includes(normalizedSelectedWallet),
+      );
+
       const response = await fetch("/api/user/profile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
-          ...(selectedWallet?.address
+          ...(shouldSendActiveWalletHeader && selectedWallet?.address
             ? { "X-Active-Wallet": selectedWallet.address }
             : {}),
         },

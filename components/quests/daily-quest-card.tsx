@@ -102,13 +102,13 @@ export function DailyQuestCard(props: {
           <div className="absolute top-2 right-2 flex flex-col gap-2 items-end">
             {eligibility && eligibility.eligible === false
               ? (eligibility.failures || []).map((f) => (
-                <div
-                  key={f.type}
-                  className="bg-gray-800/80 backdrop-blur-sm border border-gray-600 text-gray-300 px-3 py-1 rounded-full text-sm font-semibold"
-                >
-                  {badgeLabelForFailure(f)}
-                </div>
-              ))
+                  <div
+                    key={f.type}
+                    className="bg-gray-800/80 backdrop-blur-sm border border-gray-600 text-gray-300 px-3 py-1 rounded-full text-sm font-semibold"
+                  >
+                    {badgeLabelForFailure(f)}
+                  </div>
+                ))
               : null}
           </div>
         </div>

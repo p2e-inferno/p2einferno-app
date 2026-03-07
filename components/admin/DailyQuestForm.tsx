@@ -431,7 +431,9 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
 
       if (resolution.mode === "existing") {
         removeDraft(draftEntityType, draftScopeKey);
-        toast.success("Draft already saved — redirecting to daily quest editor.");
+        toast.success(
+          "Draft already saved — redirecting to daily quest editor.",
+        );
         router.replace(`/admin/quests/daily/${resolution.draftId}/edit`);
         return;
       }
@@ -708,7 +710,13 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       }
       setIsStepperOpen(false);
     },
-    [stepperWaitForSteps, stepperStart, stepperCancel, stepperSkip, stepperRetry],
+    [
+      stepperWaitForSteps,
+      stepperStart,
+      stepperCancel,
+      stepperSkip,
+      stepperRetry,
+    ],
   );
 
   const buildPayload = useCallback(
@@ -845,7 +853,10 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
       const method = isEditing ? "PUT" : "POST";
 
       const shouldAutoDeploy =
-        !isEditing && showAutoLockCreation && !trimmedLockAddress && totalReward > 0;
+        !isEditing &&
+        showAutoLockCreation &&
+        !trimmedLockAddress &&
+        totalReward > 0;
 
       let runTaskSyncStatus: string | undefined;
       const persist = async (resolvedLockAddress: string) => {
@@ -871,7 +882,10 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         }
         const lockConfig = generateQuestLockConfig({ title } as any);
         const deployConfig = createLockConfigWithManagers(lockConfig);
-        const params = convertLockConfigToDeploymentParams(deployConfig, isAdmin);
+        const params = convertLockConfigToDeploymentParams(
+          deployConfig,
+          isAdmin,
+        );
         const deployment = createAdminLockDeploymentSteps(params);
         const steps = [...deployment.steps];
         steps.push({
@@ -910,7 +924,10 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
           },
         });
 
-        await runStepperFlow(steps, `Create quest: ${title.trim() || "Daily quest"}`);
+        await runStepperFlow(
+          steps,
+          `Create quest: ${title.trim() || "Daily quest"}`,
+        );
       } else {
         payload = await persist(trimmedLockAddress);
       }
@@ -920,7 +937,9 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         isEditing && runTaskSyncStatus === "skipped_existing_completions";
 
       if (!skippedLiveSyncForProgressedRun) {
-        toast.success(createMode ? "Daily quest created" : "Daily quest updated");
+        toast.success(
+          createMode ? "Daily quest created" : "Daily quest updated",
+        );
       }
       if (skippedLiveSyncForProgressedRun) {
         showInfoToast(
@@ -935,7 +954,8 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
           ...(prev || {}),
           ...(payload || {}),
           id: props.dailyQuestId || prev?.id,
-          daily_quest_tasks: payload?.daily_quest_tasks || prev?.daily_quest_tasks,
+          daily_quest_tasks:
+            payload?.daily_quest_tasks || prev?.daily_quest_tasks,
         }));
       }
     } catch (err: any) {
@@ -1086,9 +1106,7 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
         </div>
 
         <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
-          <h3 className="text-white font-semibold">
-            Completion Bonus Reward
-          </h3>
+          <h3 className="text-white font-semibold">Completion Bonus Reward</h3>
           <div className="space-y-2">
             <Label className="text-white">Completion Bonus (xDG)</Label>
             <Input
@@ -1096,18 +1114,14 @@ export function DailyQuestForm(props: { dailyQuestId?: string }) {
               min={0}
               step={1}
               value={completionBonus}
-              onChange={(e) =>
-                setCompletionBonus(Number(e.target.value || 0))
-              }
+              onChange={(e) => setCompletionBonus(Number(e.target.value || 0))}
               className="bg-transparent border-gray-700 text-gray-100"
             />
           </div>
         </div>
 
         <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
-          <h3 className="text-white font-semibold">
-            Eligibility Requirements
-          </h3>
+          <h3 className="text-white font-semibold">Eligibility Requirements</h3>
 
           <div className="space-y-2">
             <Label className="text-white">Minimum Vendor Level</Label>

@@ -35,49 +35,49 @@ const taskTypeOptions: {
   icon: React.ReactNode;
   description: string;
 }[] = [
-    {
-      value: "vendor_buy",
-      label: "Buy DG Tokens",
-      icon: <Coins className="w-4 h-4" />,
-      description: "User must buy DG tokens from vendor",
-    },
-    {
-      value: "vendor_sell",
-      label: "Sell DG Tokens",
-      icon: <Coins className="w-4 h-4" />,
-      description: "User must sell DG tokens to vendor",
-    },
-    {
-      value: "vendor_light_up",
-      label: "Light Up",
-      icon: <Flame className="w-4 h-4" />,
-      description: "User must execute Light Up action",
-    },
-    {
-      value: "vendor_level_up",
-      label: "Level Up / Upgrade Stage",
-      icon: <ArrowUpCircle className="w-4 h-4" />,
-      description: "User must reach a specific vendor stage",
-    },
-    {
-      value: "deploy_lock",
-      label: "Deploy Lock",
-      icon: <Network className="w-4 h-4" />,
-      description: "User must deploy an Unlock Protocol lock",
-    },
-    {
-      value: "uniswap_swap",
-      label: "Uniswap Swap",
-      icon: <Repeat className="w-4 h-4" />,
-      description: "User must complete a Uniswap swap for a supported pair",
-    },
-    {
-      value: "daily_checkin",
-      label: "Daily Check-in",
-      icon: <CalendarCheck2 className="w-4 h-4" />,
-      description: "Verify the user has completed their daily GM check-in today",
-    },
-  ];
+  {
+    value: "vendor_buy",
+    label: "Buy DG Tokens",
+    icon: <Coins className="w-4 h-4" />,
+    description: "User must buy DG tokens from vendor",
+  },
+  {
+    value: "vendor_sell",
+    label: "Sell DG Tokens",
+    icon: <Coins className="w-4 h-4" />,
+    description: "User must sell DG tokens to vendor",
+  },
+  {
+    value: "vendor_light_up",
+    label: "Light Up",
+    icon: <Flame className="w-4 h-4" />,
+    description: "User must execute Light Up action",
+  },
+  {
+    value: "vendor_level_up",
+    label: "Level Up / Upgrade Stage",
+    icon: <ArrowUpCircle className="w-4 h-4" />,
+    description: "User must reach a specific vendor stage",
+  },
+  {
+    value: "deploy_lock",
+    label: "Deploy Lock",
+    icon: <Network className="w-4 h-4" />,
+    description: "User must deploy an Unlock Protocol lock",
+  },
+  {
+    value: "uniswap_swap",
+    label: "Uniswap Swap",
+    icon: <Repeat className="w-4 h-4" />,
+    description: "User must complete a Uniswap swap for a supported pair",
+  },
+  {
+    value: "daily_checkin",
+    label: "Daily Check-in",
+    icon: <CalendarCheck2 className="w-4 h-4" />,
+    description: "Verify the user has completed their daily GM check-in today",
+  },
+];
 
 const getUniswapDecimals = (pair: string, direction: string): number => {
   if (pair === "ETH_USDC" || pair === "UP_USDC") {

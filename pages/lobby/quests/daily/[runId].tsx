@@ -936,7 +936,7 @@ export default function DailyQuestDetailPage() {
 
                 <div>
                   <h2 className="text-2xl font-black text-white mb-1 uppercase tracking-tight">
-                    Daily Quest Completed
+                    Quest Completed
                   </h2>
                   {progress?.reward_claimed ? (
                     <div className="flex items-center justify-center sm:justify-start gap-2 mb-3">
