@@ -3512,6 +3512,10 @@ export type Database = {
           success: boolean
         }[]
       }
+      sync_daily_quest_run_tasks_if_safe: {
+        Args: { p_template_id: string }
+        Returns: Json
+      }
       try_finalize_daily_quest_progress: {
         Args: { p_run_id: string; p_user_id: string }
         Returns: Json

@@ -82,7 +82,7 @@ export function AccessRequirementCard() {
               address={validWalletAddress}
               className="text-gray-200"
             />
-            . You can still Pullout DG!
+            . You can still pull out DG!
           </p>
         </div>
       </div>

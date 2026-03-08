@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
+import { ChevronRight, Coins, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@/components/common/RichText";
 import { DailyQuestCountdown } from "@/components/quests/DailyQuestCountdown";
@@ -42,10 +43,29 @@ export function DailyQuestCard(props: {
 
   const eligibility = run.eligibility;
   const isIneligible = Boolean(eligibility && eligibility.eligible === false);
+  const isStarted = Boolean(run.progress);
+  const totalTasksCount = Number(run.total_tasks_count || 0);
+  const tasksCompletedCount = Number(run.tasks_completed_count || 0);
+  const allTasksCompleted =
+    totalTasksCount > 0 && tasksCompletedCount === totalTasksCount;
+  const hasPendingTaskRewards = Boolean(run.has_pending_task_rewards);
+  const rewardClaimed = Boolean(run.progress?.reward_claimed);
+  const completionBonusClaimed = Boolean(run.progress?.completion_bonus_claimed);
+  const hasKeyReward = Boolean(run.template?.lock_address);
+  const isKeyClaimPending = allTasksCompleted && hasKeyReward && !rewardClaimed;
+  const isBonusClaimPending =
+    rewardClaimed &&
+    Number(run.completion_bonus_reward_amount || 0) > 0 &&
+    !completionBonusClaimed;
+  const isCompleted = allTasksCompleted && (!hasKeyReward || rewardClaimed);
 
-  const startDisabled = starting || isIneligible;
+  const startDisabled = starting || (!isStarted && isIneligible);
 
   const handleStart = async () => {
+    if (isStarted) {
+      await router.push(`/lobby/quests/daily/${run.id}`);
+      return;
+    }
     if (!authenticated) {
       toast.error("Please connect your wallet first");
       return;
@@ -100,6 +120,43 @@ export function DailyQuestCard(props: {
           </div>
 
           <div className="absolute top-2 right-2 flex flex-col gap-2 items-end">
+            {isBonusClaimPending && (
+              <div className="bg-cyan-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center animate-pulse shadow-lg shadow-cyan-500/20">
+                <Sparkles className="w-4 h-4 mr-1" />
+                Claim Bonus
+              </div>
+            )}
+            {isKeyClaimPending && (
+              <div className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center animate-pulse shadow-lg shadow-blue-500/20">
+                <ChevronRight className="w-4 h-4 mr-1" />
+                Claim Key
+              </div>
+            )}
+            {hasPendingTaskRewards && (
+              <div className="bg-cyan-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center animate-pulse shadow-lg shadow-cyan-500/20">
+                <Coins className="w-4 h-4 mr-1" />
+                Claim Reward
+              </div>
+            )}
+            {isCompleted && (
+              <div className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center shadow-lg shadow-green-500/20">
+                <Sparkles className="w-4 h-4 mr-1" />
+                Completed
+              </div>
+            )}
+            {isStarted &&
+              !isCompleted &&
+              !isKeyClaimPending &&
+              !isBonusClaimPending && (
+                <div className="bg-orange-500 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg shadow-orange-500/20">
+                  In Progress
+                </div>
+              )}
+            {!isStarted && !isCompleted && (
+              <div className="bg-gray-600 text-white px-3 py-1 rounded-full text-sm font-semibold shadow-lg">
+                New Quest
+              </div>
+            )}
             {eligibility && eligibility.eligible === false
               ? (eligibility.failures || []).map((f) => (
                   <div
@@ -137,7 +194,7 @@ export function DailyQuestCard(props: {
           disabled={startDisabled}
           className="w-full bg-orange-600 hover:bg-orange-700 text-white disabled:opacity-75 disabled:cursor-not-allowed"
         >
-          {starting ? "Starting..." : "Start"}
+          {starting ? "Starting..." : isStarted ? "Continue" : "Start"}
         </Button>
       </div>
     </div>

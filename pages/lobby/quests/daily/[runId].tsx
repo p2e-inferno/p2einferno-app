@@ -23,6 +23,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import { useGaslessAttestation } from "@/hooks/attestation/useGaslessAttestation";
 import { isUserRejectedError } from "@/lib/utils/walletErrors";
+import { copyToClipboard } from "@/lib/utils/clipboard";
 
 const log = getLogger("lobby:daily-quests:[runId]");
 
@@ -145,10 +146,17 @@ export default function DailyQuestDetailPage() {
 
   const allTasksCompleted = tasks.length > 0 && completedCount === tasks.length;
   const lockAddress = data?.template?.lock_address || null;
+  const completionBonusAmount = Number(
+    data?.template?.completion_bonus_reward_amount || 0,
+  );
   const runEndsAtMs = data?.run?.ends_at ? Date.parse(data.run.ends_at) : null;
   const rewardsExpired =
     typeof runEndsAtMs === "number" ? nowMs > runEndsAtMs : false;
   const isRunStale = rewardsExpired;
+  const canRetryCompletionBonus =
+    Boolean(progress?.reward_claimed) &&
+    completionBonusAmount > 0 &&
+    !progress?.completion_bonus_claimed;
   const rewardExpiryMessage =
     typeof runEndsAtMs === "number"
       ? rewardsExpired
@@ -418,6 +426,9 @@ export default function DailyQuestDetailPage() {
         };
       });
       void fetchDetail({ silent: true });
+    } catch (err) {
+      log.error("Unexpected error in handleClaimReward", { completionId, err });
+      toast.error(err instanceof Error ? err.message : "Failed to claim reward");
     } finally {
       setClaimingCompletionId(null);
     }
@@ -433,9 +444,13 @@ export default function DailyQuestDetailPage() {
       toast.error("Wallet not connected");
       return;
     }
-    if (ineligible) return;
+    if (ineligible && !canRetryCompletionBonus) return;
     if (!progress) {
       toast.error("Start the daily quest first");
+      return;
+    }
+    if (isRunStale && !canRetryCompletionBonus) {
+      toast.error("Rewards expired at reset. Join the next daily run to earn.");
       return;
     }
     setClaimingKey(true);
@@ -551,14 +566,24 @@ export default function DailyQuestDetailPage() {
           if (isUserRejectedError(err)) {
             proofCancelled = true;
           } else {
-            throw err;
+            log.warn("Daily completion attestation failed after successful key claim", {
+              dailyQuestRunId: runId,
+              wallet: selectedWallet.address,
+              error: err?.message || err,
+            });
           }
         }
       }
 
+      const completionMessage = canRetryCompletionBonus
+        ? json?.completionBonusAwarded
+          ? "Completion bonus claimed!"
+          : "Daily completion already claimed."
+        : "Daily completion key claimed!";
+
       toast.success(
         <div className="text-sm leading-relaxed">
-          Daily completion key claimed!
+          {completionMessage}
           {proofCancelled && (
             <div className="text-xs mt-1 text-gray-300">
               Completion proof cancelled — claim completed.
@@ -586,10 +611,9 @@ export default function DailyQuestDetailPage() {
     }
   };
 
-  const handleCopyTxHash = (hash: string) => {
-    navigator.clipboard.writeText(hash);
+  const handleCopyTxHash = async (hash: string) => {
+    await copyToClipboard(hash, "Transaction hash copied!");
     setCopied(true);
-    toast.success("Transaction hash copied!");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -638,10 +662,9 @@ export default function DailyQuestDetailPage() {
 
           <DailyQuestCountdown className="mb-4" />
 
-          {Number(data.template.completion_bonus_reward_amount || 0) > 0 && (
+          {completionBonusAmount > 0 && (
             <div className="text-sm text-cyan-300 mb-4">
-              Completion Bonus:{" "}
-              {Number(data.template.completion_bonus_reward_amount || 0)} xDG
+              Completion Bonus: {completionBonusAmount} xDG
             </div>
           )}
 
@@ -1028,6 +1051,22 @@ export default function DailyQuestDetailPage() {
                       )}
                     </span>
                   </Button>
+                )}
+
+                {canRetryCompletionBonus && (
+                  <div className="flex flex-col items-center sm:items-end gap-2">
+                    <div className="text-xs text-amber-300 text-center sm:text-right max-w-xs">
+                      Your key was claimed, but the completion bonus was not finalized.
+                    </div>
+                    <Button
+                      onClick={handleClaimKey}
+                      disabled={claimingKey}
+                      variant="outline"
+                      className="border-cyan-400/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20 hover:text-cyan-100"
+                    >
+                      {claimingKey ? "Retrying Bonus..." : "Retry Bonus Claim"}
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>

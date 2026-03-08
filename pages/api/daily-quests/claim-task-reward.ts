@@ -56,7 +56,7 @@ export default async function handler(
       const message =
         walletErr instanceof Error
           ? walletErr.message
-          : "Invalid X-Active-Wallet header";
+          : "Wallet validation failed";
       return res.status(status).json({ error: message });
     }
 

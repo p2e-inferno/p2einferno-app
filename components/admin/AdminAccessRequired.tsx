@@ -89,7 +89,7 @@ export default function AdminAccessRequired({
           // AUTO-REFRESH: If we detected access locally, tell the context to refresh
           // so it can unlock the gate automatically without manual user action
           log.info("Admin access detected, triggering context refresh...");
-          refreshAdminStatus();
+          await refreshAdminStatus();
         } else {
           setAccessStatus({
             hasAccess: false,

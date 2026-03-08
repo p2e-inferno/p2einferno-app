@@ -182,7 +182,7 @@ export default async function handler(
             keyTokenId,
             completionBonusRewardAmount: bonusAmount,
             completionBonusAwarded: false,
-            attestationRequired: false,
+            attestationRequired: isEASEnabled(),
           });
         }
 
@@ -218,7 +218,7 @@ export default async function handler(
               keyTokenId,
               completionBonusRewardAmount: bonusAmount,
               completionBonusAwarded: false,
-              attestationRequired: false,
+              attestationRequired: isEASEnabled(),
             });
           }
 
@@ -262,7 +262,7 @@ export default async function handler(
               keyTokenId,
               completionBonusRewardAmount: bonusAmount,
               completionBonusAwarded: false,
-              attestationRequired: false,
+              attestationRequired: isEASEnabled(),
             });
           }
 
@@ -543,7 +543,7 @@ export default async function handler(
           keyTokenId: keyTokenId ?? null,
           completionBonusRewardAmount: bonusAmount,
           completionBonusAwarded: false,
-          attestationRequired: false,
+          attestationRequired: isEASEnabled(),
         });
       }
 
@@ -580,7 +580,7 @@ export default async function handler(
             keyTokenId: keyTokenId ?? null,
             completionBonusRewardAmount: bonusAmount,
             completionBonusAwarded: false,
-            attestationRequired: false,
+            attestationRequired: isEASEnabled(),
           });
         }
 
@@ -621,7 +621,7 @@ export default async function handler(
             keyTokenId: keyTokenId ?? null,
             completionBonusRewardAmount: bonusAmount,
             completionBonusAwarded: false,
-            attestationRequired: false,
+            attestationRequired: isEASEnabled(),
           });
         }
 
