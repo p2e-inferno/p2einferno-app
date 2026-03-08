@@ -327,7 +327,7 @@ export const CryptoRenewalModal = ({ mode, onClose, onSuccess }: Props) => {
               lockInfo.isLoading ||
               !!lockInfo.error ||
               isLoading ||
-              hasMembershipOnOtherWallet
+              (mode === "renewal" && hasMembershipOnOtherWallet)
             }
           >
             {isLoading

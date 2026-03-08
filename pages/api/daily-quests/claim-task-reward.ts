@@ -53,12 +53,11 @@ export default async function handler(
       });
     } catch (walletErr: unknown) {
       const status = walletValidationErrorToHttpStatus(walletErr);
-      const safeStatus = status === 500 ? 400 : status;
       const message =
         walletErr instanceof Error
           ? walletErr.message
           : "Invalid X-Active-Wallet header";
-      return res.status(safeStatus).json({ error: message });
+      return res.status(status).json({ error: message });
     }
 
     const supabase = createAdminClient();

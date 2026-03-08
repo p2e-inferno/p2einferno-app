@@ -10,6 +10,7 @@ import { formatWalletAddress } from "@/lib/utils/wallet-address";
 import { useHasValidKey } from "@/hooks/unlock";
 import { type Address } from "viem";
 import { getLogger } from "@/lib/utils/logger";
+import { MAX_SAFE_DATE_TIMESTAMP } from "@/lib/constants/dates";
 
 const log = getLogger("admin:AdminAccessRequired");
 
@@ -72,7 +73,6 @@ export default function AdminAccessRequired({
 
         if (keyInfo && keyInfo.isValid) {
           // Handle unlimited/very large expiration dates
-          const MAX_SAFE_DATE_TIMESTAMP = 253402300799; // Year 9999
           const timestamp = Number(keyInfo.expirationTimestamp);
 
           let expirationDate = "Unlimited";

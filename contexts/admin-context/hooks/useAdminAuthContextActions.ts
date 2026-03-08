@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useRef } from "react";
+import { MAX_SAFE_DATE_TIMESTAMP } from "@/lib/constants/dates";
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useHasValidKey } from "@/hooks/unlock";
@@ -238,8 +239,7 @@ export const useAdminAuthContextActions = (
           if (keyInfo && keyInfo.isValid) {
             hasValidKey = true;
             const timestamp = Number(keyInfo.expirationTimestamp);
-            const MAX_SAFE_DATE_TIMESTAMP = 253402300799; // Year 9999
-
+  
             log.info(
               `✅ Admin access GRANTED for ${currentWalletAddress}, expires: ${timestamp > MAX_SAFE_DATE_TIMESTAMP
                 ? "Unlimited (infinite)"

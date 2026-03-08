@@ -76,12 +76,13 @@ export async function claimOrValidateWalletLink({
 
   // Touch existing mapping (idempotent)
   if (existing?.privy_user_id === privyUserId) {
+    const nowIso = new Date().toISOString();
     const { error: touchErr } = await supabase
       .from("wallet_link_map")
       .update({
-        last_seen_at: new Date().toISOString(),
+        last_seen_at: nowIso,
         source,
-        updated_at: new Date().toISOString(),
+        updated_at: nowIso,
       })
       .eq("wallet_address", normalized)
       .eq("privy_user_id", privyUserId);

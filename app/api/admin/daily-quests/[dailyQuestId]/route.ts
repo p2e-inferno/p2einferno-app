@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { ensureAdminOrRespond } from "@/lib/auth/route-handlers/admin-guard";
 import { getLogger } from "@/lib/utils/logger";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
-import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
+import { createPublicClientForNetwork } from "@/lib/blockchain/config/clients/public-client";
 import { ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { isAddress } from "viem";
 
@@ -109,7 +109,7 @@ async function validateEligibilityConfig(
       return { ok: false as const, error: "ERC20 minimum balance must be > 0" };
     }
 
-    const publicClient = createPublicClientUnified();
+    const publicClient = createPublicClientForNetwork({ chainId: chainIdRaw });
     try {
       const decimals = await publicClient.readContract({
         address: token as `0x${string}`,
@@ -194,93 +194,20 @@ async function syncTodayRunTasksIfSafe(
   supabase: ReturnType<typeof createAdminClient>,
   dailyQuestId: string,
 ) {
-  const todayUtc = new Date().toISOString().slice(0, 10);
-
-  const { data: run, error: runErr } = await supabase
-    .from("daily_quest_runs")
-    .select("id")
-    .eq("daily_quest_template_id", dailyQuestId)
-    .eq("run_date", todayUtc)
-    .eq("status", "active")
-    .maybeSingle();
-
-  if (runErr || !run?.id) {
-    return { attempted: false as const, status: "no_active_run" as const };
-  }
-
-  const { data: completionRows, error: completionErr } = await supabase
-    .from("user_daily_task_completions")
-    .select("id")
-    .eq("daily_quest_run_id", run.id)
-    .limit(1);
-
-  if (completionErr) {
-    return {
-      attempted: true as const,
-      status: "skipped_completion_check_error" as const,
-    };
-  }
-  if ((completionRows || []).length > 0) {
-    // Preserve snapshot consistency for runs with recorded completions.
-    return {
-      attempted: true as const,
-      status: "skipped_existing_completions" as const,
-    };
-  }
-
-  const { data: templateTasks, error: templateTasksErr } = await supabase
-    .from("daily_quest_tasks")
-    .select("*")
-    .eq("daily_quest_template_id", dailyQuestId)
-    .order("order_index");
-  if (templateTasksErr) {
-    return {
-      attempted: true as const,
-      status: "skipped_template_fetch_error" as const,
-    };
-  }
-
-  const { error: deleteErr } = await supabase
-    .from("daily_quest_run_tasks")
-    .delete()
-    .eq("daily_quest_run_id", run.id);
-  if (deleteErr) {
-    return {
-      attempted: true as const,
-      status: "skipped_run_delete_error" as const,
-    };
-  }
-
-  if (!templateTasks?.length) {
-    return { attempted: true as const, status: "synced_empty" as const };
-  }
-
-  const { error: insertErr } = await supabase.from("daily_quest_run_tasks").insert(
-    templateTasks.map((t: any) => ({
-      daily_quest_run_id: run.id,
-      daily_quest_template_task_id: t.id,
-      title: t.title,
-      description: t.description,
-      task_type: t.task_type,
-      verification_method: t.verification_method,
-      reward_amount: t.reward_amount,
-      order_index: t.order_index,
-      task_config: t.task_config ?? {},
-      input_required: t.input_required ?? false,
-      input_label: t.input_label ?? null,
-      input_placeholder: t.input_placeholder ?? null,
-      input_validation: t.input_validation ?? null,
-      requires_admin_review: t.requires_admin_review ?? false,
-    })),
+  const { data, error } = await supabase.rpc(
+    "sync_daily_quest_run_tasks_if_safe",
+    { p_template_id: dailyQuestId },
   );
-  if (insertErr) {
-    return {
-      attempted: true as const,
-      status: "skipped_run_insert_error" as const,
-    };
+
+  if (error) {
+    log.warn("sync_daily_quest_run_tasks_if_safe RPC error", {
+      dailyQuestId,
+      error,
+    });
+    return { attempted: true as const, status: "skipped_rpc_error" as const };
   }
 
-  return { attempted: true as const, status: "synced" as const };
+  return data as { attempted: boolean; status: string };
 }
 
 export async function GET(
@@ -475,18 +402,7 @@ export async function PUT(
     }
 
     let runTaskSyncStatus:
-      | {
-          attempted: boolean;
-          status:
-            | "no_active_run"
-            | "skipped_existing_completions"
-            | "skipped_completion_check_error"
-            | "skipped_template_fetch_error"
-            | "skipped_run_delete_error"
-            | "skipped_run_insert_error"
-            | "synced_empty"
-            | "synced";
-        }
+      | { attempted: boolean; status: string }
       | undefined;
     try {
       runTaskSyncStatus = await syncTodayRunTasksIfSafe(supabase, dailyQuestId);

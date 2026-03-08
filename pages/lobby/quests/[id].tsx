@@ -112,6 +112,10 @@ const QuestDetailsPage = () => {
           );
         }
       } catch (error) {
+        if (silent) {
+          log.warn("Silent refresh failed for quest details", { questId, error });
+          return;
+        }
         log.error("Error loading quest details:", error);
         toast.error("Failed to load quest details");
       } finally {
@@ -567,6 +571,7 @@ const QuestDetailsPage = () => {
 
         let attestationScanUrl: string | null | undefined = null;
         let proofCancelled = false;
+        let proofFailed = false;
 
         if (isEASEnabled() && response.attestationRequired) {
           const userAddress = selectedWallet?.address;
@@ -656,7 +661,11 @@ const QuestDetailsPage = () => {
             if (isUserRejectedError(err)) {
               proofCancelled = true;
             } else {
-              throw err;
+              proofFailed = true;
+              log.warn("Quest completion proof step failed after successful grant", {
+                questId,
+                error: err?.message || err,
+              });
             }
           }
         }
@@ -667,6 +676,11 @@ const QuestDetailsPage = () => {
             {proofCancelled && (
               <div className="text-xs mt-1 text-gray-300">
                 Completion proof cancelled — claim completed.
+              </div>
+            )}
+            {proofFailed && (
+              <div className="text-xs mt-1 text-yellow-300">
+                Attestation proof failed — your key was still granted.
               </div>
             )}
             {attestationScanUrl && (

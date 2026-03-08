@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { ensureTodayDailyRuns } from "@/lib/quests/daily-quests/runs";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 import { broadcastTelegramNotification } from "@/lib/notifications/telegram";
-import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
+import { createPublicClientForNetwork } from "@/lib/blockchain/config/clients/public-client";
 import { ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { isAddress } from "viem";
 import type {
@@ -113,7 +113,7 @@ async function validateEligibilityConfig(
       return { ok: false as const, error: "ERC20 minimum balance must be > 0" };
     }
 
-    const publicClient = createPublicClientUnified();
+    const publicClient = createPublicClientForNetwork({ chainId: chainIdRaw });
     try {
       const decimals = await publicClient.readContract({
         address: token as `0x${string}`,

@@ -1,4 +1,7 @@
 import { toast } from "react-hot-toast";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("utils:clipboard");
 
 /**
  * Copies text to the clipboard and shows a toast notification.
@@ -17,7 +20,7 @@ export async function copyToClipboard(
         await navigator.clipboard.writeText(text);
         toast.success(successMessage);
     } catch (err) {
-        console.error("Failed to copy text to clipboard:", err);
+        log.error("Failed to copy text to clipboard", { err });
         toast.error("Failed to copy to clipboard");
     }
 }

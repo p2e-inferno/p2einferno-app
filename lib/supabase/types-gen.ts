@@ -2471,6 +2471,7 @@ export type Database = {
           completion_bonus_claimed_at: string | null
           daily_quest_run_id: string
           id: string
+          key_claim_attestation_uid: string | null
           key_claim_token_id: number | null
           key_claim_tx_hash: string | null
           reward_claimed: boolean | null
@@ -2485,6 +2486,7 @@ export type Database = {
           completion_bonus_claimed_at?: string | null
           daily_quest_run_id: string
           id?: string
+          key_claim_attestation_uid?: string | null
           key_claim_token_id?: number | null
           key_claim_tx_hash?: string | null
           reward_claimed?: boolean | null
@@ -2499,6 +2501,7 @@ export type Database = {
           completion_bonus_claimed_at?: string | null
           daily_quest_run_id?: string
           id?: string
+          key_claim_attestation_uid?: string | null
           key_claim_token_id?: number | null
           key_claim_tx_hash?: string | null
           reward_claimed?: boolean | null

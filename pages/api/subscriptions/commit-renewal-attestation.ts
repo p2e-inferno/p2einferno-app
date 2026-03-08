@@ -96,12 +96,11 @@ export default async function handler(
       recipient = wallet;
     } catch (walletErr: unknown) {
       const status = walletValidationErrorToHttpStatus(walletErr);
-      const safeStatus = status === 500 ? 403 : status;
       const message =
         walletErr instanceof Error
           ? walletErr.message
           : "Wallet validation failed";
-      return res.status(safeStatus).json({
+      return res.status(status).json({
         success: false,
         attestationUid: null,
         attestationScanUrl: null,

@@ -73,7 +73,7 @@ export function AccessRequirementCard() {
     return (
       <div className="p-6 bg-gradient-to-br from-indigo-500/10 via-transparent to-orange-500/5 border border-indigo-500/20 rounded-2xl relative overflow-hidden backdrop-blur-sm">
         <div className="relative z-10">
-          <h3 className="text-md font-black text-white mb-2 tracking-tight uppercase">
+          <h3 className="text-base font-black text-white mb-2 tracking-tight uppercase">
             Membership Found on Another Wallet
           </h3>
           <p className="text-gray-400 text-sm leading-relaxed mb-2">

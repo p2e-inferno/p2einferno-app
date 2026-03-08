@@ -114,40 +114,40 @@ export const DeployLockTaskForm: React.FC<DeployLockTaskFormProps> = ({
       if (onSubmit) {
         await onSubmit(txHash);
         setSuccess(true);
-        return;
-      }
-
-      // Otherwise, make API call directly
-      const response = await fetch("/api/quests/complete-task", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          questId,
-          taskId,
-          verificationData: { transactionHash: txHash },
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        setError({ code: data.code || "UNKNOWN_ERROR", message: data.error });
-        return;
-      }
-
-      // Success!
-      const vData = data.completion?.verification_data;
-      if (vData) {
-        setVerificationData({
-          chainId: vData.chainId,
-          lockAddress: vData.lockAddress,
-          rewardMultiplier: vData.rewardMultiplier,
-          networkName: vData.networkName,
-          transactionHash: vData.transactionHash,
+        // Do not return early — let the finally block clear isSubmitting
+      } else {
+        // Otherwise, make API call directly
+        const response = await fetch("/api/quests/complete-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            questId,
+            taskId,
+            verificationData: { transactionHash: txHash },
+          }),
         });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          setError({ code: data.code || "UNKNOWN_ERROR", message: data.error });
+          return;
+        }
+
+        // Success!
+        const vData = data.completion?.verification_data;
+        if (vData) {
+          setVerificationData({
+            chainId: vData.chainId,
+            lockAddress: vData.lockAddress,
+            rewardMultiplier: vData.rewardMultiplier,
+            networkName: vData.networkName,
+            transactionHash: vData.transactionHash,
+          });
+        }
+        setSuccess(true);
+        onSuccess?.(vData);
       }
-      setSuccess(true);
-      onSuccess?.(vData);
     } catch (err) {
       setError({
         code: "NETWORK_ERROR",

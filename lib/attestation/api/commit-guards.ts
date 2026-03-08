@@ -88,7 +88,16 @@ export function getDecodedFieldValue(
 export function normalizeBytes32(value: any): string | null {
   let normalizedValue: string | null = null;
 
-  if (typeof value === "string") {
+  // Handle numeric byte arrays before other object checks (they also match the toString branch)
+  if (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => Number.isInteger(item) && item >= 0 && item <= 255)
+  ) {
+    normalizedValue = `0x${(value as number[])
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("")}`;
+  } else if (typeof value === "string") {
     normalizedValue = value;
   } else if (value instanceof Uint8Array) {
     normalizedValue = `0x${Array.from(value)
@@ -109,17 +118,6 @@ export function normalizeBytes32(value: any): string | null {
     if (typeof asString === "string" && asString.startsWith("0x")) {
       normalizedValue = asString;
     }
-  }
-
-  if (typeof normalizedValue !== "string") return null;
-  if (
-    Array.isArray(value) &&
-    value.length > 0 &&
-    value.every((item) => Number.isInteger(item) && item >= 0 && item <= 255)
-  ) {
-    normalizedValue = `0x${(value as number[])
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("")}`;
   }
 
   if (typeof normalizedValue !== "string") return null;

@@ -318,12 +318,11 @@ export default async function handler(
         });
       } catch (walletErr: unknown) {
         const status = walletValidationErrorToHttpStatus(walletErr);
-        const safeStatus = status === 500 ? 403 : status;
         const message =
           walletErr instanceof Error
             ? walletErr.message
             : "Wallet validation failed";
-        return res.status(safeStatus).json({ error: message });
+        return res.status(status).json({ error: message });
       }
 
       if (!row.certificate_issued) {

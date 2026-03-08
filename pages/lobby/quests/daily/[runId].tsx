@@ -363,16 +363,8 @@ export default function DailyQuestDetailPage() {
             ],
           });
         } catch (err: any) {
-          const code = err?.code ?? err?.error?.code;
-          const message = String(err?.message || "").toLowerCase();
-          const isUserCancelled =
-            code === 4001 ||
-            code === "ACTION_REJECTED" ||
-            message.includes("rejected") ||
-            message.includes("denied") ||
-            message.includes("cancel");
           toast.error(
-            isUserCancelled
+            isUserRejectedError(err)
               ? "Claim cancelled"
               : err?.message || "Failed to sign claim attestation",
           );
@@ -672,9 +664,9 @@ export default function DailyQuestDetailPage() {
               </div>
 
               <div className="space-y-3">
-                {eligibility.requirements.map((req) => (
+                {eligibility.requirements.map((req, i) => (
                   <div
-                    key={req.type}
+                    key={`${req.type}-${i}`}
                     className={`flex items-start p-3 rounded-lg border transition-all ${
                       req.status === "met"
                         ? "bg-green-500/5 border-green-500/20"
