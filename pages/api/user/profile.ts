@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import {
   AuthorizationError,
   PrivyUnavailableError,
+  WalletValidationError,
   extractAndValidateWalletFromHeader,
   getPrivyUser,
   validateWalletOwnership,
@@ -72,7 +73,8 @@ async function createOrUpdateUserProfile(
     } catch (error) {
       if (
         error instanceof AuthorizationError ||
-        error instanceof PrivyUnavailableError
+        error instanceof PrivyUnavailableError ||
+        error instanceof WalletValidationError
       ) {
         throw error;
       }
@@ -549,6 +551,13 @@ export default async function handler(
       return res.status(503).json({
         error: "Privy API unavailable while validating wallet ownership",
       });
+    }
+
+    if (
+      error instanceof WalletValidationError &&
+      error.code === "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP"
+    ) {
+      return res.status(409).json({ error: error.message });
     }
 
     // Return 409 Conflict for duplicate email/wallet errors

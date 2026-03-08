@@ -26,6 +26,7 @@ import { createWalletClientUnified } from "@/lib/blockchain/config/clients/walle
 import {
   getPrivyUserFromNextRequest,
   validateWalletOwnership,
+  WalletValidationError,
 } from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import { transferDGTokens } from "@/lib/token-withdrawal/functions/dg-transfer-service";
@@ -80,14 +81,27 @@ export async function POST(req: NextRequest) {
     // Validate wallet address belongs to authenticated user
     try {
       await validateWalletOwnership(user.id, walletAddress, "dg-withdrawal");
-    } catch (error: any) {
+    } catch (walletErr: unknown) {
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Wallet validation failed";
       log.error("Wallet validation failed for withdrawal", {
         userId: user.id,
         walletAddress,
-        error: error.message,
+        error: message,
       });
+      if (
+        walletErr instanceof WalletValidationError &&
+        walletErr.code === "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP"
+      ) {
+        return NextResponse.json(
+          { success: false, error: message },
+          { status: 409 },
+        );
+      }
       return NextResponse.json(
-        { success: false, error: error.message },
+        { success: false, error: message },
         { status: 403 },
       );
     }

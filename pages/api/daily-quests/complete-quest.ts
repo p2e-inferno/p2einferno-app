@@ -4,7 +4,7 @@ import { getLogger } from "@/lib/utils/logger";
 import {
   getPrivyUser,
   extractAndValidateWalletFromHeader,
-  WalletValidationError,
+  walletValidationErrorToHttpStatus,
 } from "@/lib/auth/privy";
 import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
 import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
@@ -12,6 +12,7 @@ import { grantKeyToUser } from "@/lib/services/user-key-service";
 import { extractTokenTransfers } from "@/lib/blockchain/shared/transaction-utils";
 import { randomUUID } from "crypto";
 import { DailyQuestRun } from "@/lib/supabase/types";
+import { isEASEnabled } from "@/lib/attestation/core/config";
 
 const log = getLogger("api:daily-quests:complete-quest");
 
@@ -58,15 +59,11 @@ export default async function handler(
         required: true,
       });
     } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
       const message =
         walletErr instanceof Error
           ? walletErr.message
           : "Invalid X-Active-Wallet header";
-      const status =
-        walletErr instanceof WalletValidationError &&
-        walletErr.code === "NOT_OWNED"
-          ? 403
-          : 400;
       return res.status(status).json({ error: message });
     }
 
@@ -185,7 +182,7 @@ export default async function handler(
             keyTokenId,
             completionBonusRewardAmount: bonusAmount,
             completionBonusAwarded: false,
-            attestationRequired: false,
+            attestationRequired: isEASEnabled(),
           });
         }
 
@@ -221,7 +218,7 @@ export default async function handler(
               keyTokenId,
               completionBonusRewardAmount: bonusAmount,
               completionBonusAwarded: false,
-              attestationRequired: false,
+              attestationRequired: isEASEnabled(),
             });
           }
 
@@ -265,7 +262,7 @@ export default async function handler(
               keyTokenId,
               completionBonusRewardAmount: bonusAmount,
               completionBonusAwarded: false,
-              attestationRequired: false,
+              attestationRequired: isEASEnabled(),
             });
           }
 
@@ -281,7 +278,7 @@ export default async function handler(
         completionBonusRewardAmount:
           Number(template.completion_bonus_reward_amount || 0) || 0,
         completionBonusAwarded,
-        attestationRequired: false,
+        attestationRequired: isEASEnabled(),
       });
     }
 
@@ -395,7 +392,7 @@ export default async function handler(
           completionBonusRewardAmount:
             Number(template.completion_bonus_reward_amount || 0) || 0,
           completionBonusAwarded: Boolean(latest?.completion_bonus_claimed),
-          attestationRequired: false,
+          attestationRequired: isEASEnabled(),
         });
       }
 
@@ -546,7 +543,7 @@ export default async function handler(
           keyTokenId: keyTokenId ?? null,
           completionBonusRewardAmount: bonusAmount,
           completionBonusAwarded: false,
-          attestationRequired: false,
+          attestationRequired: isEASEnabled(),
         });
       }
 
@@ -583,7 +580,7 @@ export default async function handler(
             keyTokenId: keyTokenId ?? null,
             completionBonusRewardAmount: bonusAmount,
             completionBonusAwarded: false,
-            attestationRequired: false,
+            attestationRequired: isEASEnabled(),
           });
         }
 
@@ -624,7 +621,7 @@ export default async function handler(
             keyTokenId: keyTokenId ?? null,
             completionBonusRewardAmount: bonusAmount,
             completionBonusAwarded: false,
-            attestationRequired: false,
+            attestationRequired: isEASEnabled(),
           });
         }
 
@@ -639,7 +636,7 @@ export default async function handler(
       keyTokenId,
       completionBonusRewardAmount: bonusAmount,
       completionBonusAwarded,
-      attestationRequired: false,
+      attestationRequired: isEASEnabled(),
       ...(updateError
         ? {
             dbWarning: {

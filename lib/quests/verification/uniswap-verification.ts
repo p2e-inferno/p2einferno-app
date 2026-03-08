@@ -7,7 +7,7 @@
  */
 
 import type { PublicClient, Log } from "viem";
-import { decodeEventLog } from "viem";
+import { decodeEventLog, formatUnits } from "viem";
 import type { TaskType } from "@/lib/supabase/types";
 import type {
   VerificationStrategy,
@@ -115,6 +115,22 @@ function getInputToken(
         ? UNISWAP_ADDRESSES.up
         : UNISWAP_ADDRESSES.usdc;
   }
+}
+
+/** Get decimals for a token address */
+function getTokenDecimals(tokenAddress: `0x${string}`): number {
+  const addr = tokenAddress.toLowerCase();
+  if (addr === UNISWAP_ADDRESSES.usdc.toLowerCase()) return 6;
+  return 18; // ETH (WETH) and UP use 18 decimals
+}
+
+/** Get human-readable symbol for a token address */
+function getTokenSymbol(tokenAddress: `0x${string}`): string {
+  const addr = tokenAddress.toLowerCase();
+  if (addr === UNISWAP_ADDRESSES.usdc.toLowerCase()) return "USDC";
+  if (addr === UNISWAP_ADDRESSES.up.toLowerCase()) return "UP";
+  if (addr === UNISWAP_ADDRESSES.weth.toLowerCase()) return "ETH";
+  return "units";
 }
 
 /** Get the pool address(es) for verification */
@@ -310,7 +326,7 @@ function getPoolTokenPair(
 }
 
 export class UniswapVerificationStrategy implements VerificationStrategy {
-  constructor(private readonly client: PublicClient) {}
+  constructor(private readonly client: PublicClient) { }
 
   async verify(
     _taskType: TaskType,
@@ -405,9 +421,8 @@ export class UniswapVerificationStrategy implements VerificationStrategy {
         };
       }
 
-      // Enforce Base chain
-      const txChainId = await this.client.getChainId();
-      if (txChainId !== UNISWAP_CHAIN.id) {
+      // Enforce Base chain — chain is set at client creation time, no RPC call needed
+      if (this.client.chain?.id !== UNISWAP_CHAIN.id) {
         return {
           success: false,
           error: "Transaction must be on Base",
@@ -428,7 +443,7 @@ export class UniswapVerificationStrategy implements VerificationStrategy {
       if (
         !receipt.to ||
         receipt.to.toLowerCase() !==
-          UNISWAP_ADDRESSES.universalRouter.toLowerCase()
+        UNISWAP_ADDRESSES.universalRouter.toLowerCase()
       ) {
         return {
           success: false,
@@ -475,9 +490,16 @@ export class UniswapVerificationStrategy implements VerificationStrategy {
 
       // Enforce minimum amount
       if (extractResult.inputAmount < requiredAmount) {
+        const inputToken = getInputToken(swapPair, swapDirection);
+        const decimals = getTokenDecimals(inputToken);
+        const symbol = getTokenSymbol(inputToken);
+
+        const actualStr = formatUnits(extractResult.inputAmount, decimals);
+        const requiredStr = formatUnits(requiredAmount, decimals);
+
         return {
           success: false,
-          error: `Swap input amount (${extractResult.inputAmount.toString()}) is below the required minimum (${requiredAmount.toString()})`,
+          error: `Swap input amount (${actualStr} ${symbol}) is below the required minimum (${requiredStr} ${symbol})`,
           code: "AMOUNT_TOO_LOW",
         };
       }

@@ -9,6 +9,8 @@ import {
 import { sortQuestTasks } from "@/lib/quests/sort-tasks";
 
 const log = getLogger("api:quests:[id]");
+const UUID_V4_OR_VX_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export default async function handler(
   req: NextApiRequest,
@@ -20,8 +22,11 @@ export default async function handler(
 
   const { id } = req.query;
 
-  if (!id) {
+  if (!id || typeof id !== "string") {
     return res.status(400).json({ error: "Quest ID is required" });
+  }
+  if (!UUID_V4_OR_VX_REGEX.test(id)) {
+    return res.status(404).json({ error: "Quest not found" });
   }
 
   try {

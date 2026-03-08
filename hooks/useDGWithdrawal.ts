@@ -360,6 +360,25 @@ export function useDGWithdrawal() {
         }),
       });
       const commitJson = await commitRes.json().catch(() => ({}));
+
+      if (!commitRes.ok || commitJson?.success === false) {
+        log.error("Withdrawal attestation commit API returned error", {
+          withdrawalId: params.withdrawalId,
+          status: commitRes.status,
+          body: commitJson,
+        });
+      } else if (!commitJson?.attestationUid) {
+        log.warn("Withdrawal attestation commit completed without UID", {
+          withdrawalId: params.withdrawalId,
+          body: commitJson,
+        });
+      } else {
+        log.info("Withdrawal attestation commit succeeded", {
+          withdrawalId: params.withdrawalId,
+          attestationUid: commitJson?.attestationUid,
+        });
+      }
+
       return {
         attestationScanUrl: commitJson?.attestationScanUrl || null,
         proofCancelled: false,

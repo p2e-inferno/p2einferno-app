@@ -1,7 +1,11 @@
 import { useMemo, useEffect, useState } from "react";
 import { useWallets, useUser, usePrivy } from "@privy-io/react-auth";
 import { getLogger } from "@/lib/utils/logger";
-import { selectLinkedWallet } from "@/lib/utils/wallet-selection";
+import {
+  getLinkedWalletAddressSet,
+  isWalletAddressLinkedToUser,
+  selectLinkedWallet,
+} from "@/lib/utils/wallet-selection";
 import { isExternalWallet } from "@/lib/utils/wallet-address";
 import toast from "react-hot-toast";
 import { CHAIN_ID } from "@/lib/blockchain/config";
@@ -60,12 +64,30 @@ export const useSmartWalletSelection = () => {
       };
     }
 
-    // Priority 3: Fallback to useWallets (should rarely happen - means no linked accounts)
+    // If user has linked wallets but no linked wallet could be resolved safely yet,
+    // return null instead of falling back to an unlinked browser wallet.
+    const linkedWalletSet = getLinkedWalletAddressSet(user);
+    if (linkedWalletSet.size > 0) {
+      log.warn(
+        "⚠️ Linked wallets exist but no safe linked wallet is currently resolvable",
+        {
+          linkedWalletCount: linkedWalletSet.size,
+        },
+      );
+      return null;
+    }
+
+    // If no linked wallet exists on the user, only allow fallback to provider wallet
+    // when that provider wallet is actually linked (defensive check).
     if (wallets.length > 0) {
-      log.warn("⚠️ Falling back to browser wallet (not in linked accounts)", {
-        address: wallets[0]?.address,
-      });
-      return wallets[0];
+      const fallbackWallet = wallets[0];
+      const fallbackAddress = fallbackWallet?.address || null;
+      if (isWalletAddressLinkedToUser(user, fallbackAddress)) {
+        log.warn("⚠️ Falling back to linked provider wallet", {
+          address: fallbackAddress,
+        });
+        return fallbackWallet;
+      }
     }
 
     log.info("❌ No wallets available");

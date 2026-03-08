@@ -23,6 +23,7 @@ import { SubscriptionStatusCard } from "@/components/subscription";
 import { useWithdrawalLimits } from "@/hooks/useWithdrawalLimits";
 import ConfirmationDialog from "@/components/ui/confirmation-dialog";
 import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
+import { copyToClipboard } from "@/lib/utils/clipboard";
 import { useTelegramNotifications } from "@/hooks/useTelegramNotifications";
 import {
   Dialog,
@@ -300,7 +301,6 @@ const ProfilePage = () => {
     try {
       await unlinkWallet(unlinkWalletModal.address);
       toast.success("Wallet unlinked successfully");
-      refetch();
     } catch (error) {
       log.error("Error unlinking wallet:", error);
       toast.error(extractErrorMessage(error, "Failed to unlink wallet"));
@@ -310,14 +310,7 @@ const ProfilePage = () => {
   };
 
   const handleCopyTelegramLink = useCallback(async () => {
-    if (!telegram.blockedDeepLink) return;
-    try {
-      await navigator.clipboard.writeText(telegram.blockedDeepLink);
-      toast.success("Telegram link copied");
-    } catch (error) {
-      log.error("Failed to copy Telegram deep link", { error });
-      toast.error("Failed to copy link. Please copy it manually.");
-    }
+    copyToClipboard(telegram.blockedDeepLink, "Telegram link copied");
   }, [telegram.blockedDeepLink]);
 
   const handleOpenTelegramLink = useCallback(() => {

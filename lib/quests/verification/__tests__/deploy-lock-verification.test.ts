@@ -8,6 +8,7 @@
 import { DeployLockVerificationStrategy } from "../deploy-lock-verification";
 import type { DeployLockTaskConfig } from "../deploy-lock-utils";
 import type { VerificationOptions } from "../types";
+import { UNLOCK_FACTORY_ADDRESSES } from "@/constants/unlock_factory_addresses";
 
 // Mock dependencies
 jest.mock("@/lib/blockchain/config/clients/public-client");
@@ -28,30 +29,36 @@ const MOCK_TX_HASH =
 const MOCK_USER_ADDRESS = "0x1111111111111111111111111111111111111111";
 const MOCK_LOCK_ADDRESS = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd";
 const MOCK_USER_ID = "user-123";
-const UNLOCK_FACTORY_ADDRESS = "0x1FF7e338d5E582138C46044dc238543Ce555C963";
+const UNLOCK_FACTORY_ADDRESS = UNLOCK_FACTORY_ADDRESSES[84532];
 const NEW_LOCK_EVENT_SIGNATURE =
   "0x01017ed19df0c7f8acc436147b234b09664a9fb4797b4fa3fb9e599c2eb67be7";
 
 // Mock receipt with valid NewLock event from official factory
-const createMockReceipt = (overrides: any = {}) => ({
-  status: "success",
-  from: MOCK_USER_ADDRESS,
-  to: UNLOCK_FACTORY_ADDRESS,
-  transactionHash: MOCK_TX_HASH,
-  blockNumber: 12345n,
-  logs: [
-    {
-      address: UNLOCK_FACTORY_ADDRESS,
-      topics: [
-        NEW_LOCK_EVENT_SIGNATURE,
-        `0x000000000000000000000000${MOCK_USER_ADDRESS.slice(2)}`,
-        `0x000000000000000000000000${MOCK_LOCK_ADDRESS.slice(2)}`,
-      ],
-      data: "0x",
-    },
-  ],
-  ...overrides,
-});
+const createMockReceipt = (overrides: any = {}) => {
+  const { chainId = 84532, ...rest } = overrides;
+  const factoryAddress =
+    UNLOCK_FACTORY_ADDRESSES[chainId] || UNLOCK_FACTORY_ADDRESS;
+
+  return {
+    status: "success",
+    from: MOCK_USER_ADDRESS,
+    to: factoryAddress,
+    transactionHash: MOCK_TX_HASH,
+    blockNumber: 12345n,
+    logs: [
+      {
+        address: factoryAddress,
+        topics: [
+          NEW_LOCK_EVENT_SIGNATURE,
+          `0x000000000000000000000000${MOCK_USER_ADDRESS.slice(2)}`,
+          `0x000000000000000000000000${MOCK_LOCK_ADDRESS.slice(2)}`,
+        ],
+        data: "0x",
+      },
+    ],
+    ...rest,
+  };
+};
 
 // Mock configuration
 const BASE_SEPOLIA_CONFIG: DeployLockTaskConfig = {
@@ -88,13 +95,19 @@ describe("DeployLockVerificationStrategy", () => {
     };
 
     // Setup mocks
-    const { resolveChainById } = require("@/lib/blockchain/config/core/chain-map");
+    const {
+      resolveChainById,
+    } = require("@/lib/blockchain/config/core/chain-map");
     resolveChainById.mockReturnValue(mockChain);
 
-    const { createPublicClientForChain } = require("@/lib/blockchain/config/clients/public-client");
+    const {
+      createPublicClientForChain,
+    } = require("@/lib/blockchain/config/clients/public-client");
     createPublicClientForChain.mockReturnValue(mockPublicClient);
 
-    const { extractLockAddressFromReceipt } = require("@/lib/blockchain/shared/transaction-utils");
+    const {
+      extractLockAddressFromReceipt,
+    } = require("@/lib/blockchain/shared/transaction-utils");
     extractLockAddressFromReceipt.mockReturnValue(MOCK_LOCK_ADDRESS);
   });
 
@@ -109,7 +122,7 @@ describe("DeployLockVerificationStrategy", () => {
         {}, // No transaction hash
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -122,7 +135,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: "invalid" },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -135,7 +148,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: { allowed_networks: [] } } // Empty networks
+        { taskConfig: { allowed_networks: [] } }, // Empty networks
       );
 
       expect(result.success).toBe(false);
@@ -154,7 +167,7 @@ describe("DeployLockVerificationStrategy", () => {
               { chain_id: 84532, reward_ratio: 1.0, enabled: false },
             ],
           },
-        }
+        },
       );
 
       expect(result.success).toBe(false);
@@ -164,7 +177,7 @@ describe("DeployLockVerificationStrategy", () => {
 
   describe("Transaction Verification", () => {
     test("should verify valid deployment on Base Sepolia", async () => {
-      const mockReceipt = createMockReceipt();
+      const mockReceipt = createMockReceipt({ chainId: 84532 });
       mockPublicClient.getTransactionReceipt.mockResolvedValue(mockReceipt);
 
       const result = await strategy.verify(
@@ -172,7 +185,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(true);
@@ -185,12 +198,14 @@ describe("DeployLockVerificationStrategy", () => {
     test("should verify deployment on Optimism with correct multiplier", async () => {
       // Update chain mock for Optimism
       const optimismChain = { id: 10, name: "Optimism" };
-      const { resolveChainById } = require("@/lib/blockchain/config/core/chain-map");
+      const {
+        resolveChainById,
+      } = require("@/lib/blockchain/config/core/chain-map");
       resolveChainById.mockImplementation((chainId: number) =>
-        chainId === 10 ? optimismChain : null
+        chainId === 10 ? optimismChain : null,
       );
 
-      const mockReceipt = createMockReceipt();
+      const mockReceipt = createMockReceipt({ chainId: 10 });
       mockPublicClient.getTransactionReceipt.mockResolvedValue(mockReceipt);
 
       const result = await strategy.verify(
@@ -198,7 +213,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: MULTI_NETWORK_CONFIG }
+        { taskConfig: MULTI_NETWORK_CONFIG },
       );
 
       expect(result.success).toBe(true);
@@ -217,7 +232,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -233,7 +248,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -242,7 +257,7 @@ describe("DeployLockVerificationStrategy", () => {
 
     test("should handle transaction not found on any network", async () => {
       mockPublicClient.getTransactionReceipt.mockRejectedValue(
-        new Error("Transaction not found")
+        new Error("Transaction not found"),
       );
 
       const result = await strategy.verify(
@@ -250,15 +265,17 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: MULTI_NETWORK_CONFIG }
+        { taskConfig: MULTI_NETWORK_CONFIG },
       );
 
       expect(result.success).toBe(false);
-      expect(result.code).toBe("TX_NOT_FOUND_MULTI_NETWORK");
+      expect(result.code).toBe("TX_NOT_FOUND");
     });
 
     test("should reject when lock address cannot be extracted", async () => {
-      const { extractLockAddressFromReceipt } = require("@/lib/blockchain/shared/transaction-utils");
+      const {
+        extractLockAddressFromReceipt,
+      } = require("@/lib/blockchain/shared/transaction-utils");
       extractLockAddressFromReceipt.mockReturnValue(null);
 
       const mockReceipt = createMockReceipt();
@@ -269,7 +286,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -297,7 +314,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: configWithTimestamp }
+        { taskConfig: configWithTimestamp },
       );
 
       expect(result.success).toBe(true);
@@ -325,7 +342,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: configWithTimestamp }
+        { taskConfig: configWithTimestamp },
       );
 
       expect(result.success).toBe(false);
@@ -350,7 +367,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: configWithTimestamp }
+        { taskConfig: configWithTimestamp },
       );
 
       // Should succeed despite block fetch failure (graceful degradation)
@@ -360,7 +377,7 @@ describe("DeployLockVerificationStrategy", () => {
 
   describe("Multi-Network Support", () => {
     test("should search networks in parallel", async () => {
-      const mockReceipt = createMockReceipt();
+      const mockReceipt = createMockReceipt({ chainId: 10 });
       // Only one network succeeds to avoid multi-network conflict
       mockPublicClient.getTransactionReceipt
         .mockRejectedValueOnce(new Error("Not found"))
@@ -373,7 +390,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: MULTI_NETWORK_CONFIG }
+        { taskConfig: MULTI_NETWORK_CONFIG },
       );
 
       expect(result.success).toBe(true);
@@ -383,7 +400,9 @@ describe("DeployLockVerificationStrategy", () => {
     });
 
     test("should return first successful network result", async () => {
-      const { resolveChainById } = require("@/lib/blockchain/config/core/chain-map");
+      const {
+        resolveChainById,
+      } = require("@/lib/blockchain/config/core/chain-map");
       resolveChainById.mockImplementation((chainId: number) => {
         const chains: Record<number, any> = {
           8453: { id: 8453, name: "Base" },
@@ -399,14 +418,14 @@ describe("DeployLockVerificationStrategy", () => {
         .mockRejectedValueOnce(new Error("Not found"))
         .mockRejectedValueOnce(new Error("Not found"))
         .mockRejectedValueOnce(new Error("Not found"))
-        .mockResolvedValueOnce(createMockReceipt());
+        .mockResolvedValueOnce(createMockReceipt({ chainId: 42220 }));
 
       const result = await strategy.verify(
         "deploy_lock",
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: MULTI_NETWORK_CONFIG }
+        { taskConfig: MULTI_NETWORK_CONFIG },
       );
 
       expect(result.success).toBe(true);
@@ -424,7 +443,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(true);
@@ -444,11 +463,15 @@ describe("DeployLockVerificationStrategy", () => {
       mockPublicClient.getTransactionReceipt.mockResolvedValue(mockReceipt);
 
       const unknownChainConfig: DeployLockTaskConfig = {
-        allowed_networks: [{ chain_id: 99999, reward_ratio: 1.0, enabled: true }],
+        allowed_networks: [
+          { chain_id: 99999, reward_ratio: 1.0, enabled: true },
+        ],
       };
 
       // This would normally fail config validation, but testing metadata generation
-      const { resolveChainById } = require("@/lib/blockchain/config/core/chain-map");
+      const {
+        resolveChainById,
+      } = require("@/lib/blockchain/config/core/chain-map");
       resolveChainById.mockReturnValue({ id: 99999, name: "Unknown" });
 
       const result = await strategy.verify(
@@ -456,7 +479,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: unknownChainConfig }
+        { taskConfig: unknownChainConfig },
       );
 
       if (result.success) {
@@ -475,7 +498,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(true);
@@ -504,7 +527,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -523,7 +546,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -553,7 +576,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: BASE_SEPOLIA_CONFIG }
+        { taskConfig: BASE_SEPOLIA_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -563,14 +586,16 @@ describe("DeployLockVerificationStrategy", () => {
 
   describe("Multi-Network Conflict Detection", () => {
     test("should accept transaction found on exactly one network", async () => {
-      const mockReceipt = createMockReceipt();
+      const mockReceipt = createMockReceipt({ chainId: 10 });
       mockPublicClient.getTransactionReceipt
         .mockRejectedValueOnce(new Error("Not found")) // Base fails
         .mockResolvedValueOnce(mockReceipt) // Optimism succeeds
         .mockRejectedValueOnce(new Error("Not found")) // Arbitrum fails
         .mockRejectedValueOnce(new Error("Not found")); // Celo fails
 
-      const { resolveChainById } = require("@/lib/blockchain/config/core/chain-map");
+      const {
+        resolveChainById,
+      } = require("@/lib/blockchain/config/core/chain-map");
       resolveChainById.mockImplementation((chainId: number) => {
         const chains: Record<number, any> = {
           8453: { id: 8453, name: "Base" },
@@ -586,7 +611,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: MULTI_NETWORK_CONFIG }
+        { taskConfig: MULTI_NETWORK_CONFIG },
       );
 
       expect(result.success).toBe(true);
@@ -603,7 +628,9 @@ describe("DeployLockVerificationStrategy", () => {
         .mockRejectedValueOnce(new Error("Not found")) // Arbitrum fails
         .mockRejectedValueOnce(new Error("Not found")); // Celo fails
 
-      const { resolveChainById } = require("@/lib/blockchain/config/core/chain-map");
+      const {
+        resolveChainById,
+      } = require("@/lib/blockchain/config/core/chain-map");
       resolveChainById.mockImplementation((chainId: number) => {
         const chains: Record<number, any> = {
           8453: { id: 8453, name: "Base" },
@@ -619,7 +646,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: MULTI_NETWORK_CONFIG }
+        { taskConfig: MULTI_NETWORK_CONFIG },
       );
 
       expect(result.success).toBe(false);
@@ -633,7 +660,9 @@ describe("DeployLockVerificationStrategy", () => {
       const mockReceipt = createMockReceipt();
       mockPublicClient.getTransactionReceipt.mockResolvedValue(mockReceipt); // All succeed
 
-      const { resolveChainById } = require("@/lib/blockchain/config/core/chain-map");
+      const {
+        resolveChainById,
+      } = require("@/lib/blockchain/config/core/chain-map");
       resolveChainById.mockImplementation((chainId: number) => {
         const chains: Record<number, any> = {
           8453: { id: 8453, name: "Base" },
@@ -649,7 +678,7 @@ describe("DeployLockVerificationStrategy", () => {
         { transactionHash: MOCK_TX_HASH },
         MOCK_USER_ID,
         MOCK_USER_ADDRESS,
-        { taskConfig: MULTI_NETWORK_CONFIG }
+        { taskConfig: MULTI_NETWORK_CONFIG },
       );
 
       expect(result.success).toBe(false);

@@ -95,6 +95,7 @@ function createMockClient(overrides: {
     getChainId: jest
       .fn()
       .mockResolvedValue(overrides.chainId ?? UNISWAP_CHAIN.id),
+    chain: { id: overrides.chainId ?? UNISWAP_CHAIN.id },
   };
 }
 

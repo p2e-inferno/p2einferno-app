@@ -7,6 +7,7 @@ import { useAdminFetchOnce } from "@/hooks/useAdminFetchOnce";
 import { useAdminAuthContext } from "@/contexts/admin-context";
 import { getLogger } from "@/lib/utils/logger";
 import { toast } from "react-hot-toast";
+import { RichText } from "@/components/common/RichText";
 
 const log = getLogger("admin:daily-quests:list");
 
@@ -85,16 +86,11 @@ export function DailyQuestList() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-semibold text-white">Daily Quests</h2>
-          <p className="text-sm text-gray-400">
-            Templates publish one run per UTC day.
-          </p>
-        </div>
-        <Link href="/admin/quests/daily/new">
-          <Button>Create Daily Quest</Button>
-        </Link>
+      <div>
+        <h2 className="text-xl font-semibold text-white">Daily Quests</h2>
+        <p className="text-sm text-gray-400">
+          Templates publish one run per UTC day.
+        </p>
       </div>
 
       {error && (
@@ -122,9 +118,10 @@ export function DailyQuestList() {
             >
               <div className="col-span-4">
                 <div className="text-white font-medium">{row.title}</div>
-                <div className="text-xs text-gray-400 truncate">
-                  {row.description}
-                </div>
+                <RichText
+                  content={row.description}
+                  className="text-xs text-gray-400 line-clamp-2 [&_*]:!my-0"
+                />
               </div>
               <div className="col-span-2">
                 <Badge variant={row.is_active ? "secondary" : "outline"}>

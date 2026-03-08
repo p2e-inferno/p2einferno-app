@@ -1,7 +1,11 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
-import { getPrivyUser, validateWalletOwnership } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  validateWalletOwnership,
+  WalletValidationError,
+} from "@/lib/auth/privy";
 
 const log = getLogger("api:quests:sign-tos");
 
@@ -27,7 +31,21 @@ export default async function handler(
     const userId = authUser.id;
 
     // Validate wallet belongs to user
-    await validateWalletOwnership(userId, walletAddress, "tos-signing");
+    try {
+      await validateWalletOwnership(userId, walletAddress, "tos-signing");
+    } catch (walletErr: unknown) {
+      if (
+        walletErr instanceof WalletValidationError &&
+        walletErr.code === "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP"
+      ) {
+        return res.status(409).json({ error: walletErr.message });
+      }
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Wallet validation failed";
+      return res.status(403).json({ error: message });
+    }
 
     const supabase = createAdminClient();
 

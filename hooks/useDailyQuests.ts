@@ -28,6 +28,13 @@ export type DailyQuestRunListItem = {
     eligibility_config?: Record<string, unknown>;
   } | null;
   daily_quest_run_tasks: any[];
+  progress?: {
+    reward_claimed: boolean;
+    completion_bonus_claimed: boolean;
+  } | null;
+  has_pending_task_rewards?: boolean;
+  tasks_completed_count?: number;
+  total_tasks_count?: number;
   eligibility?: DailyQuestEligibility;
   eligibility_evaluated_wallet?: string | null;
 };
@@ -77,4 +84,3 @@ export function useDailyQuests() {
     authenticated,
   };
 }
-

@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatUnits, parseUnits } from "viem";
 import {
   Coins,
   Flame,
@@ -78,6 +79,18 @@ const taskTypeOptions: {
   },
 ];
 
+const getUniswapDecimals = (pair: string, direction: string): number => {
+  if (pair === "ETH_USDC" || pair === "UP_USDC") {
+    return direction === "B_TO_A" ? 6 : 18;
+  }
+  return 18; // ETH_UP or default
+};
+
+const formatContractMinimum = (value: bigint | undefined): string => {
+  if (value === undefined || value === null) return "unavailable";
+  return formatUnits(value, 18);
+};
+
 export function DailyQuestTaskForm(props: {
   task: TaskWithTempId;
   index: number;
@@ -105,6 +118,69 @@ export function DailyQuestTaskForm(props: {
   useEffect(() => {
     setLocalTask(task);
   }, [task]);
+
+  // Local display states to allow typing decimals without "trailing zero snapping"
+  const [vendorAmountDisplay, setVendorAmountDisplay] = useState("");
+  const [uniAmountDisplay, setUniAmountDisplay] = useState("");
+
+  const cfg =
+    localTask.task_config && typeof localTask.task_config === "object"
+      ? (localTask.task_config as Record<string, any>)
+      : {};
+
+  // Sync vendorAmountDisplay
+  useEffect(() => {
+    const raw = cfg.required_amount as string;
+    if (raw && raw !== "0") {
+      try {
+        const formatted = formatUnits(BigInt(raw), 18);
+        setVendorAmountDisplay((prev) => {
+          try {
+            if (prev === "" || parseUnits(prev, 18).toString() !== raw) {
+              return formatted;
+            }
+          } catch {
+            return formatted;
+          }
+          return prev;
+        });
+      } catch {
+        // ignore
+      }
+    } else if (raw === "0") {
+      setVendorAmountDisplay("0");
+    } else {
+      setVendorAmountDisplay("");
+    }
+  }, [cfg.required_amount]);
+
+  // Sync uniAmountDisplay
+  useEffect(() => {
+    const raw = cfg.required_amount_in as string;
+    const pair = (cfg.pair as string) || "";
+    const direction = (cfg.direction as string) || "";
+    const decimals = getUniswapDecimals(pair, direction);
+
+    if (raw && raw !== "") {
+      try {
+        const formatted = formatUnits(BigInt(raw), decimals);
+        setUniAmountDisplay((prev) => {
+          try {
+            if (prev === "" || parseUnits(prev, decimals).toString() !== raw) {
+              return formatted;
+            }
+          } catch {
+            return formatted;
+          }
+          return prev;
+        });
+      } catch {
+        // ignore
+      }
+    } else {
+      setUniAmountDisplay("");
+    }
+  }, [cfg.required_amount_in, cfg.pair, cfg.direction]);
 
   const handleChange = (field: keyof DailyQuestTask, value: any) => {
     const updated = { ...localTask, [field]: value };
@@ -143,11 +219,6 @@ export function DailyQuestTaskForm(props: {
   const isDeployLock = type === "deploy_lock";
   const isUniswapSwap = type === "uniswap_swap";
   const isDailyCheckin = type === "daily_checkin";
-
-  const cfg =
-    localTask.task_config && typeof localTask.task_config === "object"
-      ? (localTask.task_config as Record<string, any>)
-      : {};
 
   return (
     <div className="border border-gray-800 rounded-xl p-5 bg-gray-900/40 space-y-4">
@@ -263,50 +334,44 @@ export function DailyQuestTaskForm(props: {
 
           {(isVendorBuy || isVendorSell) && (
             <div className="space-y-2">
-              <Label className="text-white">Minimum Amount (UP/DG)</Label>
+              <Label className="text-white">
+                Minimum Amount ({isVendorBuy ? "UP/DG" : "DG/UP"})
+              </Label>
               <Input
                 type="text"
-                value={
-                  cfg.required_amount && typeof cfg.required_amount === "string"
-                    ? (
-                        BigInt(cfg.required_amount) / BigInt(10 ** 18)
-                      ).toString() +
-                      (BigInt(cfg.required_amount) % BigInt(10 ** 18) > 0
-                        ? "." +
-                          (BigInt(cfg.required_amount) % BigInt(10 ** 18))
-                            .toString()
-                            .padStart(18, "0")
-                            .replace(/0+$/, "")
-                        : "")
-                    : ""
-                }
+                value={vendorAmountDisplay}
                 onChange={(e) => {
                   const value = e.target.value;
+                  // Only allow numeric input: digits and a single optional period
+                  if (value !== "" && !/^\d*\.?\d*$/.test(value)) {
+                    return;
+                  }
+                  setVendorAmountDisplay(value);
+
                   if (value === "" || value === "0") {
                     updateTaskConfig({
                       required_amount: "0",
                       required_token: isVendorSell ? "swap" : "base",
                     });
-                  } else {
-                    const [whole, decimal] = value.split(".");
-                    const wholeBigInt = BigInt(whole || "0") * BigInt(10 ** 18);
-                    const decimalBigInt = decimal
-                      ? BigInt(decimal.padEnd(18, "0").slice(0, 18))
-                      : BigInt(0);
-                    const weiAmount = (wholeBigInt + decimalBigInt).toString();
-                    updateTaskConfig({
-                      required_amount: weiAmount,
-                      required_token: isVendorSell ? "swap" : "base",
-                    });
+                  } else if (/^\d*\.?\d*$/.test(value)) {
+                    try {
+                      const weiAmount = parseUnits(value, 18).toString();
+                      updateTaskConfig({
+                        required_amount: weiAmount,
+                        required_token: isVendorSell ? "swap" : "base",
+                      });
+                    } catch {
+                      // ignore
+                    }
                   }
                 }}
                 placeholder="0 for any amount"
-                className="bg-transparent border-gray-700 text-gray-100"
+                className="bg-transparent border-gray-700 text-gray-100 placeholder:text-gray-500"
               />
               <p className="text-xs text-gray-400">
                 {isVendorBuy
-                  ? `Contract minimum: ${minBuyAmount ? (BigInt(minBuyAmount.toString()) / BigInt(10 ** 18)).toString() : "unavailable"} UP`
-                  : `Contract minimum: ${minSellAmount ? (BigInt(minSellAmount.toString()) / BigInt(10 ** 18)).toString() : "unavailable"} DG`}
+                  ? `Contract minimum: ${formatContractMinimum(minBuyAmount)} UP`
+                  : `Contract minimum: ${formatContractMinimum(minSellAmount)} DG`}
               </p>
               <p className="text-xs text-gray-400">
                 Enter 0 or leave blank for any amount.
@@ -511,21 +576,58 @@ export function DailyQuestTaskForm(props: {
 
           <div className="space-y-2">
             <Label className="text-white">
-              Minimum Input Amount (raw token units)
+              Minimum Input Amount (human readable)
             </Label>
             <Input
               type="text"
-              value={
-                typeof cfg.required_amount_in === "string"
-                  ? cfg.required_amount_in
-                  : ""
-              }
-              onChange={(e) =>
-                updateTaskConfig({ required_amount_in: e.target.value.trim() })
-              }
-              placeholder="e.g. 1000000000000000000 (1 ETH in wei)"
+              value={uniAmountDisplay}
+              onChange={(e) => {
+                const val = e.target.value;
+                // Only allow numeric input: digits and a single optional period
+                if (val !== "" && !/^\d*\.?\d*$/.test(val)) {
+                  return;
+                }
+                setUniAmountDisplay(val);
+
+                if (!val) {
+                  updateTaskConfig({ required_amount_in: "" });
+                  return;
+                }
+                const decimals = getUniswapDecimals(
+                  (cfg.pair as string) || "",
+                  (cfg.direction as string) || "",
+                );
+                try {
+                  if (/^\d*\.?\d*$/.test(val)) {
+                    const parsed = parseUnits(val, decimals);
+                    updateTaskConfig({ required_amount_in: parsed.toString() });
+                  }
+                } catch {
+                  // Keep as is
+                }
+              }}
+              placeholder="e.g. 1.0 (for 1 ETH or 1 UP)"
               className="bg-transparent border-gray-700 text-gray-100 font-mono"
             />
+            <p className="text-xs text-gray-400">
+              {(() => {
+                const p = cfg.pair;
+                const d = cfg.direction;
+                if (p === "ETH_UP")
+                  return d === "A_TO_B"
+                    ? "ETH amount (18 decimals)"
+                    : "UP amount (18 decimals)";
+                if (p === "ETH_USDC")
+                  return d === "A_TO_B"
+                    ? "ETH amount (18 decimals)"
+                    : "USDC amount (6 decimals)";
+                if (p === "UP_USDC")
+                  return d === "A_TO_B"
+                    ? "UP amount (18 decimals)"
+                    : "USDC amount (6 decimals)";
+                return "Select a pair and direction first";
+              })()}
+            </p>
           </div>
         </div>
       )}

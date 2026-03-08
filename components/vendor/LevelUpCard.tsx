@@ -14,7 +14,7 @@ import {
   ArrowRightLeft,
   KeyRound,
 } from "lucide-react";
-import { formatWalletAddress } from "@/lib/utils/wallet-address";
+import { CopyableAddress } from "@/components/ui/copyable-address";
 
 export default function LevelUpCard() {
   const {
@@ -109,9 +109,10 @@ export default function LevelUpCard() {
         <div className="mt-3 space-y-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2.5">
           <p className="text-center text-xs text-amber-300/90">
             Membership detected on{" "}
-            <span className="font-mono font-medium text-amber-200">
-              {formatWalletAddress(keyHoldingWalletAddress)}
-            </span>
+            <CopyableAddress
+              address={keyHoldingWalletAddress}
+              className="font-medium text-amber-200 hover:text-amber-400"
+            />
           </p>
           <div className="flex gap-2">
             <span

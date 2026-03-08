@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  walletValidationErrorToHttpStatus,
+} from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
@@ -91,13 +94,17 @@ export default async function handler(
         });
       }
       recipient = wallet;
-    } catch (error: any) {
-      const status = error.message?.includes("required") ? 400 : 403;
+    } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Wallet validation failed";
       return res.status(status).json({
         success: false,
         attestationUid: null,
         attestationScanUrl: null,
-        error: error.message,
+        error: message,
       });
     }
 

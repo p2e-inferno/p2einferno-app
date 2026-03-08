@@ -3,6 +3,8 @@ import {
   getPrivyUser,
   extractAndValidateWalletFromHeader,
   validateWalletOwnership,
+  WalletValidationError,
+  walletValidationErrorToHttpStatus,
 } from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
@@ -96,8 +98,18 @@ export default async function handler(
           "checkin",
         );
         userWalletAddress = attestationSignature.recipient;
-      } catch (error: any) {
-        return res.status(403).json({ error: error.message });
+      } catch (walletErr: unknown) {
+        if (
+          walletErr instanceof WalletValidationError &&
+          walletErr.code === "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP"
+        ) {
+          return res.status(409).json({ error: walletErr.message });
+        }
+        const message =
+          walletErr instanceof Error
+            ? walletErr.message
+            : "Wallet validation failed";
+        return res.status(403).json({ error: message });
       }
     } else {
       // EAS disabled or no signature - use X-Active-Wallet header
@@ -123,9 +135,13 @@ export default async function handler(
           return res.status(400).json({ error: "X-Active-Wallet is required" });
         }
         userWalletAddress = headerWallet;
-      } catch (error: any) {
-        const status = error.message?.includes("required") ? 400 : 403;
-        return res.status(status).json({ error: error.message });
+      } catch (walletErr: unknown) {
+        const status = walletValidationErrorToHttpStatus(walletErr);
+        const message =
+          walletErr instanceof Error
+            ? walletErr.message
+            : "Wallet validation failed";
+        return res.status(status).json({ error: message });
       }
     }
 

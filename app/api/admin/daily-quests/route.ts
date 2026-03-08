@@ -5,7 +5,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { ensureTodayDailyRuns } from "@/lib/quests/daily-quests/runs";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 import { broadcastTelegramNotification } from "@/lib/notifications/telegram";
-import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
+import { createPublicClientForNetwork } from "@/lib/blockchain/config/clients/public-client";
 import { ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { isAddress } from "viem";
 import type {
@@ -29,7 +29,7 @@ type DailyQuestTemplatePayload = {
     min_vendor_stage?: number;
     requires_gooddollar_verification?: boolean;
     required_lock_address?: string;
-    required_erc20?: { token?: string; min_balance?: string };
+    required_erc20?: { token?: string; min_balance?: string; chain_id?: number };
   };
   daily_quest_tasks?: Array<{
     id?: string;
@@ -79,6 +79,7 @@ async function validateEligibilityConfig(
 
   const token = eligibility.required_erc20?.token?.trim() || "";
   const minBalance = eligibility.required_erc20?.min_balance?.trim() || "";
+  const chainIdRaw = eligibility.required_erc20?.chain_id;
 
   if ((token && !minBalance) || (!token && minBalance)) {
     return {
@@ -88,6 +89,17 @@ async function validateEligibilityConfig(
   }
 
   if (token || minBalance) {
+    if (
+      typeof chainIdRaw !== "number" ||
+      !Number.isInteger(chainIdRaw) ||
+      chainIdRaw <= 0
+    ) {
+      return {
+        ok: false as const,
+        error: "Required ERC20 chain ID must be a positive integer",
+      };
+    }
+
     if (!isAddress(token)) {
       return { ok: false as const, error: "Invalid ERC20 token address" };
     }
@@ -101,7 +113,7 @@ async function validateEligibilityConfig(
       return { ok: false as const, error: "ERC20 minimum balance must be > 0" };
     }
 
-    const publicClient = createPublicClientUnified();
+    const publicClient = createPublicClientForNetwork({ chainId: chainIdRaw });
     try {
       const decimals = await publicClient.readContract({
         address: token as `0x${string}`,
@@ -158,9 +170,20 @@ function normalizeEligibilityConfig(
       typeof normalized.required_erc20.min_balance === "string"
         ? normalized.required_erc20.min_balance.trim()
         : "";
+    const chainId = normalized.required_erc20.chain_id;
 
-    if (token && minBalance) {
-      normalized.required_erc20 = { token, min_balance: minBalance };
+    if (
+      token &&
+      minBalance &&
+      typeof chainId === "number" &&
+      Number.isInteger(chainId) &&
+      chainId > 0
+    ) {
+      normalized.required_erc20 = {
+        token,
+        min_balance: minBalance,
+        chain_id: chainId,
+      };
     } else {
       delete normalized.required_erc20;
     }

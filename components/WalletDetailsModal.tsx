@@ -18,8 +18,8 @@ import {
   Download,
   Plus,
 } from "lucide-react";
-import { toast } from "react-hot-toast";
 import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
+import { copyToClipboard } from "@/lib/utils/clipboard";
 
 interface WalletDetailsModalProps {
   isOpen: boolean;
@@ -69,8 +69,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
   const shortAddress = `${walletAddress.substring(0, 8)}...${walletAddress.substring(walletAddress.length - 6)}`;
 
   const copyAddress = () => {
-    navigator.clipboard.writeText(walletAddress);
-    toast.success("Address copied to clipboard!");
+    copyToClipboard(walletAddress, "Address copied to clipboard!");
   };
 
   const viewOnExplorer = () => {

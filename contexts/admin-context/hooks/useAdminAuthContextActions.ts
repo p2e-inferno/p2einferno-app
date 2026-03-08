@@ -6,6 +6,7 @@
  */
 
 import { useCallback, useRef } from "react";
+import { MAX_SAFE_DATE_TIMESTAMP } from "@/lib/constants/dates";
 import { usePrivy, useUser } from "@privy-io/react-auth";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 import { useHasValidKey } from "@/hooks/unlock";
@@ -193,7 +194,7 @@ export const useAdminAuthContextActions = (
             if (
               account.type === "wallet" &&
               account.address?.toLowerCase() ===
-                currentWalletAddress.toLowerCase()
+              currentWalletAddress.toLowerCase()
             ) {
               walletBelongsToUser = true;
               log.debug("Connected wallet found in linked accounts");
@@ -237,13 +238,12 @@ export const useAdminAuthContextActions = (
 
           if (keyInfo && keyInfo.isValid) {
             hasValidKey = true;
+            const timestamp = Number(keyInfo.expirationTimestamp);
+  
             log.info(
-              `✅ Admin access GRANTED for ${currentWalletAddress}, expires: ${
-                keyInfo.expirationTimestamp > BigInt(Number.MAX_SAFE_INTEGER)
-                  ? "Never (infinite)"
-                  : new Date(
-                      Number(keyInfo.expirationTimestamp) * 1000,
-                    ).toLocaleString()
+              `✅ Admin access GRANTED for ${currentWalletAddress}, expires: ${timestamp > MAX_SAFE_DATE_TIMESTAMP
+                ? "Unlimited (infinite)"
+                : new Date(timestamp * 1000).toLocaleString()
               }`,
             );
           } else {

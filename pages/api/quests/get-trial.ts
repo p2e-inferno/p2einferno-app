@@ -15,6 +15,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import {
   getPrivyUser,
   extractAndValidateWalletFromHeader,
+  walletValidationErrorToHttpStatus,
 } from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { createWalletClientUnified } from "@/lib/blockchain/config/clients/wallet-client";
@@ -242,12 +243,17 @@ export default async function handler(
           });
         }
         userWalletAddress = wallet;
-      } catch (error: any) {
-        const status = error.message?.includes("required") ? 400 : 403;
-        return res.status(status).json({
+      } catch (walletErr: unknown) {
+        const status = walletValidationErrorToHttpStatus(walletErr);
+        const safeStatus = status === 500 ? 403 : status;
+        const message =
+          walletErr instanceof Error
+            ? walletErr.message
+            : "Wallet validation failed";
+        return res.status(safeStatus).json({
           success: false,
-          message: error.message,
-          error: error.message,
+          message,
+          error: message,
         });
       }
     } else {
@@ -271,12 +277,17 @@ export default async function handler(
           });
         }
         userWalletAddress = headerWallet;
-      } catch (error: any) {
-        const status = error.message?.includes("required") ? 400 : 403;
-        return res.status(status).json({
+      } catch (walletErr: unknown) {
+        const status = walletValidationErrorToHttpStatus(walletErr);
+        const safeStatus = status === 500 ? 403 : status;
+        const message =
+          walletErr instanceof Error
+            ? walletErr.message
+            : "Wallet validation failed";
+        return res.status(safeStatus).json({
           success: false,
-          message: error.message,
-          error: error.message,
+          message,
+          error: message,
         });
       }
     }
