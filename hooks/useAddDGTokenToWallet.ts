@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useWallets } from "@privy-io/react-auth";
 import { base } from "viem/chains";
-import { toast } from "react-hot-toast";
+import { showDismissibleSuccess, showDismissibleError } from "@/components/ui/dismissible-toast";
 import { ensureCorrectNetwork } from "@/lib/blockchain/shared/network-utils";
 import { getLogger } from "@/lib/utils/logger";
 import { isEmbeddedWallet } from "@/lib/utils/wallet-address";
@@ -72,7 +72,7 @@ export function useAddDGTokenToWallet() {
       });
 
       if (wasAdded) {
-        toast.success("DG token added to your wallet");
+        showDismissibleSuccess("DG token added to your wallet");
       }
     } catch (error: any) {
       // User dismissed the wallet popup — treat as a no-op, not an error.
@@ -88,7 +88,7 @@ export function useAddDGTokenToWallet() {
       }
 
       log.error("Failed to add DG token to wallet", { error });
-      toast.error("Failed to add DG token to wallet");
+      showDismissibleError("Failed to add DG token to wallet");
     } finally {
       setIsLoading(false);
     }

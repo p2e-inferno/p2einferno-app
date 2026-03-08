@@ -21,6 +21,12 @@ import { DEFAULT_SLIPPAGE_BPS } from "@/lib/uniswap/constants";
 import { PercentPresets } from "@/components/vendor/PercentPresets";
 import toast from "react-hot-toast";
 import { getLogger } from "@/lib/utils/logger";
+import { formatWalletError } from "@/lib/utils/walletErrors";
+import {
+  showDismissibleError,
+  showTransactionSuccess,
+} from "@/components/ui/dismissible-toast";
+import { CURRENT_NETWORK } from "@/lib/blockchain/legacy/frontend-config";
 
 const log = getLogger("component:uniswap-swap-tab");
 
@@ -254,8 +260,9 @@ export default function UniswapSwapTab() {
       await stepperWaitForSteps(steps.length, versionBefore);
 
       // 4. Run all steps sequentially
+      let results: any[] = [];
       try {
-        await stepperStart();
+        results = await stepperStart();
       } catch {
         // A step failed — suspend until user clicks Retry or Cancel
         while (true) {
@@ -272,7 +279,7 @@ export default function UniswapSwapTab() {
 
           // decision === 'retry'
           try {
-            await stepperRetry();
+            results = await stepperRetry();
             break;
           } catch {
             continue;
@@ -283,7 +290,17 @@ export default function UniswapSwapTab() {
       // 5. All steps succeeded — keep modal open so user sees the green ✓ states.
       //    The modal's "Done" button (onClose) will dismiss it.
       fetchBalance(pair, direction);
-      toast.success("Swap complete!");
+
+      // Extract the last transaction hash (the swap itself)
+      const lastTx = results.filter((r) => !!r?.transactionHash).pop();
+      if (lastTx?.transactionHash) {
+        showTransactionSuccess(
+          "Swap complete!",
+          `${CURRENT_NETWORK.explorerUrl}/tx/${lastTx.transactionHash}`,
+        );
+      } else {
+        toast.success("Swap complete!");
+      }
     } catch (err) {
       log.error("Uniswap swap failed", {
         error: err,
@@ -291,7 +308,7 @@ export default function UniswapSwapTab() {
         direction,
         amount: parsedAmount?.toString(),
       });
-      toast.error(err instanceof Error ? err.message : "Swap failed");
+      showDismissibleError(formatWalletError(err, "Swap failed"));
     } finally {
       isSwappingRef.current = false;
       setIsSwapping(false);

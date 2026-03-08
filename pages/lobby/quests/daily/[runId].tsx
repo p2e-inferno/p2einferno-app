@@ -428,7 +428,9 @@ export default function DailyQuestDetailPage() {
       void fetchDetail({ silent: true });
     } catch (err) {
       log.error("Unexpected error in handleClaimReward", { completionId, err });
-      toast.error(err instanceof Error ? err.message : "Failed to claim reward");
+      toast.error(
+        err instanceof Error ? err.message : "Failed to claim reward",
+      );
     } finally {
       setClaimingCompletionId(null);
     }
@@ -566,11 +568,14 @@ export default function DailyQuestDetailPage() {
           if (isUserRejectedError(err)) {
             proofCancelled = true;
           } else {
-            log.warn("Daily completion attestation failed after successful key claim", {
-              dailyQuestRunId: runId,
-              wallet: selectedWallet.address,
-              error: err?.message || err,
-            });
+            log.warn(
+              "Daily completion attestation failed after successful key claim",
+              {
+                dailyQuestRunId: runId,
+                wallet: selectedWallet.address,
+                error: err?.message || err,
+              },
+            );
           }
         }
       }
@@ -1048,7 +1053,8 @@ export default function DailyQuestDetailPage() {
                 {canRetryCompletionBonus && (
                   <div className="flex flex-col items-center sm:items-end gap-2">
                     <div className="text-xs text-amber-300 text-center sm:text-right max-w-xs">
-                      Your key was claimed, but the completion bonus was not finalized.
+                      Your key was claimed, but the completion bonus was not
+                      finalized.
                     </div>
                     <Button
                       onClick={handleClaimKey}

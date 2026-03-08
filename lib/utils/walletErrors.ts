@@ -33,3 +33,30 @@ export const isUserRejectedError = (err: unknown): boolean => {
     USER_REJECTION_PATTERNS.some((pattern) => pattern.test(message))
   );
 };
+
+/**
+ * Formats raw wallet/contract errors into user-friendly messages.
+ * Specifically handles User Rejected errors to be minimal.
+ */
+export const formatWalletError = (err: unknown, defaultMessage = "Transaction failed"): string => {
+  if (isUserRejectedError(err)) {
+    return "Transaction cancelled";
+  }
+
+  if (err instanceof Error) {
+    // Check for common viem/ethers error properties
+    const maybe = err as any;
+
+    // Viem's shortMessage is usually the most pithy and useful
+    if (maybe.shortMessage) return maybe.shortMessage;
+
+    // Handle specific RPC error codes if needed
+    if (maybe.code === -32603) return "Internal JSON-RPC error. Check your balance or network.";
+
+    return err.message;
+  }
+
+  if (typeof err === "string") return err;
+
+  return defaultMessage;
+};

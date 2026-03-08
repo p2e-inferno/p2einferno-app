@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Image from "next/image";
 import {
   Dialog,
@@ -8,8 +8,18 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { CURRENT_NETWORK } from "@/lib/blockchain/legacy/frontend-config";
+import { getWalletTransferTokenAddresses } from "@/lib/wallet/token-addresses";
 import {
   Copy,
   ExternalLink,
@@ -20,6 +30,18 @@ import {
 } from "lucide-react";
 import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
 import { copyToClipboard } from "@/lib/utils/clipboard";
+import { useWalletTransfer } from "@/hooks/useWalletTransfer";
+import { useDebounce } from "@/hooks/useDebounce";
+import toast from "react-hot-toast";
+import {
+  showDismissibleError,
+  showTransactionSuccess,
+} from "@/components/ui/dismissible-toast";
+import { formatUnits, isAddress, parseUnits } from "viem";
+import { mainnet } from "viem/chains";
+import { createPublicClientForChain } from "@/lib/blockchain/config";
+import { formatWalletError } from "@/lib/utils/walletErrors";
+import { Loader2 } from "lucide-react";
 
 interface WalletDetailsModalProps {
   isOpen: boolean;
@@ -57,8 +79,55 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
   onClose,
   walletAddress,
 }) => {
+  const [recipient, setRecipient] = useState("");
+  const [selectedToken, setSelectedToken] = useState("");
+  const [amount, setAmount] = useState("");
+
   const { balances, loading, error, refreshBalances, networkName } =
     useWalletBalances({ enabled: isOpen });
+  const { transferNative, transferErc20, isTransferring } = useWalletTransfer();
+
+  const [resolvedAddress, setResolvedAddress] = useState<string | null>(null);
+  const [isResolving, setIsResolving] = useState(false);
+  const [resolutionAttempted, setResolutionAttempted] = useState(false);
+  const debouncedRecipient = useDebounce(recipient.trim(), 1000);
+
+  // Reset resolution state when recipient changes (raw input)
+  useEffect(() => {
+    setResolutionAttempted(false);
+    if (!recipient.trim()) {
+      setResolvedAddress(null);
+      setIsResolving(false);
+    }
+  }, [recipient]);
+
+  // ENS Resolution Effect
+  useEffect(() => {
+    const resolve = async () => {
+      const normalized = debouncedRecipient.toLowerCase();
+
+      // Only attempt resolution if it looks like a name (contains dot) and isn't already an address
+      if (!normalized.includes(".") || isAddress(normalized)) {
+        setResolvedAddress(null);
+        setIsResolving(false);
+        return;
+      }
+
+      setIsResolving(true);
+      try {
+        const client = createPublicClientForChain(mainnet);
+        const addr = await client.getEnsAddress({ name: normalized });
+        setResolvedAddress(addr || null);
+      } catch (err) {
+        setResolvedAddress(null);
+      } finally {
+        setIsResolving(false);
+        setResolutionAttempted(true);
+      }
+    };
+
+    resolve();
+  }, [debouncedRecipient]);
 
   const {
     addToken: addDGToken,
@@ -67,6 +136,92 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
   } = useAddDGTokenToWallet();
 
   const shortAddress = `${walletAddress.substring(0, 8)}...${walletAddress.substring(walletAddress.length - 6)}`;
+  const explorerBaseUrl = CURRENT_NETWORK.explorerUrl;
+
+  const transferTokens = useMemo(() => {
+    const tokenAddresses = getWalletTransferTokenAddresses();
+
+    const tokens = [
+      {
+        key: "eth",
+        symbol: "ETH",
+        decimals: 18,
+        isNative: true,
+        address: null as `0x${string}` | null,
+        rawBalance: balances.eth.balance,
+        formattedBalance: balances.eth.formatted,
+      },
+      {
+        key: "usdc",
+        symbol: balances.usdc.symbol || "USDC",
+        decimals: 6,
+        isNative: false,
+        address: tokenAddresses.usdc as `0x${string}`,
+        rawBalance: balances.usdc.balance,
+        formattedBalance: balances.usdc.formatted,
+      },
+      {
+        key: "dg",
+        symbol: balances.dg.symbol || "DG",
+        decimals: 18,
+        isNative: false,
+        address: (tokenAddresses.dg || null) as `0x${string}` | null,
+        rawBalance: balances.dg.balance,
+        formattedBalance: balances.dg.formatted,
+      },
+      {
+        key: "up",
+        symbol: balances.up.symbol || "UP",
+        decimals: 18,
+        isNative: false,
+        address: (tokenAddresses.up || null) as `0x${string}` | null,
+        rawBalance: balances.up.balance,
+        formattedBalance: balances.up.formatted,
+      },
+    ];
+
+    return tokens.filter((token) => token.isNative || !!token.address);
+  }, [balances]);
+
+  const selectedTransferToken =
+    transferTokens.find((token) => token.key === selectedToken) || null;
+
+  const amountError = useMemo(() => {
+    if (!amount.trim() || !selectedTransferToken) return null;
+    const parsed = Number(amount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return "Enter a valid amount";
+    }
+    try {
+      parseUnits(amount.trim(), selectedTransferToken.decimals);
+    } catch {
+      return "Invalid amount format";
+    }
+    return null;
+  }, [amount, selectedTransferToken]);
+
+  const balanceExceeded = useMemo(() => {
+    if (!amount.trim() || !selectedTransferToken) return false;
+    try {
+      const rawBalance = BigInt(selectedTransferToken.rawBalance || "0");
+      const amountUnits = parseUnits(
+        amount.trim(),
+        selectedTransferToken.decimals,
+      );
+      return amountUnits > rawBalance;
+    } catch {
+      return false;
+    }
+  }, [amount, selectedTransferToken]);
+
+  const canSubmitTransfer =
+    !!selectedTransferToken &&
+    !!amount.trim() &&
+    (isAddress(recipient) || !!resolvedAddress) &&
+    !amountError &&
+    !balanceExceeded &&
+    !isTransferring &&
+    !loading;
 
   const copyAddress = () => {
     copyToClipboard(walletAddress, "Address copied to clipboard!");
@@ -85,17 +240,74 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
     link.click();
   };
 
+  const setMaxAmount = () => {
+    if (!selectedTransferToken) return;
+    const raw = BigInt(selectedTransferToken.rawBalance || "0");
+    if (selectedTransferToken.isNative) {
+      const gasReserveWei = BigInt(10 ** 14); // 0.0001 ETH reserve for gas
+      const adjusted = raw > gasReserveWei ? raw - gasReserveWei : 0n;
+      setAmount(formatUnits(adjusted, 18));
+      return;
+    }
+    setAmount(formatUnits(raw, selectedTransferToken.decimals));
+  };
+
+  const handleTransfer = async () => {
+    if (!selectedTransferToken) return;
+
+    const finalRecipient = resolvedAddress || recipient;
+    if (!isAddress(finalRecipient)) {
+      toast.error("Enter a valid recipient address or ENS name");
+      return;
+    }
+
+    if (!amount.trim() || Number(amount) <= 0) {
+      toast.error("Enter a valid amount");
+      return;
+    }
+
+    try {
+      const hash = selectedTransferToken.isNative
+        ? await transferNative({
+            recipient: finalRecipient as `0x${string}`,
+            amountEth: amount.trim(),
+          })
+        : await transferErc20({
+            recipient: finalRecipient as `0x${string}`,
+            tokenAddress: selectedTransferToken.address as `0x${string}`,
+            amount: amount.trim(),
+            decimals: selectedTransferToken.decimals,
+          });
+
+      setAmount("");
+      setRecipient("");
+      setSelectedToken("");
+      await refreshBalances();
+
+      if (hash) {
+        showTransactionSuccess(
+          "Transfer submitted successfully",
+          `${explorerBaseUrl}/tx/${hash}`,
+        );
+      } else {
+        toast.success("Transfer submitted successfully");
+      }
+    } catch (err: any) {
+      showDismissibleError(formatWalletError(err, "Transfer failed"));
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="bg-card border-border text-foreground">
-        <DialogHeader>
+        <DialogHeader className="px-6">
           <DialogTitle className="flex items-center gap-2 text-lg sm:text-xl">
             <Wallet className="w-5 h-5 text-flame-yellow" />
             Wallet Details
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 sm:space-y-6 max-h-[60vh] overflow-y-auto scrollbar-hide pr-4">
+        <div className="space-y-4 sm:space-y-6 max-h-[60vh] overflow-y-auto px-6 pb-6">
           {/* Network Info */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">Network:</span>
@@ -239,6 +451,163 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                 </Card>
               </div>
             )}
+          </div>
+
+          {/* Transfer Section */}
+          <div className="space-y-4 pt-4 border-t border-border/50">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-sm font-bold text-white tracking-tight uppercase">
+                Transfer Assets
+              </span>
+              <span className="text-[10px] text-gray-500 uppercase font-semibold">
+                {CURRENT_NETWORK.name}
+              </span>
+            </div>
+
+            <div className="space-y-4">
+              {/* Recipient Input */}
+              <div className="group space-y-2 px-1">
+                <Label
+                  htmlFor="transfer-recipient"
+                  className="text-xs font-semibold text-gray-400 ml-1 transition-colors group-focus-within:text-flame-yellow"
+                >
+                  Recipient Address
+                </Label>
+                <div className="relative group">
+                  <Input
+                    id="transfer-recipient"
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value)}
+                    placeholder="Recipient address or ENS..."
+                    autoComplete="off"
+                    className="h-14 w-full rounded-2xl border-gray-800 bg-black/40 px-6 font-mono text-sm text-white transition-all focus:border-flame-yellow/50 focus:bg-black/60 focus:ring-1 focus:ring-flame-yellow/20"
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                    {isResolving ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                    ) : recipient &&
+                      (isAddress(recipient) || resolvedAddress) ? (
+                      <div className="text-emerald-500/80">
+                        <Plus className="w-4 h-4 rotate-45" />
+                      </div>
+                    ) : null}
+                  </div>
+                  {resolvedAddress && (
+                    <div className="mt-1.5 px-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                      <span className="text-[10px] text-flame-yellow font-medium uppercase tracking-wider flex items-center gap-1.5 opacity-80">
+                        <span className="w-1.5 h-1.5 rounded-full bg-flame-yellow animate-pulse" />
+                        Resolves to: {resolvedAddress.substring(0, 10)}...
+                        {resolvedAddress.substring(34)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+                {recipient.trim() &&
+                  debouncedRecipient === recipient.trim() &&
+                  !isAddress(recipient.trim()) &&
+                  !isResolving &&
+                  !resolvedAddress &&
+                  (!recipient.includes(".") || resolutionAttempted) && (
+                    <p className="ml-1 text-[10px] font-medium text-red-400/90 animate-in fade-in duration-300">
+                      Invalid Ethereum address or ENS name
+                    </p>
+                  )}
+              </div>
+
+              {/* Amount & Asset Input Stack */}
+              <div className="space-y-2 px-1">
+                <div className="flex items-center justify-between ml-1">
+                  <Label
+                    htmlFor="transfer-amount"
+                    className="text-xs font-semibold text-gray-400"
+                  >
+                    Amount
+                  </Label>
+                  {selectedTransferToken && (
+                    <span className="text-[10px] font-medium text-gray-500">
+                      Balance:{" "}
+                      <span className="text-gray-300">
+                        {selectedTransferToken.formattedBalance}
+                      </span>{" "}
+                      {selectedTransferToken.symbol}
+                    </span>
+                  )}
+                </div>
+
+                <div className="relative flex items-center gap-2">
+                  <div className="relative flex-1 group">
+                    <Input
+                      id="transfer-amount"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      placeholder="0.0"
+                      autoComplete="off"
+                      className="h-14 w-full rounded-2xl border-gray-800 bg-black/40 pl-4 pr-16 text-xl font-bold text-white transition-all focus:border-flame-yellow/50 focus:bg-black/60 focus:ring-1 focus:ring-flame-yellow/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={setMaxAmount}
+                      disabled={!selectedTransferToken}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-flame-yellow/10 px-2 py-1 text-[10px] font-black uppercase text-flame-yellow transition-all hover:bg-flame-yellow/20 active:scale-95 disabled:opacity-0"
+                    >
+                      Max
+                    </button>
+                  </div>
+
+                  <div className="w-32">
+                    <Select
+                      value={selectedToken}
+                      onValueChange={setSelectedToken}
+                    >
+                      <SelectTrigger className="h-14 rounded-2xl border-gray-800 bg-black/40 font-bold transition-all focus:ring-flame-yellow/20">
+                        <SelectValue placeholder="Asset" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-gray-900 border-gray-800">
+                        {transferTokens.map((token) => (
+                          <SelectItem
+                            key={token.key}
+                            value={token.key}
+                            className="focus:bg-flame-yellow/10 focus:text-flame-yellow"
+                          >
+                            {token.symbol}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center px-1 min-h-[16px]">
+                  {balanceExceeded ? (
+                    <p className="text-[10px] font-medium text-red-400">
+                      Amount exceeds available balance
+                    </p>
+                  ) : amountError ? (
+                    <p className="text-[10px] font-medium text-red-400">
+                      {amountError}
+                    </p>
+                  ) : (
+                    <div />
+                  )}
+                </div>
+              </div>
+
+              {/* Action Button */}
+              <Button
+                onClick={handleTransfer}
+                disabled={!canSubmitTransfer}
+                className="h-14 w-full rounded-2xl bg-gradient-to-r from-flame-yellow to-orange-600 text-lg font-black tracking-tight text-white shadow-lg shadow-flame-yellow/10 transition-all hover:scale-[1.01] hover:shadow-flame-yellow/20 active:scale-[0.98] disabled:from-gray-800 disabled:to-gray-900 disabled:text-gray-600 disabled:shadow-none"
+              >
+                {isTransferring ? (
+                  <div className="flex items-center gap-2">
+                    <RefreshCcw className="w-5 h-5 animate-spin" />
+                    <span>Processing...</span>
+                  </div>
+                ) : (
+                  <span>Send {selectedTransferToken?.symbol ?? "Assets"}</span>
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* QR Code Section */}

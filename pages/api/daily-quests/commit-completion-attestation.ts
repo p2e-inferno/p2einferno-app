@@ -289,7 +289,8 @@ export default async function handler(
         // Return an error so the client can retry — the attestation UID was not
         // recorded, meaning a subsequent existingUid guard won't prevent a duplicate.
         return res.status(500).json({
-          error: "Attestation submitted but failed to record UID. Please retry.",
+          error:
+            "Attestation submitted but failed to record UID. Please retry.",
         });
       }
     }

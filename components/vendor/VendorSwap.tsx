@@ -23,6 +23,12 @@ import {
 import { PercentPresets } from "@/components/vendor/PercentPresets";
 import UniswapSwapTab from "@/components/vendor/UniswapSwapTab";
 import { formatWalletAddress } from "@/lib/utils/wallet-address";
+import { formatWalletError } from "@/lib/utils/walletErrors";
+import {
+  showDismissibleError,
+  showTransactionSuccess,
+} from "@/components/ui/dismissible-toast";
+import { CURRENT_NETWORK } from "@/lib/blockchain/legacy/frontend-config";
 
 type Mode = "buy" | "sell";
 type BuyEstimate = ReturnType<typeof estimateBuy>;
@@ -210,8 +216,21 @@ export default function VendorSwap() {
       mode === "buy"
         ? await buyTokens(parsedAmount)
         : await sellTokens(parsedAmount);
-    if (!result.success) {
-      toast.error(result.error ?? "Transaction failed");
+
+    if (result.success) {
+      if (result.transactionHash) {
+        showTransactionSuccess(
+          `${mode === "buy" ? "Buy" : "Sell"} complete!`,
+          `${CURRENT_NETWORK.explorerUrl}/tx/${result.transactionHash}`,
+        );
+      } else {
+        toast.success(`${mode === "buy" ? "Buy" : "Sell"} complete!`);
+      }
+      setAmount("");
+    } else {
+      showDismissibleError(
+        formatWalletError(result.error ?? "Transaction failed"),
+      );
     }
   };
 

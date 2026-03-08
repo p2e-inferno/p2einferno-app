@@ -4,6 +4,10 @@ import { toast, type Toast } from "react-hot-toast";
 interface DismissibleToastProps {
   t: Toast;
   message: string;
+  link?: {
+    label: string;
+    url: string;
+  };
 }
 
 /**
@@ -12,29 +16,61 @@ interface DismissibleToastProps {
  * @param t - The toast instance whose id is used to dismiss this toast when the close button is clicked.
  * @param message - The text message displayed inside the toast.
  */
-export function DismissibleToastContent({ t, message }: DismissibleToastProps) {
+export function DismissibleToastContent({
+  t,
+  message,
+  link,
+}: DismissibleToastProps) {
   return (
-    <div className="flex items-start gap-3 w-full">
-      <div className="flex-1 min-w-0 break-words">{message}</div>
-      <button
-        onClick={() => toast.dismiss(t.id)}
-        className="flex-shrink-0 text-current opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-current focus:ring-opacity-50 rounded"
-        aria-label="Dismiss notification"
-        type="button"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          className="h-5 w-5"
-          viewBox="0 0 20 20"
-          fill="currentColor"
+    <div className="flex flex-col gap-2 w-full">
+      <div className="flex items-start gap-3 w-full">
+        <div className="flex-1 min-w-0 break-words font-medium">{message}</div>
+        <button
+          onClick={() => toast.dismiss(t.id)}
+          className="flex-shrink-0 text-current opacity-70 hover:opacity-100 transition-opacity focus:outline-none focus:ring-2 focus:ring-current focus:ring-opacity-50 rounded p-0.5"
+          aria-label="Dismiss notification"
+          type="button"
         >
-          <path
-            fillRule="evenodd"
-            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
-            clipRule="evenodd"
-          />
-        </svg>
-      </button>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-4 w-4"
+            viewBox="0 0 20 20"
+            fill="currentColor"
+          >
+            <path
+              fillRule="evenodd"
+              d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
+      </div>
+      {link && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            window.open(link.url, "_blank", "noopener,noreferrer");
+            toast.dismiss(t.id);
+          }}
+          className="text-xs font-bold underline hover:opacity-80 transition-opacity w-fit flex items-center gap-1 text-inherit cursor-pointer bg-transparent border-none p-0"
+        >
+          {link.label}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-3 w-3"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
@@ -60,7 +96,23 @@ export function showDismissibleError(message: string) {
 export function showDismissibleSuccess(message: string) {
   return toast.success(
     (t) => <DismissibleToastContent t={t} message={message} />,
-    { duration: 4000 },
+    { duration: 6000 },
+  );
+}
+
+/**
+ * Display a dismissible success toast with a link to the block explorer.
+ */
+export function showTransactionSuccess(message: string, explorerUrl: string) {
+  return toast.success(
+    (t) => (
+      <DismissibleToastContent
+        t={t}
+        message={message}
+        link={{ label: "View on Explorer", url: explorerUrl }}
+      />
+    ),
+    { duration: 8000 },
   );
 }
 
