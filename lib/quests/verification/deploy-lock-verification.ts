@@ -35,7 +35,7 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
     verificationData: Record<string, unknown>,
     userId: string,
     userAddress: string,
-    options?: VerificationOptions
+    options?: VerificationOptions,
   ): Promise<VerificationResult> {
     log.debug("Starting deploy_lock verification", {
       taskType,
@@ -90,7 +90,7 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
     // Find transaction on allowed networks (parallel)
     const networkResult = await this.findTransactionNetwork(
       transactionHash,
-      config.allowed_networks
+      config.allowed_networks,
     );
 
     if (!networkResult.success) {
@@ -102,9 +102,8 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
       return {
         success: false,
         error:
-          networkResult.error ||
-          "Transaction not found on any allowed network",
-        code: networkResult.code || "TX_NOT_FOUND_MULTI_NETWORK",
+          networkResult.error || "Transaction not found on any allowed network",
+        code: networkResult.code || "TX_NOT_FOUND",
       };
     }
 
@@ -116,7 +115,7 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
       client,
       userAddress,
       config,
-      chainId
+      chainId,
     );
 
     if (!validation.success) {
@@ -149,7 +148,7 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
     const hasValidFactoryEvent = receipt.logs.some(
       (log: { topics: string[]; address: string }) =>
         log.topics[0] === NEW_LOCK_EVENT_SIGNATURE &&
-        log.address.toLowerCase() === expectedFactory.toLowerCase()
+        log.address.toLowerCase() === expectedFactory.toLowerCase(),
     );
 
     if (!hasValidFactoryEvent) {
@@ -159,7 +158,10 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
         chainId,
         expectedFactory,
         logAddresses: receipt.logs
-          .filter((l: { topics: string[] }) => l.topics[0] === NEW_LOCK_EVENT_SIGNATURE)
+          .filter(
+            (l: { topics: string[] }) =>
+              l.topics[0] === NEW_LOCK_EVENT_SIGNATURE,
+          )
           .map((l: { address: string }) => l.address),
       });
       return {
@@ -188,7 +190,7 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
 
     // Calculate reward multiplier based on network
     const networkConfig = config.allowed_networks.find(
-      (n) => n.chain_id === chainId
+      (n) => n.chain_id === chainId,
     );
     const rewardMultiplier = networkConfig?.reward_ratio || 1.0;
 
@@ -221,7 +223,7 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
    */
   private async findTransactionNetwork(
     txHash: `0x${string}`,
-    networks: DeployLockTaskConfig["allowed_networks"]
+    networks: DeployLockTaskConfig["allowed_networks"],
   ): Promise<
     | {
         success: true;
@@ -278,12 +280,12 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
           });
           throw error;
         }
-      })
+      }),
     );
 
     // Collect all successful results to detect multi-network conflicts
     const successfulResults = results.filter(
-      (r): r is PromiseFulfilledResult<any> => r.status === "fulfilled"
+      (r): r is PromiseFulfilledResult<any> => r.status === "fulfilled",
     );
 
     // Check for multi-network conflict (same tx on multiple chains)
@@ -317,7 +319,7 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
     return {
       success: false,
       error: `Transaction not found on any allowed network: ${networkNames}`,
-      code: "TX_NOT_FOUND_MULTI_NETWORK",
+      code: "TX_NOT_FOUND",
     };
   }
 
@@ -330,13 +332,14 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
     client: PublicClient,
     userAddress: string,
     config: DeployLockTaskConfig,
-    chainId: number
+    chainId: number,
   ): Promise<VerificationResult> {
     // Check transaction status
     if (receipt.status !== "success") {
       return {
         success: false,
-        error: "Transaction failed on-chain. Please submit a successful deployment.",
+        error:
+          "Transaction failed on-chain. Please submit a successful deployment.",
         code: "TX_FAILED",
       };
     }
@@ -393,10 +396,13 @@ export class DeployLockVerificationStrategy implements VerificationStrategy {
         //   - Add config flag to require timestamp validation (fail on RPC error)
         //   - Implement retry logic with exponential backoff
         //   - Track failed timestamp checks in metrics for monitoring
-        log.warn("Continuing verification without timestamp check due to RPC failure", {
-          chainId,
-          blockNumber: receipt.blockNumber?.toString(),
-        });
+        log.warn(
+          "Continuing verification without timestamp check due to RPC failure",
+          {
+            chainId,
+            blockNumber: receipt.blockNumber?.toString(),
+          },
+        );
       }
     }
 

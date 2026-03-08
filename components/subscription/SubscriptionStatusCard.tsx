@@ -15,7 +15,7 @@ import { XpRenewalModal } from "./XpRenewalModal";
 import { CryptoRenewalModal } from "./CryptoRenewalModal";
 import { MethodSelectionModal } from "./MethodSelectionModal";
 import { Loader, X } from "lucide-react";
-import { formatWalletAddress } from "@/lib/utils/wallet-address";
+import { CopyableAddress } from "@/components/ui/copyable-address";
 
 interface Props {
   onRenewalComplete?: () => void;
@@ -76,23 +76,55 @@ export const SubscriptionStatusCard = ({
   if (!hasValidKey) {
     if (hasValidKeyAnyLinked && validWalletAddress) {
       return (
-        <div
-          className={`card p-6 bg-gray-800 border border-gray-700 ${className}`}
-        >
-          <h3 className="text-lg font-semibold text-white">
-            DG Nation Membership
-          </h3>
-          <p className="text-sm text-gray-400 mt-2">
-            Membership found on another linked wallet:{" "}
-            <span className="font-mono text-gray-200">
-              {formatWalletAddress(validWalletAddress)}
-            </span>
-          </p>
-          <p className="text-xs text-gray-500 mt-2">
-            Switch to that wallet to view status and renew without accidentally
-            purchasing a second membership.
-          </p>
-        </div>
+        <>
+          <div
+            className={`card p-6 bg-gray-800 border border-gray-700 ${className}`}
+          >
+            <h3 className="text-lg font-semibold text-white">
+              DG Nation Membership
+            </h3>
+            <p className="text-sm text-gray-400 mt-2">
+              Membership found on another linked wallet:{" "}
+              <CopyableAddress
+                address={validWalletAddress}
+                className="text-gray-200"
+              />
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              Switch to that wallet to view status and renew.
+            </p>
+            <button
+              onClick={() => setShowMethodModal(true)}
+              className="mt-3 inline-flex items-center text-sm font-medium text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
+            >
+              Purchase membership for this wallet
+            </button>
+          </div>
+
+          {/* Method Selection Modal */}
+          {showMethodModal && (
+            <MethodSelectionModal
+              mode="purchase"
+              onSelectMethod={(method) => {
+                setShowMethodModal(false);
+                setSelectedMethod(method);
+              }}
+              onClose={() => setShowMethodModal(false)}
+            />
+          )}
+
+          {/* Payment Modals */}
+          {selectedMethod === "crypto" && (
+            <CryptoRenewalModal
+              mode="purchase"
+              onClose={() => setSelectedMethod(null)}
+              onSuccess={() => {
+                setSelectedMethod(null);
+                onRenewalComplete?.();
+              }}
+            />
+          )}
+        </>
       );
     }
 

@@ -2,23 +2,39 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getLogger } from "@/lib/utils/logger";
 import { checkQuestPrerequisites } from "@/lib/quests/prerequisite-checker";
 import { checkUserKeyOwnership } from "@/lib/services/user-key-service";
-import { createPublicClientUnified } from "@/lib/blockchain/config/clients/public-client";
+import {
+  createPublicClientUnified,
+  createPublicClientForNetwork,
+} from "@/lib/blockchain/config/clients/public-client";
+import { resolveChain } from "@/lib/blockchain/config/core/chain-resolution";
 import { DG_TOKEN_VENDOR_ABI } from "@/lib/blockchain/shared/vendor-abi";
 import { getStageLabel } from "@/lib/blockchain/shared/vendor-constants";
 import { ERC20_ABI } from "@/lib/blockchain/shared/abi-definitions";
 import { parseUnits, isAddress } from "viem";
 
 const log = getLogger("quests:daily:constraints");
+const DEFAULT_ELIGIBILITY_CHAIN_ID = resolveChain().chain.id;
+
+export type RequirementStatus = "met" | "unmet" | "error";
+
+export type DailyQuestRequirement = {
+  type:
+  | "vendor_stage"
+  | "gooddollar_verification"
+  | "lock_key"
+  | "erc20_balance";
+  status: RequirementStatus;
+  label: string;
+  value?: string;
+  requiredValue?: string;
+  message?: string;
+};
 
 export type DailyQuestEligibility = {
   eligible: boolean;
+  requirements: DailyQuestRequirement[];
   failures: Array<{
-    type:
-      | "wallet_required"
-      | "vendor_stage"
-      | "gooddollar_verification"
-      | "lock_key"
-      | "erc20_balance";
+    type: DailyQuestRequirement["type"];
     message: string;
   }>;
   vendor_stage_current?: number;
@@ -29,7 +45,7 @@ type EligibilityConfig = {
   min_vendor_stage?: number;
   requires_gooddollar_verification?: boolean;
   required_lock_address?: string;
-  required_erc20?: { token: string; min_balance: string };
+  required_erc20?: { token: string; min_balance: string; chain_id?: number };
 };
 
 export async function evaluateDailyQuestEligibility(
@@ -38,10 +54,17 @@ export async function evaluateDailyQuestEligibility(
   walletAddress: string | null,
   eligibilityConfig: EligibilityConfig,
 ): Promise<DailyQuestEligibility> {
+  const requirements: DailyQuestRequirement[] = [];
   const failures: DailyQuestEligibility["failures"] = [];
-  const result: DailyQuestEligibility = { eligible: true, failures };
+  const result: DailyQuestEligibility = {
+    eligible: true,
+    requirements,
+    failures,
+  };
 
-  // GoodDollar face verification (no wallet required)
+  const hasWallet = Boolean(walletAddress && walletAddress.trim());
+
+  // 1. GoodDollar face verification
   if (eligibilityConfig.requires_gooddollar_verification) {
     const prereq = await checkQuestPrerequisites(supabase, userId, null, {
       prerequisite_quest_id: null,
@@ -49,7 +72,18 @@ export async function evaluateDailyQuestEligibility(
       requires_prerequisite_key: false,
       requires_gooddollar_verification: true,
     });
-    if (!prereq.canProceed) {
+
+    const isMet = prereq.canProceed;
+    requirements.push({
+      type: "gooddollar_verification",
+      status: isMet ? "met" : "unmet",
+      label: "Face Verification",
+      message: isMet
+        ? "Identity verified via GoodDollar"
+        : "GoodDollar face verification required",
+    });
+
+    if (!isMet) {
       failures.push({
         type: "gooddollar_verification",
         message: "GoodDollar face verification required",
@@ -57,140 +91,218 @@ export async function evaluateDailyQuestEligibility(
     }
   }
 
-  // Lock key ownership across linked wallets (no selected-wallet requirement)
+  // 2. Lock key ownership
   if (
     eligibilityConfig.required_lock_address &&
     typeof eligibilityConfig.required_lock_address === "string" &&
     eligibilityConfig.required_lock_address.trim()
   ) {
+    const lockAddr = eligibilityConfig.required_lock_address.trim();
+    let isMet = false;
+    let errorOccurred = false;
+
     try {
       const publicClient = createPublicClientUnified();
       const keyCheck = await checkUserKeyOwnership(
         publicClient,
         userId,
-        eligibilityConfig.required_lock_address.trim(),
+        lockAddr,
       );
-      if (!keyCheck.hasValidKey) {
-        failures.push({
-          type: "lock_key",
-          message: "Requires a key from a specific lock",
-        });
-      }
+      isMet = keyCheck.hasValidKey;
     } catch (error) {
       log.error("Lock key eligibility check failed", { userId, error });
+      errorOccurred = true;
+    }
+
+    requirements.push({
+      type: "lock_key",
+      status: errorOccurred ? "error" : isMet ? "met" : "unmet",
+      label: "Keyholder Required",
+      message: errorOccurred
+        ? "Unable to verify key ownership"
+        : isMet
+          ? "Valid key found"
+          : "Required key not found",
+    });
+
+    if (!isMet || errorOccurred) {
       failures.push({
         type: "lock_key",
-        message: "Requires a key from a specific lock",
+        message: errorOccurred
+          ? "Key verification unavailable"
+          : "Requires a key from a specific lock",
       });
     }
   }
 
-  const requiresWalletForEligibility =
-    typeof eligibilityConfig.min_vendor_stage === "number" ||
-    Boolean(eligibilityConfig.required_erc20);
-
-  if (requiresWalletForEligibility && (!walletAddress || !walletAddress.trim())) {
-    failures.push({
-      type: "wallet_required",
-      message: "Wallet is required to participate",
-    });
-    result.eligible = failures.length === 0;
-    return result;
-  }
-
-  // Vendor stage gating
+  // 3. Vendor stage gating
   if (typeof eligibilityConfig.min_vendor_stage === "number") {
     const requiredStage = eligibilityConfig.min_vendor_stage;
     result.vendor_stage_required = requiredStage;
 
-    const vendorAddress = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
-    if (!vendorAddress || !isAddress(vendorAddress)) {
-      failures.push({
+    if (!hasWallet) {
+      requirements.push({
         type: "vendor_stage",
-        message: "Vendor level check unavailable",
+        status: "unmet",
+        label: "Account Level",
+        message: `Requires ${getStageLabel(requiredStage)} level (Current status unknown)`,
       });
     } else {
-      try {
-        const publicClient = createPublicClientUnified();
-        const userState = await publicClient.readContract({
-          address: vendorAddress as `0x${string}`,
-          abi: DG_TOKEN_VENDOR_ABI,
-          functionName: "getUserState",
-          args: [walletAddress as `0x${string}`],
-        });
-
-        const stateObj =
-          typeof userState === "object" && userState !== null
-            ? (userState as Record<string, unknown>)
-            : null;
-        const stage =
-          typeof stateObj?.stage === "number"
-            ? stateObj.stage
-            : Array.isArray(userState) && typeof userState[0] === "number"
-              ? userState[0]
-              : null;
-
-        if (stage === null || !Number.isFinite(stage)) {
-          failures.push({
-            type: "vendor_stage",
-            message: "Vendor level check unavailable",
-          });
-        } else {
-          result.vendor_stage_current = stage;
-          if (stage < requiredStage) {
-            failures.push({
-              type: "vendor_stage",
-              message: `Requires ${getStageLabel(requiredStage)} level or higher`,
-            });
-          }
-        }
-      } catch (error) {
-        log.error("Vendor stage eligibility check failed", {
-          userId,
-          walletAddress,
-          requiredStage,
-          error,
+      const vendorAddress = process.env.NEXT_PUBLIC_DG_VENDOR_ADDRESS;
+      if (!vendorAddress || !isAddress(vendorAddress)) {
+        requirements.push({
+          type: "vendor_stage",
+          status: "error",
+          label: "Account Level",
+          message: "Vendor check unavailable",
         });
         failures.push({
           type: "vendor_stage",
           message: "Vendor level check unavailable",
         });
+      } else {
+        try {
+          const publicClient = createPublicClientUnified();
+          const userState = await publicClient.readContract({
+            address: vendorAddress as `0x${string}`,
+            abi: DG_TOKEN_VENDOR_ABI,
+            functionName: "getUserState",
+            args: [walletAddress as `0x${string}`],
+          });
+
+          const stateObj =
+            typeof userState === "object" && userState !== null
+              ? (userState as Record<string, unknown>)
+              : null;
+          const stage =
+            typeof stateObj?.stage === "number"
+              ? stateObj.stage
+              : Array.isArray(userState) && typeof userState[0] === "number"
+                ? userState[0]
+                : null;
+
+          if (stage === null || !Number.isFinite(stage)) {
+            requirements.push({
+              type: "vendor_stage",
+              status: "error",
+              label: "Account Level",
+              message: "Unable to determine level",
+            });
+            failures.push({
+              type: "vendor_stage",
+              message: "Vendor level check unavailable",
+            });
+          } else {
+            result.vendor_stage_current = stage;
+            const isMet = stage >= requiredStage;
+            requirements.push({
+              type: "vendor_stage",
+              status: isMet ? "met" : "unmet",
+              label: "Account Level",
+              value: getStageLabel(stage),
+              requiredValue: getStageLabel(requiredStage),
+              message: isMet
+                ? `Level ${getStageLabel(stage)} verified`
+                : `${getStageLabel(requiredStage)} level or higher needed (Current: ${getStageLabel(stage)})`,
+            });
+
+            if (!isMet) {
+              failures.push({
+                type: "vendor_stage",
+                message: `Requires ${getStageLabel(requiredStage)} level or higher`,
+              });
+            }
+          }
+        } catch (error) {
+          log.error("Vendor stage eligibility check failed", {
+            userId,
+            walletAddress,
+            requiredStage,
+            error,
+          });
+          requirements.push({
+            type: "vendor_stage",
+            status: "error",
+            label: "Account Level",
+            message: "Level verification failed",
+          });
+          failures.push({
+            type: "vendor_stage",
+            message: "Vendor level check unavailable",
+          });
+        }
       }
     }
   }
 
-  // ERC20 balance gating
+  // 4. ERC20 balance gating
   if (eligibilityConfig.required_erc20) {
     const token = eligibilityConfig.required_erc20.token;
     const minBalance = eligibilityConfig.required_erc20.min_balance;
+    const chainId =
+      eligibilityConfig.required_erc20.chain_id || DEFAULT_ELIGIBILITY_CHAIN_ID;
 
     if (!token || !minBalance || !isAddress(token)) {
+      requirements.push({
+        type: "erc20_balance",
+        status: "error",
+        label: "Token Balance",
+        message: "Invalid balance configuration",
+      });
       failures.push({
         type: "erc20_balance",
         message: "Insufficient token balance",
       });
     } else {
       try {
-        const publicClient = createPublicClientUnified();
-        const decimals = await publicClient.readContract({
-          address: token as `0x${string}`,
-          abi: ERC20_ABI,
-          functionName: "decimals",
-        });
+        const publicClient = createPublicClientForNetwork({ chainId });
 
-        const minRaw = parseUnits(minBalance, Number(decimals));
-        const balance = await publicClient.readContract({
-          address: token as `0x${string}`,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [walletAddress as `0x${string}`],
-        });
+        // Fetch token metadata for a better UI experience
+        const [decimals, symbol] = await Promise.all([
+          publicClient.readContract({
+            address: token as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          }),
+          publicClient.readContract({
+            address: token as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: "symbol",
+          }).catch(() => "tokens"),
+        ]);
 
-        if ((balance as bigint) < minRaw) {
-          failures.push({
+        if (!hasWallet) {
+          requirements.push({
             type: "erc20_balance",
-            message: "Insufficient token balance",
+            status: "unmet",
+            label: "Token Balance",
+            message: `Requires a minimum of ${minBalance} ${symbol} (Current status unknown)`,
           });
+        } else {
+          const minRaw = parseUnits(minBalance, Number(decimals));
+          const balance = await publicClient.readContract({
+            address: token as `0x${string}`,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [walletAddress as `0x${string}`],
+          });
+
+          const isMet = (balance as bigint) >= minRaw;
+          requirements.push({
+            type: "erc20_balance",
+            status: isMet ? "met" : "unmet",
+            label: "Token Balance",
+            message: isMet
+              ? `Minimum balance of ${minBalance} ${symbol} verified`
+              : `Insufficient ${symbol} balance (Requires ${minBalance})`,
+          });
+
+          if (!isMet) {
+            failures.push({
+              type: "erc20_balance",
+              message: `Insufficient ${symbol} balance`,
+            });
+          }
         }
       } catch (error) {
         log.error("ERC20 balance eligibility check failed", {
@@ -198,6 +310,12 @@ export async function evaluateDailyQuestEligibility(
           walletAddress,
           token,
           error,
+        });
+        requirements.push({
+          type: "erc20_balance",
+          status: "error",
+          label: "Token Balance",
+          message: "Balance verification failed",
         });
         failures.push({
           type: "erc20_balance",

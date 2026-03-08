@@ -8,6 +8,11 @@ import {
   isNetworkError,
 } from "./error-handler";
 import { getLogger } from "@/lib/utils/logger";
+import { createAdminClient } from "@/lib/supabase/server";
+import {
+  claimOrValidateWalletLink,
+  WALLET_LINK_CONFLICT_CODE,
+} from "@/lib/auth/wallet-link-map";
 
 const log = getLogger("auth:privy");
 
@@ -116,6 +121,21 @@ export async function validateWalletOwnership(
     totalLinkedWallets: userWalletAddresses.length,
   });
 
+  const supabase = createAdminClient();
+  const linkRes = await claimOrValidateWalletLink({
+    supabase,
+    walletAddress,
+    privyUserId: userId,
+    source: context,
+  });
+
+  if (!linkRes.ok && linkRes.code === WALLET_LINK_CONFLICT_CODE) {
+    throw new WalletValidationError(
+      "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP",
+      linkRes.message,
+    );
+  }
+
   return walletAddress;
 }
 
@@ -137,10 +157,18 @@ export class PrivyUnavailableError extends Error {
 }
 
 export class WalletValidationError extends Error {
-  public readonly code: "NOT_OWNED" | "HEADER_REQUIRED" | "INVALID_FORMAT";
+  public readonly code:
+    | "NOT_OWNED"
+    | "HEADER_REQUIRED"
+    | "INVALID_FORMAT"
+    | "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP";
 
   constructor(
-    code: "NOT_OWNED" | "HEADER_REQUIRED" | "INVALID_FORMAT",
+    code:
+      | "NOT_OWNED"
+      | "HEADER_REQUIRED"
+      | "INVALID_FORMAT"
+      | "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP",
     message: string,
   ) {
     super(message);
@@ -431,4 +459,30 @@ export async function getPrivyUserFromCookies(cookies: any) {
     log.error("Error verifying Privy token from cookies", { error });
     return null;
   }
+}
+
+export function walletValidationErrorToHttpStatus(err: unknown): number {
+  if (err instanceof WalletValidationError) {
+    switch (err.code) {
+      case "HEADER_REQUIRED":
+      case "INVALID_FORMAT":
+        return 400;
+      case "NOT_OWNED":
+        return 403;
+      case "WALLET_ALREADY_LINKED_TO_ANOTHER_USER_IN_APPP":
+        return 409;
+      default:
+        return 400;
+    }
+  }
+  if (err instanceof PrivyUnavailableError) {
+    return 503;
+  }
+  // AuthorizationError is thrown by validateWalletOwnership() for ownership failures.
+  // Endpoints calling validateWalletOwnership directly (not via extractAndValidateWalletFromHeader)
+  // will see this error type instead of WalletValidationError("NOT_OWNED").
+  if (err instanceof AuthorizationError) {
+    return 403;
+  }
+  return 500;
 }

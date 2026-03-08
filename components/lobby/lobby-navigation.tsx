@@ -10,7 +10,7 @@ import { NotificationBell } from "./NotificationBell"; // Import the new compone
  */
 export const LobbyNavigation: React.FC = () => {
   return (
-    <nav className="relative z-20 flex items-center justify-between p-4 lg:px-8">
+    <nav className="fixed top-0 left-0 right-0 z-20 flex items-center justify-between p-4 lg:px-8 bg-[#100F29]/90 backdrop-blur-sm">
       <Link
         href="/lobby"
         className="flex items-center space-x-3 hover:opacity-80 transition-opacity"

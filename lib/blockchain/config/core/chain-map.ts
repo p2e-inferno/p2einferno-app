@@ -10,7 +10,7 @@ import {
   type Chain,
 } from "viem/chains";
 
-const chainMap: Record<number, Chain> = {
+export const chainMap: Record<number, Chain> = {
   1: mainnet,
   10: optimism,
   11155420: optimismSepolia,

@@ -8,7 +8,10 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getPrivyUserFromNextRequest } from "@/lib/auth/privy";
+import {
+  getPrivyUserFromNextRequest,
+  walletValidationErrorToHttpStatus,
+} from "@/lib/auth/privy";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
@@ -21,11 +24,30 @@ import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 import { getDefaultNetworkName } from "@/lib/attestation/core/network-config";
 import {
   decodeAttestationDataFromDb,
+  type DecodedField,
   getDecodedFieldValue,
   normalizeBytes32,
 } from "@/lib/attestation/api/commit-guards";
 
 const log = getLogger("api:token:withdraw:commit-attestation");
+
+function getDecodedTxHashValue(decoded: DecodedField[]): unknown {
+  const direct =
+    getDecodedFieldValue(decoded, "withdrawalTxHash") ??
+    getDecodedFieldValue(decoded, "withdrawal_tx_hash") ??
+    getDecodedFieldValue(decoded, "txHash") ??
+    getDecodedFieldValue(decoded, "transactionHash");
+  if (direct !== undefined) return direct;
+
+  const fuzzy = decoded.find((field) => {
+    const name = String(field.name || "").toLowerCase();
+    return (
+      name.includes("hash") &&
+      (name.includes("withdrawal") || name === "txhash")
+    );
+  });
+  return fuzzy?.value;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,6 +63,14 @@ export async function POST(req: NextRequest) {
       withdrawalId?: string;
       attestationSignature?: DelegatedAttestationSignature | null;
     };
+
+    log.info("Withdrawal attestation commit requested", {
+      userId: user.id,
+      withdrawalId,
+      hasSignature: Boolean(attestationSignature),
+      signatureNetwork: attestationSignature?.network || null,
+      signatureChainId: attestationSignature?.chainId || null,
+    });
 
     if (!withdrawalId) {
       return NextResponse.json(
@@ -96,6 +126,11 @@ export async function POST(req: NextRequest) {
 
     // Idempotency: if UID already exists, return it without resubmitting.
     if (withdrawal.attestation_uid) {
+      log.info("Withdrawal attestation already exists (idempotent)", {
+        userId: user.id,
+        withdrawalId,
+        attestationUid: withdrawal.attestation_uid,
+      });
       return NextResponse.json({
         success: true,
         attestationUid: withdrawal.attestation_uid,
@@ -127,11 +162,16 @@ export async function POST(req: NextRequest) {
       }
 
       userWallet = extractedWallet;
-    } catch (error: any) {
-      const status = error.message?.includes("required") ? 400 : 403;
+    } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
+      const safeStatus = status === 500 ? 403 : status;
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Wallet validation failed";
       return NextResponse.json(
-        { success: false, error: error.message },
-        { status },
+        { success: false, error: message },
+        { status: safeStatus },
       );
     }
 
@@ -150,24 +190,31 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const networkForDecode =
+      attestationSignature.network?.toLowerCase() || getDefaultNetworkName();
+
     const decoded = await decodeAttestationDataFromDb({
       supabase,
       schemaKey: "dg_withdrawal",
-      network: getDefaultNetworkName(),
+      network: networkForDecode,
       encodedData: attestationSignature.data,
     });
 
     if (!decoded) {
+      log.warn("Withdrawal attestation decode failed", {
+        userId: user.id,
+        withdrawalId,
+        schemaKey: "dg_withdrawal",
+        networkForDecode,
+        signatureSchemaUid: attestationSignature.schemaUid,
+      });
       return NextResponse.json(
         { success: false, error: "Invalid attestation payload" },
         { status: 400 },
       );
     }
 
-    const decodedTxHashRaw = getDecodedFieldValue(
-      decoded,
-      "withdrawalTxHash",
-    );
+    const decodedTxHashRaw = getDecodedTxHashValue(decoded);
     const expectedTxHashRaw = withdrawal.transaction_hash;
 
     const decodedTxHash =
@@ -182,6 +229,12 @@ export async function POST(req: NextRequest) {
         : null);
 
     if (!decodedTxHash || !expectedTxHash) {
+      log.warn("Withdrawal commit missing tx hash for verification", {
+        userId: user.id,
+        withdrawalId,
+        decodedTxHash,
+        expectedTxHash,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -192,6 +245,12 @@ export async function POST(req: NextRequest) {
     }
 
     if (decodedTxHash !== expectedTxHash) {
+      log.warn("Withdrawal attestation payload mismatch", {
+        userId: user.id,
+        withdrawalId,
+        decodedTxHash,
+        expectedTxHash,
+      });
       return NextResponse.json(
         {
           success: false,
@@ -209,10 +268,17 @@ export async function POST(req: NextRequest) {
     });
 
     if (!attestationResult.success || !attestationResult.uid) {
+      log.error("Withdrawal attestation submission failed", {
+        userId: user.id,
+        withdrawalId,
+        error: attestationResult.error || "unknown",
+      });
       return NextResponse.json({
         success: true,
         attestationUid: null,
         attestationScanUrl: null,
+        attestationError:
+          attestationResult.error || "Attestation submission failed",
       });
     }
 

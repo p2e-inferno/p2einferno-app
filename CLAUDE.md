@@ -8,6 +8,7 @@ npm run dev                 # http://localhost:3000
 npm run dev -- --turbo      # Turbopack (faster HMR)
 npm run build && npm start  # Production build/run
 npm run lint                # ESLint + Prettier check + tsc --noEmit
+npm run format              # Prettier format
 npm run test:coverage       # Jest + coverage (jsdom)
 npm run test:e2e            # Synpress/Playwright E2E tests
 
@@ -94,20 +95,59 @@ npx synpress ./tests/wallet-setup  # Build MetaMask wallet cache
 - **RLS Policies**: Use `(select auth.uid())` instead of `auth.uid()` to move function to initialization plan (major perf boost)
 - **Reference**: See `docs/supabase-security-performance-advisory.md` and `docs/database-function-security-audit.md` for full security audit results
 
+### Database Operation Safety
+- **Atomicity rule**: If multiple DB operations must succeed or fail together, use a single PL/pgSQL function — never sequential client-side queries. Test: "If step 2 fails, is step 1's result broken?" If yes, wrap in a function.
+- **TOCTOU awareness**: Check-then-act across separate queries is a race condition. Guards and mutations must live in the same transaction/function. Example: checking `user_daily_task_completions` then deleting/inserting `daily_quest_run_tasks` must be atomic.
+- **Delete-then-insert is a red flag**: Any pattern that removes rows before inserting replacements must be atomic. A failure between delete and insert means data loss.
+- **Post-success side effects**: If the core operation succeeds (key grant, payment), a failure in a secondary step (attestation, analytics) should `log.warn` — not throw. The user got what they paid for; don't mask that.
+- **Error status fidelity**: Never coerce server errors (500) to client errors (400/403). If the server broke, surface that — don't hide it behind a misleading status code.
+- **Existing pattern**: See `sync_daily_quest_run_tasks_if_safe()` (migration 154) for the atomic PL/pgSQL function approach with guard checks.
+
 ## Coding & Tests
 - TypeScript, 2‑space indent, React components in PascalCase, hooks as `useX.ts`, pages lowercase with dynamic segments.
-- Tests: co‑located `*.test|spec.(ts|tsx)` using Jest + Testing Library. See `jest.config.ts` and `jest.setup.ts`.
+- Tests: co-located with source files (`Foo.tsx` → `Foo.test.tsx`). Filenames: `*.test|spec.(ts|tsx)`. Framework: Jest + Testing Library (jsdom). See `jest.config.ts` and `jest.setup.ts`.
+- Coverage collected from UI, lib, hooks; use `npm run test:coverage`.
+- Commits: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`). Keep messages imperative and scoped (e.g., `feat(wallet): add chain selector`).
 
 ## Blockchain & RPC Configuration
 - **Unified Provider** (`lib/blockchain/provider.ts`): Single ethers read-only provider for frontend. Singleton pattern with client-side filtering of public Base endpoints when keyed RPCs (Alchemy/Infura) are available.
 - **RPC URLs**: `getClientRpcUrls()` from `lib/blockchain/config/unified-config.ts` provides fallback list. Server includes public endpoints; client filters them when keyed providers exist.
-- **Viem Integration**: `createPublicClientUnified()` for server/client with same filtering logic.
+- **Viem Integration**: `createPublicClientUnified()` for server/client with same filtering logic. For chain-specific clients use `createPublicClientForNetwork({ chainId })`.
+- **Balance polling**: `hooks/useWalletBalances` accepts `{ enabled, pollIntervalMs }` — enable only when wallet menu/modal is open.
 - **Dev Settings**: Set `ADMIN_RPC_WARMUP_DISABLED=1` to skip server RPC health checks in development.
 
 ## API Conventions
 - Pages API under `pages/api/...`. Admin endpoints protected by middleware when `ADMIN_SESSION_ENABLED=true`.
 - Use `lib/api.ts` axios instance for client requests; it already logs via the standard logger.
 - **Admin API Flow**: Client calls → middleware checks cookie → auto-refresh on 401 → retry with valid session.
+- **Pages API vs Route Handlers**: Existing Pages API endpoints remain; new Route Handlers under `app/api/` are additive. Prefer bundle endpoints for new work. Never introduce `pages/api/v2/*` — point callers to the canonical App Route or existing Pages API route.
+
+### Route Handlers: Admin Enforcement
+- All App Route Handlers under `app/api/admin/*` MUST use `ensureAdminOrRespond` from `lib/auth/route-handlers/admin-guard`:
+  ```ts
+  const guard = await ensureAdminOrRespond(req);
+  if (guard) return guard;
+  ```
+- Accepts valid `admin-session` JWT (cookie fast-path), else verifies Privy token + on-chain admin lock for reads or `X-Active-Wallet` for writes.
+
+### Admin Route Handlers
+- `app/api/admin/milestones/route.ts` (GET/POST/PUT/DELETE)
+- `app/api/admin/milestone-tasks/route.ts` (POST/PUT/DELETE; supports bulk create) — reads via `GET /api/admin/tasks/by-milestone?milestone_id=...`
+- `app/api/admin/task-submissions/route.ts` (GET/POST/PUT)
+- `GET /api/admin/tasks/details?task_id=...&include=milestone,cohort,submissions[:status|:limit|:offset]` (bundled reads)
+- All call `revalidateTag` for cache-coherent reads with the bundle route.
+
+### Client Fetch Lifecycle (Admin)
+- Use `hooks/useAdminFetchOnce` for data fetches with composite key `[auth + wallet + keys]`: waits for `authenticated && isAdmin`, resets on wallet/entity changes, supports `timeToLive` (default 5 min) and `throttleMs`.
+- Use `useAdminApi` with `autoSessionRefresh` (default on) for 401 → session → retry. Option: `verifyTokenBeforeRequest: true` to ensure fresh Privy token.
+
+### Retryable Error UX
+- Use `components/ui/network-error` for fetch/DB failures with a Try Again button.
+- Wire a local `handleRetry` and set `isRetrying` while refetching.
+- Pass `{ suppressToasts: true }` to `useAdminApi` when rendering `NetworkError` to avoid duplicate toasts.
+
+### Middleware Behavior
+- When `ADMIN_SESSION_ENABLED=true`: `/api/admin/*` requires valid `admin-session` cookie; `Authorization` headers are ignored by middleware. Exempted paths: `/api/admin/session`, `/api/admin/session-fallback`, `/api/admin/logout`.
 
 ## EAS Schema Manager (Admin)
 - **Admin UI**: `/admin/eas-schemas` with tabs for list, deploy, sync, config; network selector uses `eas_networks` (enabled only).
@@ -133,6 +173,15 @@ npx synpress ./tests/wallet-setup  # Build MetaMask wallet cache
 - Confirm existing `attestation_schemas.network` values were backfilled correctly.
 - Confirm `attestations.network` is populated and matches schema network.
 - Validate composite FK `(schema_uid, network)` after backfill; only then drop the legacy FK if still present.
+
+## Admin Environment Variables
+- `ADMIN_SESSION_ENABLED` — enable middleware enforcement on `/api/admin/*` (default false)
+- `ADMIN_SESSION_JWT_SECRET` — HS256 secret for admin session signing (strong random value in prod)
+- `ADMIN_SESSION_TTL_SECONDS` — admin session expiry in seconds (default 60)
+- `ADMIN_RPC_TIMEOUT_MS` — RPC timeout for on-chain admin checks (default 10000)
+- `ADMIN_MAX_PAGE_SIZE` — upper bound for list endpoints (default 200)
+- `ADMIN_RPC_WARMUP_DISABLED` — set to `1` to disable server RPC warm-up in dev
+- `ADMIN_RPC_FALLBACK_STALL_MS` / `ADMIN_RPC_FALLBACK_RETRY_COUNT` / `ADMIN_RPC_FALLBACK_RETRY_DELAY_MS` — RPC fallback tuning
 
 ## Key Manager Patterns (Server-Side Grant Keys)
 When granting keys server-side, use `getKeyManagersForContext()` from `lib/helpers/key-manager-utils.ts` to determine the correct key managers array. **Never pass an empty array** - this causes "Array index out of bounds" contract errors.

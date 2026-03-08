@@ -1,7 +1,10 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  walletValidationErrorToHttpStatus,
+} from "@/lib/auth/privy";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
 import {
   handleGaslessAttestation,
@@ -102,9 +105,14 @@ export default async function handler(
         attestationSignature,
         context: "quest-claim",
       });
-    } catch (error: any) {
-      const status = error.message?.includes("required") ? 400 : 403;
-      return res.status(status).json({ error: error.message });
+    } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
+      const safeStatus = status === 500 ? 403 : status;
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Wallet validation failed";
+      return res.status(safeStatus).json({ error: message });
     }
 
     let rewardClaimAttestationUid: string | undefined;

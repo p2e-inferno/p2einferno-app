@@ -4,7 +4,7 @@ import { getLogger } from "@/lib/utils/logger";
 import {
   getPrivyUser,
   extractAndValidateWalletFromHeader,
-  WalletValidationError,
+  walletValidationErrorToHttpStatus,
 } from "@/lib/auth/privy";
 import { getUserPrimaryWallet } from "@/lib/quests/prerequisite-checker";
 import { evaluateDailyQuestEligibility } from "@/lib/quests/daily-quests/constraints";
@@ -92,6 +92,85 @@ export default async function handler(
     const authUser = await getPrivyUser(req);
     const userId = authUser?.id || null;
 
+    const { data: progressRows, error: progressErr } =
+      userId && runIds.length
+        ? await supabase
+            .from("user_daily_quest_progress")
+            .select(
+              "daily_quest_run_id,reward_claimed,completion_bonus_claimed",
+            )
+            .eq("user_id", userId)
+            .in("daily_quest_run_id", runIds)
+        : { data: [], error: null };
+
+    if (progressErr) {
+      log.error("Failed to fetch daily quest progress", { progressErr, userId });
+      return res.status(500).json({
+        error: "Failed to fetch daily quest progress",
+      });
+    }
+
+    const { data: completionRows, error: completionErr } =
+      userId && runIds.length
+        ? await supabase
+            .from("user_daily_task_completions")
+            .select("daily_quest_run_id,submission_status,reward_claimed")
+            .eq("user_id", userId)
+            .in("daily_quest_run_id", runIds)
+        : { data: [], error: null };
+
+    if (completionErr) {
+      log.error("Failed to fetch daily quest task completions", {
+        completionErr,
+        userId,
+      });
+      return res.status(500).json({
+        error: "Failed to fetch daily quest task completions",
+      });
+    }
+
+    const progressByRunId = new Map<
+      string,
+      {
+        reward_claimed: boolean;
+        completion_bonus_claimed: boolean;
+      }
+    >();
+    for (const row of progressRows || []) {
+      const runId = String((row as any).daily_quest_run_id);
+      progressByRunId.set(runId, {
+        reward_claimed: Boolean((row as any).reward_claimed),
+        completion_bonus_claimed: Boolean(
+          (row as any).completion_bonus_claimed,
+        ),
+      });
+    }
+
+    const completionStatsByRunId = new Map<
+      string,
+      {
+        tasksCompletedCount: number;
+        hasPendingTaskRewards: boolean;
+      }
+    >();
+    for (const row of completionRows || []) {
+      const runId = String((row as any).daily_quest_run_id);
+      const existing = completionStatsByRunId.get(runId) || {
+        tasksCompletedCount: 0,
+        hasPendingTaskRewards: false,
+      };
+      if ((row as any).submission_status === "completed") {
+        existing.tasksCompletedCount += 1;
+      }
+      if (
+        (row as any).submission_status === "completed" &&
+        !(row as any).reward_claimed
+      ) {
+        existing.hasPendingTaskRewards = true;
+      }
+      completionStatsByRunId.set(runId, existing);
+    }
+
     let eligibilityWallet: string | null = null;
     if (userId) {
       const rawActiveWalletHeader = req.headers?.["x-active-wallet"];
@@ -109,16 +188,13 @@ export default async function handler(
           required: false,
         });
       } catch (walletErr: unknown) {
+        const status = walletValidationErrorToHttpStatus(walletErr);
+        const safeStatus = status === 500 ? 400 : status;
         const message =
           walletErr instanceof Error
             ? walletErr.message
             : "Invalid X-Active-Wallet header";
-        const status =
-          walletErr instanceof WalletValidationError &&
-          walletErr.code === "NOT_OWNED"
-            ? 403
-            : 400;
-        return res.status(status).json({ error: message });
+        return res.status(safeStatus).json({ error: message });
       }
 
       if (!eligibilityWallet) {
@@ -130,6 +206,11 @@ export default async function handler(
       typedRuns.map(async (run: DailyQuestRun) => {
         const template = templatesById.get(run.daily_quest_template_id) || null;
         const tasks = tasksByRunId.get(run.id) || [];
+        const progress = progressByRunId.get(run.id) || null;
+        const completionStats = completionStatsByRunId.get(run.id) || {
+          tasksCompletedCount: 0,
+          hasPendingTaskRewards: false,
+        };
 
         const base = {
           id: run.id,
@@ -150,6 +231,10 @@ export default async function handler(
               }
             : null,
           daily_quest_run_tasks: tasks,
+          progress,
+          has_pending_task_rewards: completionStats.hasPendingTaskRewards,
+          tasks_completed_count: completionStats.tasksCompletedCount,
+          total_tasks_count: tasks.length,
         };
 
         if (!userId) {

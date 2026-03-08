@@ -1,5 +1,4 @@
 import type { Address, Hex } from "viem";
-import { base, baseSepolia } from "viem/chains";
 import { ethers, formatUnits, parseUnits } from "ethers";
 import {
   UNIFIED_BLOCKCHAIN_CONFIG,
@@ -13,6 +12,7 @@ import {
   type NetworkConfig,
 } from "../blockchain/shared/network-utils";
 import { PUBLIC_LOCK_CONTRACT } from "../../constants";
+import { getUnlockFactoryAddress } from "@/constants/unlock_factory_addresses";
 import { getLogger } from "@/lib/utils/logger";
 import { ERC20_ABI } from "../blockchain/shared/abi-definitions";
 const log = getLogger("unlock:lockUtils");
@@ -59,12 +59,6 @@ export interface KeyInfo {
 // ============================================================================
 // UNLOCK PROTOCOL CONFIGURATION
 // ============================================================================
-
-// Unlock Protocol factory contract addresses
-const UNLOCK_FACTORY_ADDRESSES = {
-  [base.id]: "0xd0b14797b9D08493392865647384974470202A78", // Base mainnet
-  [baseSepolia.id]: "0x259813B665C8f6074391028ef782e27B65840d89", // Base Sepolia testnet
-} as const;
 
 // Unlock factory ABI (simplified for lock creation)
 const UNLOCK_FACTORY_ABI = [
@@ -181,11 +175,9 @@ export const getReadOnlyProvider = () => {
  * Get factory address for current chain
  */
 const getFactoryAddress = (): Address => {
-  const factoryAddress =
-    UNLOCK_FACTORY_ADDRESSES[
-      UNIFIED_BLOCKCHAIN_CONFIG.chain
-        .id as keyof typeof UNLOCK_FACTORY_ADDRESSES
-    ];
+  const factoryAddress = getUnlockFactoryAddress(
+    UNIFIED_BLOCKCHAIN_CONFIG.chain.id,
+  );
   if (!factoryAddress) {
     throw new Error(
       `Unlock factory not supported on chain ${UNIFIED_BLOCKCHAIN_CONFIG.chain.id}`,

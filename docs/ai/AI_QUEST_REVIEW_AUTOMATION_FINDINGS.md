@@ -1,6 +1,7 @@
 # Quest Task Review Automation — Findings & Context
 
 **Date**: 2026-02-26
+**Last updated**: 2026-03-04
 **Purpose**: Research document capturing the full picture of quest task types, how they're used in practice, how the verification system works in the codebase, and a well-reasoned categorisation of how each manual task should be automated — code-first where the verification criteria are deterministic, AI only where the problem is genuinely unstructured.
 
 ---
@@ -41,11 +42,13 @@ The GoodDollar callback handler:
 
 This means **the "Complete Your GoodDollar Verification" task can be verified by querying the DB or calling the on-chain contract — no screenshot required**.
 
-### 2.3 ETH Transfer Verification Not Yet Implemented
+### 2.3 Verification Registry: AI Vision Implemented; ETH Transfer Still Missing
 
 **File**: `lib/quests/verification/registry.ts`
 
-The verification registry currently only handles vendor tasks and `deploy_lock`. There is no strategy for raw ETH transfers (native value transfers). However, the infrastructure (`viem` public client, strategy pattern) is all in place to add one.
+The verification registry now handles multiple deterministic strategies (vendor tasks, `deploy_lock`, `uniswap_swap`, `daily_checkin`) **and** includes an AI vision strategy for `submit_proof` tasks (`AIVerificationStrategy`).
+
+There is still **no** strategy for raw native ETH transfers (the proposed `eth_transfer` task type) — however the underlying infrastructure (strategy pattern + `viem` public client) remains a good fit for implementing it.
 
 ---
 
@@ -200,6 +203,7 @@ Already automatic — triggered when the GoodDollar quest completes. Once `goodd
 - No user input required
 - Verification: internal DB query on `dg_token_withdrawals`
 - Can optionally cross-check `transaction_hash` on-chain for extra security
+- checks amount meets minimum required
 
 ---
 
@@ -447,295 +451,132 @@ Verifies a public social media post contains required content and meets engageme
 
 ---
 
-## 6. AI Verification Layer (For Remaining `submit_proof` Tasks)
+## 6. AI Verification Layer (Implemented for `submit_proof`)
 
-For the 5 tasks that genuinely require screenshot verification, an AI vision strategy is appropriate. These should remain as `submit_proof` task type but route through an `AIImageVerificationStrategy` rather than the human review queue.
+For the tasks that genuinely require screenshot verification, the platform now uses an AI vision strategy while keeping the existing `submit_proof` task type. The implementation follows the existing Strategy pattern and uses a shared OpenRouter client in `lib/ai/`.
 
-The vision layer is **provider-agnostic**. Rather than hard-coding a specific model (e.g. Claude Vision), all AI image calls are routed through **OpenRouter** (`https://openrouter.ai/api/v1`), which exposes a single OpenAI-compatible endpoint in front of every major vision model. Switching models is a one-line env var change — no code changes required.
+For canonical documentation of the current integration, see `docs/ai/OPENROUTER_AI_INTEGRATION.md`.
 
 ---
 
-### 6.0 OpenRouter Integration
+### 6.0 OpenRouter Integration (Current)
 
-#### Why OpenRouter
+**Core client**: `lib/ai/client.ts` exposes a single function: `chatCompletion(options)`.
 
-| Concern | Without OpenRouter | With OpenRouter |
-|---------|--------------------|-----------------|
-| Model choice | Hard-coded to one provider | Any vision model available; swap via env var |
-| Cost control | Provider pricing is fixed | Choose cheaper models for simpler tasks; set `max_price` ceiling |
-| Reliability | Single point of failure | Automatic model fallback chain if primary is unavailable or rate-limited |
-| Vendor lock-in | Rebuilding required to switch | Zero code changes to switch models |
-
-#### Environment Variables
+**Environment variables (current)**:
 
 ```bash
-# Required
-OPENROUTER_API_KEY=sk-or-v1-...
+# Required (server-only)
+OPENROUTER_API_KEY=sk-or-...
 
-# Optional — sensible defaults shown below
-OPENROUTER_VISION_MODEL=google/gemini-2.0-flash              # default model
-OPENROUTER_VISION_FALLBACK_MODELS=anthropic/claude-3-haiku,openai/gpt-4o-mini  # comma-separated
-OPENROUTER_VISION_MAX_PRICE_PROMPT=0.001       # $/1k prompt tokens ceiling (optional)
-OPENROUTER_VISION_MAX_PRICE_COMPLETION=0.002   # $/1k completion tokens ceiling (optional)
-OPENROUTER_APP_TITLE=P2EInferno                # shown in OpenRouter dashboard
-OPENROUTER_APP_URL=https://p2einferno.com      # for attribution/leaderboard
+# Optional: default model when a caller omits `model`
+OPENROUTER_DEFAULT_MODEL=google/gemini-2.0-flash-001
+
+# Optional: hard timeout in ms (default: 15000)
+OPENROUTER_TIMEOUT_MS=15000
 ```
 
-#### Suggested Model Tiers
+**Model fallbacks (current)**:
+- Callers can supply a `fallbacks: string[]` list.
+- The client uses OpenRouter’s fallback routing (`route: "fallback"` + `models: [primary, ...fallbacks]`) so provider outages/rate-limits degrade gracefully.
 
-| Tier | Model slug | Use case |
-|------|-----------|----------|
-| Budget | `google/gemini-2.0-flash` | Default. Fast, cheap, strong vision. Good for clear UI screenshots. |
-| Budget | `meta-llama/llama-3.2-11b-vision-instruct` | Free tier available; useful as a cost-zero fallback. |
-| Mid | `anthropic/claude-3-haiku` | More reliable on ambiguous screenshots; moderate cost. |
-| Mid | `openai/gpt-4o-mini` | OpenAI alternative at low cost; good vision accuracy. |
-| Capable | `anthropic/claude-sonnet-4-6` | High-confidence edge cases; only route here when mid-tier is uncertain. |
-| Capable | `openai/gpt-4o` | Maximum capability; use only for ambiguous human-fallback triage. |
-
-The default (`gemini-2.0-flash`) handles the vast majority of clear wallet/UI screenshots. The fallback chain catches provider outages or rate limits.
-
-#### OpenRouter API Call Format
-
-```typescript
-// lib/quests/verification/vision/openrouter-client.ts
-
-interface VisionCallOptions {
-  model?: string;         // override default model for this call
-  maxPricePrompt?: number;
-  maxPriceCompletion?: number;
-}
-
-interface VisionResult {
-  pass: boolean;
-  confidence: number;   // 0.0 – 1.0, derived from model response
-  reason: string;
-}
-
-async function callVisionModel(
-  imageUrl: string,
-  prompt: string,
-  options?: VisionCallOptions
-): Promise<VisionResult> {
-  const primaryModel = options?.model
-    ?? process.env.OPENROUTER_VISION_MODEL
-    ?? 'google/gemini-2.0-flash';
-
-  const fallbackModels = (process.env.OPENROUTER_VISION_FALLBACK_MODELS ?? '')
-    .split(',')
-    .map(m => m.trim())
-    .filter(Boolean);
-
-  const body = {
-    // Primary model + ordered fallback chain — OpenRouter tries each in sequence
-    model: primaryModel,
-    models: fallbackModels.length > 0
-      ? [primaryModel, ...fallbackModels]
-      : undefined,
-
-    provider: {
-      allow_fallbacks: true,
-      // Optional cost ceiling — prevents accidentally routing to expensive models
-      ...(options?.maxPricePrompt != null && {
-        max_price: {
-          prompt: options.maxPricePrompt,
-          completion: options.maxPriceCompletion ?? options.maxPricePrompt * 2,
-        },
-      }),
-    },
-
-    messages: [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: prompt,
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              // Supports: public URL or data URI (data:image/jpeg;base64,...)
-              url: imageUrl,
-            },
-          },
-        ],
-      },
-    ],
-
-    // Ask the model to return structured JSON so confidence is machine-readable
-    response_format: { type: 'json_object' },
-  };
-
-  const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.OPENROUTER_APP_URL ?? '',
-      'X-Title': process.env.OPENROUTER_APP_TITLE ?? 'P2EInferno',
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    throw new Error(`OpenRouter error ${response.status}: ${await response.text()}`);
-  }
-
-  const data = await response.json();
-  // Model used (may differ from requested if fallback triggered)
-  const modelUsed = data.model;
-  const raw = JSON.parse(data.choices[0].message.content);
-  // Expected model output shape: { pass: bool, confidence: float, reason: string }
-  return { pass: raw.pass, confidence: raw.confidence, reason: raw.reason, modelUsed };
-}
-```
-
-The prompt templates (section 6.2) instruct the model to respond with `{ "pass": true/false, "confidence": 0.0-1.0, "reason": "..." }` so the response is always machine-parseable regardless of which model was routed.
+**Operational safety (current)**:
+- Requests have a hard timeout.
+- Provider payloads are sanitized/truncated in logs to avoid leaking user content (prompts/messages/URLs).
 
 ---
 
-### 6.1 Strategy Interface
+### 6.1 Vision Helper (Current)
 
-The existing `VerificationStrategy` interface accommodates this without changes. A new strategy class:
+**File**: `lib/ai/verification/vision.ts`
 
-```typescript
-// lib/quests/verification/ai-image-verification.ts
-class AIImageVerificationStrategy implements VerificationStrategy {
-  async verify(taskType, verificationData, userId, userAddress, options) {
-    const imageUrl = verificationData.fileUrl;
-    const aiReviewConfig = options?.taskConfig?.ai_review;
-    const prompt = aiReviewConfig?.prompt_template;
-    const threshold = aiReviewConfig?.confidence_threshold ?? 0.8;
-
-    // Optional per-task model override (e.g. route a harder task to a better model)
-    const modelOverride = aiReviewConfig?.model;
-
-    const result = await callVisionModel(imageUrl, prompt, { model: modelOverride });
-    // Returns: { pass: bool, confidence: float, reason: string, modelUsed: string }
-
-    if (result.confidence >= threshold) {
-      return {
-        success: result.pass,
-        verificationData: { modelUsed: result.modelUsed, reason: result.reason },
-        error: result.pass ? undefined : result.reason,
-      };
-    }
-    // Below threshold: fall back to human queue
-    return { success: false, code: 'AI_UNCERTAIN', error: 'Flagged for human review' };
-  }
-}
-```
-
-The `model` field in `task_config.ai_review` is optional. When omitted, the global `OPENROUTER_VISION_MODEL` env var controls the model. This gives three levels of control:
-1. **Global default** — env var, applies to all AI vision tasks
-2. **Per-task override** — `task_config.ai_review.model` for tasks that need a stronger/cheaper model
-3. **Fallback chain** — `OPENROUTER_VISION_FALLBACK_MODELS` for reliability if the primary is unavailable
+The vision helper:
+- Builds a strict system prompt for screenshot verification.
+- Requests a machine-parseable JSON response from the model:
+  - `{ decision: "approve"|"retry"|"defer", confidence: 0..1, reason: string }`
+  - Backward compatible parsing for `{ verified: boolean, confidence, reason }`
+- Clamps confidence into `[0, 1]` before decision logic.
+- Applies a server-side confidence threshold: if the model says `"approve"` but confidence is below the threshold, the effective decision becomes `"retry"` (so the user can resubmit a clearer/correct proof).
 
 ---
 
-### 6.2 Per-Task Vision Prompts (via `task_config.ai_review`)
+### 6.2 Quest Strategy (Current)
 
-`task_config.ai_review` shape:
+**File**: `lib/quests/verification/ai-vision-verification.ts`
 
-```typescript
+`AIVerificationStrategy` implements `VerificationStrategy` and is registered for `submit_proof` in `lib/quests/verification/registry.ts`.
+
+Inputs:
+- Extracts a screenshot URL from the submitted verification data (supports multiple common keys such as `inputData`, `url`, `fileUrl`, etc.).
+- Reads AI configuration from `task.task_config` (per-task).
+
+Outputs:
+- **Approve**: marks the task completed (server sets `submission_status = "completed"`).
+- **Retry**: returns a retry status and feedback so the user can resubmit.
+- **Defer**: sets the task to pending for admin review (never auto-rejects).
+
+---
+
+### 6.3 Per-Task AI Config (Current)
+
+AI configuration lives in `quest_tasks.task_config` for `submit_proof` tasks:
+
+```ts
 {
-  prompt_template: string;           // required — task-specific instruction
-  confidence_threshold?: number;     // default 0.8
-  model?: string;                    // optional per-task OpenRouter model slug override
+  ai_verification_prompt: string;        // required for AI verification to run
+  ai_prompt_required?: boolean;          // admin UX: blocks save if prompt is empty
+  ai_confidence_threshold?: number;      // 0..1, default 0.7
+  ai_model?: string;                    // optional OpenRouter model slug override
 }
 ```
 
-Prompt templates instruct the model to respond with strict JSON (`{ pass, confidence, reason }`). The system prompt can be set globally in `callVisionModel()` to enforce this format across all models.
-
-| Task | Model recommendation | Prompt focus |
-|------|---------------------|-------------|
-| Install Self-Custody Wallet | Default (`gemini-2.0-flash`) | Verify screenshot shows a wallet app home screen (MetaMask/Rabby/Trust Wallet). A wallet address must be visible. The interface must match a known wallet UI pattern. Respond with `{"pass": bool, "confidence": 0.0-1.0, "reason": "..."}`. |
-| Learn Mechanics I | Default | Verify screenshot shows DG Token Vendor at vendor.dreadgang.gg with the whitelisted NFT collections table visible. Respond with `{"pass": bool, "confidence": 0.0-1.0, "reason": "..."}`. |
-| Learn Mechanics II | Default | Verify screenshot shows the Token Vendor Info / vendor details section with exchange rate and fee data visible. Respond with `{"pass": bool, "confidence": 0.0-1.0, "reason": "..."}`. |
-| Learn Mechanics III | Default | Verify screenshot shows the power-up page with user stage, points, and fuel displayed. Respond with `{"pass": bool, "confidence": 0.0-1.0, "reason": "..."}`. |
-| Learn Mechanics IV | Default | Verify screenshot shows the P2E Inferno vendor page (p2einferno.com/lobby/vendor) with the vendor interface loaded. Respond with `{"pass": bool, "confidence": 0.0-1.0, "reason": "..."}`. |
-
-All tasks are appropriate for the budget default model. A per-task `model` override should only be set if a specific task proves problematic during testing.
+Notes:
+- Model selection is code-level (per call). `OPENROUTER_DEFAULT_MODEL` is a fallback only when a caller omits `model`.
+- Default fallbacks for vision verification are currently set in code (and can be made configurable later if needed).
 
 ---
 
-### 6.3 Human Fallback
+### 6.4 Storage & Admin Context (Current)
 
-When AI confidence is below threshold, the submission stays in `pending` state and surfaces in the admin queue — exactly as today. This means the admin queue is not eliminated, it is dramatically reduced to only the edge cases and ambiguous submissions the AI cannot confidently resolve.
+AI does **not** store the full raw provider response. Instead it persists minimal structured metadata in `user_task_completions.verification_data`, including:
+- `verificationMethod: "ai"`
+- `aiDecision`, `aiVerified`, `aiConfidence`, `aiReason`, `aiModel`, `verifiedAt`
+- plus flags such as `aiRetry` / `aiDeferred` where applicable
 
-The `modelUsed` field is stored in `verification_data` so admins reviewing low-confidence submissions can see which model evaluated it and adjust model/threshold config accordingly.
+The admin review modal displays the AI context (decision, confidence, model, reason) to speed up human review for deferred submissions.
 
 ---
 
-## 7. Verification System Architecture — Updated
+## 7. Verification System Architecture — Current
 
-### 7.1 Updated `TaskType` Enum
+### 7.1 Task Types
 
-```typescript
-export type TaskType =
-  // Existing automatic
-  | "link_email" | "link_wallet" | "link_farcaster" | "link_telegram" | "sign_tos"
-  | "vendor_buy" | "vendor_sell" | "vendor_light_up" | "vendor_level_up"
-  | "deploy_lock" | "complete_external"
-  // Existing manual (retain for backwards compat)
-  | "submit_url" | "submit_text" | "submit_proof" | "custom"
-  // New code-automated types
-  | "eth_transfer"
-  | "gas_drop"
-  | "gooddollar_verified"
-  | "in_app_pullout"
-  | "youtube_subscribe"
-  | "social_post";
-```
+AI vision verification does **not** introduce a new `TaskType`. It is implemented as a verification strategy for the existing `submit_proof` type.
 
-### 7.2 Updated Verification Registry
+### 7.2 Registry
 
-```typescript
-const strategies: Partial<Record<TaskType, VerificationStrategy>> = {
-  // Existing
-  vendor_buy: vendorStrategy,
-  vendor_sell: vendorStrategy,
-  vendor_light_up: vendorStrategy,
-  vendor_level_up: vendorStrategy,
-  deploy_lock: deployLockStrategy,
-  // New code strategies
-  eth_transfer: ethTransferStrategy,
-  gas_drop: gasDropStrategy,
-  gooddollar_verified: gooddollarVerifiedStrategy,
-  in_app_pullout: inAppPulloutStrategy,
-  youtube_subscribe: youtubeSubscribeStrategy,
-  social_post: socialPostStrategy,
-  // AI strategy (for submit_proof tasks with ai_review config)
-  // Routes through OpenRouter — model controlled by OPENROUTER_VISION_MODEL env var
-  // or per-task task_config.ai_review.model override
-  submit_proof: aiImageStrategy,  // fallback to human queue if AI confidence < threshold
-};
-```
+The registry maps task types to strategies, including `submit_proof → AIVerificationStrategy`.
 
-### 7.3 Decision Flow
+### 7.3 Decision Flow (Current)
 
 ```
-User submits task
+User submits task (complete-task API)
        ↓
-complete-task.ts
+If task_type === "submit_proof":
+  - Enforce proof URL presence (basic anti-bypass validation)
+  - Run AI strategy if registered
        ↓
-Has registered strategy?
-  YES → run strategy.verify()
-           ↓
-        Code strategy (eth_transfer, gooddollar_verified, etc.)
-           → deterministic → pass/fail immediately
-        AI strategy (submit_proof with vision)
-           → high confidence + pass  → completed
-           → high confidence + fail  → failed (with AI reason as feedback)
-           → low confidence          → pending (admin queue)
-  NO  → requires_admin_review?
-           YES → pending (full human review, legacy tasks)
-           NO  → completed
+    AI approve → completed
+    AI retry   → retry (client feedback returned)
+    AI defer   → pending + admin notified
+Else:
+  - Existing deterministic strategies (vendor_*, deploy_lock, etc.)
+  - Fallback to requires_admin_review behavior when no strategy exists
 ```
 
 ---
 
-## 8. Implementation Roadmap
+## 8. Implementation Roadmap (Updated)
 
 ### Phase 1 — Zero-Friction Wins (existing data, no new infrastructure)
 These require no new external integrations. Data already exists.
@@ -758,16 +599,16 @@ These require no new external integrations. Data already exists.
 
 **Impact**: Eliminates manual review for "Connect to DG Nation Broadcast" and "Show Others What's Possible".
 
-### Phase 4 — AI Vision for Remaining Screenshots
-1. `openrouter-client.ts` — provider-agnostic vision call via OpenRouter (single env var to switch models)
-2. `AIImageVerificationStrategy` — wraps OpenRouter client; routes `submit_proof` tasks with `ai_review` config
-3. Per-task prompt templates via `task_config.ai_review.prompt_template`
-4. Confidence threshold → human fallback; `modelUsed` stored in `verification_data` for auditability
+### Phase 4 — AI Vision for Remaining Screenshots (Completed)
 
-**Model choice**: Start with `google/gemini-2.0-flash` (cheap, fast, strong vision). Upgrade per-task via `task_config.ai_review.model` if needed. Set `OPENROUTER_VISION_FALLBACK_MODELS` for resilience.
+Implemented:
+1. Shared OpenRouter client: `lib/ai/client.ts`
+2. Vision verification helper: `lib/ai/verification/vision.ts`
+3. Quest strategy: `lib/quests/verification/ai-vision-verification.ts` registered as `submit_proof` strategy
+4. Admin UX: per-task prompt + threshold + model fields (and review-time AI context shown for deferred submissions)
 
-**Impact**: Automates the 5 remaining screenshot tasks with AI, reducing human queue to only low-confidence edge cases. Switching to a different vision model requires zero code changes.
+**Impact (current)**: screenshot-based `submit_proof` tasks can auto-approve high-confidence proofs, request user retry for fixable issues, or defer to admins for ambiguous cases.
 
 ---
 
-*Generated: 2026-02-26 | Source: Live admin panel review + codebase analysis + product reasoning*
+*Generated: 2026-02-26 | Updated: 2026-03-04 | Source: Live admin panel review + codebase analysis + product reasoning*

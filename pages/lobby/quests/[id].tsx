@@ -72,50 +72,58 @@ const QuestDetailsPage = () => {
     return response.json();
   };
 
-  const loadQuestDetails = useCallback(async () => {
-    if (!questId || !user) return;
-    setLoading(true);
-    try {
-      const data = await fetchQuestDetailsAPI(questId as string);
-      if (data) {
-        setQuestData(data);
-        const tasks = data.quest?.quest_tasks || [];
-        const completions = data.completions || [];
+  const loadQuestDetails = useCallback(
+    async (options?: { silent?: boolean }) => {
+      if (!questId || !user) return;
+      const silent = Boolean(options?.silent);
+      if (!silent) setLoading(true);
+      try {
+        const data = await fetchQuestDetailsAPI(questId as string);
+        if (data) {
+          setQuestData(data);
+          const tasks = data.quest?.quest_tasks || [];
+          const completions = data.completions || [];
 
-        const processedTasks = tasks
-          .map((task: any) => {
-            const completion = completions.find(
-              (c: any) => c.task_id === task.id,
-            );
-            return {
-              task,
-              completion,
-              isCompleted: completion?.submission_status === "completed",
-              canClaim:
-                completion?.submission_status === "completed" &&
-                !completion.reward_claimed,
-            };
-          })
-          .sort((a: any, b: any) => a.task.order_index - b.task.order_index);
+          const processedTasks = tasks
+            .map((task: any) => {
+              const completion = completions.find(
+                (c: any) => c.task_id === task.id,
+              );
+              return {
+                task,
+                completion,
+                isCompleted: completion?.submission_status === "completed",
+                canClaim:
+                  completion?.submission_status === "completed" &&
+                  !completion.reward_claimed,
+              };
+            })
+            .sort((a: any, b: any) => a.task.order_index - b.task.order_index);
 
-        setTasksWithCompletion(processedTasks);
+          setTasksWithCompletion(processedTasks);
 
-        const completedCount = processedTasks.filter(
-          (t: any) => t.isCompleted,
-        ).length;
-        setProgress(
-          tasks.length > 0
-            ? Math.round((completedCount / tasks.length) * 100)
-            : 0,
-        );
+          const completedCount = processedTasks.filter(
+            (t: any) => t.isCompleted,
+          ).length;
+          setProgress(
+            tasks.length > 0
+              ? Math.round((completedCount / tasks.length) * 100)
+              : 0,
+          );
+        }
+      } catch (error) {
+        if (silent) {
+          log.warn("Silent refresh failed for quest details", { questId, error });
+          return;
+        }
+        log.error("Error loading quest details:", error);
+        toast.error("Failed to load quest details");
+      } finally {
+        if (!silent) setLoading(false);
       }
-    } catch (error) {
-      log.error("Error loading quest details:", error);
-      toast.error("Failed to load quest details");
-    } finally {
-      setLoading(false);
-    }
-  }, [questId, user]); // eslint-disable-line react-hooks/exhaustive-deps
+    },
+    [questId, user],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (questId && user) {
@@ -327,7 +335,7 @@ const QuestDetailsPage = () => {
         };
 
         handleSubmissionToast();
-        await loadQuestDetails();
+        await loadQuestDetails({ silent: true });
       } else {
         toast.error(result.error || "Failed to perform task action");
       }
@@ -442,7 +450,7 @@ const QuestDetailsPage = () => {
             )}
           </div>,
         );
-        await loadQuestDetails(); // Refresh data
+        await loadQuestDetails({ silent: true });
       } else {
         toast.error(result.error || "Failed to claim reward");
       }
@@ -563,6 +571,7 @@ const QuestDetailsPage = () => {
 
         let attestationScanUrl: string | null | undefined = null;
         let proofCancelled = false;
+        let proofFailed = false;
 
         if (isEASEnabled() && response.attestationRequired) {
           const userAddress = selectedWallet?.address;
@@ -624,12 +633,39 @@ const QuestDetailsPage = () => {
               },
             );
             const commitJson = await commitResp.json().catch(() => ({}));
+            if (!commitResp.ok || commitJson?.success === false) {
+              log.error(
+                "Quest completion attestation commit API returned error",
+                {
+                  questId,
+                  status: commitResp.status,
+                  body: commitJson,
+                },
+              );
+            } else if (!commitJson?.attestationUid) {
+              log.warn(
+                "Quest completion attestation commit completed without UID",
+                {
+                  questId,
+                  body: commitJson,
+                },
+              );
+            } else {
+              log.info("Quest completion attestation commit succeeded", {
+                questId,
+                attestationUid: commitJson?.attestationUid,
+              });
+            }
             attestationScanUrl = commitJson?.attestationScanUrl || null;
           } catch (err: any) {
             if (isUserRejectedError(err)) {
               proofCancelled = true;
             } else {
-              throw err;
+              proofFailed = true;
+              log.warn("Quest completion proof step failed after successful grant", {
+                questId,
+                error: err?.message || err,
+              });
             }
           }
         }
@@ -640,6 +676,11 @@ const QuestDetailsPage = () => {
             {proofCancelled && (
               <div className="text-xs mt-1 text-gray-300">
                 Completion proof cancelled — claim completed.
+              </div>
+            )}
+            {proofFailed && (
+              <div className="text-xs mt-1 text-yellow-300">
+                Attestation proof failed — your key was still granted.
               </div>
             )}
             {attestationScanUrl && (
@@ -657,7 +698,7 @@ const QuestDetailsPage = () => {
           </div>,
         );
       }
-      await loadQuestDetails();
+      await loadQuestDetails({ silent: true });
     } catch (error: any) {
       log.error("Error claiming quest reward:", error);
       toast.error(error.message || "Failed to claim quest reward");

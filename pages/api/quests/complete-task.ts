@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import {
   getPrivyUser,
   extractAndValidateWalletFromHeader,
-  WalletValidationError,
+  walletValidationErrorToHttpStatus,
 } from "@/lib/auth/privy";
 import { createPrivyClient } from "@/lib/utils/privyUtils";
 import { getLogger } from "@/lib/utils/logger";
@@ -108,16 +108,13 @@ export default async function handler(
         required: false,
       });
     } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
+      const safeStatus = status === 500 ? 400 : status;
       const message =
         walletErr instanceof Error
           ? walletErr.message
           : "Invalid X-Active-Wallet header";
-      const status =
-        walletErr instanceof WalletValidationError &&
-        walletErr.code === "NOT_OWNED"
-          ? 403
-          : 400;
-      return res.status(status).json({ error: message });
+      return res.status(safeStatus).json({ error: message });
     }
 
     // Check prerequisites before allowing task completion

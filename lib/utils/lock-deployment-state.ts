@@ -15,7 +15,12 @@ const STORAGE_KEYS = {
 // TYPE DEFINITIONS
 // ============================================================================
 
-export type EntityType = "bootcamp" | "cohort" | "quest" | "milestone";
+export type EntityType =
+  | "bootcamp"
+  | "cohort"
+  | "quest"
+  | "milestone"
+  | "daily_quest";
 const DEFAULT_DRAFT_SCOPE_KEY = "global";
 
 export interface PendingDeployment {
@@ -456,6 +461,7 @@ export const getDeploymentStats = () => {
       cohort: pending.filter((d) => d.entityType === "cohort").length,
       quest: pending.filter((d) => d.entityType === "quest").length,
       milestone: pending.filter((d) => d.entityType === "milestone").length,
+      daily_quest: pending.filter((d) => d.entityType === "daily_quest").length,
     },
     oldestPending:
       pending.length > 0 ? Math.min(...pending.map((d) => d.timestamp)) : null,

@@ -49,7 +49,7 @@ export const LobbyLayout: React.FC<LobbyLayoutProps> = ({
         <LobbyNavigation />
 
         {/* Main Content */}
-        <main className="relative z-10 px-4 lg:px-8 pb-32">
+        <main className="relative z-10 px-4 lg:px-8 pb-32 pt-24">
           <div className="max-w-6xl mx-auto">{children}</div>
         </main>
 

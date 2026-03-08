@@ -16,6 +16,8 @@
 - `npm run lint`: ESLint + Prettier check + TypeScript `--noEmit`.
 - `npm run format`: Format with Prettier.
 - `npm run db:migrate`: Apply Supabase migrations.
+- `npm run db:types`: Generate TypeScript types from the local Supabase schema.
+- `npm run db:types:remote`: Generate TypeScript types from the remote Supabase schema.
 
 ## Database Interaction (Supabase CLI)
 
@@ -33,6 +35,29 @@
   - Remote: `supabase link --project-ref <ref>` then `supabase db push` to apply migrations; create new files with `supabase migration new <name>`.
   - Edge functions: `supabase functions deploy verify-blockchain-payment` when updating `supabase/functions/verify-blockchain-payment`.
 - Repo script: `npm run db:migrate` exists but CLI is preferred for day-to-day work.
+- Type generation:
+  - Local types: `npm run db:types`
+  - Remote types: `npm run db:types:remote`
+  - Generated types live in `lib/supabase/types-gen.ts`; app-facing types also exist under `lib/supabase/types*.ts`
+  - Regenerate types after schema changes to keep TypeScript in sync.
+
+### Database Security Best Practices
+
+- All PL/pgSQL functions MUST include `SET search_path = 'public'`, especially trigger functions, `SECURITY DEFINER` functions, and anything callable by `service_role`.
+- Use `SECURITY DEFINER` sparingly and only when necessary; always pair it with `SET search_path = 'public'`.
+- Avoid `SECURITY DEFINER` views; prefer RLS policies for access control.
+- Add covering indexes for foreign key columns to avoid preventable join and mutation slowdowns.
+- In RLS policies, prefer `(select auth.uid())` over `auth.uid()` to improve planning/performance.
+- See `docs/supabase-security-performance-advisory.md` and `docs/database-function-security-audit.md` before changing sensitive database logic.
+
+### Database Operation Safety
+
+- If multiple database operations must succeed or fail together, implement them in a single PL/pgSQL function/transaction instead of sequential client-side queries.
+- Treat check-then-act flows across separate queries as race conditions; guards and writes should live in the same transaction/function.
+- Treat delete-then-insert replacement flows as unsafe unless they are atomic.
+- If a core operation succeeds but a secondary side effect fails, prefer `log.warn` over throwing when the user-facing action should still count as successful.
+- Preserve error status fidelity: do not mask server failures as 400/403-class client errors.
+- Use `sync_daily_quest_run_tasks_if_safe()` in migration `154` as the reference pattern for atomic guarded updates.
 
 ## Coding Style & Naming Conventions
 
@@ -46,7 +71,7 @@
 ## Testing Guidelines
 
 - Framework: Jest + Testing Library (jsdom). Config in `jest.config.ts` and `jest.setup.ts`.
-- Location: tests are centralized under `__tests__/` (unit/integration) mirroring source folders. Prefer this over scattering test folders across the tree.
+- Location: tests are co-located with source files (e.g., `Foo.tsx` → `Foo.test.tsx`). Place tests next to the code they cover.
 - Filenames: `*.test.ts(x)` or `*.spec.ts(x)`.
 - Coverage: collected from UI, lib, hooks; use `npm run test:coverage` for reports.
 - Mocks: see router/Privy/crypto mocks in `jest.setup.ts`.
@@ -74,6 +99,7 @@
 - Consolidated endpoints: prefer Route Handlers under `app/api/` that return bundled data to cut round‑trips.
   - Implemented: `GET /api/admin/tasks/details?task_id=...&include=milestone,cohort,submissions[:status|:limit|:offset]`.
   - Keep Pages API versions for compatibility where they still exist; avoid introducing any `pages/api/v2/*`. Remove legacy v2 pages when found and point callers to the canonical App Route or existing Pages API route.
+- Client requests should prefer `lib/api.ts` so request behavior and logging stay consistent.
 
 ### Route Handlers: Admin Enforcement (Required)
 
@@ -153,9 +179,11 @@ See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
   - `POST /api/admin/eas-schemas/[uid]/redeploy` (deploy missing schema + update UID)
 - **Auth**:
   - Schema mutations require admin session + `X-Active-Wallet` + signed admin action (EIP-712).
+  - Signed-action cancellations should not be surfaced as errors.
   - EAS Config tab mutations are DB-only (no on-chain activity); require admin session + `X-Active-Wallet` but **do not** require signed actions.
 - **Network config**: `public.eas_networks` (migrations `118`, `121`) is DB‑backed with fallback in `lib/attestation/core/network-config.ts`. Only enabled networks appear in UI/API.
 - **Schema IDs**: `schema_uid` may be non‑bytes32 placeholders; UI flags invalid UIDs as "Not on-chain" without RPC calls.
+- **Schema UID resolution**: Use `resolveSchemaUID(schemaKey, network)` (DB first, then env fallback) instead of hardcoding placeholder UIDs in app code.
 - **EAS Scan**: Only show when UID is valid; use `eas_scan_base_url` from `eas_networks`.
 - **Network updates**: Admin config changes invalidate `eas_networks` cache so the dropdown updates immediately.
 
@@ -215,3 +243,14 @@ See `docs/admin-sessions-and-bundle-apis.md` for full guidance.
   - Only checks admin access for validated connected wallet (prevents privilege escalation via stale sessions)
   - Provides immediate UI protection on wallet changes with loading states
 - **Security Principle**: Connected wallet must own the session; changing wallets invalidates authentication state to prevent unauthorized access through persistent sessions.
+
+## Key Manager Patterns (Server-Side Grant Keys)
+
+- When granting keys server-side, use `getKeyManagersForContext()` from `lib/helpers/key-manager-utils.ts`.
+- Never pass an empty `keyManagers` array; this can trigger contract errors.
+- Context mapping:
+  - `payment`: `[recipientAddress]`
+  - `milestone`: `[adminAddress]` from `LOCK_MANAGER_PRIVATE_KEY`
+  - `admin_grant`: `[recipientAddress]`
+  - `reconciliation`: `[recipientAddress]`
+- Do not hardcode key manager arrays in grant flows; use the helper so behavior stays aligned across payment, milestone, admin grant, and reconciliation paths.

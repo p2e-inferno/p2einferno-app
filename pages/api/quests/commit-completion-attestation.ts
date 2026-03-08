@@ -1,6 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createAdminClient } from "@/lib/supabase/server";
-import { getPrivyUser } from "@/lib/auth/privy";
+import {
+  getPrivyUser,
+  walletValidationErrorToHttpStatus,
+} from "@/lib/auth/privy";
 import { getLogger } from "@/lib/utils/logger";
 import { isEASEnabled } from "@/lib/attestation/core/config";
 import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
@@ -38,6 +41,14 @@ export default async function handler(
       attestationSignature?: DelegatedAttestationSignature | null;
     };
 
+    log.info("Quest completion attestation commit requested", {
+      userId: authUser.id,
+      questId,
+      hasSignature: Boolean(attestationSignature),
+      signatureNetwork: attestationSignature?.network || null,
+      signatureChainId: attestationSignature?.chainId || null,
+    });
+
     if (!questId) {
       return res.status(400).json({ error: "questId is required" });
     }
@@ -62,9 +73,14 @@ export default async function handler(
         return res.status(400).json({ error: "Wallet is required" });
       }
       userWallet = wallet;
-    } catch (error: any) {
-      const status = error.message?.includes("required") ? 400 : 403;
-      return res.status(status).json({ error: error.message });
+    } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
+      const safeStatus = status === 500 ? 403 : status;
+      const message =
+        walletErr instanceof Error
+          ? walletErr.message
+          : "Wallet validation failed";
+      return res.status(safeStatus).json({ error: message });
     }
 
     const supabase = createAdminClient();
@@ -97,6 +113,11 @@ export default async function handler(
       | null
       | undefined;
     if (existingUid) {
+      log.info("Quest completion attestation already exists (idempotent)", {
+        userId: authUser.id,
+        questId,
+        attestationUid: existingUid,
+      });
       return res.status(200).json({
         success: true,
         attestationUid: existingUid,
@@ -110,14 +131,24 @@ export default async function handler(
         .json({ error: "Attestation signature is required" });
     }
 
+    const networkForDecode =
+      attestationSignature.network?.toLowerCase() || getDefaultNetworkName();
+
     const decoded = await decodeAttestationDataFromDb({
       supabase,
       schemaKey: "quest_completion",
-      network: getDefaultNetworkName(),
+      network: networkForDecode,
       encodedData: attestationSignature.data,
     });
 
     if (!decoded) {
+      log.warn("Quest completion attestation decode failed", {
+        userId: authUser.id,
+        questId,
+        schemaKey: "quest_completion",
+        networkForDecode,
+        signatureSchemaUid: attestationSignature.schemaUid,
+      });
       return res.status(400).json({ error: "Invalid attestation payload" });
     }
 
@@ -136,6 +167,13 @@ export default async function handler(
     );
 
     if (!expectedGrantTxHash || expectedTokenId === null) {
+      log.warn("Quest completion commit missing stored grant details", {
+        userId: authUser.id,
+        questId,
+        expectedGrantTxHash,
+        expectedTokenId:
+          expectedTokenId === null ? null : expectedTokenId.toString(),
+      });
       return res.status(400).json({
         error: "Grant details not recorded for this quest completion",
       });
@@ -147,6 +185,16 @@ export default async function handler(
       decodedGrantTxHash !== expectedGrantTxHash ||
       decodedTokenId !== expectedTokenId
     ) {
+      log.warn("Quest completion attestation payload mismatch", {
+        userId: authUser.id,
+        questId,
+        decodedGrantTxHash,
+        expectedGrantTxHash,
+        decodedTokenId:
+          decodedTokenId === null ? null : decodedTokenId.toString(),
+        expectedTokenId:
+          expectedTokenId === null ? null : expectedTokenId.toString(),
+      });
       return res.status(400).json({
         error: "Attestation payload does not match recorded grant details",
       });
@@ -160,11 +208,18 @@ export default async function handler(
     });
 
     if (!attestationResult.success) {
+      log.error("Quest completion attestation submission failed", {
+        userId: authUser.id,
+        questId,
+        error: attestationResult.error || "unknown",
+      });
       // On-chain action already happened; do not block the flow here.
       return res.status(200).json({
         success: true,
         attestationUid: null,
         attestationScanUrl: null,
+        attestationError:
+          attestationResult.error || "Attestation submission failed",
       });
     }
 

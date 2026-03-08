@@ -3,9 +3,14 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
 import {
   getPrivyUser,
-  extractAndValidateWalletFromHeader,
-  WalletValidationError,
+  walletValidationErrorToHttpStatus,
 } from "@/lib/auth/privy";
+import type { DelegatedAttestationSignature } from "@/lib/attestation/api/types";
+import {
+  handleGaslessAttestation,
+  extractAndValidateWalletFromSignature,
+} from "@/lib/attestation/api/helpers";
+import { buildEasScanLink } from "@/lib/attestation/core/network-config";
 
 const log = getLogger("api:daily-quests:claim-task-reward");
 
@@ -24,7 +29,10 @@ export default async function handler(
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const { completionId } = (req.body || {}) as { completionId?: string };
+  const { completionId, attestationSignature } = (req.body || {}) as {
+    completionId?: string;
+    attestationSignature?: DelegatedAttestationSignature | null;
+  };
   if (!completionId) {
     return res.status(400).json({ error: "Missing completionId" });
   }
@@ -36,30 +44,19 @@ export default async function handler(
     }
     const userId = authUser.id;
 
-    const rawActiveWalletHeader = req.headers?.["x-active-wallet"];
-    if (Array.isArray(rawActiveWalletHeader)) {
-      return res
-        .status(400)
-        .json({ error: "Multiple X-Active-Wallet headers provided" });
-    }
-
+    let userWalletAddress: string | null = null;
     try {
-      await extractAndValidateWalletFromHeader({
+      userWalletAddress = await extractAndValidateWalletFromSignature({
         userId,
-        activeWalletHeader: rawActiveWalletHeader,
+        attestationSignature,
         context: "daily-quests:claim-task-reward",
-        required: true,
       });
     } catch (walletErr: unknown) {
+      const status = walletValidationErrorToHttpStatus(walletErr);
       const message =
         walletErr instanceof Error
           ? walletErr.message
-          : "Invalid X-Active-Wallet header";
-      const status =
-        walletErr instanceof WalletValidationError &&
-        walletErr.code === "NOT_OWNED"
-          ? 403
-          : 400;
+          : "Wallet validation failed";
       return res.status(status).json({ error: message });
     }
 
@@ -93,7 +90,7 @@ export default async function handler(
 
     const { data: runTask, error: taskErr } = await supabase
       .from("daily_quest_run_tasks")
-      .select("id,reward_amount")
+      .select("id,title,task_type,reward_amount")
       .eq("id", completion.daily_quest_run_task_id)
       .eq("daily_quest_run_id", completion.daily_quest_run_id)
       .maybeSingle();
@@ -104,6 +101,45 @@ export default async function handler(
     const rewardAmount = Number(runTask.reward_amount || 0);
     if (!(rewardAmount > 0)) {
       return res.status(400).json({ error: "No reward configured for task" });
+    }
+
+    const { data: template, error: templateErr } = await supabase
+      .from("daily_quest_templates")
+      .select("id,lock_address")
+      .eq("id", run.daily_quest_template_id)
+      .maybeSingle();
+    if (templateErr || !template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+
+    let rewardClaimAttestationUid: string | undefined;
+    let rewardClaimAttestationTxHash: string | undefined;
+    let attestationScanUrl: string | null = null;
+    if (userWalletAddress) {
+      const attestationResult = await handleGaslessAttestation({
+        signature: attestationSignature ?? null,
+        schemaKey: "quest_task_reward_claim",
+        recipient: userWalletAddress,
+        gracefulDegrade: false,
+      });
+
+      if (!attestationResult.success) {
+        const message =
+          attestationResult.error || "Failed to create attestation";
+        const status =
+          message === "Attestation signature is required" ||
+          message === "Signature recipient mismatch" ||
+          message === "Signature schema UID mismatch"
+            ? 400
+            : 500;
+        return res.status(status).json({ error: message });
+      }
+
+      rewardClaimAttestationUid = attestationResult.uid;
+      rewardClaimAttestationTxHash = attestationResult.txHash;
+      if (rewardClaimAttestationUid) {
+        attestationScanUrl = await buildEasScanLink(rewardClaimAttestationUid);
+      }
     }
 
     // Resolve user_profiles.id (uuid) required by award_xp_to_user RPC.
@@ -149,6 +185,11 @@ export default async function handler(
         daily_quest_run_id: completion.daily_quest_run_id,
         daily_quest_run_task_id: completion.daily_quest_run_task_id,
         completion_id: completionId,
+        daily_quest_template_id: template.id,
+        task_type: runTask.task_type,
+        quest_lock_address: template.lock_address || null,
+        attestation_uid: rewardClaimAttestationUid || null,
+        attestation_tx_hash: rewardClaimAttestationTxHash || null,
       },
     });
 
@@ -166,7 +207,12 @@ export default async function handler(
       });
     }
 
-    return res.status(200).json({ success: true });
+    return res.status(200).json({
+      success: true,
+      rewardAmount,
+      attestationUid: rewardClaimAttestationUid || null,
+      attestationScanUrl,
+    });
   } catch (error) {
     log.error("Error in daily quest claim-task-reward API:", error);
     return res.status(500).json({ error: "Internal server error" });
