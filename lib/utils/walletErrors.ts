@@ -43,18 +43,21 @@ export const formatWalletError = (err: unknown, defaultMessage = "Transaction fa
     return "Transaction cancelled";
   }
 
-  if (err instanceof Error) {
-    // Check for common viem/ethers error properties
-    const maybe = err as any;
+  const typedErr = typeof err === "object" && err !== null ? (err as ErrorLike & { shortMessage?: string }) : {};
 
-    // Viem's shortMessage is usually the most pithy and useful
-    if (maybe.shortMessage) return maybe.shortMessage;
+  // 1. Viem's shortMessage is usually the most pithy and useful
+  if (typedErr.shortMessage) return typedErr.shortMessage;
 
-    // Handle specific RPC error codes if needed
-    if (maybe.code === -32603) return "Internal JSON-RPC error. Check your balance or network.";
+  // 2. Standard error message
+  if (typedErr.message) return typedErr.message;
 
-    return err.message;
-  }
+  // 3. Nested error object message
+  if (typedErr.error?.message) return typedErr.error.message;
+
+  // 4. Handle specific RPC error codes
+  const code = typedErr.code ?? typedErr.error?.code;
+  if (code === -32603) return "Internal JSON-RPC error. Check your balance or network.";
+  if (code === 4001 || code === "ACTION_REJECTED") return "Transaction cancelled";
 
   if (typeof err === "string") return err;
 

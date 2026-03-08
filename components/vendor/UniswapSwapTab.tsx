@@ -15,7 +15,7 @@ import { useTransactionStepper } from "@/hooks/useTransactionStepper";
 import { TransactionStepperModal } from "@/components/admin/TransactionStepperModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { DeploymentStep } from "@/lib/transaction-stepper/types";
+import type { DeploymentStep, TxResult } from "@/lib/transaction-stepper/types";
 import type { SwapPair, SwapDirection } from "@/lib/uniswap/types";
 import { DEFAULT_SLIPPAGE_BPS } from "@/lib/uniswap/constants";
 import { PercentPresets } from "@/components/vendor/PercentPresets";
@@ -260,7 +260,7 @@ export default function UniswapSwapTab() {
       await stepperWaitForSteps(steps.length, versionBefore);
 
       // 4. Run all steps sequentially
-      let results: any[] = [];
+      let results: TxResult[] = [];
       try {
         results = await stepperStart();
       } catch {
@@ -332,11 +332,10 @@ export default function UniswapSwapTab() {
               setDirection("A_TO_B");
               setAmount("");
             }}
-            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-              pair === opt.value
+            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${pair === opt.value
                 ? "bg-white/10 text-white shadow-sm"
                 : "text-white/50 hover:text-white/80"
-            }`}
+              }`}
           >
             {opt.label}
           </button>
@@ -351,11 +350,10 @@ export default function UniswapSwapTab() {
             setDirection("A_TO_B");
             setAmount("");
           }}
-          className={`px-3 py-1 rounded-full ${
-            direction === "A_TO_B"
+          className={`px-3 py-1 rounded-full ${direction === "A_TO_B"
               ? "bg-emerald-500 text-black"
               : "text-slate-300 hover:text-white"
-          }`}
+            }`}
         >
           {directionLabels.aToB}
         </button>
@@ -365,11 +363,10 @@ export default function UniswapSwapTab() {
             setDirection("B_TO_A");
             setAmount("");
           }}
-          className={`px-3 py-1 rounded-full ${
-            direction === "B_TO_A"
+          className={`px-3 py-1 rounded-full ${direction === "B_TO_A"
               ? "bg-slate-700 text-white"
               : "text-slate-300 hover:text-white"
-          }`}
+            }`}
         >
           {directionLabels.bToA}
         </button>
@@ -448,7 +445,7 @@ export default function UniswapSwapTab() {
         activeStepIndex={stepperState.activeStepIndex}
         canClose={stepperState.canClose}
         onRetry={handleStepperRetry}
-        onSkip={() => {}}
+        onSkip={() => { }}
         onCancel={handleStepperCancel}
         onClose={handleStepperClose}
       />

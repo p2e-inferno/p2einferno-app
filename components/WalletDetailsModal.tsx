@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { useWalletBalances } from "@/hooks/useWalletBalances";
 import { CURRENT_NETWORK } from "@/lib/blockchain/legacy/frontend-config";
-import { getWalletTransferTokenAddresses } from "@/lib/wallet/token-addresses";
+import { getWalletTransferTokenAddresses } from "@/lib/wallet/tokenAddresses";
 import {
   Copy,
   ExternalLink,
@@ -95,38 +95,54 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
   // Reset resolution state when recipient changes (raw input)
   useEffect(() => {
     setResolutionAttempted(false);
+    setResolvedAddress(null);
     if (!recipient.trim()) {
-      setResolvedAddress(null);
       setIsResolving(false);
     }
   }, [recipient]);
 
   // ENS Resolution Effect
   useEffect(() => {
-    const resolve = async () => {
-      const normalized = debouncedRecipient.toLowerCase();
+    let aborted = false;
+    const captured = debouncedRecipient.trim().toLowerCase();
 
+    const resolve = async () => {
       // Only attempt resolution if it looks like a name (contains dot) and isn't already an address
-      if (!normalized.includes(".") || isAddress(normalized)) {
-        setResolvedAddress(null);
-        setIsResolving(false);
+      if (!captured.includes(".") || isAddress(captured)) {
+        if (!aborted) {
+          setResolvedAddress(null);
+          setIsResolving(false);
+          setResolutionAttempted(true);
+        }
         return;
       }
 
       setIsResolving(true);
       try {
         const client = createPublicClientForChain(mainnet);
-        const addr = await client.getEnsAddress({ name: normalized });
-        setResolvedAddress(addr || null);
+        const addr = await client.getEnsAddress({ name: captured });
+
+        if (!aborted) {
+          setResolvedAddress(addr || null);
+          setResolutionAttempted(true);
+        }
       } catch (err) {
-        setResolvedAddress(null);
+        if (!aborted) {
+          setResolvedAddress(null);
+          setResolutionAttempted(true);
+        }
       } finally {
-        setIsResolving(false);
-        setResolutionAttempted(true);
+        if (!aborted) {
+          setIsResolving(false);
+        }
       }
     };
 
     resolve();
+
+    return () => {
+      aborted = true;
+    };
   }, [debouncedRecipient]);
 
   const {
@@ -253,9 +269,14 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
   };
 
   const handleTransfer = async () => {
-    if (!selectedTransferToken) return;
+    if (!selectedTransferToken || isResolving) return;
 
-    const finalRecipient = resolvedAddress || recipient;
+    if (recipient.includes(".") && !resolvedAddress && !isAddress(recipient)) {
+      toast.error("Waiting for ENS resolution...");
+      return;
+    }
+
+    const finalRecipient = resolvedAddress || recipient.trim();
     if (!isAddress(finalRecipient)) {
       toast.error("Enter a valid recipient address or ENS name");
       return;
@@ -269,15 +290,15 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
     try {
       const hash = selectedTransferToken.isNative
         ? await transferNative({
-            recipient: finalRecipient as `0x${string}`,
-            amountEth: amount.trim(),
-          })
+          recipient: finalRecipient as `0x${string}`,
+          amountEth: amount.trim(),
+        })
         : await transferErc20({
-            recipient: finalRecipient as `0x${string}`,
-            tokenAddress: selectedTransferToken.address as `0x${string}`,
-            amount: amount.trim(),
-            decimals: selectedTransferToken.decimals,
-          });
+          recipient: finalRecipient as `0x${string}`,
+          tokenAddress: selectedTransferToken.address as `0x${string}`,
+          amount: amount.trim(),
+          decimals: selectedTransferToken.decimals,
+        });
 
       setAmount("");
       setRecipient("");

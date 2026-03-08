@@ -30,14 +30,25 @@ export function useWalletTransfer() {
 
   const transferNative = useCallback(
     async (params: NativeTransferParams): Promise<`0x${string}`> => {
-      if (!wallet) throw new Error("No wallet connected");
-      if (!isAddress(params.recipient)) throw new Error("Invalid recipient");
+      setError(null);
+
+      if (!wallet) {
+        const msg = "No wallet connected";
+        setError(msg);
+        throw new Error(msg);
+      }
+      if (!isAddress(params.recipient)) {
+        const msg = "Invalid recipient address";
+        setError(msg);
+        throw new Error(msg);
+      }
       if (!params.amountEth || Number(params.amountEth) <= 0) {
-        throw new Error("Amount must be greater than zero");
+        const msg = "Amount must be greater than zero";
+        setError(msg);
+        throw new Error(msg);
       }
 
       setIsTransferring(true);
-      setError(null);
 
       try {
         const { walletClient, publicClient } =
@@ -65,18 +76,35 @@ export function useWalletTransfer() {
 
   const transferErc20 = useCallback(
     async (params: ERC20TransferParams): Promise<`0x${string}`> => {
-      if (!wallet) throw new Error("No wallet connected");
-      if (!isAddress(params.recipient)) throw new Error("Invalid recipient");
-      if (!isAddress(params.tokenAddress)) throw new Error("Invalid token contract");
+      setError(null);
+
+      if (!wallet) {
+        const msg = "No wallet connected";
+        setError(msg);
+        throw new Error(msg);
+      }
+      if (!isAddress(params.recipient)) {
+        const msg = "Invalid recipient address";
+        setError(msg);
+        throw new Error(msg);
+      }
+      if (!isAddress(params.tokenAddress)) {
+        const msg = "Invalid token contract address";
+        setError(msg);
+        throw new Error(msg);
+      }
       if (!params.amount || Number(params.amount) <= 0) {
-        throw new Error("Amount must be greater than zero");
+        const msg = "Amount must be greater than zero";
+        setError(msg);
+        throw new Error(msg);
       }
       if (!Number.isFinite(params.decimals) || params.decimals < 0) {
-        throw new Error("Invalid token decimals");
+        const msg = "Invalid token decimals";
+        setError(msg);
+        throw new Error(msg);
       }
 
       setIsTransferring(true);
-      setError(null);
 
       try {
         const { walletClient, publicClient } =

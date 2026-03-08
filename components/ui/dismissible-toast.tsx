@@ -46,30 +46,21 @@ export function DismissibleToastContent({
         </button>
       </div>
       {link && (
-        <button
+        <a
+          href={link.url}
+          target="_blank"
+          rel="noopener noreferrer"
           onClick={(e) => {
             e.stopPropagation();
-            window.open(link.url, "_blank", "noopener,noreferrer");
             toast.dismiss(t.id);
           }}
-          className="text-xs font-bold underline hover:opacity-80 transition-opacity w-fit flex items-center gap-1 text-inherit cursor-pointer bg-transparent border-none p-0"
+          className="text-xs font-bold underline hover:opacity-80 transition-opacity w-fit flex items-center gap-1 text-inherit cursor-pointer"
         >
           {link.label}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="h-3 w-3"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
           </svg>
-        </button>
+        </a>
       )}
     </div>
   );
