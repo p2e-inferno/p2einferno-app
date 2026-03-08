@@ -50,7 +50,9 @@ export function DailyQuestCard(props: {
     totalTasksCount > 0 && tasksCompletedCount === totalTasksCount;
   const hasPendingTaskRewards = Boolean(run.has_pending_task_rewards);
   const rewardClaimed = Boolean(run.progress?.reward_claimed);
-  const completionBonusClaimed = Boolean(run.progress?.completion_bonus_claimed);
+  const completionBonusClaimed = Boolean(
+    run.progress?.completion_bonus_claimed,
+  );
   const hasKeyReward = Boolean(run.template?.lock_address);
   const isKeyClaimPending = allTasksCompleted && hasKeyReward && !rewardClaimed;
   const isBonusClaimPending =

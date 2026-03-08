@@ -113,7 +113,10 @@ const QuestDetailsPage = () => {
         }
       } catch (error) {
         if (silent) {
-          log.warn("Silent refresh failed for quest details", { questId, error });
+          log.warn("Silent refresh failed for quest details", {
+            questId,
+            error,
+          });
           return;
         }
         log.error("Error loading quest details:", error);
@@ -662,10 +665,13 @@ const QuestDetailsPage = () => {
               proofCancelled = true;
             } else {
               proofFailed = true;
-              log.warn("Quest completion proof step failed after successful grant", {
-                questId,
-                error: err?.message || err,
-              });
+              log.warn(
+                "Quest completion proof step failed after successful grant",
+                {
+                  questId,
+                  error: err?.message || err,
+                },
+              );
             }
           }
         }

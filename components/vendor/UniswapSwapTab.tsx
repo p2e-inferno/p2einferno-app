@@ -15,12 +15,18 @@ import { useTransactionStepper } from "@/hooks/useTransactionStepper";
 import { TransactionStepperModal } from "@/components/admin/TransactionStepperModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import type { DeploymentStep } from "@/lib/transaction-stepper/types";
+import type { DeploymentStep, TxResult } from "@/lib/transaction-stepper/types";
 import type { SwapPair, SwapDirection } from "@/lib/uniswap/types";
 import { DEFAULT_SLIPPAGE_BPS } from "@/lib/uniswap/constants";
 import { PercentPresets } from "@/components/vendor/PercentPresets";
 import toast from "react-hot-toast";
 import { getLogger } from "@/lib/utils/logger";
+import { formatWalletError } from "@/lib/utils/walletErrors";
+import {
+  showDismissibleError,
+  showTransactionSuccess,
+} from "@/components/ui/dismissible-toast";
+import { CURRENT_NETWORK } from "@/lib/blockchain/legacy/frontend-config";
 
 const log = getLogger("component:uniswap-swap-tab");
 
@@ -254,8 +260,9 @@ export default function UniswapSwapTab() {
       await stepperWaitForSteps(steps.length, versionBefore);
 
       // 4. Run all steps sequentially
+      let results: TxResult[] = [];
       try {
-        await stepperStart();
+        results = await stepperStart();
       } catch {
         // A step failed — suspend until user clicks Retry or Cancel
         while (true) {
@@ -272,7 +279,7 @@ export default function UniswapSwapTab() {
 
           // decision === 'retry'
           try {
-            await stepperRetry();
+            results = await stepperRetry();
             break;
           } catch {
             continue;
@@ -283,7 +290,17 @@ export default function UniswapSwapTab() {
       // 5. All steps succeeded — keep modal open so user sees the green ✓ states.
       //    The modal's "Done" button (onClose) will dismiss it.
       fetchBalance(pair, direction);
-      toast.success("Swap complete!");
+
+      // Extract the last transaction hash (the swap itself)
+      const lastTx = results.filter((r) => !!r?.transactionHash).pop();
+      if (lastTx?.transactionHash) {
+        showTransactionSuccess(
+          "Swap complete!",
+          `${CURRENT_NETWORK.explorerUrl}/tx/${lastTx.transactionHash}`,
+        );
+      } else {
+        toast.success("Swap complete!");
+      }
     } catch (err) {
       log.error("Uniswap swap failed", {
         error: err,
@@ -291,7 +308,7 @@ export default function UniswapSwapTab() {
         direction,
         amount: parsedAmount?.toString(),
       });
-      toast.error(err instanceof Error ? err.message : "Swap failed");
+      showDismissibleError(formatWalletError(err, "Swap failed"));
     } finally {
       isSwappingRef.current = false;
       setIsSwapping(false);
@@ -315,11 +332,10 @@ export default function UniswapSwapTab() {
               setDirection("A_TO_B");
               setAmount("");
             }}
-            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
-              pair === opt.value
+            className={`flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${pair === opt.value
                 ? "bg-white/10 text-white shadow-sm"
                 : "text-white/50 hover:text-white/80"
-            }`}
+              }`}
           >
             {opt.label}
           </button>
@@ -334,11 +350,10 @@ export default function UniswapSwapTab() {
             setDirection("A_TO_B");
             setAmount("");
           }}
-          className={`px-3 py-1 rounded-full ${
-            direction === "A_TO_B"
+          className={`px-3 py-1 rounded-full ${direction === "A_TO_B"
               ? "bg-emerald-500 text-black"
               : "text-slate-300 hover:text-white"
-          }`}
+            }`}
         >
           {directionLabels.aToB}
         </button>
@@ -348,11 +363,10 @@ export default function UniswapSwapTab() {
             setDirection("B_TO_A");
             setAmount("");
           }}
-          className={`px-3 py-1 rounded-full ${
-            direction === "B_TO_A"
+          className={`px-3 py-1 rounded-full ${direction === "B_TO_A"
               ? "bg-slate-700 text-white"
               : "text-slate-300 hover:text-white"
-          }`}
+            }`}
         >
           {directionLabels.bToA}
         </button>
@@ -431,7 +445,7 @@ export default function UniswapSwapTab() {
         activeStepIndex={stepperState.activeStepIndex}
         canClose={stepperState.canClose}
         onRetry={handleStepperRetry}
-        onSkip={() => {}}
+        onSkip={() => { }}
         onCancel={handleStepperCancel}
         onClose={handleStepperClose}
       />

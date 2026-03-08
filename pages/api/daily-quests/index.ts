@@ -104,7 +104,10 @@ export default async function handler(
         : { data: [], error: null };
 
     if (progressErr) {
-      log.error("Failed to fetch daily quest progress", { progressErr, userId });
+      log.error("Failed to fetch daily quest progress", {
+        progressErr,
+        userId,
+      });
       return res.status(500).json({
         error: "Failed to fetch daily quest progress",
       });
