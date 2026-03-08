@@ -1,5 +1,5 @@
 // import { UnlockPurchaseButton } from "../unlock/UnlockPurchaseButton";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Button } from "../ui/button";
 import Link from "next/link";
@@ -45,6 +45,12 @@ export default function AdminAccessRequired({
     enabled: isAuthenticated && !!walletAddress,
   });
 
+  // Stable ref to avoid re-creating checkAccessStatus (and re-triggering the
+  // effect) every time refreshAdminStatus changes identity due to internal
+  // state updates in the admin auth context.
+  const refreshAdminStatusRef = useRef(refreshAdminStatus);
+  refreshAdminStatusRef.current = refreshAdminStatus;
+
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [accessStatus, setAccessStatus] = useState<{
@@ -89,7 +95,7 @@ export default function AdminAccessRequired({
           // AUTO-REFRESH: If we detected access locally, tell the context to refresh
           // so it can unlock the gate automatically without manual user action
           log.info("Admin access detected, triggering context refresh...");
-          await refreshAdminStatus();
+          await refreshAdminStatusRef.current();
         } else {
           setAccessStatus({
             hasAccess: false,
@@ -106,7 +112,7 @@ export default function AdminAccessRequired({
         });
       }
     },
-    [adminLockAddress, checkHasValidKey, refreshAdminStatus],
+    [adminLockAddress, checkHasValidKey],
   );
 
   // Run access check whenever wallet address changes

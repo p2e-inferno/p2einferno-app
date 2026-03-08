@@ -129,6 +129,18 @@ export default async function handler(
       });
     }
 
+    type ProgressRow = {
+      daily_quest_run_id: string;
+      reward_claimed: boolean;
+      completion_bonus_claimed: boolean;
+    };
+
+    type CompletionRow = {
+      daily_quest_run_id: string;
+      submission_status: string;
+      reward_claimed: boolean;
+    };
+
     const progressByRunId = new Map<
       string,
       {
@@ -136,13 +148,10 @@ export default async function handler(
         completion_bonus_claimed: boolean;
       }
     >();
-    for (const row of progressRows || []) {
-      const runId = String((row as any).daily_quest_run_id);
-      progressByRunId.set(runId, {
-        reward_claimed: Boolean((row as any).reward_claimed),
-        completion_bonus_claimed: Boolean(
-          (row as any).completion_bonus_claimed,
-        ),
+    for (const row of (progressRows || []) as ProgressRow[]) {
+      progressByRunId.set(row.daily_quest_run_id, {
+        reward_claimed: Boolean(row.reward_claimed),
+        completion_bonus_claimed: Boolean(row.completion_bonus_claimed),
       });
     }
 
@@ -153,22 +162,18 @@ export default async function handler(
         hasPendingTaskRewards: boolean;
       }
     >();
-    for (const row of completionRows || []) {
-      const runId = String((row as any).daily_quest_run_id);
-      const existing = completionStatsByRunId.get(runId) || {
+    for (const row of (completionRows || []) as CompletionRow[]) {
+      const existing = completionStatsByRunId.get(row.daily_quest_run_id) || {
         tasksCompletedCount: 0,
         hasPendingTaskRewards: false,
       };
-      if ((row as any).submission_status === "completed") {
+      if (row.submission_status === "completed") {
         existing.tasksCompletedCount += 1;
       }
-      if (
-        (row as any).submission_status === "completed" &&
-        !(row as any).reward_claimed
-      ) {
+      if (row.submission_status === "completed" && !row.reward_claimed) {
         existing.hasPendingTaskRewards = true;
       }
-      completionStatsByRunId.set(runId, existing);
+      completionStatsByRunId.set(row.daily_quest_run_id, existing);
     }
 
     let eligibilityWallet: string | null = null;
@@ -189,12 +194,20 @@ export default async function handler(
         });
       } catch (walletErr: unknown) {
         const status = walletValidationErrorToHttpStatus(walletErr);
-        const safeStatus = status === 500 ? 400 : status;
-        const message =
-          walletErr instanceof Error
-            ? walletErr.message
-            : "Invalid X-Active-Wallet header";
-        return res.status(safeStatus).json({ error: message });
+        if (status >= 500) {
+          // Internal error — wallet header is optional for listing, so log
+          // and continue without eligibility wallet rather than failing.
+          log.error("Unexpected wallet validation error in listing endpoint", {
+            walletErr,
+          });
+        } else {
+          // 4xx — client sent a bad header, surface the error
+          const message =
+            walletErr instanceof Error
+              ? walletErr.message
+              : "Invalid X-Active-Wallet header";
+          return res.status(status).json({ error: message });
+        }
       }
 
       if (!eligibilityWallet) {

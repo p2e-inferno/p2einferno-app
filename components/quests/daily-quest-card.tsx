@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/router";
 import { useState } from "react";
 import { toast } from "react-hot-toast";
-import { ChevronRight, Coins, Sparkles } from "lucide-react";
+import { Key, Coins, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { RichText } from "@/components/common/RichText";
 import { DailyQuestCountdown } from "@/components/quests/DailyQuestCountdown";
@@ -128,7 +128,7 @@ export function DailyQuestCard(props: {
             )}
             {isKeyClaimPending && (
               <div className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm font-semibold flex items-center animate-pulse shadow-lg shadow-blue-500/20">
-                <ChevronRight className="w-4 h-4 mr-1" />
+                <Key className="w-4 h-4 mr-1" />
                 Claim Key
               </div>
             )}

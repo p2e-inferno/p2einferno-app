@@ -782,20 +782,12 @@ export default function DailyQuestDetailPage() {
                   to continue earning rewards.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/lobby/quests?tab=daily"
-                  className="inline-flex items-center rounded-md bg-amber-400 px-3 py-2 text-sm font-semibold text-black hover:bg-amber-300 transition-colors"
-                >
-                  Go to today&apos;s quest
-                </Link>
-                <Link
-                  href="/lobby/quests?tab=daily"
-                  className="inline-flex items-center rounded-md border border-amber-300/50 px-3 py-2 text-sm font-medium text-amber-100 hover:bg-amber-500/10 transition-colors"
-                >
-                  Back to daily quests list
-                </Link>
-              </div>
+              <Link
+                href="/lobby/quests?tab=daily"
+                className="inline-flex items-center rounded-md bg-amber-400 px-3 py-2 text-sm font-semibold text-black hover:bg-amber-300 transition-colors"
+              >
+                Go to today&apos;s quest
+              </Link>
             </div>
           </div>
         )}
