@@ -27,6 +27,7 @@ import {
   Wallet,
   Download,
   Plus,
+  X,
 } from "lucide-react";
 import { useAddDGTokenToWallet } from "@/hooks/useAddDGTokenToWallet";
 import { copyToClipboard } from "@/lib/utils/clipboard";
@@ -290,15 +291,15 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
     try {
       const hash = selectedTransferToken.isNative
         ? await transferNative({
-          recipient: finalRecipient as `0x${string}`,
-          amountEth: amount.trim(),
-        })
+            recipient: finalRecipient as `0x${string}`,
+            amountEth: amount.trim(),
+          })
         : await transferErc20({
-          recipient: finalRecipient as `0x${string}`,
-          tokenAddress: selectedTransferToken.address as `0x${string}`,
-          amount: amount.trim(),
-          decimals: selectedTransferToken.decimals,
-        });
+            recipient: finalRecipient as `0x${string}`,
+            tokenAddress: selectedTransferToken.address as `0x${string}`,
+            amount: amount.trim(),
+            decimals: selectedTransferToken.decimals,
+          });
 
       setAmount("");
       setRecipient("");
@@ -501,28 +502,32 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                     onChange={(e) => setRecipient(e.target.value)}
                     placeholder="Recipient address or ENS..."
                     autoComplete="off"
-                    className="h-14 w-full rounded-2xl border-gray-800 bg-black/40 px-6 font-mono text-sm text-white transition-all focus:border-flame-yellow/50 focus:bg-black/60 focus:ring-1 focus:ring-flame-yellow/20"
+                    className="h-14 w-full rounded-2xl border-gray-800 bg-black/40 pl-6 pr-12 font-mono text-sm text-white transition-all focus:border-flame-yellow/50 focus:bg-black/60 focus:ring-1 focus:ring-flame-yellow/20"
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center">
                     {isResolving ? (
                       <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
-                    ) : recipient &&
-                      (isAddress(recipient) || resolvedAddress) ? (
-                      <div className="text-emerald-500/80">
-                        <Plus className="w-4 h-4 rotate-45" />
-                      </div>
+                    ) : recipient ? (
+                      <button
+                        type="button"
+                        onClick={() => setRecipient("")}
+                        className="p-1 rounded-full text-emerald-500/80 hover:bg-emerald-500/10 hover:text-emerald-400 transition-all active:scale-90"
+                        title="Clear input"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     ) : null}
                   </div>
-                  {resolvedAddress && (
-                    <div className="mt-1.5 px-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                      <span className="text-[10px] text-flame-yellow font-medium uppercase tracking-wider flex items-center gap-1.5 opacity-80">
-                        <span className="w-1.5 h-1.5 rounded-full bg-flame-yellow animate-pulse" />
-                        Resolves to: {resolvedAddress.substring(0, 10)}...
-                        {resolvedAddress.substring(34)}
-                      </span>
-                    </div>
-                  )}
                 </div>
+                {resolvedAddress && (
+                  <div className="mt-1.5 px-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <span className="text-[10px] text-flame-yellow font-medium uppercase tracking-wider flex items-center gap-1.5 opacity-80">
+                      <span className="w-1.5 h-1.5 rounded-full bg-flame-yellow animate-pulse" />
+                      Resolves to: {resolvedAddress.substring(0, 10)}...
+                      {resolvedAddress.substring(34)}
+                    </span>
+                  </div>
+                )}
                 {recipient.trim() &&
                   debouncedRecipient === recipient.trim() &&
                   !isAddress(recipient.trim()) &&
@@ -534,136 +539,136 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
                     </p>
                   )}
               </div>
+            </div>
 
-              {/* Amount & Asset Input Stack */}
-              <div className="space-y-2 px-1">
-                <div className="flex items-center justify-between ml-1">
-                  <Label
-                    htmlFor="transfer-amount"
-                    className="text-xs font-semibold text-gray-400"
+            {/* Amount & Asset Input Stack */}
+            <div className="space-y-2 px-1">
+              <div className="flex items-center justify-between ml-1">
+                <Label
+                  htmlFor="transfer-amount"
+                  className="text-xs font-semibold text-gray-400"
+                >
+                  Amount
+                </Label>
+                {selectedTransferToken && (
+                  <span className="text-[10px] font-medium text-gray-500">
+                    Balance:{" "}
+                    <span className="text-gray-300">
+                      {selectedTransferToken.formattedBalance}
+                    </span>{" "}
+                    {selectedTransferToken.symbol}
+                  </span>
+                )}
+              </div>
+
+              <div className="relative flex items-center gap-2">
+                <div className="relative flex-1 group">
+                  <Input
+                    id="transfer-amount"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    placeholder="0.0"
+                    autoComplete="off"
+                    className="h-14 w-full rounded-2xl border-gray-800 bg-black/40 pl-4 pr-16 text-xl font-bold text-white transition-all focus:border-flame-yellow/50 focus:bg-black/60 focus:ring-1 focus:ring-flame-yellow/20"
+                  />
+                  <button
+                    type="button"
+                    onClick={setMaxAmount}
+                    disabled={!selectedTransferToken}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-flame-yellow/10 px-2 py-1 text-[10px] font-black uppercase text-flame-yellow transition-all hover:bg-flame-yellow/20 active:scale-95 disabled:opacity-0"
                   >
-                    Amount
-                  </Label>
-                  {selectedTransferToken && (
-                    <span className="text-[10px] font-medium text-gray-500">
-                      Balance:{" "}
-                      <span className="text-gray-300">
-                        {selectedTransferToken.formattedBalance}
-                      </span>{" "}
-                      {selectedTransferToken.symbol}
-                    </span>
-                  )}
+                    Max
+                  </button>
                 </div>
 
-                <div className="relative flex items-center gap-2">
-                  <div className="relative flex-1 group">
-                    <Input
-                      id="transfer-amount"
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
-                      placeholder="0.0"
-                      autoComplete="off"
-                      className="h-14 w-full rounded-2xl border-gray-800 bg-black/40 pl-4 pr-16 text-xl font-bold text-white transition-all focus:border-flame-yellow/50 focus:bg-black/60 focus:ring-1 focus:ring-flame-yellow/20"
-                    />
-                    <button
-                      type="button"
-                      onClick={setMaxAmount}
-                      disabled={!selectedTransferToken}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg bg-flame-yellow/10 px-2 py-1 text-[10px] font-black uppercase text-flame-yellow transition-all hover:bg-flame-yellow/20 active:scale-95 disabled:opacity-0"
-                    >
-                      Max
-                    </button>
-                  </div>
-
-                  <div className="w-32">
-                    <Select
-                      value={selectedToken}
-                      onValueChange={setSelectedToken}
-                    >
-                      <SelectTrigger className="h-14 rounded-2xl border-gray-800 bg-black/40 font-bold transition-all focus:ring-flame-yellow/20">
-                        <SelectValue placeholder="Asset" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-gray-900 border-gray-800">
-                        {transferTokens.map((token) => (
-                          <SelectItem
-                            key={token.key}
-                            value={token.key}
-                            className="focus:bg-flame-yellow/10 focus:text-flame-yellow"
-                          >
-                            {token.symbol}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                <div className="flex justify-between items-center px-1 min-h-[16px]">
-                  {balanceExceeded ? (
-                    <p className="text-[10px] font-medium text-red-400">
-                      Amount exceeds available balance
-                    </p>
-                  ) : amountError ? (
-                    <p className="text-[10px] font-medium text-red-400">
-                      {amountError}
-                    </p>
-                  ) : (
-                    <div />
-                  )}
+                <div className="w-32">
+                  <Select
+                    value={selectedToken}
+                    onValueChange={setSelectedToken}
+                  >
+                    <SelectTrigger className="h-14 rounded-2xl border-gray-800 bg-black/40 font-bold transition-all focus:ring-flame-yellow/20">
+                      <SelectValue placeholder="Asset" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-gray-900 border-gray-800">
+                      {transferTokens.map((token) => (
+                        <SelectItem
+                          key={token.key}
+                          value={token.key}
+                          className="focus:bg-flame-yellow/10 focus:text-flame-yellow"
+                        >
+                          {token.symbol}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              {/* Action Button */}
-              <Button
-                onClick={handleTransfer}
-                disabled={!canSubmitTransfer}
-                className="h-14 w-full rounded-2xl bg-gradient-to-r from-flame-yellow to-orange-600 text-lg font-black tracking-tight text-white shadow-lg shadow-flame-yellow/10 transition-all hover:scale-[1.01] hover:shadow-flame-yellow/20 active:scale-[0.98] disabled:from-gray-800 disabled:to-gray-900 disabled:text-gray-600 disabled:shadow-none"
-              >
-                {isTransferring ? (
-                  <div className="flex items-center gap-2">
-                    <RefreshCcw className="w-5 h-5 animate-spin" />
-                    <span>Processing...</span>
-                  </div>
+              <div className="flex justify-between items-center px-1 min-h-[16px]">
+                {balanceExceeded ? (
+                  <p className="text-[10px] font-medium text-red-400">
+                    Amount exceeds available balance
+                  </p>
+                ) : amountError ? (
+                  <p className="text-[10px] font-medium text-red-400">
+                    {amountError}
+                  </p>
                 ) : (
-                  <span>Send {selectedTransferToken?.symbol ?? "Assets"}</span>
+                  <div />
                 )}
-              </Button>
+              </div>
             </div>
-          </div>
 
-          {/* QR Code Section */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-white">QR Code</span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={downloadQR}
-                className="h-8 w-8 p-0 hover:bg-background/80"
-                title="Download QR Code"
-              >
-                <Download className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="flex justify-center">
-              <QRCodeDisplay address={walletAddress} size={140} />
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            {/* Action Button */}
             <Button
-              variant="outline"
-              onClick={onClose}
-              className="flex-1 order-2 sm:order-1"
+              onClick={handleTransfer}
+              disabled={!canSubmitTransfer}
+              className="h-14 w-full rounded-2xl bg-gradient-to-r from-flame-yellow to-orange-600 text-lg font-black tracking-tight text-white shadow-lg shadow-flame-yellow/10 transition-all hover:scale-[1.01] hover:shadow-flame-yellow/20 active:scale-[0.98] disabled:from-gray-800 disabled:to-gray-900 disabled:text-gray-600 disabled:shadow-none"
             >
-              Close
-            </Button>
-            <Button onClick={copyAddress} className="flex-1 order-1 sm:order-2">
-              <Copy className="w-4 h-4 mr-2" />
-              Copy Address
+              {isTransferring ? (
+                <div className="flex items-center gap-2">
+                  <RefreshCcw className="w-5 h-5 animate-spin" />
+                  <span>Processing...</span>
+                </div>
+              ) : (
+                <span>Send {selectedTransferToken?.symbol ?? "Assets"}</span>
+              )}
             </Button>
           </div>
+        </div>
+
+        {/* QR Code Section */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-white">QR Code</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={downloadQR}
+              className="h-8 w-8 p-0 hover:bg-background/80"
+              title="Download QR Code"
+            >
+              <Download className="w-4 h-4" />
+            </Button>
+          </div>
+          <div className="flex justify-center">
+            <QRCodeDisplay address={walletAddress} size={140} />
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-col sm:flex-row gap-3 pt-2">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            className="flex-1 order-2 sm:order-1"
+          >
+            Close
+          </Button>
+          <Button onClick={copyAddress} className="flex-1 order-1 sm:order-2">
+            <Copy className="w-4 h-4 mr-2" />
+            Copy Address
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
