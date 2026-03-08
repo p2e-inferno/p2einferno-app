@@ -6,9 +6,10 @@ import {
   ERC20_ABI,
 } from "@/lib/blockchain/legacy/frontend-config";
 import { createPublicClientUnified } from "@/lib/blockchain/config";
+import { getBaseMainnetTokenAddresses } from "@/lib/wallet/tokenAddresses";
 import { createPublicClient, http } from "viem";
 import { base } from "viem/chains";
-import { type Address, isAddress } from "viem";
+import { type Address } from "viem";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
 
 const log = getLogger("hooks:useWalletBalances");
@@ -112,10 +113,8 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
           transport: http(),
         });
 
-        const dgRaw = process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET;
-        const upRaw = process.env.NEXT_PUBLIC_UP_TOKEN_ADDRESS_BASE_MAINNET;
-        const dgTokenAddress = (dgRaw && isAddress(dgRaw) ? (dgRaw as Address) : undefined);
-        const upTokenAddress = (upRaw && isAddress(upRaw) ? (upRaw as Address) : undefined);
+        const { dg: dgTokenAddress, up: upTokenAddress } =
+          getBaseMainnetTokenAddresses();
 
         // Fetch all balances in parallel
         const [ethBalance, usdcData, dgData, upData] = await Promise.all([
@@ -271,10 +270,8 @@ export const useWalletBalances = (options: UseWalletBalancesOptions = {}) => {
         transport: http(),
       });
 
-      const dgRaw = process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET;
-      const upRaw = process.env.NEXT_PUBLIC_UP_TOKEN_ADDRESS_BASE_MAINNET;
-      const dgTokenAddress = (dgRaw && isAddress(dgRaw) ? (dgRaw as Address) : undefined);
-      const upTokenAddress = (upRaw && isAddress(upRaw) ? (upRaw as Address) : undefined);
+      const { dg: dgTokenAddress, up: upTokenAddress } =
+        getBaseMainnetTokenAddresses();
 
       const [ethBalance, usdcData, dgData, upData] = await Promise.all([
         client.getBalance({ address: walletAddress as Address }),

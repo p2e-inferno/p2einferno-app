@@ -6,6 +6,7 @@ import { ensureCorrectNetwork } from "@/lib/blockchain/shared/network-utils";
 import { getLogger } from "@/lib/utils/logger";
 import { isEmbeddedWallet } from "@/lib/utils/wallet-address";
 import { useSmartWalletSelection } from "@/hooks/useSmartWalletSelection";
+import { getBaseMainnetTokenAddresses } from "@/lib/wallet/tokenAddresses";
 
 import { isUserRejectedError, formatWalletError } from "@/lib/utils/walletErrors";
 
@@ -35,8 +36,7 @@ export function useAddDGTokenToWallet() {
   const addToken = useCallback(async () => {
     if (!activeWallet || embedded) return;
 
-    const dgTokenAddress =
-      process.env.NEXT_PUBLIC_DG_TOKEN_ADDRESS_BASE_MAINNET;
+    const { dg: dgTokenAddress } = getBaseMainnetTokenAddresses();
     if (!dgTokenAddress) {
       log.warn("DG token address not configured");
       return;
