@@ -11,6 +11,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { loadSourceRegistry } from "@/lib/ai/knowledge/sources";
 import { embedTexts } from "@/lib/ai/knowledge/embeddings";
 import { searchKnowledgeBase } from "@/lib/ai/knowledge/retrieval";
+import { getLogger } from "@/lib/utils/logger";
 
 export type CheckStatus = "PASS" | "WARN" | "FAIL";
 
@@ -36,6 +37,7 @@ type SupabaseAdmin = {
   rpc: (...args: any[]) => any;
   from: (...args: any[]) => any;
 };
+const log = getLogger("scripts:ai-kb:verify");
 
 export const CANARY_QUERIES: CanaryQuery[] = [
   {
@@ -346,29 +348,29 @@ export async function checkLatestRunHealth(
 // ─── Main ──────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("=== AI KB Verification ===\n");
+  log.info("=== AI KB Verification ===");
 
   const supabase = createAdminClient();
   const results: CheckResult[] = [];
 
   // ─── Check 1 ──────────────────────────────────────────────────────────────
-  console.log("Check 1: Embedding model consistency...");
+  log.info("Check 1: Embedding model consistency...");
   results.push(await checkModelConsistency(supabase));
 
   // ─── Check 2 ──────────────────────────────────────────────────────────────
-  console.log("Check 2: Staleness...");
+  log.info("Check 2: Staleness...");
   results.push(...(await checkStaleness(supabase)));
 
   // ─── Check 3 ──────────────────────────────────────────────────────────────
-  console.log("Check 3: Coverage gaps...");
+  log.info("Check 3: Coverage gaps...");
   results.push(...(await checkCoverageGaps(supabase)));
 
   // ─── Check 4 ──────────────────────────────────────────────────────────────
-  console.log("Check 4: Empty chunks...");
+  log.info("Check 4: Empty chunks...");
   results.push(await checkEmptyChunks(supabase));
 
   // ─── Check 5: Canary search quality ─────────────────────────────────────
-  console.log("Check 5: Canary search quality...");
+  log.info("Check 5: Canary search quality...");
   for (const canary of CANARY_QUERIES) {
     try {
       const start = Date.now();
@@ -460,41 +462,47 @@ async function main() {
   }
 
   // ─── Check 6 ──────────────────────────────────────────────────────────────
-  console.log("Check 6: Latest run health...");
+  log.info("Check 6: Latest run health...");
   results.push(await checkLatestRunHealth(supabase));
 
   // ─── Summary ────────────────────────────────────────────────────────────
-  console.log("\n=== Verification Results ===\n");
+  log.info("=== Verification Results ===");
 
-  const maxNameLen = Math.max(...results.map((r) => r.name.length));
-
-  for (const r of results) {
-    const statusIcon =
-      r.status === "PASS" ? "✓" : r.status === "WARN" ? "⚠" : "✗";
-    console.log(
-      `  ${statusIcon} [${r.status}] ${r.name.padEnd(maxNameLen)}  ${r.message}`,
-    );
+  for (const result of results) {
+    const level =
+      result.status === "FAIL"
+        ? "error"
+        : result.status === "WARN"
+          ? "warn"
+          : "info";
+    log[level](`[${result.status}] ${result.name}`, { message: result.message });
   }
 
   const hasFail = results.some((r) => r.status === "FAIL");
   const warnCount = results.filter((r) => r.status === "WARN").length;
   const passCount = results.filter((r) => r.status === "PASS").length;
+  const failCount = results.filter((r) => r.status === "FAIL").length;
 
-  console.log(
-    `\n  Total: ${results.length} checks — ${passCount} PASS, ${warnCount} WARN, ${hasFail ? results.filter((r) => r.status === "FAIL").length : 0} FAIL`,
-  );
+  log.info("Verification summary", {
+    total: results.length,
+    pass: passCount,
+    warn: warnCount,
+    fail: failCount,
+  });
 
   if (hasFail) {
-    console.error("\n✗ Verification FAILED.");
+    log.error("Verification FAILED.");
     process.exit(1);
   }
 
-  console.log("\n✓ Verification passed.");
+  log.info("Verification passed.");
 }
 
 if (require.main === module) {
   main().catch((err) => {
-    console.error("Verification failed:", err);
+    log.error("Verification failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     process.exit(1);
   });
 }

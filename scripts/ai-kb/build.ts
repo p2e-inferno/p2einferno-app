@@ -16,6 +16,7 @@ import { createAdminClient } from "@/lib/supabase/server";
 import { loadSourceRegistry } from "@/lib/ai/knowledge/sources";
 import { chunkMarkdown } from "@/lib/ai/knowledge/chunking";
 import { embedTexts, getEmbeddingModel } from "@/lib/ai/knowledge/embeddings";
+import { getLogger } from "@/lib/utils/logger";
 import type {
   IngestionRunStats,
   UpsertDocumentResult,
@@ -23,6 +24,7 @@ import type {
 
 const RAW_DIR = resolve(process.cwd(), "automation/data/ai-kb/raw");
 export const EXPECTED_EMBEDDING_DIM = 1536;
+const log = getLogger("scripts:ai-kb:build");
 
 export function parseModeFromArgv(argv: string[]): "full" | "incremental" {
   const modeArg = argv.find((arg) => arg.startsWith("--mode="));
@@ -193,36 +195,36 @@ export function validateEmbeddingDimensions(
 
 async function main() {
   const mode = parseModeFromArgv(process.argv);
-  console.log(`=== AI KB Build (${mode}) ===\n`);
+  log.info(`=== AI KB Build (${mode}) ===`);
 
   const supabase = createAdminClient();
   const embeddingModel = getEmbeddingModel();
-  console.log(`Embedding model: ${embeddingModel}`);
+  log.info(`Embedding model: ${embeddingModel}`);
 
   // ─── Step 0+1: Atomic concurrency check + run creation ─────────────────
-  console.log("\nStep 0: Acquiring ingestion lock...");
+  log.info("Step 0: Acquiring ingestion lock...");
 
   const lock = await acquireIngestionLock(supabase, mode);
   if (lock.status === "blocked") {
-    console.warn(
+    log.warn(
       `Another ingestion run is in progress (run ${lock.blocking_run_id}), exiting.`,
     );
     process.exit(0);
   }
   if (lock.stale_cleared) {
-    console.warn("Stale run marked as failed before acquiring lock.");
+    log.warn("Stale run marked as failed before acquiring lock.");
   }
 
   const runId = lock.run_id!;
-  console.log(`  Lock acquired. Run ID: ${runId}\n`);
+  log.info(`Lock acquired. Run ID: ${runId}`);
 
   // ─── Step 2: Load registry ──────────────────────────────────────────────
-  console.log("Step 2: Loading source registry...");
+  log.info("Step 2: Loading source registry...");
   const registry = loadSourceRegistry();
-  console.log(`  ${registry.sources.length} source(s) registered.\n`);
+  log.info(`${registry.sources.length} source(s) registered.`);
 
   // ─── Step 3: Process each source ────────────────────────────────────────
-  console.log("Step 3: Processing sources...\n");
+  log.info("Step 3: Processing sources...");
 
   const stats: IngestionRunStats = {
     total_sources: registry.sources.length,
@@ -237,7 +239,7 @@ async function main() {
   };
 
   for (const entry of registry.sources) {
-    console.log(`  Processing: ${entry.sourcePath}`);
+    log.info(`Processing: ${entry.sourcePath}`);
 
     try {
       const { data: existingDoc, error: existingDocError } = await supabase
@@ -253,7 +255,7 @@ async function main() {
       // 3.1: Read JSONL data
       const records = loadJsonlForSource(entry.sourcePath);
       if (records.length === 0) {
-        console.warn(`    ⚠ No JSONL data found for "${entry.sourcePath}", skipping.`);
+        log.warn(`No JSONL data found for "${entry.sourcePath}", skipping.`);
         stats.failed_sources.push({
           sourcePath: entry.sourcePath,
           error: "No JSONL data found",
@@ -292,7 +294,7 @@ async function main() {
       // 3.3: In incremental mode, check if content has changed
       if (mode === "incremental") {
         if (existingDoc && existingDoc.content_hash === contentHash) {
-          console.log("    Content unchanged, stamping freshness.");
+          log.info("Content unchanged, stamping freshness.");
           // Still call upsert RPC to stamp last_reviewed_at and ingestion_run_id
           const { error: upsertErr } = await supabase.rpc(
             "upsert_kb_document_with_chunks",
@@ -329,7 +331,7 @@ async function main() {
       // 3.5: Filter out short chunks (already done by chunkMarkdown, but defence in depth)
       const validChunks = filterValidChunks(chunks);
       if (validChunks.length === 0) {
-        console.warn(`    ⚠ No valid chunks produced for "${entry.sourcePath}".`);
+        log.warn(`No valid chunks produced for "${entry.sourcePath}".`);
         stats.failed_sources.push({
           sourcePath: entry.sourcePath,
           error: "No valid chunks (all below 100 chars)",
@@ -338,7 +340,7 @@ async function main() {
       }
 
       // 3.6: Embed all chunk texts
-      console.log(`    Embedding ${validChunks.length} chunk(s)...`);
+      log.info(`Embedding ${validChunks.length} chunk(s)...`);
       const chunkTexts = validChunks.map((c) => c.chunkText);
       const embeddings = await embedTexts(chunkTexts);
       if (embeddings.length !== validChunks.length) {
@@ -363,7 +365,7 @@ async function main() {
       }));
 
       // 3.9: Call upsert RPC
-      console.log(`    Upserting document + ${pChunks.length} chunk(s)...`);
+      log.info(`Upserting document + ${pChunks.length} chunk(s)...`);
       const { data: upsertResult, error: upsertError } = await supabase.rpc(
         "upsert_kb_document_with_chunks",
         {
@@ -400,13 +402,13 @@ async function main() {
       }
 
       stats.last_processed_source = entry.sourcePath;
-      console.log(
+      log.info(
         `    ✓ Done (updated: ${result?.was_updated ?? false}, chunks: ${result?.chunks_written ?? 0})`,
       );
     } catch (err) {
       // 3.11: Per-document failure — log and continue
       const errorMsg = err instanceof Error ? err.message : String(err);
-      console.error(`    ✗ Failed: ${errorMsg}`);
+      log.error(`Failed processing "${entry.sourcePath}"`, { error: errorMsg });
       stats.failed_sources.push({
         sourcePath: entry.sourcePath,
         error: errorMsg,
@@ -415,7 +417,7 @@ async function main() {
   }
 
   // ─── Step 4: Deactivate missing sources ─────────────────────────────────
-  console.log("\nStep 4: Deactivating orphaned documents...");
+  log.info("Step 4: Deactivating orphaned documents...");
 
   const registryPaths = registry.sources.map((s) => s.sourcePath);
   const { data: activeDocs } = await supabase
@@ -434,17 +436,16 @@ async function main() {
         .update({ is_active: false })
         .in("id", orphanedIds);
       stats.documents_deactivated = orphaned.length;
-      console.log(
-        `  Deactivated ${orphaned.length} orphaned document(s):`,
-        orphaned.map((d: { source_path: string }) => d.source_path),
-      );
+      log.info(`Deactivated ${orphaned.length} orphaned document(s)`, {
+        sourcePaths: orphaned.map((d: { source_path: string }) => d.source_path),
+      });
     } else {
-      console.log("  No orphaned documents found.");
+      log.info("No orphaned documents found.");
     }
   }
 
   // ─── Step 5: Finalize run ──────────────────────────────────────────────
-  console.log("\nStep 5: Finalizing run...");
+  log.info("Step 5: Finalizing run...");
 
   const { status: finalStatus, errorMessage } = computeFinalStatus(stats);
 
@@ -459,17 +460,18 @@ async function main() {
     .eq("id", runId);
 
   // ─── Summary ────────────────────────────────────────────────────────────
-  console.log("\n=== Build Summary ===");
-  console.log(`  Status:              ${finalStatus}`);
-  console.log(`  Total sources:       ${stats.total_sources}`);
-  console.log(`  Inserted:            ${stats.documents_inserted}`);
-  console.log(`  Updated:             ${stats.documents_updated}`);
-  console.log(`  Unchanged:           ${stats.documents_unchanged}`);
-  console.log(`  Deactivated:         ${stats.documents_deactivated}`);
-  console.log(`  Chunks written:      ${stats.chunks_written}`);
-  console.log(`  Failed sources:      ${stats.failed_sources.length}`);
-  if (errorMessage) console.log(`  Error:               ${errorMessage}`);
-  console.log(`  Run ID:              ${runId}`);
+  log.info("Build summary", {
+    status: finalStatus,
+    totalSources: stats.total_sources,
+    inserted: stats.documents_inserted,
+    updated: stats.documents_updated,
+    unchanged: stats.documents_unchanged,
+    deactivated: stats.documents_deactivated,
+    chunksWritten: stats.chunks_written,
+    failedSources: stats.failed_sources.length,
+    error: errorMessage,
+    runId,
+  });
 
   if (finalStatus === "failed") {
     process.exit(1);
@@ -478,7 +480,9 @@ async function main() {
 
 if (require.main === module) {
   main().catch((err) => {
-    console.error("Build pipeline failed:", err);
+    log.error("Build pipeline failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
     process.exit(1);
   });
 }

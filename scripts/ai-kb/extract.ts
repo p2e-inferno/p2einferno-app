@@ -11,8 +11,10 @@
 import { readdirSync, readFileSync, existsSync } from "fs";
 import { resolve, relative } from "path";
 import { loadSourceRegistry } from "@/lib/ai/knowledge/sources";
+import { getLogger } from "@/lib/utils/logger";
 
 const RAW_DIR = resolve(process.cwd(), "automation/data/ai-kb/raw");
+const log = getLogger("scripts:ai-kb:extract");
 
 interface JsonlRecord {
   sourcePath?: string;
@@ -36,19 +38,19 @@ function findJsonlFiles(dir: string): string[] {
 }
 
 async function main() {
-  console.log("=== AI KB Extract Validation ===\n");
+  log.info("=== AI KB Extract Validation ===");
 
   const registry = loadSourceRegistry();
-  console.log(`Registry loaded: ${registry.sources.length} source(s)\n`);
+  log.info(`Registry loaded: ${registry.sources.length} source(s)`);
 
   const jsonlFiles = findJsonlFiles(RAW_DIR);
   if (jsonlFiles.length === 0) {
-    console.warn("⚠ No JSONL files found in", RAW_DIR);
-    console.log("  Run MCP extraction first to populate raw data.\n");
+    log.warn("No JSONL files found", { rawDir: RAW_DIR });
+    log.info("Run MCP extraction first to populate raw data.");
     return;
   }
 
-  console.log(`Found ${jsonlFiles.length} JSONL file(s):\n`);
+  log.info(`Found ${jsonlFiles.length} JSONL file(s)`);
 
   const registryPaths = new Set(registry.sources.map((s) => s.sourcePath));
   const foundPaths = new Set<string>();
@@ -57,7 +59,7 @@ async function main() {
 
   for (const filePath of jsonlFiles) {
     const relPath = relative(process.cwd(), filePath);
-    console.log(`  Validating: ${relPath}`);
+    log.info(`Validating: ${relPath}`);
 
     const rawContent = readFileSync(filePath, "utf-8");
     const lines = rawContent.trim().split("\n").filter((l) => l.trim());
@@ -82,7 +84,7 @@ async function main() {
           if (!record.sourcePath) missing.push("sourcePath");
           if (!record.title) missing.push("title");
           if (!record.content) missing.push("content");
-          console.warn(`    ⚠ Line ${i + 1}: missing required fields: ${missing.join(", ")}`);
+          log.warn(`Line ${i + 1}: missing required fields`, { missing });
           invalidRecords++;
           totalErrors++;
           continue;
@@ -92,7 +94,7 @@ async function main() {
         foundPaths.add(record.sourcePath);
         validRecords++;
       } catch {
-        console.error(`    ✗ Line ${i + 1}: invalid JSON`);
+        log.error(`Line ${i + 1}: invalid JSON`);
         invalidRecords++;
         totalErrors++;
       }
@@ -101,7 +103,7 @@ async function main() {
     // Check for unregistered source paths in this file
     for (const sp of fileSourcePaths) {
       if (!registryPaths.has(sp)) {
-        console.warn(`    ⚠ Unexpected source path (not in registry): "${sp}"`);
+        log.warn(`Unexpected source path (not in registry): "${sp}"`);
         totalWarnings++;
       }
     }
@@ -110,38 +112,41 @@ async function main() {
     for (const sp of fileSourcePaths) {
       const entry = registry.sources.find((s) => s.sourcePath === sp);
       if (entry?.sourceType === "db_snapshot" && validRecords === 0) {
-        console.warn(`    ⚠ db_snapshot source "${sp}" has 0 valid records (empty snapshot)`);
+        log.warn(`db_snapshot source "${sp}" has 0 valid records (empty snapshot)`);
         totalWarnings++;
       }
     }
 
-    console.log(`    ${validRecords} valid, ${invalidRecords} invalid record(s)\n`);
+    log.info(`${relPath}: ${validRecords} valid, ${invalidRecords} invalid record(s)`);
   }
 
   // Check for missing sources (registry entries with no JSONL data)
   for (const entry of registry.sources) {
     if (!foundPaths.has(entry.sourcePath)) {
-      console.warn(`  ⚠ Missing source: "${entry.sourcePath}" (in registry but no JSONL data)`);
+      log.warn(`Missing source: "${entry.sourcePath}" (in registry but no JSONL data)`);
       totalWarnings++;
     }
   }
 
-  console.log("\n=== Summary ===");
-  console.log(`  Sources in registry: ${registry.sources.length}`);
-  console.log(`  JSONL files found:   ${jsonlFiles.length}`);
-  console.log(`  Sources covered:     ${foundPaths.size}/${registry.sources.length}`);
-  console.log(`  Warnings:            ${totalWarnings}`);
-  console.log(`  Errors:              ${totalErrors}`);
+  log.info("Extract validation summary", {
+    sourcesInRegistry: registry.sources.length,
+    jsonlFilesFound: jsonlFiles.length,
+    sourcesCovered: `${foundPaths.size}/${registry.sources.length}`,
+    warnings: totalWarnings,
+    errors: totalErrors,
+  });
 
   if (totalErrors > 0) {
-    console.error("\n✗ Validation failed with errors.");
+    log.error("Validation failed with errors.");
     process.exit(1);
   }
 
-  console.log("\n✓ Validation complete.");
+  log.info("Validation complete.");
 }
 
 main().catch((err) => {
-  console.error("Extract validation failed:", err);
+  log.error("Extract validation failed", {
+    error: err instanceof Error ? err.message : String(err),
+  });
   process.exit(1);
 });
