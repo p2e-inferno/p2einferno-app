@@ -662,18 +662,18 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
           {/* Actions */}
           <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-border/50">
             <Button
-              variant="outline"
-              onClick={onClose}
-              className="flex-1 order-2 sm:order-1 h-12 rounded-xl border-gray-800 hover:bg-white/5 transition-all"
-            >
-              Close
-            </Button>
-            <Button
               onClick={copyAddress}
-              className="flex-1 order-1 sm:order-2 h-12 rounded-xl bg-flame-yellow text-black hover:bg-flame-yellow/90 font-bold transition-all"
+              className="flex-1 sm:order-2 h-12 rounded-xl bg-flame-yellow text-black hover:bg-flame-yellow/90 font-bold transition-all"
             >
               <Copy className="w-4 h-4 mr-2" />
               Copy Address
+            </Button>
+            <Button
+              variant="outline"
+              onClick={onClose}
+              className="flex-1 sm:order-1 h-12 rounded-xl border-gray-800 hover:bg-white/5 transition-all"
+            >
+              Close
             </Button>
           </div>
         </div>
