@@ -109,7 +109,7 @@ returns table (
 )
 language sql
 stable
-set search_path = public
+set search_path = 'public', 'extensions'
 as $$
   with base as (
     select
@@ -172,7 +172,7 @@ returns table (
 )
 language sql
 stable
-set search_path = public
+set search_path = 'public', 'extensions'
 as $$
   select
     c.id,
