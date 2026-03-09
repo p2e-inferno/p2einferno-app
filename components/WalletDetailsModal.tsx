@@ -291,15 +291,15 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
     try {
       const hash = selectedTransferToken.isNative
         ? await transferNative({
-            recipient: finalRecipient as `0x${string}`,
-            amountEth: amount.trim(),
-          })
+          recipient: finalRecipient as `0x${string}`,
+          amountEth: amount.trim(),
+        })
         : await transferErc20({
-            recipient: finalRecipient as `0x${string}`,
-            tokenAddress: selectedTransferToken.address as `0x${string}`,
-            amount: amount.trim(),
-            decimals: selectedTransferToken.decimals,
-          });
+          recipient: finalRecipient as `0x${string}`,
+          tokenAddress: selectedTransferToken.address as `0x${string}`,
+          amount: amount.trim(),
+          decimals: selectedTransferToken.decimals,
+        });
 
       setAmount("");
       setRecipient("");
@@ -635,40 +635,47 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
               )}
             </Button>
           </div>
-        </div>
 
-        {/* QR Code Section */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-white">QR Code</span>
+          {/* QR Code Section */}
+          <div className="space-y-3 pt-4 border-t border-border/50">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-sm font-bold text-white tracking-tight uppercase">
+                QR Code
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={downloadQR}
+                className="h-8 w-8 p-0 hover:bg-background/80"
+                title="Download QR Code"
+              >
+                <Download className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="flex justify-center py-2">
+              <div className="bg-white/5 p-4 rounded-3xl border border-white/10">
+                <QRCodeDisplay address={walletAddress} size={140} />
+              </div>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-6 border-t border-border/50">
             <Button
-              variant="ghost"
-              size="sm"
-              onClick={downloadQR}
-              className="h-8 w-8 p-0 hover:bg-background/80"
-              title="Download QR Code"
+              variant="outline"
+              onClick={onClose}
+              className="flex-1 order-2 sm:order-1 h-12 rounded-xl border-gray-800 hover:bg-white/5 transition-all"
             >
-              <Download className="w-4 h-4" />
+              Close
+            </Button>
+            <Button
+              onClick={copyAddress}
+              className="flex-1 order-1 sm:order-2 h-12 rounded-xl bg-flame-yellow text-black hover:bg-flame-yellow/90 font-bold transition-all"
+            >
+              <Copy className="w-4 h-4 mr-2" />
+              Copy Address
             </Button>
           </div>
-          <div className="flex justify-center">
-            <QRCodeDisplay address={walletAddress} size={140} />
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-3 pt-2">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            className="flex-1 order-2 sm:order-1"
-          >
-            Close
-          </Button>
-          <Button onClick={copyAddress} className="flex-1 order-1 sm:order-2">
-            <Copy className="w-4 h-4 mr-2" />
-            Copy Address
-          </Button>
         </div>
       </DialogContent>
     </Dialog>
