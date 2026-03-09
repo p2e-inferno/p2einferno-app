@@ -86,13 +86,15 @@ describe("chunkMarkdown", () => {
   });
 
   it("returns empty array for whitespace-only content", () => {
-    const chunks = chunkMarkdown({ ...baseInput, contentMarkdown: "   \n\n  " });
+    const chunks = chunkMarkdown({
+      ...baseInput,
+      contentMarkdown: "   \n\n  ",
+    });
     expect(chunks).toEqual([]);
   });
 
   it("carries heading context into overflow chunks", () => {
-    const content =
-      "# Very Long Section\n" + "Word ".repeat(600); // >2000 chars
+    const content = "# Very Long Section\n" + "Word ".repeat(600); // >2000 chars
 
     const chunks = chunkMarkdown({ ...baseInput, contentMarkdown: content });
     expect(chunks.length).toBeGreaterThan(1);
@@ -113,7 +115,7 @@ describe("chunkMarkdown", () => {
     });
 
     expect(chunks.length).toBeGreaterThanOrEqual(1);
-    expect(chunks[0].metadata.record_id).toBe("abc-123");
+    expect(chunks[0]?.metadata.record_id).toBe("abc-123");
   });
 
   it("assigns sequential chunk indices", () => {
@@ -128,7 +130,7 @@ describe("chunkMarkdown", () => {
 
     const chunks = chunkMarkdown({ ...baseInput, contentMarkdown: content });
     for (let i = 0; i < chunks.length; i++) {
-      expect(chunks[i].chunkIndex).toBe(i);
+      expect(chunks[i]?.chunkIndex).toBe(i);
     }
   });
 
@@ -137,6 +139,6 @@ describe("chunkMarkdown", () => {
     const chunks = chunkMarkdown({ ...baseInput, contentMarkdown: content });
     expect(chunks.length).toBeGreaterThanOrEqual(1);
     // Token estimate for 400+ chars should be ~100+
-    expect(chunks[0].tokenEstimate).toBeGreaterThan(50);
+    expect(chunks[0]?.tokenEstimate).toBeGreaterThan(50);
   });
 });

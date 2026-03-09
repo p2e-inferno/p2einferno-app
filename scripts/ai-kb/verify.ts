@@ -29,10 +29,13 @@ export interface CanaryQuery {
 export interface SearchResultLike {
   document_id: string;
   metadata?: Record<string, unknown>;
+  rank?: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SupabaseAdmin = any;
+type SupabaseAdmin = {
+  rpc: (...args: any[]) => any;
+  from: (...args: any[]) => any;
+};
 
 export const CANARY_QUERIES: CanaryQuery[] = [
   {
@@ -86,7 +89,7 @@ export async function checkModelConsistency(
       };
     }
 
-    const models = (rows ?? [])
+    const models = ((rows ?? []) as Array<{ embedding_model: string }>)
       .map((r: { embedding_model: string }) => r.embedding_model)
       .filter(Boolean);
 
@@ -130,12 +133,13 @@ export async function checkStaleness(
     const results: CheckResult[] = [];
 
     for (const entry of registry.sources) {
-      const { data: doc } = await supabase
+      const { data } = await supabase
         .from("ai_kb_documents")
         .select("last_reviewed_at")
         .eq("source_path", entry.sourcePath)
         .eq("is_active", true)
         .single();
+      const doc = data as { last_reviewed_at: string | null } | null;
 
       if (!doc) {
         // Will be caught by coverage gap check
@@ -184,12 +188,15 @@ export async function checkCoverageGaps(
   try {
     const registry = loadSourceRegistry();
 
-    const { data: activeDocs } = await supabase
+    const { data } = await supabase
       .from("ai_kb_documents")
       .select("source_path")
       .eq("is_active", true);
+    const activeDocs = data as Array<{ source_path: string }> | null;
 
-    const activeSet = new Set((activeDocs ?? []).map((d: { source_path: string }) => d.source_path));
+    const activeSet = new Set<string>(
+      (activeDocs ?? []).map((d: { source_path: string }) => d.source_path),
+    );
     const registrySet = new Set(registry.sources.map((s) => s.sourcePath));
 
     const results: CheckResult[] = [];
@@ -206,7 +213,7 @@ export async function checkCoverageGaps(
     }
 
     // Orphaned documents (in DB but not in registry)
-    for (const sp of activeSet) {
+    for (const sp of Array.from(activeSet)) {
       if (!registrySet.has(sp)) {
         results.push({
           name: `Coverage gap: orphaned`,
@@ -281,12 +288,17 @@ export async function checkLatestRunHealth(
   supabase: SupabaseAdmin,
 ): Promise<CheckResult> {
   try {
-    const { data: latestRun } = await supabase
+    const { data } = await supabase
       .from("ai_kb_ingestion_runs")
       .select("*")
       .order("started_at", { ascending: false })
       .limit(1)
       .single();
+    const latestRun = data as {
+      status: string;
+      error_message: string | null;
+      finished_at: string | null;
+    } | null;
 
     if (!latestRun) {
       return {
@@ -361,6 +373,10 @@ async function main() {
     try {
       const start = Date.now();
       const [embedding] = await embedTexts([canary.query]);
+      if (!embedding) {
+        throw new Error(`No embedding returned for canary query "${canary.query}"`);
+      }
+
       const searchResults = await searchKnowledgeBase({
         queryText: canary.query,
         queryEmbedding: embedding,
@@ -376,11 +392,9 @@ async function main() {
       }
 
       // (b) top result rank > 0.1
-      if (
-        searchResults.length > 0 &&
-        (searchResults[0] as Record<string, unknown>).rank !== undefined
-      ) {
-        const topRank = Number((searchResults[0] as Record<string, unknown>).rank);
+      const topResult = searchResults[0] as SearchResultLike | undefined;
+      if (topResult?.rank !== undefined) {
+        const topRank = Number(topResult.rank);
         if (topRank <= 0.1) {
           issues.push(`top rank too low: ${topRank.toFixed(4)}`);
         }
@@ -396,7 +410,7 @@ async function main() {
         const documentIds = [...new Set(
           searchResults
             .slice(0, 3)
-            .map((result: Record<string, unknown>) => String(result.document_id)),
+            .map((result) => result.document_id),
         )];
         const { data: documents, error: documentsError } = await supabase
           .from("ai_kb_documents")

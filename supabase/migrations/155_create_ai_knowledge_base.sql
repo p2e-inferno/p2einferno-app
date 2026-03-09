@@ -317,6 +317,109 @@ $$;
 revoke execute on function public.upsert_kb_document_with_chunks(text,text,text,text,text[],text[],text,text,uuid,jsonb) from public;
 grant execute on function public.upsert_kb_document_with_chunks(text,text,text,text,text[],text[],text,text,uuid,jsonb) to service_role;
 
+-- ─── Atomic concurrency guard + run creation RPC ────────────────────────────
+-- Eliminates the TOCTOU race between checking for active runs and inserting
+-- a new one. A single PL/pgSQL transaction:
+--   1. Selects the most recent 'started' run with FOR UPDATE (row lock).
+--   2. If it exists and started < stale_threshold_minutes ago → blocked.
+--   3. If it exists and started >= stale_threshold_minutes ago → mark failed, proceed.
+--   4. Inserts new 'started' run and returns its ID.
+-- Returns exactly one row with the outcome.
+
+create or replace function public.acquire_ingestion_lock(
+  p_run_type             text,
+  p_stale_threshold_min  int default 60
+)
+returns table (
+  status         text,     -- 'acquired' | 'blocked'
+  run_id         uuid,     -- new run ID (null when blocked)
+  blocking_run_id uuid,    -- ID of blocking run (null when acquired)
+  stale_cleared  boolean   -- true if a stale run was marked failed
+)
+language plpgsql
+security definer
+set search_path = 'public'
+as $$
+declare
+  v_active_id    uuid;
+  v_started_at   timestamptz;
+  v_stale        boolean := false;
+  v_new_run_id   uuid;
+begin
+  -- Lock the most recent 'started' run (if any) to prevent concurrent readers
+  select r.id, r.started_at
+  into v_active_id, v_started_at
+  from public.ai_kb_ingestion_runs r
+  where r.status = 'started'
+  order by r.started_at desc
+  limit 1
+  for update skip locked;
+
+  if v_active_id is not null then
+    if v_started_at > now() - (p_stale_threshold_min || ' minutes')::interval then
+      -- Active non-stale run → blocked
+      return query select 'blocked'::text, null::uuid, v_active_id, false;
+      return;
+    end if;
+
+    -- Stale run → mark as failed
+    update public.ai_kb_ingestion_runs
+    set status = 'failed',
+        finished_at = now(),
+        error_message = 'Timed out: no completion after ' || p_stale_threshold_min || ' minutes (likely crashed)'
+    where id = v_active_id
+      and status = 'started';
+    v_stale := true;
+  end if;
+
+  -- No active run (or stale was cleared) → create new run
+  insert into public.ai_kb_ingestion_runs (run_type, status)
+  values (p_run_type, 'started')
+  returning id into v_new_run_id;
+
+  return query select 'acquired'::text, v_new_run_id, null::uuid, v_stale;
+end;
+$$;
+
+revoke all on function public.acquire_ingestion_lock(text, int) from public, anon, authenticated;
+grant execute on function public.acquire_ingestion_lock(text, int) to service_role;
+
+-- ─── Verify helper RPCs ─────────────────────────────────────────────────────
+-- Server-side DISTINCT and COUNT operations that PostgREST cannot express.
+-- Used by verify.ts health checks (Check 1: model consistency, Check 4: empty chunks).
+
+-- Check 1: Returns distinct embedding models from active chunks
+create or replace function public.get_distinct_embedding_models()
+returns table(embedding_model text)
+language sql
+security definer
+set search_path = 'public'
+as $$
+  select distinct c.metadata->>'embedding_model'
+  from ai_kb_chunks c
+  join ai_kb_documents d on d.id = c.document_id
+  where d.is_active = true
+    and c.metadata->>'embedding_model' is not null;
+$$;
+
+-- Check 4: Returns count of chunks with text shorter than min_length
+create or replace function public.count_short_chunks(min_length int default 100)
+returns bigint
+language sql
+security definer
+set search_path = 'public'
+as $$
+  select count(*)
+  from ai_kb_chunks
+  where length(chunk_text) < min_length;
+$$;
+
+revoke all on function public.get_distinct_embedding_models() from public, anon, authenticated;
+grant execute on function public.get_distinct_embedding_models() to service_role;
+
+revoke all on function public.count_short_chunks(int) from public, anon, authenticated;
+grant execute on function public.count_short_chunks(int) to service_role;
+
 -- ─── RLS ──────────────────────────────────────────────────────────────────────
 
 alter table public.ai_kb_documents     enable row level security;

@@ -22,7 +22,6 @@ import type {
 } from "@/lib/ai/knowledge/types";
 
 const RAW_DIR = resolve(process.cwd(), "automation/data/ai-kb/raw");
-const STALE_RUN_THRESHOLD_MS = 60 * 60 * 1000; // 60 minutes
 export const EXPECTED_EMBEDDING_DIM = 1536;
 
 export function parseModeFromArgv(argv: string[]): "full" | "incremental" {
@@ -98,49 +97,46 @@ function loadJsonlForSource(sourcePath: string): JsonlRecord[] {
 
 // ─── Exported helpers for testability ──────────────────────────────────────
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type SupabaseAdmin = any;
+type SupabaseAdmin = {
+  rpc: (...args: any[]) => any;
+  from: (...args: any[]) => any;
+};
 
-export interface ConcurrencyCheckResult {
-  blocked: boolean;
-  staleRunCleared: boolean;
-  staleRunId?: string;
+export interface AcquireLockResult {
+  status: "acquired" | "blocked";
+  run_id: string | null;
+  blocking_run_id: string | null;
+  stale_cleared: boolean;
 }
 
-export async function checkConcurrentRun(
+/**
+ * Atomically acquires the ingestion lock via a single RPC call.
+ * Eliminates the TOCTOU race between checking for active runs and
+ * inserting a new one — both happen inside one PL/pgSQL transaction
+ * with row-level locking (SELECT ... FOR UPDATE SKIP LOCKED).
+ *
+ * Returns the lock result: 'acquired' with a new run_id, or 'blocked'
+ * with the blocking_run_id.
+ */
+export async function acquireIngestionLock(
   supabase: SupabaseAdmin,
-): Promise<ConcurrencyCheckResult> {
-  const { data: activeRuns } = await supabase
-    .from("ai_kb_ingestion_runs")
-    .select("id, started_at")
-    .eq("status", "started")
-    .order("started_at", { ascending: false })
-    .limit(1);
+  runType: "full" | "incremental",
+): Promise<AcquireLockResult> {
+  const { data, error } = await supabase.rpc("acquire_ingestion_lock", {
+    p_run_type: runType,
+    p_stale_threshold_min: 60,
+  });
 
-  if (!activeRuns || activeRuns.length === 0) {
-    return { blocked: false, staleRunCleared: false };
+  if (error) {
+    throw new Error(`acquire_ingestion_lock RPC failed: ${error.message}`);
   }
 
-  const activeRun = activeRuns[0];
-  const startedAt = new Date(activeRun.started_at).getTime();
-  const ageMs = Date.now() - startedAt;
-
-  if (ageMs < STALE_RUN_THRESHOLD_MS) {
-    return { blocked: true, staleRunCleared: false };
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) {
+    throw new Error("acquire_ingestion_lock returned no data");
   }
 
-  // Stale run — mark as failed
-  await supabase
-    .from("ai_kb_ingestion_runs")
-    .update({
-      status: "failed",
-      finished_at: new Date().toISOString(),
-      error_message:
-        "Timed out: no completion after 60 minutes (likely crashed)",
-    })
-    .eq("id", activeRun.id);
-
-  return { blocked: false, staleRunCleared: true, staleRunId: activeRun.id };
+  return row as AcquireLockResult;
 }
 
 export function computeFinalStatus(stats: IngestionRunStats): {
@@ -166,14 +162,28 @@ export function computeFinalStatus(stats: IngestionRunStats): {
   };
 }
 
+export const MIN_CHUNK_LENGTH = 100;
+
+/**
+ * Filters chunks, keeping only those with chunkText >= MIN_CHUNK_LENGTH.
+ * Returns the filtered array. If zero valid chunks remain, the caller
+ * should treat the source as failed (empty content before DB insert).
+ */
+export function filterValidChunks<T extends { chunkText: string }>(
+  chunks: T[],
+): T[] {
+  return chunks.filter((c) => c.chunkText.length >= MIN_CHUNK_LENGTH);
+}
+
 export function validateEmbeddingDimensions(
   embeddings: number[][],
   expected: number,
 ): void {
   for (let i = 0; i < embeddings.length; i++) {
-    if (embeddings[i].length !== expected) {
+    const embedding = embeddings[i];
+    if (!embedding || embedding.length !== expected) {
       throw new Error(
-        `Embedding dimension mismatch for chunk ${i}: expected ${expected}, got ${embeddings[i].length}`,
+        `Embedding dimension mismatch for chunk ${i}: expected ${expected}, got ${embedding?.length ?? 0}`,
       );
     }
   }
@@ -189,36 +199,22 @@ async function main() {
   const embeddingModel = getEmbeddingModel();
   console.log(`Embedding model: ${embeddingModel}`);
 
-  // ─── Step 0: Concurrency check ──────────────────────────────────────────
-  console.log("\nStep 0: Checking for concurrent runs...");
+  // ─── Step 0+1: Atomic concurrency check + run creation ─────────────────
+  console.log("\nStep 0: Acquiring ingestion lock...");
 
-  const concurrency = await checkConcurrentRun(supabase);
-  if (concurrency.blocked) {
-    console.warn("Another ingestion run is in progress, exiting.");
+  const lock = await acquireIngestionLock(supabase, mode);
+  if (lock.status === "blocked") {
+    console.warn(
+      `Another ingestion run is in progress (run ${lock.blocking_run_id}), exiting.`,
+    );
     process.exit(0);
   }
-  if (concurrency.staleRunCleared) {
-    console.warn(`Stale run ${concurrency.staleRunId} marked as failed.`);
+  if (lock.stale_cleared) {
+    console.warn("Stale run marked as failed before acquiring lock.");
   }
 
-  console.log("  No concurrent run detected.\n");
-
-  // ─── Step 1: Create ingestion run ───────────────────────────────────────
-  console.log("Step 1: Creating ingestion run...");
-
-  const { data: runData, error: runError } = await supabase
-    .from("ai_kb_ingestion_runs")
-    .insert({ run_type: mode, status: "started" })
-    .select("id")
-    .single();
-
-  if (runError || !runData) {
-    console.error("Failed to create ingestion run:", runError?.message);
-    process.exit(1);
-  }
-
-  const runId = runData.id;
-  console.log(`  Run ID: ${runId}\n`);
+  const runId = lock.run_id!;
+  console.log(`  Lock acquired. Run ID: ${runId}\n`);
 
   // ─── Step 2: Load registry ──────────────────────────────────────────────
   console.log("Step 2: Loading source registry...");
@@ -280,9 +276,13 @@ async function main() {
         contentMarkdown = `# ${entry.title}\n\n${parts.join("\n\n")}`;
       } else {
         // For non-db sources, use the first record's content
-        contentMarkdown = records[0].content;
-        if (records[0].recordId) {
-          extraMetadata.record_id = records[0].recordId;
+        const firstRecord = records[0];
+        if (!firstRecord) {
+          throw new Error(`No JSONL record found for "${entry.sourcePath}"`);
+        }
+        contentMarkdown = firstRecord.content;
+        if (firstRecord.recordId) {
+          extraMetadata.record_id = firstRecord.recordId;
         }
       }
 
@@ -326,8 +326,8 @@ async function main() {
         extraMetadata,
       });
 
-      // 3.5: Filter out short chunks (already done by chunkMarkdown, but log)
-      const validChunks = chunks.filter((c) => c.chunkText.length >= 100);
+      // 3.5: Filter out short chunks (already done by chunkMarkdown, but defence in depth)
+      const validChunks = filterValidChunks(chunks);
       if (validChunks.length === 0) {
         console.warn(`    ⚠ No valid chunks produced for "${entry.sourcePath}".`);
         stats.failed_sources.push({
@@ -341,6 +341,11 @@ async function main() {
       console.log(`    Embedding ${validChunks.length} chunk(s)...`);
       const chunkTexts = validChunks.map((c) => c.chunkText);
       const embeddings = await embedTexts(chunkTexts);
+      if (embeddings.length !== validChunks.length) {
+        throw new Error(
+          `Embedding count mismatch: expected ${validChunks.length}, got ${embeddings.length}`,
+        );
+      }
 
       // Validate embedding dimensions
       validateEmbeddingDimensions(embeddings, EXPECTED_EMBEDDING_DIM);
@@ -350,7 +355,7 @@ async function main() {
         chunk_index: chunk.chunkIndex,
         chunk_text: chunk.chunkText,
         token_estimate: chunk.tokenEstimate,
-        embedding: embeddings[i],
+        embedding: embeddings[i]!,
         metadata: {
           ...chunk.metadata,
           embedding_model: embeddingModel,

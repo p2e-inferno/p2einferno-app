@@ -11,7 +11,11 @@ jest.mock("@/lib/utils/logger", () => ({
   }),
 }));
 
-import { getEmbeddingModel, getEmbeddingBatch, embedTexts } from "@/lib/ai/knowledge/embeddings";
+import {
+  getEmbeddingModel,
+  getEmbeddingBatch,
+  embedTexts,
+} from "@/lib/ai/knowledge/embeddings";
 
 describe("getEmbeddingModel", () => {
   const originalEnv = process.env;
@@ -154,10 +158,7 @@ describe("embedTexts", () => {
       ok: true,
       json: () =>
         Promise.resolve({
-          data: [
-            { embedding: mockEmbedding },
-            { embedding: mockEmbedding },
-          ],
+          data: [{ embedding: mockEmbedding }, { embedding: mockEmbedding }],
         }),
     }) as jest.Mock;
 

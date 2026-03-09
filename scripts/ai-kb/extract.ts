@@ -68,7 +68,14 @@ async function main() {
 
     for (let i = 0; i < lines.length; i++) {
       try {
-        const record = JSON.parse(lines[i]) as JsonlRecord;
+        const line = lines[i];
+        if (line === undefined) {
+          invalidRecords++;
+          totalErrors++;
+          continue;
+        }
+
+        const record = JSON.parse(line) as JsonlRecord;
 
         if (!record.sourcePath || !record.title || !record.content) {
           const missing: string[] = [];

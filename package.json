@@ -30,7 +30,9 @@
     "ai-kb:extract:validate": "ts-node scripts/ai-kb/extract.ts",
     "ai-kb:build": "ts-node scripts/ai-kb/build.ts --mode full",
     "ai-kb:build:incremental": "ts-node scripts/ai-kb/build.ts --mode incremental",
-    "ai-kb:verify": "ts-node scripts/ai-kb/verify.ts"
+    "ai-kb:verify": "ts-node scripts/ai-kb/verify.ts",
+    "test:ai-kb": "npx jest __tests__/scripts/ai-kb/ __tests__/lib/ai/knowledge/ __tests__/pages/api/ai/kb/ --no-coverage",
+    "test:ai-kb:integration": "npx jest __tests__/integration/db/ai-kb- --no-coverage"
   },
   "dependencies": {
     "@ensdomains/ensjs": "^4.0.2",

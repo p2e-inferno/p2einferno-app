@@ -16,7 +16,10 @@ function checkSecret(authHeader: string | undefined): boolean {
   return timingSafeEqual(a, b);
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse,
+) {
   if (req.method !== "POST") return res.status(405).end();
 
   if (!checkSecret(req.headers.authorization as string | undefined)) {
@@ -26,13 +29,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const { query, audience, domainTags, limit } = req.body ?? {};
 
   if (typeof query !== "string" || !query.trim() || query.length > 500) {
-    return res.status(400).json({ error: "query must be a non-empty string under 500 characters" });
+    return res
+      .status(400)
+      .json({ error: "query must be a non-empty string under 500 characters" });
   }
 
   const start = Date.now();
 
   try {
     const [embedding] = await embedTexts([query.trim()]);
+    if (!embedding) {
+      throw new Error("No embedding returned for query");
+    }
+
     const results = await searchKnowledgeBase({
       queryText: query.trim(),
       queryEmbedding: embedding,
@@ -41,7 +50,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       limit: typeof limit === "number" ? Math.min(limit, 20) : 8,
     });
 
-    log.info("kb search served", { resultCount: results.length, tookMs: Date.now() - start });
+    log.info("kb search served", {
+      resultCount: results.length,
+      tookMs: Date.now() - start,
+    });
 
     return res.status(200).json({
       results,
@@ -50,7 +62,9 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       tookMs: Date.now() - start,
     });
   } catch (err) {
-    log.error("kb search failed", { err: err instanceof Error ? err.message : String(err) });
+    log.error("kb search failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
     return res.status(500).json({ error: "internal_error" });
   }
 }

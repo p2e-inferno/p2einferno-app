@@ -166,6 +166,6 @@ describe("searchKnowledgeBase", () => {
     expect(mockSelect).toHaveBeenCalledWith("id, last_reviewed_at");
     expect(mockIn).toHaveBeenCalledWith("id", ["fresh-doc", "stale-doc"]);
     expect(result).toHaveLength(1);
-    expect(result[0].document_id).toBe("fresh-doc");
+    expect(result[0]?.document_id).toBe("fresh-doc");
   });
 });

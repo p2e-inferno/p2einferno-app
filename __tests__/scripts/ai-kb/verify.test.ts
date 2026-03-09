@@ -48,7 +48,7 @@ function createMockSupabase() {
 
 /** Creates a chainable PostgREST mock that resolves to `value` for any terminal call. */
 function createQueryChain(resolvedValue: { data: unknown; error: unknown }) {
-  const chain: Record<string, jest.Mock | ((...args: unknown[]) => unknown)> = {};
+  const chain: Record<string, unknown> = {};
 
   chain.select = jest.fn().mockReturnValue(chain);
   chain.eq = jest.fn().mockReturnValue(chain);
@@ -184,12 +184,12 @@ describe("checkStaleness", () => {
   it("WARN — staleDays 7, last_reviewed_at 10 days ago", async () => {
     mockLoadSourceRegistry.mockReturnValue({
       schemaVersion: "1",
-      sources: [
-        { sourcePath: "docs/faq.md", staleDays: 7 },
-      ],
+      sources: [{ sourcePath: "docs/faq.md", staleDays: 7 }],
     });
 
-    const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
+    const tenDaysAgo = new Date(
+      Date.now() - 10 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     mockFrom.mockReturnValue(
       createQueryChain({
         data: { last_reviewed_at: tenDaysAgo },
@@ -207,12 +207,12 @@ describe("checkStaleness", () => {
   it("PASS — staleDays 7, last_reviewed_at 3 days ago", async () => {
     mockLoadSourceRegistry.mockReturnValue({
       schemaVersion: "1",
-      sources: [
-        { sourcePath: "docs/faq.md", staleDays: 7 },
-      ],
+      sources: [{ sourcePath: "docs/faq.md", staleDays: 7 }],
     });
 
-    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+    const threeDaysAgo = new Date(
+      Date.now() - 3 * 24 * 60 * 60 * 1000,
+    ).toISOString();
     mockFrom.mockReturnValue(
       createQueryChain({
         data: { last_reviewed_at: threeDaysAgo },
@@ -222,8 +222,8 @@ describe("checkStaleness", () => {
 
     const results = await checkStaleness(createMockSupabase());
     expect(results).toHaveLength(1);
-    expect(results[0].status).toBe("PASS");
-    expect(results[0].message).toContain("within freshness thresholds");
+    expect(results[0]?.status).toBe("PASS");
+    expect(results[0]?.message).toContain("within freshness thresholds");
   });
 });
 
@@ -246,10 +246,7 @@ describe("checkCoverageGaps", () => {
 
     mockFrom.mockReturnValue(
       createQueryChain({
-        data: [
-          { source_path: "docs/faq.md" },
-          { source_path: "db:bootcamps" },
-        ],
+        data: [{ source_path: "docs/faq.md" }, { source_path: "db:bootcamps" }],
         error: null,
       }),
     );
@@ -264,17 +261,12 @@ describe("checkCoverageGaps", () => {
   it("WARN — DB has 1 extra active doc (orphaned doc)", async () => {
     mockLoadSourceRegistry.mockReturnValue({
       schemaVersion: "1",
-      sources: [
-        { sourcePath: "docs/faq.md" },
-      ],
+      sources: [{ sourcePath: "docs/faq.md" }],
     });
 
     mockFrom.mockReturnValue(
       createQueryChain({
-        data: [
-          { source_path: "docs/faq.md" },
-          { source_path: "db:orphaned" },
-        ],
+        data: [{ source_path: "docs/faq.md" }, { source_path: "db:orphaned" }],
         error: null,
       }),
     );
@@ -289,25 +281,19 @@ describe("checkCoverageGaps", () => {
   it("PASS — all sources match, no orphans", async () => {
     mockLoadSourceRegistry.mockReturnValue({
       schemaVersion: "1",
-      sources: [
-        { sourcePath: "docs/faq.md" },
-        { sourcePath: "db:bootcamps" },
-      ],
+      sources: [{ sourcePath: "docs/faq.md" }, { sourcePath: "db:bootcamps" }],
     });
 
     mockFrom.mockReturnValue(
       createQueryChain({
-        data: [
-          { source_path: "docs/faq.md" },
-          { source_path: "db:bootcamps" },
-        ],
+        data: [{ source_path: "docs/faq.md" }, { source_path: "db:bootcamps" }],
         error: null,
       }),
     );
 
     const results = await checkCoverageGaps(createMockSupabase());
     expect(results).toHaveLength(1);
-    expect(results[0].status).toBe("PASS");
+    expect(results[0]?.status).toBe("PASS");
   });
 });
 
@@ -384,7 +370,9 @@ describe("checkLatestRunHealth", () => {
   });
 
   it("WARN — completed but finished_at older than 24h", async () => {
-    const thirtyHoursAgo = new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString();
+    const thirtyHoursAgo = new Date(
+      Date.now() - 30 * 60 * 60 * 1000,
+    ).toISOString();
     mockFrom.mockReturnValue(
       createQueryChain({
         data: {
@@ -401,9 +389,7 @@ describe("checkLatestRunHealth", () => {
   });
 
   it("WARN — no ingestion runs found", async () => {
-    mockFrom.mockReturnValue(
-      createQueryChain({ data: null, error: null }),
-    );
+    mockFrom.mockReturnValue(createQueryChain({ data: null, error: null }));
 
     const result = await checkLatestRunHealth(createMockSupabase());
     expect(result.status).toBe("WARN");

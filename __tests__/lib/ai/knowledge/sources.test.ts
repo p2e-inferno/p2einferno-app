@@ -18,7 +18,9 @@ import {
   clearRegistryCache,
 } from "@/lib/ai/knowledge/sources";
 
-const mockReadFileSync = readFileSync as jest.MockedFunction<typeof readFileSync>;
+const mockReadFileSync = readFileSync as jest.MockedFunction<
+  typeof readFileSync
+>;
 
 describe("loadSourceRegistry", () => {
   beforeEach(() => {
@@ -45,14 +47,14 @@ describe("loadSourceRegistry", () => {
     const result = loadSourceRegistry();
     expect(result.schemaVersion).toBe("1");
     expect(result.sources).toHaveLength(1);
-    expect(result.sources[0].sourcePath).toBe("docs/test.md");
+    expect(result.sources[0]?.sourcePath).toBe("docs/test.md");
   });
 
   it("throws on missing schemaVersion", () => {
     mockReadFileSync.mockReturnValue(JSON.stringify({ sources: [] }));
 
     expect(() => loadSourceRegistry()).toThrow(
-      'Unsupported source registry schemaVersion',
+      "Unsupported source registry schemaVersion",
     );
   });
 
