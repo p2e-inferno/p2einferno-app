@@ -57,7 +57,12 @@ interface JsonlRecord {
   recordId?: string;
 }
 
-function loadJsonlForSource(sourcePath: string): JsonlRecord[] {
+interface JsonlLoadResult {
+  exists: boolean;
+  records: JsonlRecord[];
+}
+
+function loadJsonlForSource(sourcePath: string): JsonlLoadResult {
   // Determine JSONL file path based on source path convention
   // db:bootcamps -> automation/data/ai-kb/raw/db/bootcamps.jsonl
   // docs/bootcamp-faq.md -> automation/data/ai-kb/raw/docs/bootcamp-faq.md.jsonl
@@ -75,7 +80,7 @@ function loadJsonlForSource(sourcePath: string): JsonlRecord[] {
     if (existsSync(altPath)) {
       jsonlPath = altPath;
     } else {
-      return [];
+      return { exists: false, records: [] };
     }
   }
 
@@ -94,7 +99,7 @@ function loadJsonlForSource(sourcePath: string): JsonlRecord[] {
     }
   }
 
-  return records;
+  return { exists: true, records };
 }
 
 // ─── Exported helpers for testability ──────────────────────────────────────
@@ -193,7 +198,7 @@ export function validateEmbeddingDimensions(
 
 // ─── Main ──────────────────────────────────────────────────────────────────
 
-async function main() {
+export async function main() {
   const mode = parseModeFromArgv(process.argv);
   log.info(`=== AI KB Build (${mode}) ===`);
 
@@ -253,8 +258,14 @@ async function main() {
       }
 
       // 3.1: Read JSONL data
-      const records = loadJsonlForSource(entry.sourcePath);
+      const { exists: jsonlExists, records } = loadJsonlForSource(entry.sourcePath);
       if (records.length === 0) {
+        if (entry.sourceType === "db_snapshot" && jsonlExists) {
+          log.info(`Empty db_snapshot for "${entry.sourcePath}", skipping without failure.`);
+          stats.last_processed_source = entry.sourcePath;
+          continue;
+        }
+
         log.warn(`No JSONL data found for "${entry.sourcePath}", skipping.`);
         stats.failed_sources.push({
           sourcePath: entry.sourcePath,

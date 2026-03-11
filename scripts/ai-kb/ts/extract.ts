@@ -37,6 +37,23 @@ function findJsonlFiles(dir: string): string[] {
   return files;
 }
 
+function inferSourcePathFromJsonlFile(filePath: string): string | null {
+  const dbDir = resolve(RAW_DIR, "db");
+  const docsDir = resolve(RAW_DIR, "docs");
+
+  if (filePath.startsWith(`${dbDir}/`) && filePath.endsWith(".jsonl")) {
+    const fileName = filePath.slice(dbDir.length + 1, -".jsonl".length);
+    return `db:${fileName}`;
+  }
+
+  if (filePath.startsWith(`${docsDir}/`) && filePath.endsWith(".jsonl")) {
+    const fileName = filePath.slice(docsDir.length + 1, -".jsonl".length);
+    return fileName.replace(/_/g, "/");
+  }
+
+  return null;
+}
+
 async function main() {
   log.info("=== AI KB Extract Validation ===");
 
@@ -53,6 +70,9 @@ async function main() {
   log.info(`Found ${jsonlFiles.length} JSONL file(s)`);
 
   const registryPaths = new Set(registry.sources.map((s) => s.sourcePath));
+  const registryByPath = new Map(
+    registry.sources.map((entry) => [entry.sourcePath, entry] as const),
+  );
   const foundPaths = new Set<string>();
   let totalWarnings = 0;
   let totalErrors = 0;
@@ -60,6 +80,10 @@ async function main() {
   for (const filePath of jsonlFiles) {
     const relPath = relative(process.cwd(), filePath);
     log.info(`Validating: ${relPath}`);
+    const inferredSourcePath = inferSourcePathFromJsonlFile(filePath);
+    const inferredEntry = inferredSourcePath
+      ? registryByPath.get(inferredSourcePath)
+      : undefined;
 
     const rawContent = readFileSync(filePath, "utf-8");
     const lines = rawContent.trim().split("\n").filter((l) => l.trim());
@@ -108,13 +132,11 @@ async function main() {
       }
     }
 
-    // For db_snapshot sources: warn on empty record count
-    for (const sp of fileSourcePaths) {
-      const entry = registry.sources.find((s) => s.sourcePath === sp);
-      if (entry?.sourceType === "db_snapshot" && validRecords === 0) {
-        log.warn(`db_snapshot source "${sp}" has 0 valid records (empty snapshot)`);
-        totalWarnings++;
-      }
+    if (validRecords === 0 && inferredEntry?.sourceType === "db_snapshot") {
+      foundPaths.add(inferredEntry.sourcePath);
+      log.info(
+        `Empty db_snapshot accepted: "${inferredEntry.sourcePath}" has 0 records in this run.`,
+      );
     }
 
     log.info(`${relPath}: ${validRecords} valid, ${invalidRecords} invalid record(s)`);

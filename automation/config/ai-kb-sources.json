@@ -1,0 +1,213 @@
+{
+  "schemaVersion": "1",
+  "sources": [
+    {
+      "sourcePath": "docs/strategy/KB_SAFE_GLOSSARY.md",
+      "sourceType": "doc",
+      "title": "KB Safe Glossary",
+      "audience": ["support", "sales", "social", "ops"],
+      "domainTags": ["glossary", "platform", "terminology", "xDG"],
+      "staleDays": 45
+    },
+    {
+      "sourcePath": "docs/categories/CONCEPT_GLOSSARY.md",
+      "sourceType": "doc",
+      "title": "Concept Glossary",
+      "audience": ["support", "sales", "social", "ops"],
+      "domainTags": ["glossary", "concepts", "platform", "xDG"],
+      "staleDays": 30
+    },
+    {
+      "sourcePath": "docs/categories/NAVIGATION_MAP.md",
+      "sourceType": "doc",
+      "title": "Navigation Map",
+      "audience": ["support", "sales", "ops"],
+      "domainTags": ["navigation", "ui", "user-journey"],
+      "staleDays": 21
+    },
+    {
+      "sourcePath": "docs/categories/UI_TERMINOLOGY_MAP.md",
+      "sourceType": "doc",
+      "title": "UI Terminology Map",
+      "audience": ["support", "sales", "social", "ops"],
+      "domainTags": ["ui", "terminology", "translation", "xDG"],
+      "staleDays": 21
+    },
+    {
+      "sourcePath": "docs/categories/STATUS_OUTCOMES_REFERENCE.md",
+      "sourceType": "doc",
+      "title": "Status and Outcomes Reference",
+      "audience": ["support", "ops"],
+      "domainTags": ["statuses", "outcomes", "progress", "verification"],
+      "staleDays": 21
+    },
+    {
+      "sourcePath": "docs/playbooks/GETTING_STARTED_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Getting Started Playbook",
+      "audience": ["support", "sales"],
+      "domainTags": ["onboarding", "getting-started", "lobby", "quests", "bootcamps"],
+      "staleDays": 30
+    },
+    {
+      "sourcePath": "docs/playbooks/BOOTCAMP_AND_COHORT_REGISTRATION_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Bootcamp and Cohort Registration Playbook",
+      "audience": ["support", "sales", "ops"],
+      "domainTags": ["bootcamp", "cohort", "registration", "payments", "enrollment"],
+      "staleDays": 21
+    },
+    {
+      "sourcePath": "docs/playbooks/LEARNING_AND_PROGRESS_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Learning and Progress Playbook",
+      "audience": ["support", "sales"],
+      "domainTags": ["progression", "quests", "daily-quests", "milestones", "rewards"],
+      "staleDays": 21
+    },
+    {
+      "sourcePath": "docs/playbooks/WALLETS_MEMBERSHIP_AND_ACCESS_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Wallets, Membership, and Access Playbook",
+      "audience": ["support", "ops"],
+      "domainTags": ["wallet", "membership", "access", "linked-wallets", "renewal"],
+      "staleDays": 14
+    },
+    {
+      "sourcePath": "docs/playbooks/REWARDS_RENEWAL_AND_PULLOUT_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Rewards, Renewal, and Pullout Playbook",
+      "audience": ["support", "sales", "ops"],
+      "domainTags": ["xDG", "DG", "renewal", "pullout", "rewards"],
+      "staleDays": 14
+    },
+    {
+      "sourcePath": "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Vendor Progression Playbook",
+      "audience": ["support", "sales", "ops"],
+      "domainTags": ["vendor", "dg-token-vendor", "progression", "stages", "membership"],
+      "staleDays": 14
+    },
+    {
+      "sourcePath": "docs/playbooks/SUPPORT_TROUBLESHOOTING_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Support Troubleshooting Playbook",
+      "audience": ["support", "ops"],
+      "domainTags": ["troubleshooting", "wallet", "membership", "vendor", "pullout"],
+      "staleDays": 14
+    },
+    {
+      "sourcePath": "docs/strategy/DGTokenVendor_Knowledge_Base.md",
+      "sourceType": "doc",
+      "title": "DG Token Vendor Knowledge Base",
+      "audience": ["support", "ops"],
+      "domainTags": ["vendor", "contracts", "dg-token-vendor", "stages", "rules"],
+      "staleDays": 30
+    },
+    {
+      "sourcePath": "docs/strategy/WALLET_AND_MEMBERSHIP_BEHAVIOR_GUIDE.md",
+      "sourceType": "doc",
+      "title": "Wallet and Membership Behavior Guide",
+      "audience": ["support", "ops"],
+      "domainTags": ["wallet", "membership", "behavior", "linked-wallets", "access"],
+      "staleDays": 14
+    },
+    {
+      "sourcePath": "lib/content/bootcamps.ts",
+      "sourceType": "doc",
+      "title": "Bootcamps Marketing and FAQ Content",
+      "audience": ["support", "sales", "social"],
+      "domainTags": ["bootcamp", "marketing", "faq"],
+      "staleDays": 30
+    },
+    {
+      "sourcePath": "lib/content/quests.ts",
+      "sourceType": "doc",
+      "title": "Quests Marketing Content",
+      "audience": ["support", "sales", "social"],
+      "domainTags": ["quest", "marketing"],
+      "staleDays": 30
+    },
+    {
+      "sourcePath": "docs/strategy/BUSINESS_SUMMARY.md",
+      "sourceType": "doc",
+      "title": "Business Summary",
+      "audience": ["sales", "social", "ops"],
+      "domainTags": ["business", "positioning", "strategy"],
+      "staleDays": 45
+    },
+    {
+      "sourcePath": "db:bootcamp_programs_overview",
+      "sourceType": "db_snapshot",
+      "title": "Bootcamp Programs Overview",
+      "audience": ["support", "sales", "social"],
+      "domainTags": ["bootcamp", "programs"],
+      "staleDays": 7
+    },
+    {
+      "sourcePath": "db:cohorts_catalog",
+      "sourceType": "db_snapshot",
+      "title": "Cohorts Catalog",
+      "audience": ["support", "sales"],
+      "domainTags": ["bootcamp", "cohort"],
+      "staleDays": 7
+    },
+    {
+      "sourcePath": "db:cohort_milestones_snapshot",
+      "sourceType": "db_snapshot",
+      "title": "Cohort Milestones Snapshot",
+      "audience": ["support", "ops"],
+      "domainTags": ["bootcamp", "cohort", "milestone"],
+      "staleDays": 7
+    },
+    {
+      "sourcePath": "db:milestone_tasks_snapshot",
+      "sourceType": "db_snapshot",
+      "title": "Milestone Tasks Snapshot",
+      "audience": ["support", "ops"],
+      "domainTags": ["milestone", "tasks"],
+      "staleDays": 7
+    },
+    {
+      "sourcePath": "db:quests_catalog",
+      "sourceType": "db_snapshot",
+      "title": "Quests Catalog",
+      "audience": ["support", "sales", "social"],
+      "domainTags": ["quest", "catalog"],
+      "staleDays": 7
+    },
+    {
+      "sourcePath": "db:quest_tasks_snapshot",
+      "sourceType": "db_snapshot",
+      "title": "Quest Tasks Snapshot",
+      "audience": ["support", "ops"],
+      "domainTags": ["quest", "tasks"],
+      "staleDays": 7
+    },
+    {
+      "sourcePath": "db:daily_quests_catalog",
+      "sourceType": "db_snapshot",
+      "title": "Daily Quests Catalog",
+      "audience": ["support", "social", "ops"],
+      "domainTags": ["daily-quest", "quest"],
+      "staleDays": 3
+    },
+    {
+      "sourcePath": "db:eas_networks_config",
+      "sourceType": "db_snapshot",
+      "title": "EAS Networks Configuration",
+      "audience": ["support", "ops"],
+      "domainTags": ["eas", "attestations", "network-config"],
+      "staleDays": 14
+    },
+    {
+      "sourcePath": "db:attestation_schema_registry",
+      "sourceType": "db_snapshot",
+      "title": "Attestation Schema Registry",
+      "audience": ["support", "ops"],
+      "domainTags": ["eas", "attestations", "schemas"],
+      "staleDays": 14
+    }
+  ]
+}

@@ -12,6 +12,8 @@ import { loadSourceRegistry } from "@/lib/ai/knowledge/sources";
 import { embedTexts } from "@/lib/ai/knowledge/embeddings";
 import { searchKnowledgeBase } from "@/lib/ai/knowledge/retrieval";
 import { getLogger } from "@/lib/utils/logger";
+import { existsSync, readFileSync } from "fs";
+import { resolve } from "path";
 
 export type CheckStatus = "PASS" | "WARN" | "FAIL";
 
@@ -38,6 +40,7 @@ type SupabaseAdmin = {
   from: (...args: any[]) => any;
 };
 const log = getLogger("scripts:ai-kb:verify");
+const RAW_DIR = resolve(process.cwd(), "automation/data/ai-kb/raw");
 
 export const CANARY_QUERIES: CanaryQuery[] = [
   {
@@ -71,6 +74,19 @@ export function topResultsMatchCanary(
     const domainTags = domainTagsByDocumentId.get(result.document_id) ?? [];
     return domainTags.includes(canary.expectedDomainTag);
   });
+}
+
+function hasEmptySnapshotFile(sourcePath: string): boolean {
+  if (!sourcePath.startsWith("db:")) {
+    return false;
+  }
+
+  const filePath = resolve(RAW_DIR, "db", `${sourcePath.slice(3)}.jsonl`);
+  if (!existsSync(filePath)) {
+    return false;
+  }
+
+  return readFileSync(filePath, "utf-8").trim().length === 0;
 }
 
 // ─── Check 1: Embedding model consistency ──────────────────────────────────
@@ -206,6 +222,13 @@ export async function checkCoverageGaps(
     // Missing sources (in registry but not in DB)
     for (const entry of registry.sources) {
       if (!activeSet.has(entry.sourcePath)) {
+        if (
+          entry.sourceType === "db_snapshot" &&
+          hasEmptySnapshotFile(entry.sourcePath)
+        ) {
+          continue;
+        }
+
         results.push({
           name: `Coverage gap: missing`,
           status: "WARN",
@@ -347,7 +370,7 @@ export async function checkLatestRunHealth(
 
 // ─── Main ──────────────────────────────────────────────────────────────────
 
-async function main() {
+export async function main() {
   log.info("=== AI KB Verification ===");
 
   const supabase = createAdminClient();

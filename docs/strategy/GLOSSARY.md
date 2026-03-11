@@ -1,6 +1,6 @@
 # P2E Inferno - Project Glossary
 
-> **Last Updated**: December 2024  
+> **Last Updated**: March 2026
 > **Purpose**: Comprehensive reference of all available modules, components, hooks, utilities, APIs, and configurations in the P2E Inferno project. This document serves as a quick reference for AI/LLM systems and developers to understand what's available without searching the entire codebase.
 
 ## Table of Contents
@@ -25,12 +25,17 @@
 **P2E Inferno** is a comprehensive Play-to-Earn (P2E) gamified education platform for Web3/blockchain learning. Built with Next.js, Privy authentication, Supabase database, and integrated blockchain functionality via Unlock Protocol.
 
 ### Key Technologies
-- **Frontend**: Next.js 14, React 18, TypeScript, TailwindCSS
+- **Frontend**: Next.js 16.1.6, React 18, TypeScript, TailwindCSS
 - **Authentication**: Privy (multi-wallet, social login)
-- **Database**: Supabase (PostgreSQL)
-- **Blockchain**: Ethereum/Base, Unlock Protocol, EAS (Ethereum Attestation Service)
-- **Payments**: Paystack, Crypto payments
-- **UI**: Radix UI, Lucide Icons, Framer Motion
+- **Database**: Supabase (PostgreSQL + pgvector for AI KB)
+- **Blockchain**: Base/Ethereum, Unlock Protocol, EAS (Ethereum Attestation Service), Viem v2, Ethers v6
+- **AI**: OpenRouter (chat completions, embeddings via `openai/text-embedding-3-small`)
+- **Payments**: Paystack (fiat), Unlock Protocol (crypto)
+- **Identity**: GoodDollar (face verification / Sybil resistance)
+- **Notifications**: Mailgun (email), Telegram Bot API
+- **UI**: Radix UI, Lucide Icons, Tabler Icons, Framer Motion, Tiptap (rich text), Embla Carousel
+- **State Management**: TanStack Query v5, React Context
+- **Token Exchange**: Uniswap V3 (on Base), DG Token Vendor contract
 
 ---
 
@@ -40,31 +45,37 @@
 
 #### Homepage Components (`components/home/`)
 - **`Hero.tsx`** - Main landing page hero section with CTA
-- **`Features.tsx`** - Platform features showcase
-- **`About.tsx`** - About section with platform description
+- **`Features.tsx`** - 6 platform differentiators with descriptions (Sybil Defence, Real Onchain Actions, etc.)
+- **`About.tsx`** - "What is P2E INFERNO?" section with 3 pillars
 - **`Services.tsx`** - Services offered by the platform
 - **`Bootcamps.tsx`** - Bootcamp programs display
 - **`HowItWorks.tsx`** - How the platform works explanation
+- **`FAQ.tsx`** - Accordion-based FAQ section (5 items) using Radix UI
+- **`Personas.tsx`** - Persona-based CTA cards with LeadMagnetModal integration
+- **`StarterKitSection.tsx`** - Lead magnet CTA section embedding LeadMagnetForm
+- **`RealHumans.tsx`** - GoodDollar human verification marketing section
 - **`Navbar.tsx`** - Main navigation component
 - **`Footer.tsx`** - Footer component
 
 #### Lobby Components (`components/lobby/`)
-- **`connect-wallet-state.tsx`** - Wallet connection state display
-- **`current-enrollments.tsx`** - Current user enrollments display
+- **`checkin-strip.tsx`** - Inline checkin/streak strip shown in lobby header
+- **`connect-wallet-state.tsx`** - Full-screen wallet connection prompt
+- **`current-enrollments.tsx`** - List of user's active cohort enrollments
 - **`error-state.tsx`** - Error state handling component
-- **`loading-state.tsx`** - Loading state component
-- **`lobby-background.tsx`** - Lobby background graphics
-- **`lobby-navigation.tsx`** - Lobby navigation component
+- **`loading-state.tsx`** - Loading skeleton state
+- **`lobby-background.tsx`** - Animated lobby background graphic
+- **`lobby-navigation.tsx`** - Side navigation for lobby sections
 - **`LobbyConfirmationModal.tsx`** - Lobby confirmation modal
-- **`MilestoneProgressRing.tsx`** - Milestone progress visualization
-- **`MilestoneTaskClaimButton.tsx`** - Milestone task claim button
-- **`MilestoneTimer.tsx`** - Milestone countdown timer
-- **`NotificationBell.tsx`** - Notification bell component
-- **`pending-applications-alert.tsx`** - Pending applications alert
-- **`quick-actions-grid.tsx`** - Quick actions grid layout
-- **`stats-grid.tsx`** - Statistics grid display
-- **`TaskSubmissionModal.tsx`** - Task submission modal
-- **`welcome-section.tsx`** - Welcome section component
+- **`MilestoneProgressRing.tsx`** - SVG ring showing milestone task completion percentage
+- **`MilestoneTaskClaimButton.tsx`** - Button to claim milestone task rewards with gasless attestation
+- **`MilestoneTimer.tsx`** - Countdown timer for milestone start/end dates
+- **`NotificationBell.tsx`** - Notification bell with unread count dropdown
+- **`pending-applications-alert.tsx`** - Alert banner for pending applications
+- **`quick-actions-grid.tsx`** - Quick action cards grid layout
+- **`stats-grid.tsx`** - XP, streak, and key stats grid
+- **`TaskSubmissionModal.tsx`** - Modal for submitting milestone task proof/evidence
+- **`verification-banner.tsx`** - CTA banner prompting GoodDollar verification
+- **`welcome-section.tsx`** - Welcome header for the lobby
 - **`pages/`** - Lobby-specific page components
   - `achievements-page.tsx` - Achievements page
   - `bounties-page.tsx` - Bounties listing
@@ -88,27 +99,40 @@
 - **`BootcampsComingSoon.tsx`** - Coming soon display
 - **`index.ts`** - Bootcamp components exports
 
+#### Bootcamp Completion (`components/bootcamp-completion/`)
+- **`CertificateClaimButton.tsx`** - Button to claim completion certificate with preview modal
+- **`CompletionBadge.tsx`** - Visual badge for bootcamp completion
+
 #### Profile Components (`components/profile/`)
 - **`account-card.tsx`** - User account information card
 - **`completion-call-to-action.tsx`** - Profile completion CTA
 - **`linked-accounts-section.tsx`** - Linked accounts display
-- **`profile-header.tsx`** - Profile header component
+- **`multi-wallet-card.tsx`** - Card displaying multiple linked wallet addresses
+- **`profile-header.tsx`** - Profile header with avatar/ENS
 - **`index.ts`** - Profile components exports
 - **`types.ts`** - Profile component types
 
 #### Quest Components (`components/quests/`)
 - **`quest-card.tsx`** - Individual quest display card
-- **`quest-list.tsx`** - Quest listing component
+- **`quest-list.tsx`** - Quest listing with filtering/grouping
 - **`QuestHeader.tsx`** - Quest header component
-- **`TaskItem.tsx`** - Individual task item component
+- **`TaskItem.tsx`** - Individual task item component (quests and daily quests)
+- **`DailyQuestCountdown.tsx`** - Countdown timer to next UTC midnight for daily quest reset
+- **`DeployLockTaskForm.tsx`** - Form for submitting deploy-lock tx hashes with network/reward display
+- **`daily-quest-card.tsx`** - Card for displaying a daily quest run in lobby
+- **`daily-quest-list.tsx`** - List rendering all daily quest runs
 - **`index.ts`** - Quest components exports
 - **`types.ts`** - Quest component types
 
 #### Check-in Components (`components/checkin/`)
-- **`CheckinCard.tsx`** - Daily check-in interface
-- **`DailyCheckinButton.tsx`** - Check-in action button
-- **`StreakDisplay.tsx`** - Streak information display
+- **`CheckinCard.tsx`** - Full checkin card combining button and streak display
+- **`DailyCheckinButton.tsx`** - Interactive check-in button with visual feedback
+- **`StreakDisplay.tsx`** - Streak info with tier progress and multipliers
 - **`index.tsx`** - Check-in components exports
+
+#### GoodDollar Components (`components/gooddollar/`)
+- **`FaceVerificationButton.tsx`** - Button to launch GoodDollar face verification flow
+- **`VerificationStatus.tsx`** - Displays current GoodDollar verification status
 
 #### Attestation Components (`components/attestation/`)
 - **`AttestationButton.tsx`** - Attestation creation button
@@ -130,12 +154,38 @@
 - **`index.ts`** - Payment components exports
 - **`types.ts`** - Payment component types
 
+#### Subscription Components (`components/subscription/`)
+- **`CryptoRenewalModal.tsx`** - Modal for on-chain DG token subscription purchase/renewal
+- **`XpRenewalModal.tsx`** - Modal for XP-based subscription renewal
+- **`LockPriceDisplay.tsx`** - Displays current lock key price in DG/ETH
+- **`MethodSelectionModal.tsx`** - Modal to choose between XP vs. crypto renewal
+- **`SubscriptionStatusCard.tsx`** - Card showing subscription expiry and renewal options
+
+#### Token Withdrawal Components (`components/token-withdrawal/`)
+- **`WithdrawDGButton.tsx`** - Trigger button for DG withdrawal modal
+- **`WithdrawDGModal.tsx`** - Multi-step modal for EIP-712 signed DG token withdrawal
+- **`WithdrawalHistoryTable.tsx`** - Paginated table of user withdrawal history
+
+#### Vendor Components (`components/vendor/`)
+- **`VendorSwap.tsx`** - Buy/sell DG tokens via vendor contract with GoodDollar gate
+- **`UniswapSwapTab.tsx`** - Uniswap V3 swap tab with stepper integration
+- **`LevelUpCard.tsx`** - Card for vendor level-up action
+- **`LightUpButton.tsx`** - Button to "light up" (stake) DG via vendor contract
+- **`PercentPresets.tsx`** - Percentage preset buttons (25%, 50%, 75%, 100%) for swap amounts
+
+#### Marketing Components (`components/marketing/`)
+- **`LeadMagnetForm.tsx`** - Email capture form for starter kit / bootcamp waitlist leads
+- **`LeadMagnetModal.tsx`** - Modal wrapper around LeadMagnetForm
+
 #### Unlock Components (`components/unlock/`)
 - **`UnlockPurchaseButton.tsx`** - Unlock key purchase button
 - **`UnlockUtilsDemo.tsx`** - Unlock utilities demonstration
 
+#### Blockchain Components (`components/blockchain/`)
+- **`NetworkSelector.tsx`** - Generic network selector for blockchain-aware forms
+
 #### Dashboard Components (`components/dashboard/`)
-- **`bottom-dock.tsx`** - Bottom dock navigation component
+- **`bottom-dock.tsx`** - Bottom dock navigation for mobile lobby
 
 #### Cohort Components (`components/cohort/`)
 - **`weekly-content-card.tsx`** - Weekly content display card
@@ -145,23 +195,28 @@
 
 #### Admin Dashboard & Layout
 - **`AdminDashboard.tsx`** - Main admin dashboard with module navigation
-- **`AdminSessionGate.tsx`** - Admin session protection component
+- **`AdminSessionGate.tsx`** - HOC-style gate that renders children only after admin session is valid
 - **`AdminAccessRequired.tsx`** - Admin access requirement component
-- **`AdminSessionRequired.tsx`** - Admin session requirement component
-- **`AdminEditPageLayout.tsx`** - Admin edit page layout wrapper
-- **`AdminListPageLayout.tsx`** - Admin list page layout wrapper
+- **`AdminSessionRequired.tsx`** - UI prompt to create admin session when expired
+- **`AdminEditPageLayout.tsx`** - Reusable layout shell for admin edit pages with loading/error states
+- **`AdminListPageLayout.tsx`** - Reusable layout shell for admin list pages with add button
 - **`AdminNavigation.tsx`** - Admin navigation component
-- **`AdminResponsiveTable.tsx`** - Responsive table component for admin
+- **`AdminResponsiveTable.tsx`** - Responsive table with mobile-first accordion expand rows
 
 #### Admin Forms & Management
 - **`BootcampForm.tsx`** - Bootcamp creation/editing form
 - **`CohortForm.tsx`** - Cohort creation/editing form
 - **`MilestoneForm.tsx`** - Milestone creation/editing form
-- **`MilestoneFormEnhanced.tsx`** - Enhanced milestone form with advanced features
+- **`MilestoneFormEnhanced.tsx`** - Enhanced milestone form with inline task editing and gasless attestation
 - **`QuestForm.tsx`** - Quest creation/editing form
 - **`QuestTaskForm.tsx`** - Quest task creation/editing form
+- **`DailyQuestForm.tsx`** - Daily quest template CRUD form with task management
+- **`DailyQuestList.tsx`** - Admin list view of daily quest templates
+- **`DailyQuestTaskForm.tsx`** - Individual daily quest task configuration form
 - **`ProgramHighlightsForm.tsx`** - Program highlights form
 - **`ProgramRequirementsForm.tsx`** - Program requirements form
+- **`WithdrawalLimitsConfig.tsx`** - DG token min/max withdrawal limits config with audit log
+- **`TransactionStepperModal.tsx`** - Generic multi-step transaction modal driven by `lib/transaction-stepper`
 
 #### Admin Data Display & Tables
 - **`CohortsTable.tsx`** - Cohorts data table
@@ -172,32 +227,61 @@
 - **`SubmissionReviewModal.tsx`** - Submission review modal
 - **`KeyGrantReconciliation.tsx`** - Key grant reconciliation component
 
+#### Admin Security & Lock Management
+- **`MaxKeysSecurityBadge.tsx`** - Badge when lock's max-keys config is insecure
+- **`MaxKeysSecurityButton.tsx`** - Button to trigger max-keys security sync
+- **`SyncLockStateButton.tsx`** - Syncs on-chain lock manager and security state to DB
+- **`TransferabilitySecurityBadge.tsx`** - Badge when lock is transferable (security risk)
+- **`TransferabilitySecurityButton.tsx`** - Button to trigger transferability security sync
+- **`PendingLockManagerBadge.tsx`** - Badge for pending lock manager update
+- **`LockManagerRetryButton.tsx`** - Retry failed lock manager operations
+- **`LockManagerToggle.tsx`** - Enable/disable lock manager toggle
+
+#### Admin Bootcamp Completion
+- **`bootcamp-completion/ReconciliationPanel.tsx`** - Admin UI to trigger cohort status reconciliation
+
+#### Admin EAS Schema Manager (`components/admin/eas-schemas/`)
+- **`EasConfigPanel.tsx`** - Admin tab for configuring EAS network DB settings
+- **`NetworkSelector.tsx`** - Dropdown for selecting EAS-enabled networks
+- **`SchemaDeploymentForm.tsx`** - Form to deploy a new EAS schema on-chain
+- **`SchemaDetailsCard.tsx`** - Schema details card with EAS Scan link and UID status
+- **`SchemaKeySelect.tsx`** - Select for choosing schema key from `eas_schema_keys` table
+- **`SchemaListTable.tsx`** - Table listing deployed schemas per network
+- **`SchemaSyncPanel.tsx`** - Panel to sync schemas from chain to DB
+
 #### Admin Utilities
-- **`withAdminAuth.tsx`** - Higher-order component for admin authentication
+- **`withAdminAuth.tsx`** - HOC for admin authentication (redirects unauthenticated users)
 - **`withAdminFormErrorHandling.tsx`** - HOC for admin form error handling
 
 ### UI Components (`components/ui/`)
-- **`auth-error.tsx`** - Authentication error display component
+- **`accordion.tsx`** - Radix UI Accordion wrapper
+- **`auth-error.tsx`** - Authentication error display with Privy re-login
 - **`badge.tsx`** - Badge/label components
 - **`button.tsx`** - Button component with variants
 - **`card.tsx`** - Card layout components
-- **`carousel.tsx`** - Carousel/slider component
-- **`confirmation-dialog.tsx`** - Confirmation dialog component
+- **`carousel.tsx`** - Embla Carousel wrapper
+- **`confirmation-dialog.tsx`** - Confirmation dialog with danger/warning/default variants
+- **`copyable-address.tsx`** - Truncated wallet address with one-click copy
 - **`dialog.tsx`** - Dialog/modal components
-- **`image-upload.tsx`** - Image upload component
+- **`dismissible-toast.tsx`** - Toast content with visible close button
+- **`image-upload.tsx`** - Image upload with Supabase Storage backend
 - **`input.tsx`** - Input field components
 - **`label.tsx`** - Label components
 - **`loading-button.tsx`** - Loading state button component
 - **`loading-overlay.tsx`** - Loading overlay component
-- **`network-error.tsx`** - Network error display component
-- **`notification-center.tsx`** - Notification center component
-- **`progress-steps.tsx`** - Progress steps indicator
+- **`network-error.tsx`** - Network error display with retry button
+- **`notification-center.tsx`** - Notification display with type-based icons
+- **`PageHeader.tsx`** - Reusable page header component
+- **`progress-steps.tsx`** - Step indicator for multi-step flows
 - **`progress.tsx`** - Progress bar components
+- **`rich-text-editor.tsx`** - Tiptap WYSIWYG editor with markdown I/O
 - **`select.tsx`** - Select dropdown components
 - **`separator.tsx`** - Visual separator component
-- **`SuccessScreen.tsx`** - Success screen component
-- **`tabs.tsx`** - Tab navigation components
+- **`SuccessScreen.tsx`** - Full-page success state screen
+- **`tabs.tsx`** - Tab navigation components (Radix UI)
 - **`textarea.tsx`** - Textarea components
+- **`toggle.tsx`** - Accessible boolean toggle
+- **`wallet-fallback-toast.tsx`** - Toast shown when wallet falls back to embedded wallet
 
 ### Context Providers (`contexts/`)
 
@@ -212,26 +296,10 @@
 - **`hooks/useAdminAuthContextActions.ts`** - Action methods management
 - **`hooks/useAdminAuthContextState.ts`** - Internal state management
 
-**Main Hook**: `useAdminAuthContext()` - Type-safe context consumption with error boundaries
-
-**Utilities**: 
-- `isFullyAuthenticated()` - Check if auth status indicates full authentication
-- `isAuthLoading()` - Check if auth status indicates loading state  
-- `getAuthStatusMessage()` - Get user-friendly message for auth status
-- `deriveAuthStatus()` - Derive unified auth status from multiple states
-- `isCacheValid()` - Check if auth cache is still valid
-- `createCacheExpiry()` - Create cache expiry timestamp
-
-**Constants**:
-- `AUTH_CACHE_DURATION` - Cache duration for authentication checks (default: 2 minutes)
-- `ERROR_RETRY_DELAY` - Delay between error retry attempts (default: 5 seconds)
-- `MAX_ERROR_COUNT` - Maximum consecutive errors before system unhealthy
-- `MAX_BACKOFF_DELAY` - Maximum backoff delay for exponential backoff
-
 ### Layout Components (`components/layouts/`)
 - **`MainLayout.tsx`** - Main application layout
 - **`AdminLayout.tsx`** - Admin-specific layout
-- **`lobby-layout.tsx`** - Lobby page layout
+- **`lobby-layout.tsx`** - Lobby page layout (navigation, background, wallet gate)
 
 ### Shared Components (Root Level)
 - **`ClientSideWrapper.tsx`** - Client-side rendering wrapper
@@ -251,17 +319,25 @@
 - **`icons/`** - Icon components
   - `dashboard-icons.tsx` - Dashboard-specific icons
 
+### Static Content (`lib/content/`)
+- **`about.ts`** - Static copy for the About page (hero, values, tracks, team)
+- **`bootcamps.ts`** - Static copy for the Bootcamps marketing page (tracks, FAQs)
+- **`how-it-works.ts`** - Static copy for the How It Works page (5-step journey, value equation)
+- **`quests.ts`** - Static copy for the Quests marketing page (categories, rewards)
+- **`services.ts`** - Static copy for the Services marketing page (6 services, deliverables, metrics)
+
 ---
 
 ## React Hooks
 
 ### Authentication & Admin Hooks
-- **`useAdminApi.ts`** - Admin API calls with session management and auto-refresh
+- **`useAdminApi.ts`** - Admin API calls with session management, auto-refresh, and `suppressToasts` option
 - **`useAdminAuthWithSession.ts`** - Admin authentication with session handling
-- **`useAdminFetchOnce.ts`** - One-time admin data fetching with caching and TTL
+- **`useAdminFetchOnce.ts`** - One-time admin data fetching with composite key `[auth + wallet + keys]`, TTL, and throttle
 - **`useAdminSession.ts`** - Admin session management and validation
-- **`useLockManagerAdminAuth.ts`** - Lock manager admin authentication with wallet validation
+- **`useLockManagerAdminAuth.ts`** - Lock manager admin auth with wallet-session validation (session hijack protection)
 - **`useVerifyToken.ts`** - Token verification hook for authentication
+- **`useAdminQuestOptions.ts`** - Fetches all quests for admin form select dropdowns
 
 ### Admin Context Hooks (`contexts/admin-context/hooks/`)
 - **`useAdminAuthContextInternal.ts`** - Main composition hook combining all AdminAuthContext functionality
@@ -273,9 +349,10 @@
 - **`useDashboardData.ts`** - Dashboard data aggregation and caching
 - **`useDetectConnectedWalletAddress.ts`** - Connected wallet address detection
 - **`useENSResolution.ts`** - ENS name resolution and reverse lookup
-- **`useSmartWalletSelection.ts`** - Smart wallet selection logic and management
-- **`useWalletBalances.ts`** - Wallet balance tracking with polling and gating
+- **`useSmartWalletSelection.tsx`** - Smart wallet selection (embedded vs. external) with chain-aware fallback
+- **`useWalletBalances.ts`** - Wallet balance tracking with polling and gating (`{ enabled, pollIntervalMs }`)
 - **`useWalletManagement.ts`** - Wallet management operations and state
+- **`useGoodDollarVerification.ts`** - TanStack Query hook for GoodDollar verification status with ownership conflict handling
 
 ### Bootcamp & Application Hooks
 - **`useBootcamps.ts`** - Bootcamp data fetching and management
@@ -284,39 +361,73 @@
 - **`usePayment.ts`** - General payment processing and status tracking
 - **`useMilestoneClaim.ts`** - Milestone claim processing and validation
 
+### Bootcamp Completion Hooks (`hooks/bootcamp-completion/`)
+- **`useBootcampCompletionStatus.ts`** - Fetches cohort completion status and certificate info
+- **`useCertificateClaim.ts`** - Handles certificate claim flow (preview + on-chain commit)
+
 ### Quest & Activity Hooks
 - **`useQuests.ts`** - Quest data and progress management with task tracking
+- **`useDailyQuests.ts`** - Daily quest run state, eligibility evaluation
 - **`useNotifications.ts`** - Notification system management and real-time updates
+- **`useTelegramNotifications.ts`** - Polls for Telegram bot activation after deep-link click
 
 ### Check-in Hooks (`hooks/checkin/`)
-- **`useDailyCheckin.ts`** - Daily check-in functionality with status management
-- **`useStreakData.ts`** - Streak tracking and tier progression data
-- **`useCheckinWithStreak.ts`** - Combined check-in and streak hook with convenience methods
+- **`useDailyCheckin.ts`** - Main orchestrator for daily check-in with streak, XP, and EAS integration
+- **`useDelegatedAttestationCheckin.ts`** - Signs delegated EIP-712 EAS attestation (gasless) for checkin
+- **`useStreakData.ts`** - Streak tracking and tier progression with visibility-aware polling
 - **`useStreakDisplay.ts`** - Streak display utilities and formatting
 - **`useCheckinEligibility.ts`** - Check-in eligibility checking without full state management
+- **`useCheckinWithStreak.ts`** - Combined check-in and streak hook with convenience methods
+- **`useVisibilityAwarePoll.ts`** - Pauses polling when tab is hidden
 
 ### Attestation Hooks (`hooks/attestation/`)
 - **`useAttestations.ts`** - Attestation data management and creation
-- **`useAttestationSchemas.ts`** - Attestation schema management and validation
-- **`useAttestationQueries.ts`** - Attestation query operations and statistics
-  - `useUserAttestations` - User-specific attestations
-  - `useSchemaAttestations` - Schema-specific attestations
-  - `useUserAttestationStats` - User attestation statistics
-  - `useSchemaStats` - Schema usage statistics
+- **`useAttestationSchemas.ts`** - Attestation schema management per network
+- **`useAttestationQueries.ts`** - TanStack Query hooks for attestation queries and stats
+- **`useGaslessAttestation.ts`** - Signs delegated EAS attestations gaslessly using EAS SDK
+
+### Unlock Protocol Hooks (`hooks/unlock/`)
+- **`useDeployLock.ts`** - Deploys an Unlock Protocol lock from user's wallet
+- **`useDeployAdminLock.ts`** - Deploys an admin-managed lock with additional config steps
+- **`useSyncLockManagerState.ts`** - Syncs on-chain lock manager address to DB
+- **`useSyncLockSecurityState.ts`** - Syncs on-chain max-keys security config to DB
+- **`useSyncLockTransferabilityState.ts`** - Syncs on-chain transfer fee to DB
+- **`usePrivyWriteWallet.ts`** - Resolves Privy's embedded wallet for write transactions
+- **`useLockManagerClient.ts`** - Browser-side singleton LockManager with deduped on-chain key lookups
+
+### Vendor Hooks (`hooks/vendor/`)
+- **`useDGMarket.ts`** - Buy/sell DG tokens via vendor contract with wagmi/viem
+- **`useDGVendorAccess.ts`** - Checks vendor access (DG Nation key, GoodDollar verification, stage)
+- **`useDGProfile.ts`** - Fetches user's DG profile data from on-chain or DB
+- **`useDGTokenBalances.ts`** - Real-time DG and ETH balance polling
+- **`useDGLightUp.ts`** - Executes "light up" (stake) action on vendor contract
+- **`useUniswapSwap.ts`** - Uniswap V3 swap with quoting, balance checks, and Permit2
+
+### Subscription Hooks
+- **`useXpRenewal.ts`** - Orchestrates XP-based subscription renewal with stepper and attestation
+
+### Withdrawal Hooks
+- **`useWithdrawalAccess.ts`** - Checks withdrawal access (DG Nation key + GoodDollar verification)
+- **`useWithdrawalLimits.ts`** - Fetches public withdrawal limits config
+
+### Security Hooks
+- **`useMaxKeysSecurityState.ts`** - Tracks max-keys on-chain security state
+- **`useTransferabilitySecurityState.ts`** - Tracks lock transferability security state
 
 ### Utility Hooks
 - **`useApiCall.ts`** - Generic API call management with error handling
-- **`useRetryable.ts`** - Retryable operation management with exponential backoff
+- **`useRetryable.ts`** - Retryable operation management with loading/error state
 - **`useScrollbarFix.ts`** - Scrollbar styling fixes for cross-browser compatibility
 - **`useMessageSigning.ts`** - Message signing operations for blockchain interactions
 - **`useTOSSigning.ts`** - Terms of service signing and verification
+- **`useTransactionStepper.ts`** - Multi-step blockchain transaction orchestration
 
 ---
 
 ## Utility Functions & Libraries
 
 ### Root-Level Libraries (`lib/`)
-- **`api.ts`** - Axios-based API client with interceptors and error handling
+- **`api.ts`** - Axios-based API client with interceptors, error handling, and logging
 - **`bootcamp-data.ts`** - Static bootcamp program and cohort data
 - **`dateUtils.ts`** - Date manipulation and formatting utilities
 - **`payment-helpers.ts`** - Payment processing helpers and validation
@@ -328,41 +439,89 @@
 ### Core Utilities (`lib/utils/`)
 - **`error-utils.ts`** - Error handling and normalization utilities
 - **`id-generation.ts`** - ID generation utilities
-- **`lock-deployment-state.ts`** - Lock deployment state management
+- **`lock-deployment-state.ts`** - localStorage-backed pending lock deployment state tracker
 - **`milestone-utils.ts`** - Milestone-related utility functions
+- **`rate-limiter.ts`** - In-memory IP-based rate limiter with TTL cleanup
 - **`registration-validation.ts`** - Registration validation utilities
 - **`wallet-address.ts`** - Wallet address formatting and validation
 - **`logger/`** - Comprehensive logging system
   - `core.ts` - Core logging functionality and interface
   - `formatting.ts` - Log formatting utilities
-  - `index.ts` - Logger exports and configuration
-  - `levels.ts` - Log level definitions and management
+  - `index.ts` - Logger exports (`getLogger(module)`)
+  - `levels.ts` - Log level definitions (`debug|info|warn|error|silent`)
   - `sanitize.ts` - Log sanitization utilities
-  - `transport.ts` - Log transport mechanisms
-
-### Admin Context Utilities (`contexts/admin-context/utils/`)
-- **`adminAuthContextStatusUtils.ts`** - Status derivation and validation utilities
-  - `deriveAuthStatus()` - Derive unified auth status from multiple auth states
-  - `isFullyAuthenticated()` - Type guard for full authentication
-  - `isAuthLoading()` - Type guard for loading state
-  - `getAuthStatusMessage()` - User-friendly status messages
-- **`adminAuthContextCacheUtils.ts`** - Cache management and validation utilities
-  - `isCacheValid()` - Check cache validity
-  - `createCacheExpiry()` - Create cache expiry timestamps
-  - `shouldInvalidateCache()` - Determine cache invalidation logic
+  - `transport.ts` - Log transport mechanisms (browser: `window.__P2E_LOGS__`, server: JSON)
 
 ### Authentication Utilities (`lib/auth/`)
 - **`admin-auth.ts`** - Admin authentication middleware and validation
-- **`admin-key-checker.ts`** - Admin key checking and validation
-- **`admin-session.ts`** - Admin session management and JWT handling
-- **`config-validation.ts`** - Configuration validation utilities
-- **`error-handler.ts`** - Authentication error handling and responses
+- **`admin-key-checker.ts`** - Admin key checking (parallel key checks)
+- **`admin-session.ts`** - Admin session JWT issuance, verification, and cookie management
+- **`admin-signed-actions.ts`** - EIP-712 signed admin action payload creation and verification
+- **`admin-action-payload.ts`** - Admin action nonce management for replay prevention
+- **`config-validation.ts`** - Configuration validation (required admin env vars)
+- **`error-handler.ts`** - Authentication error handling and structured responses
 - **`ownership.ts`** - Ownership validation utilities
-- **`privy.ts`** - Privy authentication helpers and user management
+- **`privy.ts`** - Privy authentication helpers (`getPrivyUser` with JWT fallback)
+- **`wallet-link-map.ts`** - Wallet-to-user linkage uniqueness with conflict detection
 - **`hooks/`** - Authentication hooks
   - `useAuth.ts` - Authentication state management hook
 - **`route-handlers/`** - Route handler utilities
-  - `admin-guard.ts` - Admin route protection middleware
+  - `admin-guard.ts` - `ensureAdminOrRespond()` — unified admin guard for App Router handlers
+
+### AI System (`lib/ai/`)
+- **`client.ts`** - Fetch-based OpenRouter chat completion client (server-only)
+- **`index.ts`** - Public API exports (chatCompletion, types)
+- **`types.ts`** - AIRequestOptions, AIResult, ChatMessage, MessageContent types
+- **`verification/vision.ts`** - Vision analysis helper for AI screenshot verification
+
+### AI Knowledge Base (`lib/ai/knowledge/`)
+- **`chunking.ts`** - Deterministic markdown chunking by headings (1500-char soft cap, 2000 hard cap)
+- **`embeddings.ts`** - OpenRouter embeddings with batch support (`openai/text-embedding-3-small`)
+- **`retrieval.ts`** - Hybrid search (semantic + keyword RRF) against `ai_kb_chunks` pgvector table
+- **`sources.ts`** - Loads/validates source registry from `automation/config/ai-kb-sources.json`
+- **`types.ts`** - KnowledgeChunk, KnowledgeSourceEntry, KnowledgeSourceRegistry types
+
+### Email System (`lib/email/`)
+- **`mailgun.ts`** - Mailgun API client with HTML templating and attachment support
+- **`templates.ts`** - Branded HTML email templates (starter kit, admin review notification)
+- **`admin-notifications.ts`** - Triggers admin email + Telegram on task submission review
+- **`dedup.ts`** - Atomic email send deduplication via `email_events` DB table
+- **`helpers.ts`** - Context extractors for milestone/quest submission emails
+- **`index.ts`** - Public API exports
+
+### GoodDollar Integration (`lib/gooddollar/`)
+- **`identity-sdk.ts`** - Server-side GoodDollar IdentitySDK factory with Celo chain support
+- **`callback-handler.ts`** - GoodDollar verify callback response processing
+- **`error-handler.ts`** - GoodDollar-specific error codes and HTTP response shaping
+- **`generate-fv-link.ts`** - Generates face verification deep-link URLs
+- **`get-display-name.ts`** - Resolves display name from Privy user (ENS > Telegram > email > address)
+- **`use-identity-sdk.ts`** - Client-side React hook wrapping IdentitySDK
+- **`verification-ownership.ts`** - One-wallet-per-user and one-user-per-wallet constraints
+
+### Quest System (`lib/quests/`)
+- **`taskVerificationMethod.ts`** - Resolves verification method (auto vs. manual) per task type
+- **`sort-tasks.ts`** - Sorts quest tasks by display order
+- **`txHash.ts`** - Normalizes and validates transaction hash strings
+- **`prerequisite-checker.ts`** - Quest/daily-quest prerequisite condition checks
+- **`trial-eligibility.ts`** - DG trial eligibility check (no existing key, no prior trial)
+- **`vendor-task-config.ts`** - Validates vendor task configuration (buy/sell/light-up/level-up)
+- **`vendorTaskTypes.ts`** - Type-safe lists of vendor task type constants
+
+### Quest Verification (`lib/quests/verification/`)
+- **`registry.ts`** - Strategy registry mapping task types to verification implementations
+- **`types.ts`** - VerificationStrategy interface and VerificationResult types
+- **`ai-vision-verification.ts`** - AI screenshot verification (auto-approve/retry/defer)
+- **`vendor-verification.ts`** - Verifies vendor buy/sell/light-up tx hashes on-chain
+- **`deploy-lock-verification.ts`** - Verifies Unlock lock deployment tx with network-based reward multipliers
+- **`deploy-lock-utils.ts`** - Validates deploy-lock task config (supported networks, contract addresses)
+- **`uniswap-verification.ts`** - Verifies Uniswap V3 swap events from tx receipts
+- **`daily-checkin-verification.ts`** - Verifies daily check-in was completed today
+- **`replay-prevention.ts`** - Tracks tx hashes to prevent double-counting
+
+### Daily Quests (`lib/quests/daily-quests/`)
+- **`constraints.ts`** - Evaluates daily quest eligibility (wallet, verification, vendor stage)
+- **`runs.ts`** - Ensures today's daily quest runs exist, sends refresh notifications
+- **`replay-prevention.ts`** - Daily-quest-specific tx hash deduplication
 
 ### Blockchain Utilities (`lib/blockchain/`)
 - **`admin-lock-config.ts`** - Admin lock configuration management
@@ -372,19 +531,60 @@
 - **`grant-key-service.ts`** - Key granting service implementation
 - **`index.ts`** - Blockchain utilities exports
 - **`lock-manager.ts`** - Lock management utilities
-- **`provider.ts`** - Blockchain provider management and configuration
+- **`provider.ts`** - Singleton ethers read-only provider for frontend
 - **`server-config.ts`** - Server-side blockchain configuration
 - **`transaction-helpers.ts`** - Transaction helper utilities
 - **`config/`** - Blockchain configuration
-  - `unified-config.ts` - Unified blockchain configuration management
+  - `unified-config.ts` - Unified blockchain configuration (`getClientRpcUrls()`)
+  - `core/chain-resolution.ts` - `resolveChain()`, `resolveRpcUrls()` with chain-map lookup
+  - `core/chain-map.ts` - Chain ID to chain object mapping
+  - `core/settings.ts` - Environment-driven config settings
+  - `core/types.ts` - BlockchainConfig, ChainConfig, RpcFallbackSettings types
+  - `core/validation.ts` - Runtime blockchain config validation
+  - `clients/public-client.ts` - `createPublicClientUnified()`, `createPublicClientForNetwork()`, `createPublicClientForChain()`
+  - `clients/wallet-client.ts` - `createWalletClientUnified()`, `createWalletClientForNetwork()`
+  - `clients/alchemy-client.ts` - Alchemy-specific public client factory
+  - `clients/ethers-adapter-client.ts` - Ethers v6 provider adapter for legacy code
+  - `clients/account.ts` - Private key account factory from env
+  - `transport/viem-transport.ts` - Sequential fallback viem transport with RPC retry
+- **`services/`** - Blockchain services
+  - `schema-deployment-service.ts` - Deploys EAS schemas on-chain
+  - `identity-resolver.ts` - ENS lookup + address formatting
+  - `grant-key-service.ts` - Low-level `grantKey()` viem call to Unlock lock contract
+  - `transaction-service.ts` - `getBlockExplorerUrl()` and tx utilities
+- **`providers/`** - Provider factories
+  - `lock-manager.ts` - `createBrowserLockManager()` browser LockManager service factory
+  - `privy-viem.ts` - `createViemFromPrivyWallet()` and `createViemPublicClient()`
 - **`shared/`** - Shared blockchain utilities
   - `abi-definitions.ts` - ABI definitions and constants
+  - `vendor-abi.ts` - DGTokenVendor contract ABI
+  - `vendor-constants.ts` - Vendor stage labels, constants
+  - `vendor-types.ts` - Vendor-related TypeScript types
+  - `grant-state.ts` - Grant state tracking types
+  - `lock-config-converter.ts` - Lock config format conversion
+  - `ensure-wallet-network.ts` - Ensures wallet is on correct network
   - `client-utils.ts` - Client-side blockchain utilities
   - `error-utils.ts` - Blockchain error handling utilities
   - `logger-bridge.ts` - Logger bridge for blockchain operations
   - `logging-utils.ts` - Blockchain-specific logging utilities
   - `network-utils.ts` - Network utility functions
-  - `transaction-utils.ts` - Transaction utility functions
+  - `transaction-utils.ts` - `extractLockAddressFromReceipt()` and tx parsing
+
+### Uniswap V3 Integration (`lib/uniswap/`)
+- **`quote.ts`** - `getQuoteExactInputSingle()` via QuoterV2 (view call, no gas)
+- **`pool.ts`** - `fetchPoolState()` reads token0/token1/fee/liquidity/slot0
+- **`encode-swap.ts`** - Encodes swap calldata for exactInputSingle
+- **`permit2.ts`** - Permit2 signature generation for token approvals
+- **`constants.ts`** - Uniswap contract addresses on Base
+- **`types.ts`** - SwapDirection, SwapPair, QuoteResult, PoolState types
+- **`abi/`** - QuoterV2 and pool ABI fragments
+
+### Token Withdrawal (`lib/token-withdrawal/`)
+- **`types.ts`** - WithdrawalRecord, WithdrawalLimits, WithdrawalRequest types
+- **`eip712/client-signing.ts`** - Client-side EIP-712 typed data signing for withdrawals
+- **`eip712/server-verification.ts`** - Server-side verification of EIP-712 withdrawal signatures
+- **`eip712/types.ts`** - Withdrawal domain and typed data definitions
+- **`functions/dg-transfer-service.ts`** - Server-side DG token transfer via private key wallet
 
 ### Unlock Protocol (`lib/unlock/`)
 - **`lockUtils.ts`** - Comprehensive Unlock protocol utilities
@@ -395,42 +595,74 @@
 
 ### Attestation System (`lib/attestation/`)
 - **`index.ts`** - Main attestation system exports
+- **`api/`** - API helpers
+  - `helpers.ts` - Reusable `handleGaslessAttestation()` server helper
+  - `commit-guards.ts` - Guards to prevent duplicate attestation commits
+  - `types.ts` - DelegatedAttestationSignature types
 - **`core/`** - Core attestation functionality
-  - `config.ts` - Attestation configuration
+  - `config.ts` - `isEASEnabled()`, `EAS_CONFIG`, SchemaKey enum
+  - `delegated.ts` - EAS SDK delegated attestation creation (server-side)
   - `index.ts` - Core exports
-  - `service.ts` - Attestation service implementation
+  - `network-config.ts` - DB-backed EAS network config with 30s cache
+  - `service.ts` - High-level attestation service
   - `types.ts` - Core attestation types
 - **`database/`** - Database operations
   - `index.ts` - Database exports
   - `queries.ts` - Database query utilities
 - **`schemas/`** - Schema management
-  - `definitions.ts` - Schema definitions
+  - `definitions.ts` - Schema field definitions
   - `index.ts` - Schema exports
-  - `registry.ts` - Schema registry management
+  - `registry.ts` - Schema registry DB queries
+  - `schema-key-db.ts` - `ensureActiveSchemaKey()` — validates/resolves from DB
+  - `schema-key-utils.ts` - `normalizeSchemaKey()`, `isValidSchemaKey()`
+  - `network-resolver.ts` - `resolveSchemaUID()` — DB-then-env fallback
 - **`utils/`** - Attestation utilities
-  - `encoder.ts` - Data encoding utilities
+  - `encoder.ts` - Schema encoding utilities
   - `helpers.ts` - General attestation helpers
+  - `hex.ts` - `isBytes32Hex()` type guard
   - `index.ts` - Utility exports
-  - `validator.ts` - Data validation utilities
+  - `validator.ts` - `isValidSchemaDefinition()` for schema string validation
 
 ### Check-in System (`lib/checkin/`)
 - **`index.ts`** - Check-in system exports
 - **`core/`** - Core check-in functionality
-  - `schemas.ts` - Check-in schemas and validation
-  - `service.ts` - Check-in service implementation
-  - `types.ts` - Check-in type definitions
+  - `schemas.ts` - Zod validation schemas for checkin data
+  - `service.ts` - Checkin service orchestrating streak, XP, and EAS attestation
+  - `types.ts` - CheckinData, CheckinStatus, MultiplierTier types
 - **`streak/`** - Streak management
-  - `calculator.ts` - Streak calculation utilities
-  - `multiplier.ts` - Streak multiplier calculations
+  - `calculator.ts` - Streak calculation (current streak, status, anchor date)
+  - `multiplier.ts` - Multiplier tier lookup based on streak length
 - **`xp/`** - Experience point management
   - `calculator.ts` - XP calculation utilities
   - `updater.ts` - XP update and management
+
+### Bootcamp Completion (`lib/bootcamp-completion/`)
+- **`service.ts`** - Completion service (checks completion, triggers certificate)
+- **`types.ts`** - CompletionStatus, CertificateStatus types
+- **`certificate/image-service.ts`** - Validates/saves certificate image URLs
+- **`certificate/service.ts`** - Certificate generation and on-chain commit
+- **`certificate/types.ts`** - Certificate-specific types
+
+### Transaction Stepper (`lib/transaction-stepper/`)
+- **`types.ts`** - StepPhase, TxResult, StepRuntimeState types for multi-step blockchain UX
+
+### Webhooks (`lib/webhooks/`)
+- **`meta-whatsapp/forward.ts`** - Meta HMAC signature verification, webhook payload forwarding
+
+### Notifications (`lib/notifications/`)
+- **`telegram.ts`** - Telegram Bot API messaging; notification type → emoji mapping; broadcast support
+
+### Helpers (`lib/helpers/`)
+- **`key-manager-utils.ts`** - `getKeyManagersForContext()` — correct key managers by context (payment/milestone/admin_grant/reconciliation)
+- **`checkAndUpdateMilestoneKeyClaimStatus.ts`** - On-chain key ownership check + DB status update
+- **`payment-helpers.ts`** - Shared payment processing utilities
+- **`xp-renewal-helpers.ts`** - XP renewal cost calculation, service fee, validation
 
 ### Supabase Utilities (`lib/supabase/`)
 - **`client.ts`** - Supabase client configuration
 - **`current-schema-check.ts`** - Current schema validation
 - **`index.ts`** - Supabase utilities exports
-- **`server.ts`** - Server-side Supabase client
+- **`server.ts`** - Server-side Supabase client (`createAdminClient()`)
 - **`types-gen-repaired.ts`** - Repaired generated types
 - **`types-gen.ts`** - Generated type definitions
 - **`types.ts`** - Application type definitions
@@ -438,14 +670,14 @@
 ### Services (`lib/services/`)
 - **`enrollment-service.ts`** - User enrollment service management
 - **`status-sync-service.ts`** - Status synchronization service
-- **`user-key-service.ts`** - User key management service
+- **`user-key-service.ts`** - `hasValidKey()`, `grantKeyToUser()` — key ownership and granting
 
 ### API Utilities (`lib/api/`)
 - **`parsers/`** - API response parsers
-  - `admin-task-details.ts` - Admin task details parser
+  - `admin-task-details.ts` - Admin task details parser with typed IncludeFlags
 
-### Configuration (`lib/config/`)
-- **`admin.ts`** - Admin configuration management
+### Configuration (`lib/app-config/`)
+- **`admin.ts`** - Centralized admin config constants (session TTL, page size, cache tags, rate limits)
 
 ### Types (`lib/types/`)
 - **`application-status.ts`** - Application status type definitions
@@ -462,6 +694,13 @@
 - **`user/wallet-addresses.ts`** - User wallet address management
 - **`user/applications/reconcile.ts`** - Application reconciliation
 - **`user/notifications.ts`** - User notification management
+- **`user/enrollments.ts`** - User enrollments
+- **`user/cohort/[cohortId]/milestones.ts`** - User cohort milestones
+- **`user/enrollment/[enrollmentId]/remove.ts`** - Enrollment removal
+- **`user/task/[taskId]/claim.ts`** - Task reward claiming (gasless attestation)
+- **`user/task/[taskId]/submit.ts`** - Task submission with proof/evidence
+- **`user/task/[taskId]/upload.ts`** - Task proof image upload to Supabase Storage
+- **`user/telegram/activate.ts`** - Links Telegram account to user profile
 
 #### Application Endpoints
 - **`applications.ts`** - Application submission (POST)
@@ -469,48 +708,167 @@
 
 #### Bootcamp Endpoints
 - **`bootcamps.ts`** - Bootcamp listing (GET)
+- **`bootcamps/[id].ts`** - Individual bootcamp operations
 
 #### Quest Endpoints
 - **`quests/index.ts`** - Quest management
+- **`quests/[id].ts`** - Individual quest operations
+- **`quests/[id]/start.ts`** - Quest start
 - **`quests/user-progress.ts`** - User quest progress tracking
+- **`quests/check-tos.ts`** - Terms of service checking
+- **`quests/complete-quest.ts`** - Quest completion + key claim
+- **`quests/claim-task-reward.ts`** - Task reward claiming (XP)
+- **`quests/complete-task.ts`** - Task completion with verification
+- **`quests/sign-tos.ts`** - Terms of service signing
+
+#### Daily Quest Endpoints
+- **`daily-quests/index.ts`** - GET eligible runs / POST start a run
+- **`daily-quests/[runId].ts`** - GET run details with tasks
+- **`daily-quests/[runId]/start.ts`** - POST start a specific daily run
+- **`daily-quests/complete-task.ts`** - POST mark daily quest task complete
+- **`daily-quests/complete-quest.ts`** - POST complete daily quest run
+- **`daily-quests/claim-task-reward.ts`** - POST claim gasless EAS attestation reward
+- **`daily-quests/commit-completion-attestation.ts`** - POST commit run completion attestation
+
+#### Check-in Endpoints
+- **`checkin/index.ts`** - POST daily checkin with streak update and delegated EAS attestation
 
 #### Payment Endpoints
 - **`payment/initialize.ts`** - Payment initialization
-- **`payment/verify.ts`** - Payment verification
+- **`payment/verify/[reference].ts`** - Payment verification
 - **`payment/webhook.ts`** - Payment webhook handling
+- **`payment/blockchain/initialize.ts`** - Blockchain payment initialization
+- **`payment/blockchain/verify.ts`** - Blockchain payment verification
+- **`payment/blockchain/status/[reference].ts`** - Blockchain payment status
 
-#### Admin Endpoints
-- **`admin/quests/index.ts`** - Admin quest management
-- **`admin/reconcile-key-grants.ts`** - Key grant reconciliation
-- **`admin/images.ts`** - Image upload management
+#### Subscription Endpoints
+- **`subscriptions/renew-with-xp.ts`** - POST atomic XP deduction + on-chain key extension
+- **`subscriptions/xp-renewal-quote.ts`** - GET XP cost quote for renewal
+- **`subscriptions/commit-renewal-attestation.ts`** - POST commits renewal EAS attestation
+
+#### GoodDollar Endpoints
+- **`gooddollar/verify-callback.ts`** - POST handles GoodDollar identity verification callback
+
+#### AI Endpoints
+- **`ai/kb/search.ts`** - POST semantic + keyword hybrid search against AI KB (Bearer secret auth)
+
+#### Marketing Endpoints
+- **`leads.ts`** - POST captures marketing leads and sends starter kit email
+
+#### Milestone Endpoints
+- **`milestones/claim.ts`** - POST claims milestone task reward (key grant + gasless attestation)
+
+#### Admin Pages API Routes (`pages/api/admin/`)
+- **`applications/index.ts`** - Admin application management
+- **`applications/reconcile.ts`** - Application reconciliation
+- **`check-blockchain-admin-status.ts`** - Blockchain admin status check
+- **`debug.ts`** - Admin debugging utilities
+- **`grant-key.ts`** - Key granting operations
+- **`images.ts`** - Image upload and management
+- **`payments/index.ts`** - Payment management
+- **`program-highlights.ts`** - Program highlights management
+- **`program-requirements.ts`** - Program requirements management
+- **`quests/index.ts`** - Quest management
+- **`quests/[id].ts`** - Individual quest operations
+- **`quests/[id]/can-delete.ts`** - GET checks if quest can be safely deleted
+- **`quests/submissions.ts`** - Quest submissions management
+- **`reconcile-key-grants.ts`** - Key grant reconciliation
+- **`recover-lock-deployment.ts`** - Lock deployment recovery
+- **`server-wallet.ts`** - Server wallet management
+- **`session-fallback.ts`** - Admin session fallback (dev/fallback)
+
+#### Webhook Endpoints
+- **`webhooks/telegram.ts`** - POST Telegram bot webhook with secret header auth
 
 #### System Endpoints
 - **`health.ts`** - Health check endpoint
+- **`verify.ts`** - General verification endpoint
+- **`security/csp-report.ts`** - POST CSP violation reports with rate limiting
+
+#### Debug Endpoints
+- **`debug/admin-auth-user.ts`** - Admin authentication debugging
+- **`debug/user-profile.ts`** - User profile debugging
+
+#### Blockchain Endpoints
+- **`ethereum/personal_sign.ts`** - Ethereum message signing
+- **`solana/sign_message.ts`** - Solana message signing
 
 ### App API (`app/api/`)
 
-#### Admin Route Handlers (`app/api/admin/`)
+#### Admin Session Management
+- **`admin/session/route.ts`** - POST converts Privy JWT → admin session cookie with on-chain check
+- **`admin/session/verify/route.ts`** - GET verifies admin session validity
+- **`admin/logout/route.ts`** - POST clears admin session cookie
 
-##### Session Management
-- **`session/route.ts`** - Admin session creation and management (POST)
-- **`session/verify/route.ts`** - Admin session verification (GET)
-- **`logout/route.ts`** - Admin session logout and cleanup
+#### Admin Bootcamp Management
+- **`admin/bootcamps/route.ts`** - Bootcamp CRUD (GET, POST, PUT, DELETE)
+- **`admin/bootcamps/[id]/route.ts`** - Individual bootcamp management
 
-##### Bootcamp Management
-- **`bootcamps/route.ts`** - Bootcamp CRUD operations (GET, POST, PUT, DELETE)
-- **`bootcamps/[id]/route.ts`** - Individual bootcamp management (GET, PUT, DELETE)
+#### Admin Cohort Management
+- **`admin/cohorts/route.ts`** - Cohort CRUD (GET, POST, PUT, DELETE)
+- **`admin/cohorts/[cohortId]/route.ts`** - Individual cohort management
+- **`admin/cohorts/[cohortId]/applications/route.ts`** - Cohort applications
 
-##### Cohort Management
-- **`cohorts/route.ts`** - Cohort CRUD operations (GET, POST, PUT, DELETE)
-- **`cohorts/[cohortId]/route.ts`** - Individual cohort management (GET, PUT, DELETE)
-- **`cohorts/[cohortId]/applications/route.ts`** - Cohort applications management (GET, POST)
+#### Admin Task & Milestone Management
+- **`admin/milestones/route.ts`** - Milestone CRUD with cache invalidation
+- **`admin/milestone-tasks/route.ts`** - Milestone task mutations (POST, PUT, DELETE; bulk create)
+- **`admin/task-submissions/route.ts`** - Task submission management (GET, POST, PUT)
+- **`admin/tasks/details/route.ts`** - Bundled task details with `include` param
+- **`admin/tasks/by-milestone/route.ts`** - Tasks by milestone
 
-##### Task & Milestone Management
-- **`tasks/details/route.ts`** - Task details with bundled data (GET)
-- **`tasks/by-milestone/route.ts`** - Tasks by milestone (GET)
-- **`milestones/route.ts`** - Milestone CRUD operations (GET, POST, PUT, DELETE)
-- **`milestone-tasks/route.ts`** - Milestone task mutations (POST, PUT, DELETE)
-- **`task-submissions/route.ts`** - Task submission management (GET, POST, PUT)
+#### Admin Quest Management
+- **`admin/quests-v2/route.ts`** - GET/POST quests (App Router with cache tags)
+- **`admin/quests-v2/[questId]/route.ts`** - PUT/DELETE individual quest
+
+#### Admin Daily Quest Management
+- **`admin/daily-quests/route.ts`** - GET/POST/PUT daily quest templates with Telegram broadcast
+- **`admin/daily-quests/[dailyQuestId]/route.ts`** - GET/PUT/DELETE individual daily quest
+
+#### Admin EAS Schema Management
+- **`admin/eas-schemas/route.ts`** - GET list / POST deploy + save schema
+- **`admin/eas-schemas/[uid]/route.ts`** - GET details / PATCH metadata
+- **`admin/eas-schemas/[uid]/redeploy/route.ts`** - POST deploy missing schema + update UID
+- **`admin/eas-schemas/sync/route.ts`** - POST sync schemas from chain
+- **`admin/eas-schemas/reconcile/route.ts`** - POST reconcile schema inconsistencies
+
+#### Admin EAS Network Management
+- **`admin/eas-networks/route.ts`** - GET all / POST create EAS network config
+- **`admin/eas-networks/[name]/route.ts`** - PATCH update / DELETE remove
+
+#### Admin EAS Schema Keys
+- **`admin/eas-schema-keys/route.ts`** - GET list / POST create schema key mapping
+- **`admin/eas-schema-keys/[key]/route.ts`** - DELETE schema key
+
+#### Admin Configuration
+- **`admin/config/withdrawal-limits/route.ts`** - GET/POST withdrawal limit config
+- **`admin/config/withdrawal-limits/audit/route.ts`** - GET withdrawal limit change audit log
+- **`admin/subscriptions/config/route.ts`** - GET/PUT subscription config
+
+#### Admin Miscellaneous
+- **`admin/wallet/balance/route.ts`** - GET server wallet DG and ETH balances
+- **`admin/leads/route.ts`** - GET marketing leads with CSV export
+- **`admin/csp-reports/route.ts`** - GET/DELETE CSP violation reports
+- **`admin/bootcamp-completion/route.ts`** - GET/POST bootcamp completion management
+
+#### Token & Withdrawal
+- **`token/withdraw/route.ts`** - POST DG withdrawal with EIP-712 verification + on-chain transfer
+- **`token/withdraw/history/route.ts`** - GET paginated withdrawal history
+- **`token/withdraw/commit-attestation/route.ts`** - POST commits withdrawal EAS attestation
+
+#### Public Configuration
+- **`config/withdrawal-limits/route.ts`** - GET public withdrawal limits (no auth)
+
+#### User
+- **`user/experience-points/route.ts`** - GET current user's XP balance
+- **`user/bootcamp/[cohortId]/completion-status/route.ts`** - GET completion and certificate status
+- **`user/bootcamp/[cohortId]/certificate-preview/route.ts`** - GET certificate preview data
+
+#### Certificate
+- **`certificate/save-url/route.ts`** - POST saves generated certificate image URL
+
+#### Webhooks
+- **`webhooks/meta/whatsapp/route.ts`** - POST Meta WhatsApp webhook with HMAC verification
+- **`webhooks/meta/whatsapp/health/route.ts`** - GET webhook gateway health check
 
 ---
 
@@ -523,7 +881,10 @@
 ### Public Pages
 - **`index.tsx`** - Homepage with hero, features, services, and bootcamp listings
 - **`portal.tsx`** - Portal page with navigation and gateway interface
-- **`dashboardx.tsx`** - Legacy user dashboard with Privy authentication demo
+- **`privacy-policy.tsx`** - Full privacy policy (last updated February 2026)
+- **`gooddollar-verification.tsx`** - GoodDollar face verification landing page
+- **`gooddollar/verification.tsx`** - GoodDollar verification alias
+- **`gooddollar/verify-callback.tsx`** - GoodDollar verification redirect callback
 
 ### Application Pages (`pages/apply/`)
 - **`index.tsx`** - Bootcamp listing and application selection
@@ -545,8 +906,10 @@
 - **`bounties/index.tsx`** - Bounties and rewards page
 - **`events/index.tsx`** - Events and activities page
 - **`profile/index.tsx`** - User profile management
-- **`quests/index.tsx`** - Quest listing and management
+- **`quests/index.tsx`** - Quest listing with tabs (standard + daily)
 - **`quests/[id].tsx`** - Individual quest details and progress
+- **`quests/daily/index.tsx`** - Redirect to `/lobby/quests?tab=daily`
+- **`quests/daily/[runId].tsx`** - Active daily quest run page with task list and stepper
 - **`unlock-demo.tsx`** - Unlock protocol demonstration
 
 ### Admin Pages (`pages/admin/`)
@@ -556,6 +919,10 @@
 - **`blockchain.tsx`** - Blockchain tools and management
 - **`draft-recovery.tsx`** - Draft recovery and data restoration
 - **`unlock-demo.tsx`** - Unlock protocol demonstration for admins
+- **`eas-schemas.tsx`** - EAS Schema Manager with tabs: List, Deploy, Sync, Config
+- **`csp-reports.tsx`** - Admin CSP violation report viewer
+- **`leads.tsx`** - Marketing leads management with CSV export
+- **`dg-pullouts.tsx`** - DG token withdrawal limits configuration
 
 #### Bootcamp Management
 - **`bootcamps/index.tsx`** - Bootcamp listing and management
@@ -580,87 +947,11 @@
 - **`quests/new.tsx`** - Create new quest
 - **`quests/[id].tsx`** - Individual quest admin
 - **`quests/[id]/edit.tsx`** - Quest editing interface
+- **`quests/daily/new.tsx`** - Create new daily quest template
+- **`quests/daily/[dailyQuestId]/edit.tsx`** - Edit daily quest template
 
 #### Payment Management
 - **`payments/index.tsx`** - Payment transactions management
-
-### API Routes (`pages/api/`)
-
-#### Admin API Routes (`pages/api/admin/`)
-- **`applications/index.ts`** - Admin application management
-- **`applications/reconcile.ts`** - Application reconciliation
-- **`check-blockchain-admin-status.ts`** - Blockchain admin status check
-- **`debug.ts`** - Admin debugging utilities
-- **`grant-key.ts`** - Key granting operations
-- **`images.ts`** - Image upload and management
-- **`payments/index.ts`** - Payment management
-- **`program-highlights.ts`** - Program highlights management
-- **`program-requirements.ts`** - Program requirements management
-- **`quests/index.ts`** - Quest management
-- **`quests/[id].ts`** - Individual quest operations
-- **`quests/submissions.ts`** - Quest submissions management
-- **`reconcile-key-grants.ts`** - Key grant reconciliation
-- **`recover-lock-deployment.ts`** - Lock deployment recovery
-- **`server-wallet.ts`** - Server wallet management
-- **`session-fallback.ts`** - Admin session fallback
-
-#### Application API Routes
-- **`applications.ts`** - Application submission and management
-- **`applications/[id].ts`** - Individual application operations
-
-#### Bootcamp API Routes
-- **`bootcamps.ts`** - Bootcamp listing and data
-- **`bootcamps/[id].ts`** - Individual bootcamp operations
-
-#### Cohort API Routes
-- **`cohorts/[cohortId].ts`** - Cohort operations and management
-
-#### Payment API Routes (`pages/api/payment/`)
-- **`initialize.ts`** - Payment initialization
-- **`verify/[reference].ts`** - Payment verification
-- **`webhook.ts`** - Payment webhook handling
-- **`blockchain/initialize.ts`** - Blockchain payment initialization
-- **`blockchain/verify.ts`** - Blockchain payment verification
-- **`blockchain/status/[reference].ts`** - Blockchain payment status
-
-#### Quest API Routes (`pages/api/quests/`)
-- **`index.ts`** - Quest listing and management
-- **`[id].ts`** - Individual quest operations
-- **`[id]/start.ts`** - Quest start operations
-- **`check-tos.ts`** - Terms of service checking
-- **`complete-quest.ts`** - Quest completion + key claim
-- **`claim-task-reward.ts`** - Task reward claiming (XP)
-- **`complete-task.ts`** - Task completion
-- **`sign-tos.ts`** - Terms of service signing
-- **`user-progress.ts`** - User quest progress tracking
-
-#### User API Routes (`pages/api/user/`)
-- **`profile.ts`** - User profile management
-- **`profile-simple.ts`** - Simplified profile operations
-- **`wallet-addresses.ts`** - Wallet address management
-- **`notifications.ts`** - User notifications
-- **`enrollments.ts`** - User enrollments
-- **`applications/reconcile.ts`** - Application reconciliation
-- **`cohort/[cohortId]/milestones.ts`** - User cohort milestones
-- **`enrollment/[enrollmentId]/remove.ts`** - Enrollment removal
-- **`task/[taskId]/claim.ts`** - Task reward claiming
-- **`task/[taskId]/submit.ts`** - Task submission
-- **`task/[taskId]/upload.ts`** - Task file upload
-
-#### System API Routes
-- **`health.ts`** - Health check endpoint
-- **`verify.ts`** - General verification endpoint
-- **`milestones/claim.ts`** - Milestone claiming
-- **`unlock/webhook.ts`** - Unlock protocol webhook
-- **`security/csp-report.ts`** - Content Security Policy reporting
-
-#### Blockchain API Routes
-- **`ethereum/personal_sign.ts`** - Ethereum message signing
-- **`solana/sign_message.ts`** - Solana message signing
-
-#### Debug API Routes (`pages/api/debug/`)
-- **`admin-auth-user.ts`** - Admin authentication debugging
-- **`user-profile.ts`** - User profile debugging
 
 ---
 
@@ -669,124 +960,130 @@
 ### Supabase Configuration (`supabase/`)
 - **`config.toml`** - Supabase project configuration with API, database, realtime, and studio settings
 - **`package.json`** - Supabase utilities package with migration scripts
-- **`run_migrations.js`** - Migration runner script with environment validation and error handling
+- **`run_migrations.js`** - Migration runner with environment validation and error handling
 
 ### Database Schema
-- **`user_profiles`** - User profile information and metadata
+
+#### Core Tables
+- **`user_profiles`** - User profile information, XP balance, and metadata
 - **`applications`** - Bootcamp applications with payment tracking
 - **`user_application_status`** - Application status tracking and reconciliation
 - **`bootcamp_programs`** - Bootcamp program definitions with images and rewards
 - **`cohorts`** - Bootcamp cohorts with participant tracking
 - **`bootcamp_enrollments`** - User enrollments and enrollment status
-- **`quests`** - Quest definitions with images and task relationships
-- **`quest_tasks`** - Individual quest tasks with verification methods
-- **`user_quest_progress`** - User quest progress and completion tracking
-- **`user_task_completions`** - Task completion tracking and rewards
 - **`user_activities`** - User activity logging and audit trail
+- **`user_journey_preferences`** - User journey and preference settings
+- **`marketing_leads`** - Email/intent capture data with name field
+
+#### Milestone & Task Tables
 - **`milestones`** - Learning milestones with progress tracking
-- **`milestone_tasks`** - Milestone-specific tasks with contract interactions
+- **`milestone_tasks`** - Milestone-specific tasks with contract interactions and task types
 - **`task_submissions`** - Task submissions with file uploads and reviews
-- **`notifications`** - User notifications with delivery tracking
-- **`attestations`** - On-chain attestations with EAS integration
-- **`attestation_schemas`** - Attestation schemas with category management
-- **`payment_transactions`** - Payment transaction records with blockchain data
-- **`lock_registry`** - Unlock protocol lock registry and management
 - **`user_milestone_progress`** - User milestone progress tracking
 - **`user_task_progress`** - User task progress and completion status
-- **`user_journey_preferences`** - User journey and preference settings
+- **`bootcamp_completion_status`** - Cohort completion tracking with certificate
 
-### Database Functions
+#### Quest Tables
+- **`quests`** - Quest definitions with images, prerequisites, and trial activation
+- **`quest_tasks`** - Individual quest tasks with verification methods, AI config JSONB, and GoodDollar requirements
+- **`user_quest_progress`** - User quest progress and completion tracking
+- **`user_task_completions`** - Task completion tracking with gasless attestation UIDs
+- **`quest_verified_tx_hashes`** - Replay prevention for transaction-based task verification
+
+#### Daily Quest Tables
+- **`daily_quest_templates`** - Daily quest template definitions
+- **`daily_quest_tasks`** - Daily quest task configuration with input labels/placeholders
+- **`daily_quest_runs`** - Per-user daily quest runs
+- **`daily_quest_run_tasks`** - Per-run task completion tracking
+- **`daily_quest_notifications`** - Daily quest notification dispatch
+
+#### Check-in & Streak Tables
+- **`user_daily_checkins`** - Daily check-in records with streak tracking
+
+#### Payment & Finance Tables
+- **`payment_transactions`** - Payment records with blockchain data
+- **`dg_token_withdrawals`** - User DG withdrawal records with EIP-712 signatures
+- **`withdrawal_limits`** - Min/max withdrawal amount configuration
+- **`subscription_renewals`** - Subscription renewal records
+
+#### Attestation Tables
+- **`attestations`** - On-chain attestations with EAS integration and network column
+- **`attestation_schemas`** - Attestation schemas with network and category management
+- **`eas_networks`** - Supported EVM networks with EAS scan URLs and enabled flag
+- **`eas_schema_keys`** - Schema key to UID mappings per network
+- **`admin_action_nonces`** - Replay prevention for signed admin actions
+
+#### Identity & Security Tables
+- **`face_verification_records`** - GoodDollar face verification records
+- **`gooddollar_verified_wallet_map`** - Maps verified wallets to users (one-to-one)
+- **`wallet_link_map`** - Cross-user wallet claim tracking
+- **`csp_reports`** - Content Security Policy violation reports
+
+#### Notification Tables
+- **`notifications`** - User notifications with delivery tracking
+- **`telegram_notifications`** - Telegram notification dispatch + `users.telegram_chat_id`
+- **`email_events`** - Email send deduplication table
+- **`email_send_queue`** - Email send queue
+
+#### AI Knowledge Base Tables
+- **`ai_kb_documents`** - Knowledge base documents with content hash, audience, domain tags
+- **`ai_kb_chunks`** - Document chunks with pgvector embeddings (`vector(1536)`, HNSW index)
+- **`ai_kb_ingestion_runs`** - Ingestion run tracking with stats JSONB
+
+#### Blockchain Tables
+- **`lock_registry`** - Unlock protocol lock registry and management
+- **`program_highlights`** - Free-text highlight content per cohort
+- **`program_requirements`** - Free-text requirement content per cohort
+
+### Database Functions & RPCs
+
+#### Payment & Enrollment
 - **`handle_successful_payment()`** - Atomic payment processing with enrollment creation
-- **`is_admin()`** - Admin role checking and validation
+
+#### Admin & Security
+- **`is_admin()`** - Admin role checking
 - **`exec_sql()`** - Admin SQL execution with security controls
-- **`create_or_update_user_profile()`** - User profile management and creation
-- **`get_user_dashboard_data()`** - Dashboard data aggregation and caching
-- **`notify_task_review_outcome()`** - Task review notification system
+
+#### User Management
+- **`create_or_update_user_profile()`** - User profile management
+- **`get_user_dashboard_data()`** - Dashboard data aggregation
+- **`award_xp_to_user(user_id, amount)`** - XP awarding
+
+#### Check-in
+- **`perform_daily_checkin_tx()`** - Atomic daily checkin with streak update
+
+#### Milestone & Quest
+- **`reconcile_milestone_progress()`** - Milestone progress reconciliation
+- **`sync_daily_quest_run_tasks_if_safe()`** - Atomic daily quest task sync with TOCTOU guard
+
+#### Notifications
+- **`notify_task_review_outcome()`** - Task review notification trigger
+- **`notify_task_submission_review()`** - Submission review trigger function
+
+#### Cohort Management
 - **`update_cohort_participant_counts()`** - Cohort participant count management
+
+#### AI Knowledge Base
+- **`search_ai_kb_chunks()`** - Hybrid search RPC (full-text + semantic with 0.35/0.65 weighting)
+- **`match_documents()`** - Simple semantic similarity search
+- **`upsert_kb_document_with_chunks()`** - Atomic document + chunk upsert
+- **`acquire_ingestion_lock()`** - Atomic concurrency guard with `FOR UPDATE SKIP LOCKED`
+- **`get_distinct_embedding_models()`** - Verify helper: distinct models across chunks
+- **`count_short_chunks()`** - Verify helper: count chunks below length threshold
+
+#### EAS
+- **`get_schema_uid_for_key(key, network)`** - Schema UID resolution helper
+
+#### System
 - **`sync_storage_policies()`** - Storage policy synchronization
+- **`fix_orphaned_applications()`** - Orphaned application cleanup
 
 ### Edge Functions (`supabase/functions/`)
-- **`verify-blockchain-payment/`** - Blockchain payment verification system
-  - `index.ts` - Main function logic with RPC fallbacks and error handling
-  - `supabase.toml` - Function configuration and environment settings
-  - `tsconfig.json` - TypeScript configuration for Edge Functions
+- **`verify-blockchain-payment/`** - Blockchain payment verification with RPC fallbacks
 
 ### Migrations (`supabase/migrations/`)
-- **62 migration files** - Complete database schema evolution
-- **Key Migration Categories:**
-
-#### **Core Schema Setup (000-010)**
-- `000_setup_functions.sql` - Admin functions and security setup
-- `001_initial_schema.sql` - Initial database schema with quests and applications
-- `002_sample_data.sql` - Sample data for development and testing
-- `003_user_profiles_schema.sql` - User profile schema and relationships
-- `004_unlock_integration.sql` - Unlock protocol integration
-- `005_lock_registry.sql` - Lock registry and management
-- `006_bootcamp_updates.sql` - Bootcamp system updates
-- `007_fix_lock_registry_rls.sql` - Row Level Security fixes
-- `008_fix_cohort_milestones_rls.sql` - Cohort milestone security
-- `009_admin_functions.sql` - Admin function definitions
-- `010_bootcamp_updates.sql` - Additional bootcamp enhancements
-
-#### **Quest System (011-022)**
-- `011_cohort_managers.sql` - Cohort management system
-- `012_fix_rls_policies for lock_registry table.sql` - Security policy fixes
-- `013_quest_system.sql` - Complete quest system implementation
-- `014_remove_registration_dates_add_cohort_fields.sql` - Cohort field updates
-- `015_fix_cohort_validation_function.sql` - Validation function fixes
-- `016_fix_cohorts_rls_policies.sql` - Cohort security policies
-- `017_remove_bootcamp_cost_fields.sql` - Cost field cleanup
-- `018_add_bootcamp_image.sql` - Bootcamp image support
-- `019_quest_input_and_review_system.sql` - Quest review system
-- `020_fix_user_task_completions_relationship.sql` - Task completion fixes
-- `021_add_quest_images_bucket.sql` - Quest image storage
-- `022_allow_anon_quest_images.sql` - Anonymous quest image access
-
-#### **Payment System (023-035)**
-- `023_add_blockchain_payment_fields.sql` - Blockchain payment support
-- `024_fix_application_status_sync.sql` - Application status synchronization
-- `025_status_sync_triggers.sql` - Status sync trigger system
-- `026_enhanced_user_applications_view.sql` - Enhanced application views
-- `027_payment_transactions.sql` - Payment transaction system
-- `028_atomic_payment_handling.sql` - Atomic payment processing
-- `029_add_user_profile_id_to_applications.sql` - Application profile linking
-- `030_fix_payment_function_direct.sql` - Payment function fixes
-- `031_fix_payment_method_constraint.sql` - Payment method constraints
-- `032_fix_ambiguous_column.sql` - Column ambiguity fixes
-- `033_fix_ambiguous_column_v2.sql` - Additional column fixes
-- `034_fix_ambiguous_final.sql` - Final column ambiguity resolution
-- `035_debug_payment_function.sql` - Payment function debugging
-
-#### **Milestone System (037-047)**
-- `037_milestone_tasks_and_submissions.sql` - Milestone task system
-- `038_fix_ambiguous_column_references.sql` - Column reference fixes
-- `039_fix_xp_update_in_user_profiles.sql` - XP update system
-- `040_add_paystack_reference_column.sql` - Paystack integration
-- `041_add_task_types_to_milestone_tasks.sql` - Task type system
-- `042_enhance_task_submissions_table.sql` - Task submission enhancements
-- `043_create_user_milestone_progress_table.sql` - Milestone progress tracking
-- `044_create_user_task_progress_table.sql` - Task progress tracking
-- `045_add_milestone_progress_triggers.sql` - Progress trigger system
-- `047_add_contract_interaction_fields_to_milestone_tasks.sql` - Contract interactions
-
-#### **Notification System (048-052)**
-- `048_create_notifications_table.sql` - Notification system
-- `049_ensure_blockchain_fields_on_payment_transactions.sql` - Blockchain payment fields
-- `050_create_user_journey_preferences.sql` - User journey preferences
-- `051_create_task_submissions_bucket.sql` - Task submission storage
-- `052_notify_task_review_outcome.sql` - Task review notifications
-
-#### **System Maintenance (053-062)**
-- `053_cleanup_duplicate_submissions.sql` - Data cleanup
-- `054_remote_schema.sql` - Remote schema synchronization
-- `055_revert_text_ids_to_uuid.sql` - ID type standardization
-- `056_standardize_milestone_ids_to_uuid.sql` - Milestone ID standardization
-- `057_sync_storage_policies.sql` - Storage policy synchronization
-- `058_repair_contract_interaction_schema.sql` - Contract interaction repairs
-- `059_update_cohort_participant_counts.sql` - Participant count management
-- `060_fix_participant_count_active_status.sql` - Active status fixes
-- `061_complete_notification_system.sql` - Complete notification system
-- `062_attestation_system.sql` - Ethereum Attestation Service integration
+- **155 migration files** covering complete schema evolution from initial setup through AI Knowledge Base
+- Key categories: Core Schema (000-010), Quest System (011-022), Payment System (023-035), Milestone System (037-047), Notification System (048-052), System Maintenance (053-062), Security Hardening (063-080), Bootcamp Completion (081-085), Token Withdrawal (086-087), EAS & Attestation (090-135), Daily Quests (151-154), AI Knowledge Base (155)
 
 ---
 
@@ -796,41 +1093,59 @@
 - **Multi-wallet support** - Ethereum, social logins
 - **Session management** - JWT-based authentication
 - **User management** - Profile linking and management
+- **Custom domain** - `privy.p2einferno.com`
 
 ### Admin Authentication
 - **Two-tier system** - Session-based + blockchain verification
-- **Admin session** - Short-lived JWT cookies
-- **Blockchain verification** - On-chain admin key checking
-- **Session hijacking protection** - Wallet-session validation
+- **Admin session** - Short-lived JWT cookies (HS256, configurable TTL)
+- **Blockchain verification** - On-chain admin key checking via Unlock Protocol
+- **Session hijacking protection** - Wallet-session validation (`useLockManagerAdminAuth`)
+- **Signed admin actions** - EIP-712 signatures for schema mutations with nonce replay prevention
+
+### Identity Verification
+- **GoodDollar** - Face verification for Sybil resistance
+- **One-wallet-per-user** - `gooddollar_verified_wallet_map` + `wallet_link_map` constraints
+- **Ownership validation** - Wallet must belong to current Privy user
 
 ### Security Features
-- **CSP implementation** - Content Security Policy
-- **Environment validation** - Configuration validation
-- **Error handling** - Structured error responses
-- **Rate limiting** - API rate limiting
-- **Input validation** - Request validation
+- **CSP implementation** - Content Security Policy with violation reporting
+- **Environment validation** - Configuration validation at startup
+- **Error handling** - Structured error responses (`lib/auth/error-handler.ts`)
+- **Rate limiting** - IP-based in-memory rate limiter (`lib/utils/rate-limiter.ts`)
+- **Input validation** - Request validation with Zod schemas
+- **Database function security** - All PL/pgSQL functions use `SET search_path = 'public'`
+- **Webhook verification** - Meta HMAC signature verification for WhatsApp gateway
 
 ---
 
 ## Blockchain Integration
 
 ### Unlock Protocol
-- **Lock management** - Deploy and manage locks
+- **Lock management** - Deploy and manage locks (admin + user locks)
 - **Key operations** - Purchase, grant, and manage keys
 - **Payment verification** - On-chain payment verification
-- **Admin functions** - Lock manager operations
+- **Admin functions** - Lock manager operations, max-keys security, transferability control
+- **Key Manager Contexts** - payment, milestone, admin_grant, reconciliation (`getKeyManagersForContext()`)
 
 ### Ethereum Attestation Service (EAS)
-- **Attestation creation** - On-chain attestation creation
-- **Schema management** - Attestation schema handling
-- **Verification** - Attestation verification
-- **Integration** - Seamless EAS integration
+- **Attestation creation** - On-chain and gasless delegated attestations
+- **Schema management** - DB-backed schema registry with deploy, sync, reconcile
+- **Network support** - Multi-network with `eas_networks` DB config
+- **Schema keys** - Logical key → UID resolution (`resolveSchemaUID()`)
+- **Gasless attestations** - EIP-712 delegated signatures for check-in, task rewards, certificates
+
+### DG Token Ecosystem
+- **DG Token Vendor** - Buy/sell DG tokens via on-chain vendor contract
+- **Uniswap V3** - Swap integration on Base with quoting and Permit2
+- **Token Withdrawal** - EIP-712 signed withdrawals with server-side transfer
+- **XP Renewal** - Subscription renewal via XP deduction + key extension
 
 ### Blockchain Clients
-- **Ethers.js** - Primary blockchain client
-- **Viem** - Alternative blockchain client
-- **Provider management** - Unified provider system
-- **Network support** - Base, Ethereum mainnet
+- **Viem v2** - Primary blockchain client (`createPublicClientUnified`, `createPublicClientForNetwork`)
+- **Ethers v6** - Legacy adapter via `ethers-adapter-client.ts`
+- **Provider management** - Unified provider system with sequential fallback transport
+- **Network support** - Base, Ethereum mainnet, Celo (GoodDollar), configurable via chain map
+- **RPC fallback** - Sequential fallback with configurable stall/retry settings
 
 ---
 
@@ -838,32 +1153,36 @@
 
 ### Constants (`constants/`)
 - **`index.ts`** - Main constants export with PUBLIC_LOCK_CONTRACT configuration
-- **`public_lock_abi.ts`** - Complete Unlock Protocol Public Lock ABI with all contract functions
-  - **Read Functions**: `balanceOf`, `getHasValidKey`, `getRoleAdmin`, `getTransferFee`, `tokenOfOwnerByIndex`, `keyExpirationTimestampFor`, `totalSupply`, `keyPrice`
-  - **Write Functions**: `grantKeys`, `purchase`, `safeTransferFrom`
-  - **Admin Functions**: Role management and key granting capabilities
-  - **ERC-721 Functions**: NFT standard compliance for key management
+- **`public_lock_abi.ts`** - Complete Unlock Protocol Public Lock ABI
 
-### Admin Context Constants (`contexts/admin-context/constants/`)
-- **`AdminAuthContextConstants.ts`** - Admin authentication context configuration
-  - `AUTH_CACHE_DURATION` - Cache duration for auth checks (env: NEXT_PUBLIC_AUTH_CACHE_DURATION)
-  - `ERROR_RETRY_DELAY` - Error retry delay (env: NEXT_PUBLIC_ERROR_RETRY_DELAY)
-  - `MAX_ERROR_COUNT` - Maximum consecutive errors threshold
-  - `MAX_BACKOFF_DELAY` - Maximum exponential backoff delay
+### Static Content (`lib/content/`)
+- **`about.ts`** - ABOUT_CONTENT: hero, mission, problem/solution, tracks, vision
+- **`bootcamps.ts`** - BOOTCAMPS_CONTENT: tracks, upcoming bootcamps, FAQs
+- **`how-it-works.ts`** - HOW_IT_WORKS_CONTENT: 5-step journey, value equation
+- **`quests.ts`** - QUESTS_CONTENT: categories, rewards, quest packs
+- **`services.ts`** - SERVICES_OVERVIEW + ALL_SERVICES: 6 services with deliverables
+
+### Admin Configuration (`lib/app-config/admin.ts`)
+- Session TTL, page size, cache tags, rate limits
 
 ### Environment Variables
 - **Authentication**: `NEXT_PUBLIC_PRIVY_APP_ID`, `PRIVY_APP_SECRET`
 - **Database**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_SUPABASE_SERVICE_ROLE_KEY`
 - **Blockchain**: `NEXT_PUBLIC_BLOCKCHAIN_NETWORK`, `LOCK_MANAGER_PRIVATE_KEY`
 - **Payments**: `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`
-- **Admin**: `ADMIN_SESSION_TTL_SECONDS`, `ADMIN_SESSION_JWT_SECRET`
-- **Admin Context**: `NEXT_PUBLIC_AUTH_CACHE_DURATION`, `NEXT_PUBLIC_ERROR_RETRY_DELAY`
+- **Admin**: `ADMIN_SESSION_ENABLED`, `ADMIN_SESSION_JWT_SECRET`, `ADMIN_SESSION_TTL_SECONDS`, `ADMIN_RPC_TIMEOUT_MS`, `ADMIN_MAX_PAGE_SIZE`, `ADMIN_RPC_WARMUP_DISABLED`
+- **AI**: `OPENROUTER_API_KEY`, `OPENROUTER_EMBEDDING_MODEL`, `AI_KB_API_SECRET`
+- **Email**: `MAILGUN_DOMAIN`, `MAILGUN_API_KEY`, `MAILGUN_FROM`, `MAILGUN_API_URL`, `MAILGUN_TEST_MODE`
+- **GoodDollar**: GoodDollar SDK env vars for identity verification
+- **Telegram**: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`
+- **WhatsApp**: `META_WEBHOOK_VERIFY_TOKEN`, `META_APP_SECRET`, `WHATSAPP_FORWARD_DESTINATION_URL`
+- **Logging**: `LOG_LEVEL` (server), `NEXT_PUBLIC_LOG_LEVEL` (client)
 
 ### Configuration Files
-- **`next.config.js`** - Next.js configuration
+- **`next.config.js`** - Next.js 16 configuration with CSP headers
 - **`tailwind.config.js`** - TailwindCSS configuration
 - **`tsconfig.json`** - TypeScript configuration
-- **`jest.config.js`** - Jest testing configuration
+- **`jest.config.ts`** - Jest testing configuration
 - **`supabase/config.toml`** - Supabase configuration
 
 ---
@@ -876,57 +1195,82 @@
   - `app/` - App-specific tests
   - `components/` - Component tests
   - `contexts/` - Context provider tests
-    - `AdminAuthContext.test.tsx` - Comprehensive tests for AdminAuthContext provider and hook
   - `hooks/` - Hook tests
   - `lib/` - Library tests
+- **`scripts/ai-kb/`** - AI KB build pipeline tests (acquireIngestionLock, filterValidChunks, etc.)
+- **`lib/ai/knowledge/`** - AI knowledge module tests (chunking, embeddings, retrieval, sources)
+- **`integration/db/`** - Integration tests (require local Supabase)
+  - `ai-kb-hybrid-search.test.ts` - Hybrid search ordering, NULL filter
+  - `ai-kb-upsert-rpc.test.ts` - Atomic upsert with run tracking
+  - `ai-kb-concurrency-guard.test.ts` - Concurrency lock behavior
 
 ### Test Configuration
 - **Jest** - Testing framework
 - **Testing Library** - React component testing
 - **jsdom** - DOM environment for tests
-- **Coverage reporting** - Test coverage analysis
+- **Coverage reporting** - Collected from UI, lib, hooks
 
 ### Development Scripts
-- **`npm run dev`** - Development server with Turbopack
-- **`npm run build`** - Production build
-- **`npm run test`** - Run tests
-- **`npm run test:coverage`** - Run tests with coverage
-- **`npm run lint`** - Linting and formatting
-- **`npm run db:migrate`** - Database migrations
+- **`npm run dev`** - Development server
+- **`npm run dev -- --turbo`** - Turbopack (faster HMR)
+- **`npm run build && npm start`** - Production build/run
+- **`npm run lint`** - ESLint + Prettier + tsc --noEmit
+- **`npm run format`** - Prettier format
+- **`npm run test:coverage`** - Jest + coverage
+- **`npm run test:e2e`** - Synpress/Playwright E2E tests
+- **`npm run db:migrate`** - Apply Supabase migrations
+- **`npm run db:types`** - Generate TypeScript types from local schema
+- **`npm run db:types:remote`** - Generate types from remote schema
+- **`npm run db:seed`** - Reset DB with migrations + seed data
+- **`npm run test:ai-kb`** - AI KB unit tests
+- **`npm run test:ai-kb:integration`** - AI KB integration tests (requires Supabase)
+
+### Scripts (`scripts/`)
+- **`scripts/ai-kb/build.ts`** - AI KB build pipeline: reads JSONL, chunks, embeds, upserts
+- **`scripts/ai-kb/extract.ts`** - Validates MCP-exported JSONL files against source registry
+- **`scripts/ai-kb/verify.ts`** - Health checks: model consistency, staleness, coverage, canary search
+- **`scripts/monitoring/certificate-metrics.ts`** - Certificate issuance metrics
+- **`scripts/setup-telegram-webhook.sh`** - Register Telegram bot webhook URL
+- **`scripts/check-admin-guards.js`** - Verify all admin routes call ensureAdminOrRespond
+- **`scripts/clean-build.sh`** - Full clean build
+- **`scripts/clean-build-fast.sh`** - Fast clean build (.next only)
+
+### Automation (`automation/`)
+- **`automation/config/ai-kb-sources.json`** - AI KB source registry
+- **`automation/data/ai-kb/`** - Raw JSONL data for AI KB ingestion
+- **`automation/plans/`** - Implementation plans (historical)
 
 ---
 
 ## Documentation
 
-### Architecture Documentation
-- **`ADMIN_AUTH_CONTEXT_MIGRATION_PLAN.md`** - Comprehensive execution plan for migrating admin authentication from individual hook usage to centralized React Context architecture to solve RPC rate limiting issues
-- **`AUTHENTICATION_ARCHITECTURE.md`** - Authentication system design
-- **`AUTHENTICATION_DEVELOPER_GUIDE.md`** - Developer authentication guide
-- **`UNIFIED_AUTH_ARCHITECTURE.md`** - Unified authentication architecture
-- **`CSP_IMPLEMENTATION_GUIDE.md`** - Content Security Policy guide
+### Operations Documentation
+- **`docs/ai-knowledge-base-operations.md`** - AI KB pipeline operations guide
+- **`docs/system/logging.md`** - Logging system guide (`getLogger`, env vars, transports)
+- **`docs/system/retryable-error-ux.md`** - Error handling UX patterns
+- **`docs/system/email-notifications.md`** - Email event system (Mailgun, templates, dedup)
+- **`docs/system/ethers-viem-adapter-implementation.md`** - Ethers/viem adapter architecture
+- **`docs/system/whatsapp-webhook-gateway-implementation-plan.md`** - WhatsApp gateway implementation
 
-### Feature Documentation
-- **`daily-checkin-implementation.md`** - Daily check-in system
-- **`ethereum-attestation-service-integration.md`** - EAS integration
-- **`admin-sessions-and-bundle-apis.md`** - Admin session system
-- **`retryable-error-ux.md`** - Error handling UX
+### Integration Documentation
+- **`docs/ai/OPENROUTER_AI_INTEGRATION.md`** - AI vision verification system
+- **`docs/ai/AI_QUEST_REVIEW_AUTOMATION_FINDINGS.md`** - Task automation strategy and roadmap
+- **`docs/guides/unlock-payment-guide.md`** - Unlock Protocol crypto payment integration
+- **`docs/guides/paystack-transfers-integration-guide.md`** - Paystack fiat withdrawal integration
+- **`docs/guides/unlock_crypto_purchase_guide.md`** - Crypto purchase flow
 
-### Payment Documentation
-- **`unlock-payment-guide.md`** - Unlock payment integration
-- **`Unlock-paystack-guide.md`** - Paystack integration
-- **`unlock_crypto_purchase_guide.md`** - Crypto payment guide
+### Strategy Documentation
+- **`docs/strategy/BUSINESS_SUMMARY.md`** - Business summary, mission, revenue models, brand narratives
+- **`docs/strategy/INFERNAL_SPARKS_PRODUCTION_CONTENT.md`** - Full bootcamp curriculum (4 weeks, all milestones/tasks)
+- **`docs/strategy/LOCKSMITH_QUEST_PRD.md`** - Locksmith Quest feature PRD
 
-### Development Documentation
-- **`logging.md`** - Logging system guide
-- **`admin-fetch-conversion-plan.md`** - Admin fetch conversion
-- **`Road_to_production.md`** - Production deployment guide
+### Security Documentation
+- **`docs/system/private-key-encryption.md`** - Private key encryption guidance (not yet implemented)
+- **`docs/database-function-security-audit.md`** - Database function security audit results
+- **`docs/supabase-security-performance-advisory.md`** - Security and performance advisory
 
-### User Research
-- **`user-testing-strategy.md`** - User testing approach
-- **`user-testing-recruitment-materials.md`** - Testing recruitment
-
-### Business Documentation
-- **`unlock-dao-presentation.md`** - Unlock DAO presentation
+### Archived Documentation
+- **`docs/archived/`** - 23+ historical/superseded documents (plans, implementation notes, migration guides)
 
 ---
 
@@ -935,27 +1279,39 @@
 ### Most Used Components
 - **`components/ui/button.tsx`** - Button component
 - **`components/ui/card.tsx`** - Card layout
+- **`components/ui/network-error.tsx`** - Network error with retry
 - **`components/layouts/MainLayout.tsx`** - Main layout
+- **`components/layouts/lobby-layout.tsx`** - Lobby layout
 - **`components/PrivyConnectButton.tsx`** - Authentication
+- **`components/admin/AdminSessionGate.tsx`** - Admin session gate
 
 ### Most Used Hooks
-- **`useAdminApi.ts`** - Admin API calls
-- **`useAdminAuthContext.ts`** - Admin authentication context
+- **`useAdminApi.ts`** - Admin API calls with auto-refresh
+- **`useAdminFetchOnce.ts`** - Admin data fetching with TTL
+- **`useAdminAuthContext`** - Admin authentication context
 - **`useBootcamps.ts`** - Bootcamp data
 - **`useUserEnrollments.ts`** - User enrollments
 - **`useWalletBalances.ts`** - Wallet balances
+- **`useDailyQuests.ts`** - Daily quest state
+- **`useLockManagerClient.ts`** - On-chain key lookups
 
 ### Most Used Utilities
-- **`lib/utils/logger`** - Logging system
+- **`lib/utils/logger`** - Logging system (`getLogger(module)`)
 - **`lib/unlock/lockUtils.ts`** - Unlock operations
 - **`lib/auth/privy.ts`** - Authentication helpers
 - **`lib/supabase/client.ts`** - Database client
+- **`lib/supabase/server.ts`** - Server database client (`createAdminClient()`)
+- **`lib/helpers/key-manager-utils.ts`** - Key manager context helper
+- **`lib/ai/knowledge/retrieval.ts`** - AI KB hybrid search
 
 ### Key API Endpoints
 - **`/api/user/profile`** - User profile management
 - **`/api/bootcamps`** - Bootcamp listing
 - **`/api/applications`** - Application submission
 - **`/api/admin/session`** - Admin session management
+- **`/api/checkin`** - Daily check-in
+- **`/api/daily-quests`** - Daily quest operations
+- **`/api/ai/kb/search`** - AI knowledge base search
 
 ---
 
@@ -976,14 +1332,15 @@
 ### Adding New API Endpoints
 1. Create endpoint in `pages/api/` or `app/api/`
 2. Add proper authentication/authorization
-3. Include error handling and logging
+3. Include error handling and logging via `getLogger(module)`
 4. Update this glossary with endpoint description
 
 ### Database Changes
-1. Create migration in `supabase/migrations/`
-2. Update TypeScript types in `lib/supabase/types.ts`
-3. Test migration locally and remotely
-4. Update this glossary with schema changes
+1. Create migration in `supabase/migrations/` following `###_description.sql` pattern
+2. All PL/pgSQL functions MUST include `SET search_path = 'public'`
+3. Regenerate types: `npm run db:types`
+4. Test migration locally: `supabase migration up --local`
+5. Update this glossary with schema changes
 
 ---
 
