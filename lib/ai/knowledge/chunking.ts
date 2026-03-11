@@ -76,8 +76,8 @@ export function chunkMarkdown(input: ChunkInput): KnowledgeChunk[] {
       const last = rawChunks[rawChunks.length - 1];
       if (last && last.text.length + sectionText.length + 1 <= SOFT_CAP) {
         last.text += "\n" + sectionText;
-        // Keep the last heading if current section has no heading
-        if (section.heading) last.heading = section.heading;
+        // Only backfill heading when the existing chunk has none
+        if (section.heading && !last.heading) last.heading = section.heading;
       } else {
         rawChunks.push({ text: sectionText, heading: section.heading });
       }

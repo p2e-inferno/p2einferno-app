@@ -326,6 +326,7 @@ export async function checkLatestRunHealth(
       status: string;
       error_message: string | null;
       finished_at: string | null;
+      started_at: string;
     } | null;
 
     if (!latestRun) {
@@ -344,9 +345,19 @@ export async function checkLatestRunHealth(
       };
     }
 
+    if (latestRun.status === "started") {
+      const hoursSinceStarted =
+        (Date.now() - new Date(latestRun.started_at).getTime()) / (1000 * 60 * 60);
+      return {
+        name: "Latest run health",
+        status: hoursSinceStarted > 1 ? "WARN" : "PASS",
+        message: `Latest run still in progress (started ${Math.round(hoursSinceStarted)}h ago).`,
+      };
+    }
+
     const finishedAt = latestRun.finished_at
       ? new Date(latestRun.finished_at).getTime()
-      : 0;
+      : Date.now();
     const hoursSinceFinished = (Date.now() - finishedAt) / (1000 * 60 * 60);
 
     if (hoursSinceFinished > 24) {

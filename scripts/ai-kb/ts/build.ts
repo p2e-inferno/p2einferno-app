@@ -232,16 +232,8 @@ export async function main() {
   const runId = lock.run_id!;
   log.info(`Lock acquired. Run ID: ${runId}`);
 
-  // ─── Step 2: Load registry ──────────────────────────────────────────────
-  log.info("Step 2: Loading source registry...");
-  const registry = loadSourceRegistry();
-  log.info(`${registry.sources.length} source(s) registered.`);
-
-  // ─── Step 3: Process each source ────────────────────────────────────────
-  log.info("Step 3: Processing sources...");
-
   const stats: IngestionRunStats = {
-    total_sources: registry.sources.length,
+    total_sources: 0,
     documents_inserted: 0,
     documents_updated: 0,
     documents_unchanged: 0,
@@ -251,6 +243,17 @@ export async function main() {
     failed_sources: [],
     last_processed_source: null,
   };
+  let pipelineError: string | null = null;
+
+  try {
+  // ─── Step 2: Load registry ──────────────────────────────────────────────
+  log.info("Step 2: Loading source registry...");
+  const registry = loadSourceRegistry();
+  log.info(`${registry.sources.length} source(s) registered.`);
+
+  // ─── Step 3: Process each source ────────────────────────────────────────
+  log.info("Step 3: Processing sources...");
+  stats.total_sources = registry.sources.length;
 
   for (const entry of registry.sources) {
     log.info(`Processing: ${entry.sourcePath}`);
@@ -471,37 +474,48 @@ export async function main() {
     }
   }
 
-  // ─── Step 5: Finalize run ──────────────────────────────────────────────
-  log.info("Step 5: Finalizing run...");
+  } catch (err) {
+    pipelineError = err instanceof Error ? err.message : String(err);
+    log.error("Pipeline error", { error: pipelineError, runId });
+  } finally {
+    // ─── Step 5: Finalize run (always) ────────────────────────────────────
+    log.info("Step 5: Finalizing run...");
 
-  const { status: finalStatus, errorMessage } = computeFinalStatus(stats);
+    const { status: computedStatus, errorMessage: computedError } = computeFinalStatus(stats);
+    const finalStatus = pipelineError ? "failed" : computedStatus;
+    const errorMessage = pipelineError || computedError;
 
-  await supabase
-    .from("ai_kb_ingestion_runs")
-    .update({
+    const { error: finalizeError } = await supabase
+      .from("ai_kb_ingestion_runs")
+      .update({
+        status: finalStatus,
+        finished_at: new Date().toISOString(),
+        stats: stats as unknown as Record<string, unknown>,
+        error_message: errorMessage,
+      })
+      .eq("id", runId);
+
+    if (finalizeError) {
+      log.error("Failed to finalize ingestion run", { error: finalizeError.message, runId });
+    }
+
+    // ─── Summary ──────────────────────────────────────────────────────────
+    log.info("Build summary", {
       status: finalStatus,
-      finished_at: new Date().toISOString(),
-      stats: stats as unknown as Record<string, unknown>,
-      error_message: errorMessage,
-    })
-    .eq("id", runId);
+      totalSources: stats.total_sources,
+      inserted: stats.documents_inserted,
+      updated: stats.documents_updated,
+      unchanged: stats.documents_unchanged,
+      deactivated: stats.documents_deactivated,
+      chunksWritten: stats.chunks_written,
+      failedSources: stats.failed_sources.length,
+      error: errorMessage,
+      runId,
+    });
 
-  // ─── Summary ────────────────────────────────────────────────────────────
-  log.info("Build summary", {
-    status: finalStatus,
-    totalSources: stats.total_sources,
-    inserted: stats.documents_inserted,
-    updated: stats.documents_updated,
-    unchanged: stats.documents_unchanged,
-    deactivated: stats.documents_deactivated,
-    chunksWritten: stats.chunks_written,
-    failedSources: stats.failed_sources.length,
-    error: errorMessage,
-    runId,
-  });
-
-  if (finalStatus === "failed") {
-    process.exit(1);
+    if (finalStatus === "failed") {
+      process.exit(1);
+    }
   }
 }
 
