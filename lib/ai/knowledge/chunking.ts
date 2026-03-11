@@ -84,7 +84,6 @@ export function chunkMarkdown(input: ChunkInput): KnowledgeChunk[] {
     } else {
       // Section exceeds soft cap — split by hard cap with overflow
       let remaining = sectionText;
-      let isFirst = true;
       while (remaining.length > 0) {
         let splitAt = HARD_CAP;
         if (remaining.length > HARD_CAP) {
@@ -110,7 +109,6 @@ export function chunkMarkdown(input: ChunkInput): KnowledgeChunk[] {
             heading: section.heading,
           });
         }
-        isFirst = false;
       }
     }
   }

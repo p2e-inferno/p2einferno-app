@@ -48,6 +48,7 @@
     "supabase/functions",
     ".next/dev",
     ".next/types/validator.ts",
-    "coverage"
+    "coverage",
+    "scripts/**/*.js"
   ]
 }
