@@ -1,5 +1,12 @@
-# Local automation scripts and outputs
-automation/
+# Automation: ignore by default, allowlist versioned config/instructions
+automation/*
+!automation/config/
+!automation/config/**
+!automation/prompts/
+!automation/prompts/**
+automation/data/
+automation/findings.json
+automation/plans/
 
 # Logs
 logs

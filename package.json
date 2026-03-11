@@ -26,7 +26,14 @@
     "functions:serve:verify": "supabase functions serve verify-blockchain-payment --no-verify-jwt --env-file .env.local",
     "deploy:attestation-schema": "ts-node scripts/deploy-bootcamp-attestation-schema.ts",
     "preflight:certificates": "ts-node scripts/preflight-certificates.ts",
-    "monitor:certificates": "ts-node scripts/monitoring/certificate-metrics.ts"
+    "monitor:certificates": "ts-node scripts/monitoring/certificate-metrics.ts",
+    "ai-kb:extract:docs": "node scripts/ai-kb/prepare-docs.js",
+    "ai-kb:extract:validate": "node scripts/ai-kb/extract.js",
+    "ai-kb:build": "node scripts/ai-kb/build.js --mode full",
+    "ai-kb:build:incremental": "node scripts/ai-kb/build.js --mode incremental",
+    "ai-kb:verify": "node scripts/ai-kb/verify.js",
+    "test:ai-kb": "npx jest __tests__/scripts/ai-kb/ __tests__/lib/ai/knowledge/ __tests__/pages/api/ai/kb/ --no-coverage",
+    "test:ai-kb:integration": "npx jest __tests__/integration/db/ai-kb- --no-coverage"
   },
   "dependencies": {
     "@ensdomains/ensjs": "^4.0.2",

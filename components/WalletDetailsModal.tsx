@@ -291,15 +291,15 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
     try {
       const hash = selectedTransferToken.isNative
         ? await transferNative({
-          recipient: finalRecipient as `0x${string}`,
-          amountEth: amount.trim(),
-        })
+            recipient: finalRecipient as `0x${string}`,
+            amountEth: amount.trim(),
+          })
         : await transferErc20({
-          recipient: finalRecipient as `0x${string}`,
-          tokenAddress: selectedTransferToken.address as `0x${string}`,
-          amount: amount.trim(),
-          decimals: selectedTransferToken.decimals,
-        });
+            recipient: finalRecipient as `0x${string}`,
+            tokenAddress: selectedTransferToken.address as `0x${string}`,
+            amount: amount.trim(),
+            decimals: selectedTransferToken.decimals,
+          });
 
       setAmount("");
       setRecipient("");
@@ -329,7 +329,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 sm:space-y-6 max-h-[60vh] overflow-y-auto px-6 pb-6">
+        <div className="space-y-4 sm:space-y-6 max-h-[72vh] md:max-h-[60vh] overflow-y-auto px-6 pb-6">
           {/* Network Info */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">Network:</span>

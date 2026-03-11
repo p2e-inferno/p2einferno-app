@@ -1,0 +1,71 @@
+// /lib/ai/knowledge/retrieval.ts
+// Server-only — never import from client components.
+
+import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("ai:kb:retrieval");
+
+interface SearchAiKbChunkRow {
+  chunk_id: string;
+  document_id: string;
+  title: string;
+  chunk_text: string;
+  metadata: Record<string, unknown>;
+  rank: number;
+  keyword_rank: number;
+  semantic_rank: number;
+}
+
+export async function searchKnowledgeBase(params: {
+  queryText: string;
+  queryEmbedding: number[];
+  audience?: string[];
+  domainTags?: string[];
+  limit?: number;
+  freshnessDays?: number;
+}) {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase.rpc("search_ai_kb_chunks", {
+    query_text: params.queryText,
+    query_embedding: params.queryEmbedding,
+    audience_filter: params.audience ?? null,
+    domain_filter: params.domainTags ?? null,
+    limit_count: params.limit ?? 8,
+  });
+
+  if (error) {
+    log.error("search rpc failed", { err: error.message });
+    throw error;
+  }
+
+  const results = (data ?? []) as SearchAiKbChunkRow[];
+  if (params.freshnessDays === undefined || results.length === 0) {
+    return results;
+  }
+
+  const cutoffMs = Date.now() - params.freshnessDays * 24 * 60 * 60 * 1000;
+  const documentIds = [...new Set(results.map((row) => row.document_id))];
+  const { data: documents, error: documentsError } = await supabase
+    .from("ai_kb_documents")
+    .select("id, last_reviewed_at")
+    .in("id", documentIds);
+
+  if (documentsError) {
+    log.error("freshness lookup failed", { err: documentsError.message });
+    throw documentsError;
+  }
+
+  const freshDocumentIds = new Set(
+    (documents ?? [])
+      .filter((document) => {
+        if (!document.last_reviewed_at) {
+          return false;
+        }
+        return new Date(document.last_reviewed_at).getTime() >= cutoffMs;
+      })
+      .map((document) => document.id),
+  );
+
+  return results.filter((row) => freshDocumentIds.has(row.document_id));
+}

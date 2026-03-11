@@ -2,6 +2,9 @@
  * Pre-flight check: block deployment when certificates already exist
  */
 import { createAdminClient } from "@/lib/supabase/server";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("scripts:preflight-certificates");
 
 /**
  * Performs a pre-flight check for already-issued certificates and blocks deployment if any are found.
@@ -17,19 +20,21 @@ async function checkCertificates() {
     .eq("certificate_issued", true)
     .limit(1);
   if (error) {
-    console.error("Pre-flight check failed:", error.message);
+    log.error("Pre-flight check failed", { error: error.message });
     process.exit(1);
   }
   const count = data?.length || 0;
   if (count > 0) {
-    console.error("\n❌ DEPLOYMENT BLOCKED");
-    console.error(`${count} certificate(s) already issued.`);
-    console.error("Migration required before deploying V2 schema.\n");
+    log.error("DEPLOYMENT BLOCKED");
+    log.error(`${count} certificate(s) already issued.`);
+    log.error("Migration required before deploying V2 schema.");
     process.exit(1);
   }
 }
 
 checkCertificates().catch((err) => {
-  console.error("Pre-flight check failed:", err);
+  log.error("Pre-flight check failed", {
+    error: err instanceof Error ? err.message : String(err),
+  });
   process.exit(1);
 });
