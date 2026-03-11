@@ -19,12 +19,9 @@ The contract is built around several key concepts that work together:
 
 • **NFT-Gated Access:** To interact with the core functions like buying or selling tokens, a user **must** hold a valid key from a whitelisted NFT collection (utilizing the PublicLock interface). This makes the vendor exclusive to members of specific communities. 
 
-• **User Stages:** Users progress through a tier system with three levels: PLEB, HUSTLER, and OG. Each stage has different parameters, offering better 
+• **User Stages:** Users progress through a tier system with three levels: PLEB, HUSTLER, and OG. Each stage has different parameters, offering better terms or higher limits as a user advances. Progression is not automatic and requires users to meet specific criteria.
 
-1  
-terms or higher limits as a user advances. Progression is not automatic and requires users to meet specific criteria. 
-
-• **Points System:** Users earn “points” by performing certain actions, pri marily by making qualifying purchases of the swap token. These points are a key requirement for upgrading to a higher stage. 
+• **Points System:** Users earn “points” by performing certain actions, primarily by making qualifying purchases of the swap token. These points are a key requirement for upgrading to a higher stage.
 
 • **Fuel System:** “Fuel” is another resource users can accumulate. It is primarily gained through a “light up” mechanism, which involves burning a small number of tokens. Fuel is another requirement for stage upgrades and can also be used to temporarily increase a user’s daily sell limit. 
 
@@ -44,12 +41,11 @@ The contract defines several distinct roles with specific permissions:
 
 • **Anyone:** Some functions, primarily view functions that read data (e.g., getExchangeRate, getStageConfig), can be called by any address without requiring special permissions. 
 
-**DGTokenVendor Smart Contract: State & Con figuration** 
+**DGTokenVendor Smart Contract: State & Configuration**
 
 This document details the state variables, constants, and data structures (structs) that form the data model of the DGTokenVendor contract. 
 
-2  
-**1\. Core Constants** 
+**1\. Core Constants**
 
 These are fixed, unchangeable values that define global limits and parameters for the contract’s logic. 
 
@@ -93,7 +89,6 @@ Stores global parameters related to the stage and timing mechanics.
 
 • minSellAmount (uint256): The minimum amount of swapToken a user must sell in a single sellTokens transaction. 
 
-3  
 **FeeConfig** 
 
 Stores all parameters related to transaction fees and administrative cooldowns. 
@@ -102,7 +97,7 @@ Stores all parameters related to transaction fees and administrative cooldowns.
 
 • minFeeBps (uint256): The minimum fee (in basis points) that can be set. • buyFeeBps (uint256): The current fee percentage for buyTokens transac tions. 
 
-• sellFeeBps (uint256): The current fee percentage for sellTokens trans actions. 
+• sellFeeBps (uint256): The current fee percentage for sellTokens transactions. 
 
 • rateChangeCooldown (uint256): The minimum time (in seconds) that must pass before the exchangeRate can be changed again. 
 
@@ -136,7 +131,6 @@ Stores system-wide state variables that track fees and important timestamps.
 
 • lastDevAddressChangeTimestamp (uint256): The timestamp of the last time the devAddress was changed. 
 
-4  
 **UserState** 
 
 Stores all the data specific to an individual user. 
@@ -179,9 +173,8 @@ These are the top-level variables where the contract’s state is stored.
 
 • feeConfig (FeeConfig): An instance of the FeeConfig struct. 
 
-• tokenConfig (TokenConfig): An instance of the TokenConfig struct. • systemState (SystemState): An instance of the SystemState struct. • whitelistedCollections (address\[\]): A dynamic array storing the ad dresses of the whitelisted NFT collections. 
+• tokenConfig (TokenConfig): An instance of the TokenConfig struct. • systemState (SystemState): An instance of the SystemState struct. • whitelistedCollections (address\[\]): A dynamic array storing the addresses of the whitelisted NFT collections.
 
-5  
 • userStates (mapping(address \=\> UserState)): A mapping that links a user’s wallet address to their individual UserState struct. 
 
 • stageConfig (mapping(UserStage \=\> StageConfig)): A mapping that links each UserStage enum to its specific StageConfig struct. 
@@ -248,7 +241,6 @@ These are the default values set in the \_initialize function upon contract depl
 
 • qualifyingBuyThreshold: **5,000 tokens** (5000e18) 
 
-6  
 • maxSellBps: **6000** (60%) 
 
 • dailyLimitMultiplier: **100** 
@@ -291,9 +283,8 @@ The contract defines several key roles, each with different permissions:
 
 **2\. Access Control Modifiers** 
 
-Modifiers are reusable pieces of code that check for certain conditions before allowing a function to execute. They are the primary tool for enforcing permis sions. 
+Modifiers are reusable pieces of code that check for certain conditions before allowing a function to execute. They are the primary tool for enforcing permissions. 
 
-7  
 **onlyNFTHolder()** 
 
 This modifier ensures that the function caller holds a valid NFT key from one of the collections in the whitelistedCollections array. 
@@ -348,7 +339,6 @@ This modifier restricts a function to be callable only by the contract owner or 
 
 **–** pause() 
 
-8  
 **–** unpause() 
 
 **onlyOwner()** 
@@ -395,7 +385,6 @@ To use the core functions of the DGTokenVendor, users must hold a valid NFT from
 
 **– Description:** Show your support for our Digital Game ecosystem with this NFT collection. Holders get exclusive benefits and early access to features. 
 
-9  
 **– Duration:** 180 Days 
 
 **– How to Obtain:** Can be purchased for 500 USDC. 
@@ -440,7 +429,6 @@ This function allows a user to purchase swapToken by spending their baseToken.
 
 • **Access Control:** onlyNFTHolder, whenNotPaused 
 
-10  
 **Process Flow:** 
 
 1\. **Minimum Amount Check:** It first checks if the amount is greater than or equal to stageConstants.minBuyAmount. If not, it reverts with MinimumAmountNotMet(). 
@@ -477,7 +465,6 @@ This function allows a user to sell their swapToken to receive baseToken in retu
 
 3\. **Token Calculation:** The remaining swapToken amount is divided by the exchangeRate to determine how much baseToken the user will receive. 4\. **Sell Limit Checks:** This is the most complex part of the function: • **Stage Sell Limit:** It calculates the maximum single transaction sell amount (maxTxSell) based on the contract’s baseToken balance and the user’s stage-specific maxSellBps. If the user tries to re ceive more baseToken than this limit, the transaction reverts with StageSellLimitExceeded(). 
 
-11  
 • **Daily Sell Limit:** It checks and updates the user’s dailySoldAmount against a calculated dailyLimit. This daily limit is determined by the user’s qualifyingBuyThreshold, dailyLimitMultiplier, and their current fuel level. Selling consumes any available fuel. If the daily limit is exceeded, it reverts with DailySellLimitExceeded(). 
 
 • **OG Cooldown:** If the user is at the OG stage and performs a maxTxSell, a cooldown (stageConstants.maxSellCooldown) is ini tiated, preventing another max-sized sale until the cooldown expires. 5\. **State Updates:** 
@@ -514,7 +501,6 @@ This function allows a user to advance to the next UserStage if they meet the re
 
 • **Access Control:** onlyNFTHolder, whenNotPaused 
 
-12  
 **Process Flow:** 
 
 1\. **Max Stage Check:** It first checks if the user is already at the highest stage (OG). If so, it reverts with MaxStageReached(). 
@@ -531,9 +517,9 @@ This function allows a user to advance to the next UserStage if they meet the re
 
 4\. **Event:** Emits a StageUpgraded event, announcing the user’s new stage. 
 
-**DGTokenVendor Smart Contract: Admin Func tions** 
+**DGTokenVendor Smart Contract: Admin Functions**
 
-This document details the administrative functions of the DGTokenVendor con tract. These functions are restricted to authorized roles (Owner, Dev, Steward Council, Admin) and are used to manage the contract’s parameters, security, and funds. 
+This document details the administrative functions of the DGTokenVendor contract. These functions are restricted to authorized roles (Owner, Dev, Steward Council, Admin) and are used to manage the contract’s parameters, security, and funds.
 
 **1\. Ownership and High-Level Control** 
 
@@ -557,7 +543,6 @@ These functions are typically restricted to the onlyOwner or onlyAdmin modifiers
 
 • **Event:** StewardCouncilAddressUpdated 
 
-13  
 **2\. Financial and Rate Management** 
 
 These functions control the economic parameters of the token vendor. 
@@ -643,7 +628,6 @@ These functions manage the operational parameters of the contract’s features. 
 
 This document describes the view functions in the DGTokenVendor contract. These functions are read-only, meaning they do not modify the contract’s state and do not cost any gas to call (when accessed externally). They are used to 
 
-15  
 retrieve data about the contract’s configuration, system state, and individual user data. 
 
 **1\. User-Specific View Functions** 
@@ -694,7 +678,6 @@ These functions return the contract’s various configuration structs and system
 
 • **Returns:** The FeeConfig struct, containing all fee-related parameters and administrative cooldowns. 
 
-16  
 **getTokenConfig()** 
 
 • **Purpose:** To retrieve the TokenConfig struct. 
@@ -735,7 +718,6 @@ These functions allow anyone to check if administrative cooldowns are currently 
 
 • **Purpose:** To check if the cooldown period for changing the exchange rate has passed. 
 
-17  
 • **Returns:** true if the rateChangeCooldown has elapsed since the last rate change, false otherwise. 
 
 **DGTokenVendor Smart Contract: Events & Er rors** 
@@ -778,7 +760,6 @@ Events are signals the contract emits when certain actions occur. Off-chain appl
 
 • **StewardCouncilAddressUpdated(address indexed newStewardCouncilAddress) –** Emitted when the owner changes the Steward Council address. 
 
-18  
 • **FeeRatesUpdated(uint256 newBuyFeeBPS, uint256 newSellFeeBPS) –** Emitted when the owner updates the buy and sell fee rates. 
 
 • **FeeConfigUpdated(uint256 rateChangeCooldown, uint256 appChangeCooldown) –** Emitted when the owner updates the administrative cooldown periods. • **StageConfigUpdated(UserStage indexed stage, StageConfig oldConfig, StageConfig newConfig)** 
@@ -838,6 +819,4 @@ Custom errors are used to provide more specific and gas-efficient reasons for a 
 
 **System Errors** 
 
-• ETHTransferFailed(): The contract failed to send ETH during a with drawal. 
-
-20
+• ETHTransferFailed(): The contract failed to send ETH during a withdrawal.

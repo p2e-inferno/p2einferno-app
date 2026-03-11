@@ -21,7 +21,7 @@ export function getEmbeddingModel(): string {
 export async function getEmbeddingBatch(texts: string[]): Promise<number[][]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
-  const model = process.env.OPENROUTER_EMBEDDING_MODEL || DEFAULT_EMBEDDING_MODEL;
+  const model = getEmbeddingModel();
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), EMBEDDING_TIMEOUT_MS);

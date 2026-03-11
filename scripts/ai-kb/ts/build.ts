@@ -88,15 +88,24 @@ function loadJsonlForSource(sourcePath: string): JsonlLoadResult {
   const lines = raw.trim().split("\n").filter((l) => l.trim());
   const records: JsonlRecord[] = [];
 
-  for (const line of lines) {
+  let parseErrors = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
     try {
       const parsed = JSON.parse(line) as JsonlRecord;
       if (parsed.sourcePath && parsed.title && parsed.content) {
         records.push(parsed);
       }
-    } catch {
-      // Skip invalid lines
+    } catch (err) {
+      parseErrors++;
+      log.warn(`JSONL parse error at line ${i + 1}`, {
+        error: err instanceof Error ? err.message : String(err),
+        path: jsonlPath,
+      });
     }
+  }
+  if (parseErrors > 0) {
+    log.warn(`${parseErrors} JSONL line(s) skipped due to parse errors`, { path: jsonlPath });
   }
 
   return { exists: true, records };
@@ -431,10 +440,14 @@ export async function main() {
   log.info("Step 4: Deactivating orphaned documents...");
 
   const registryPaths = registry.sources.map((s) => s.sourcePath);
-  const { data: activeDocs } = await supabase
+  const { data: activeDocs, error: activeDocsError } = await supabase
     .from("ai_kb_documents")
     .select("id, source_path")
     .eq("is_active", true);
+
+  if (activeDocsError) {
+    throw new Error(`Failed to fetch active documents: ${activeDocsError.message}`);
+  }
 
   if (activeDocs) {
     const orphaned = activeDocs.filter(
@@ -442,10 +455,13 @@ export async function main() {
     );
     if (orphaned.length > 0) {
       const orphanedIds = orphaned.map((d: { id: string }) => d.id);
-      await supabase
+      const { error: deactivateError } = await supabase
         .from("ai_kb_documents")
         .update({ is_active: false })
         .in("id", orphanedIds);
+      if (deactivateError) {
+        throw new Error(`Failed to deactivate orphaned documents: ${deactivateError.message}`);
+      }
       stats.documents_deactivated = orphaned.length;
       log.info(`Deactivated ${orphaned.length} orphaned document(s)`, {
         sourcePaths: orphaned.map((d: { source_path: string }) => d.source_path),

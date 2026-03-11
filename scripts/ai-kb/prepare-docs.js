@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * AI Knowledge Base — Non-DB Source Preparation
  *

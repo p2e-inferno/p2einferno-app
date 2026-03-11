@@ -293,7 +293,7 @@ This distinction matters especially for renewal, eligibility, and pullout conver
 
 xDG renewal is not a first-purchase shortcut. It extends an existing membership.
 
-### Mistake 3: assuming all wallet-gated features use the same rule
+### Mistake 4: assuming all wallet-gated features use the same rule
 
 They do not.
 
@@ -303,11 +303,11 @@ Examples:
 - renewal can be stricter about the wallet context being used
 - vendor and other gated actions may depend even more directly on the active wallet or the wallet that actually holds the key
 
-### Mistake 4: thinking linked in Privy always means accepted by the app
+### Mistake 5: thinking linked in Privy always means accepted by the app
 
 A wallet can appear linked in Privy and still be rejected by the app if it fails the app's wallet-link guard or active-wallet requirements.
 
-### Mistake 5: ignoring minimums and daily limits
+### Mistake 6: ignoring minimums and daily limits
 
 Users sometimes focus only on whether they have membership and forget that pullout also depends on amount rules and balance availability.
 

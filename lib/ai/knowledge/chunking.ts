@@ -107,7 +107,7 @@ export function chunkMarkdown(input: ChunkInput): KnowledgeChunk[] {
         if (chunkText.length > 0) {
           rawChunks.push({
             text: chunkText,
-            heading: isFirst ? section.heading : section.heading,
+            heading: section.heading,
           });
         }
         isFirst = false;

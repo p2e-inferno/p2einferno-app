@@ -217,8 +217,8 @@ Best practice:
 - if withdrawal fails, check all of these:
   - is the signing wallet linked
   - does any linked wallet hold DG Nation membership
-- does the user have enough xDG
-  - is the requested amount within the limit
+  - does the user have enough xDG
+    - is the requested amount within the limit
 
 ## Stage Upgrade
 

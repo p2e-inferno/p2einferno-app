@@ -151,12 +151,13 @@ export async function checkStaleness(
     const results: CheckResult[] = [];
 
     for (const entry of registry.sources) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("ai_kb_documents")
         .select("last_reviewed_at")
         .eq("source_path", entry.sourcePath)
         .eq("is_active", true)
-        .single();
+        .maybeSingle();
+      if (error) throw error;
       const doc = data as { last_reviewed_at: string | null } | null;
 
       if (!doc) {
@@ -206,10 +207,11 @@ export async function checkCoverageGaps(
   try {
     const registry = loadSourceRegistry();
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("ai_kb_documents")
       .select("source_path")
       .eq("is_active", true);
+    if (error) throw error;
     const activeDocs = data as Array<{ source_path: string }> | null;
 
     const activeSet = new Set<string>(
@@ -313,12 +315,13 @@ export async function checkLatestRunHealth(
   supabase: SupabaseAdmin,
 ): Promise<CheckResult> {
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("ai_kb_ingestion_runs")
       .select("*")
       .order("started_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
+    if (error) throw error;
     const latestRun = data as {
       status: string;
       error_message: string | null;

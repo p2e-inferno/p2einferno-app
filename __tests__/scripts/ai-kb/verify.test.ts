@@ -36,7 +36,7 @@ import {
   checkEmptyChunks,
   checkLatestRunHealth,
   topResultsMatchCanary,
-} from "@/scripts/ai-kb/verify";
+} from "@/scripts/ai-kb/ts/verify";
 
 /** Creates a mock supabase-like object for passing to check functions. */
 function createMockSupabase() {

@@ -1,2 +1,3 @@
+// @ts-nocheck
 require("./register-ts-runtime");
-require("./ts/extract.ts");
+require("./ts/extract");

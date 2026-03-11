@@ -291,15 +291,15 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
     try {
       const hash = selectedTransferToken.isNative
         ? await transferNative({
-          recipient: finalRecipient as `0x${string}`,
-          amountEth: amount.trim(),
-        })
+            recipient: finalRecipient as `0x${string}`,
+            amountEth: amount.trim(),
+          })
         : await transferErc20({
-          recipient: finalRecipient as `0x${string}`,
-          tokenAddress: selectedTransferToken.address as `0x${string}`,
-          amount: amount.trim(),
-          decimals: selectedTransferToken.decimals,
-        });
+            recipient: finalRecipient as `0x${string}`,
+            tokenAddress: selectedTransferToken.address as `0x${string}`,
+            amount: amount.trim(),
+            decimals: selectedTransferToken.decimals,
+          });
 
       setAmount("");
       setRecipient("");

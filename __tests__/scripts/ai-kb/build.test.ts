@@ -36,7 +36,7 @@ import {
   filterValidChunks,
   EXPECTED_EMBEDDING_DIM,
   MIN_CHUNK_LENGTH,
-} from "@/scripts/ai-kb/build";
+} from "@/scripts/ai-kb/ts/build";
 
 import { chunkMarkdown } from "@/lib/ai/knowledge/chunking";
 import type { IngestionRunStats } from "@/lib/ai/knowledge/types";
@@ -298,10 +298,6 @@ describe("filterValidChunks", () => {
 
     const validChunks = filterValidChunks(chunks);
     expect(validChunks).toHaveLength(0);
-
-    // This is the condition build.ts checks to add to failed_sources
-    // (line: if validChunks.length === 0 → push to failed_sources)
-    expect(validChunks.length === 0).toBe(true);
   });
 
   it("mixed chunks: only valid ones survive", () => {
