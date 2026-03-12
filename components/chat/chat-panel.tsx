@@ -55,7 +55,7 @@ export function ChatPanel({
                 </div>
                 <div>
                   <h3 className="font-heading text-base font-bold uppercase tracking-wide text-white font-orbitron">
-                    Inferno AI
+                    Infernal AI
                   </h3>
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-medium uppercase tracking-widest text-emerald-500">
@@ -114,9 +114,9 @@ export function ChatPanel({
                   </div>
                 </div>
 
-                <p className="mt-3 text-center text-[10px] font-medium uppercase tracking-widest text-slate-500">
+                {/* <p className="mt-3 text-center text-[10px] font-medium uppercase tracking-widest text-slate-500">
                   Powered by Inferno Intelligence
-                </p>
+                </p> */}
               </div>
             </div>
           </div>

@@ -39,16 +39,23 @@ export function ChatTeaser({
               <X className="h-3.5 w-3.5" />
             </button>
 
-            <div className="flex cursor-pointer items-start gap-3" onClick={() => void onOpen()}>
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-orange-600 shadow-lg shadow-primary/20">
+            <div
+              className="flex cursor-pointer items-start gap-3"
+              onClick={() => void onOpen()}
+            >
+              <motion.div
+                animate={{ rotate: [0, -10, 10, -10, 0] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-orange-600 shadow-lg shadow-primary/20"
+              >
                 <Sparkles className="h-5 w-5 text-white" />
-              </div>
+              </motion.div>
               <div className="space-y-0.5">
                 <p className="font-heading text-sm font-semibold tracking-tight text-white font-orbitron">
                   Need help?
                 </p>
                 <p className="text-xs leading-relaxed text-slate-400">
-                  Ask me anything about Inferno or where to start!
+                  Ask me where to start 👇
                 </p>
               </div>
             </div>
