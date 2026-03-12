@@ -3,7 +3,7 @@ import { useChatStore } from "@/lib/chat/store";
 
 describe("chat controller", () => {
   beforeEach(() => {
-    window.localStorage.clear();
+    window.sessionStorage.clear();
     useChatStore.setState({
       isOpen: false,
       isPeekVisible: true,
@@ -17,6 +17,8 @@ describe("chat controller", () => {
           content:
             "Hey 👋 I’m your in-app guide. Ask me anything — or tap a quick prompt below to get started.",
           ts: Date.now(),
+          status: "complete",
+          error: null,
         },
       ],
       status: "idle",
@@ -46,6 +48,11 @@ describe("chat controller", () => {
         routeKey: "home",
         pageLabel: "Home",
         segment: null,
+        behavior: {
+          key: "general",
+          assistantLabel: "General guide",
+          systemHint: "Help users orient themselves and find the next useful step in the app.",
+        },
       },
     });
 
@@ -72,6 +79,11 @@ describe("chat controller", () => {
         routeKey: "home",
         pageLabel: "Home",
         segment: null,
+        behavior: {
+          key: "general",
+          assistantLabel: "General guide",
+          systemHint: "Help users orient themselves and find the next useful step in the app.",
+        },
       },
     });
 

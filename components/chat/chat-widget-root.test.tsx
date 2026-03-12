@@ -11,6 +11,6 @@ describe("ChatWidgetRoot", () => {
     await user.click(screen.getByRole("button", { name: /open onboarding assistant/i }));
 
     expect(screen.getByRole("button", { name: /close chat/i })).toBeInTheDocument();
-    expect(screen.getByText(/quick prompts/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /what do i do here\?/i })).toBeInTheDocument();
   });
 });

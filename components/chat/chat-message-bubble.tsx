@@ -1,7 +1,6 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bot, MessageCircle } from "lucide-react";
 import { formatChatTime } from "@/lib/chat/utils";
 import type { ChatMessage } from "@/lib/chat/types";
 
@@ -40,4 +39,3 @@ export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
     </motion.div>
   );
 }
-

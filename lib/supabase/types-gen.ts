@@ -61,6 +61,139 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_kb_chunks: {
+        Row: {
+          chunk_index: number
+          chunk_text: string
+          created_at: string
+          document_id: string
+          embedding: string
+          fts: unknown
+          id: string
+          metadata: Json
+          token_estimate: number
+        }
+        Insert: {
+          chunk_index: number
+          chunk_text: string
+          created_at?: string
+          document_id: string
+          embedding: string
+          fts?: unknown
+          id?: string
+          metadata?: Json
+          token_estimate: number
+        }
+        Update: {
+          chunk_index?: number
+          chunk_text?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string
+          fts?: unknown
+          id?: string
+          metadata?: Json
+          token_estimate?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_kb_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "ai_kb_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_kb_documents: {
+        Row: {
+          audience: string[]
+          content_hash: string
+          content_markdown: string
+          created_at: string
+          domain_tags: string[]
+          id: string
+          ingestion_run_id: string | null
+          is_active: boolean
+          last_reviewed_at: string | null
+          source_path: string
+          source_type: string
+          title: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          audience?: string[]
+          content_hash: string
+          content_markdown: string
+          created_at?: string
+          domain_tags?: string[]
+          id?: string
+          ingestion_run_id?: string | null
+          is_active?: boolean
+          last_reviewed_at?: string | null
+          source_path: string
+          source_type: string
+          title: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          audience?: string[]
+          content_hash?: string
+          content_markdown?: string
+          created_at?: string
+          domain_tags?: string[]
+          id?: string
+          ingestion_run_id?: string | null
+          is_active?: boolean
+          last_reviewed_at?: string | null
+          source_path?: string
+          source_type?: string
+          title?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_kb_documents_ingestion_run_id_fkey"
+            columns: ["ingestion_run_id"]
+            isOneToOne: false
+            referencedRelation: "ai_kb_ingestion_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_kb_ingestion_runs: {
+        Row: {
+          error_message: string | null
+          finished_at: string | null
+          id: string
+          run_type: string
+          started_at: string
+          stats: Json
+          status: string
+        }
+        Insert: {
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          run_type: string
+          started_at?: string
+          stats?: Json
+          status: string
+        }
+        Update: {
+          error_message?: string | null
+          finished_at?: string | null
+          id?: string
+          run_type?: string
+          started_at?: string
+          stats?: Json
+          status?: string
+        }
+        Relationships: []
+      }
       applications: {
         Row: {
           application_status: string
@@ -467,6 +600,106 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      chat_conversations: {
+        Row: {
+          cleared_at: string | null
+          created_at: string
+          id: string
+          privy_user_id: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          cleared_at?: string | null
+          created_at?: string
+          id: string
+          privy_user_id: string
+          source: string
+          updated_at?: string
+        }
+        Update: {
+          cleared_at?: string | null
+          created_at?: string
+          id?: string
+          privy_user_id?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      chat_messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          role: string
+          sent_at: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id: string
+          role: string
+          sent_at: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          role?: string
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chat_widget_sessions: {
+        Row: {
+          active_conversation_id: string | null
+          draft: string
+          is_open: boolean
+          is_peek_dismissed: boolean
+          is_peek_visible: boolean
+          privy_user_id: string
+          updated_at: string
+        }
+        Insert: {
+          active_conversation_id?: string | null
+          draft?: string
+          is_open?: boolean
+          is_peek_dismissed?: boolean
+          is_peek_visible?: boolean
+          privy_user_id: string
+          updated_at?: string
+        }
+        Update: {
+          active_conversation_id?: string | null
+          draft?: string
+          is_open?: boolean
+          is_peek_dismissed?: boolean
+          is_peek_visible?: boolean
+          privy_user_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_widget_sessions_active_conversation_id_fkey"
+            columns: ["active_conversation_id"]
+            isOneToOne: false
+            referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       cohort_managers: {
         Row: {
@@ -3275,6 +3508,15 @@ export type Database = {
       }
     }
     Functions: {
+      acquire_ingestion_lock: {
+        Args: { p_run_type: string; p_stale_threshold_min?: number }
+        Returns: {
+          blocking_run_id: string
+          run_id: string
+          stale_cleared: boolean
+          status: string
+        }[]
+      }
       activate_milestone_key_completion: { Args: never; Returns: boolean }
       admin_replace_daily_quest_template_and_tasks: {
         Args: {
@@ -3334,6 +3576,7 @@ export type Database = {
         }
         Returns: string
       }
+      count_short_chunks: { Args: { min_length?: number }; Returns: number }
       create_notification: {
         Args: {
           p_body: string
@@ -3387,6 +3630,12 @@ export type Database = {
       get_config_int:
         | { Args: { p_key: string }; Returns: number }
         | { Args: { p_default?: number; p_key: string }; Returns: number }
+      get_distinct_embedding_models: {
+        Args: never
+        Returns: {
+          embedding_model: string
+        }[]
+      }
       get_last_checkin_date: { Args: { user_address: string }; Returns: string }
       get_schema_uid: {
         Args: { p_network: string; p_schema_key: string }
@@ -3442,6 +3691,15 @@ export type Database = {
         Returns: Json
       }
       is_admin: { Args: { user_id: string }; Returns: boolean }
+      match_documents: {
+        Args: { filter?: Json; match_count?: number; query_embedding: string }
+        Returns: {
+          content: string
+          id: string
+          metadata: Json
+          similarity: number
+        }[]
+      }
       perform_daily_checkin: {
         Args: {
           p_activity_data?: Json
@@ -3512,6 +3770,25 @@ export type Database = {
           success: boolean
         }[]
       }
+      search_ai_kb_chunks: {
+        Args: {
+          audience_filter?: string[]
+          domain_filter?: string[]
+          limit_count?: number
+          query_embedding: string
+          query_text: string
+        }
+        Returns: {
+          chunk_id: string
+          chunk_text: string
+          document_id: string
+          keyword_rank: number
+          metadata: Json
+          rank: number
+          semantic_rank: number
+          title: string
+        }[]
+      }
       sync_daily_quest_run_tasks_if_safe: {
         Args: { p_template_id: string }
         Returns: Json
@@ -3519,6 +3796,25 @@ export type Database = {
       try_finalize_daily_quest_progress: {
         Args: { p_run_id: string; p_user_id: string }
         Returns: Json
+      }
+      upsert_kb_document_with_chunks: {
+        Args: {
+          p_audience: string[]
+          p_chunks: Json
+          p_content_hash: string
+          p_content_markdown: string
+          p_domain_tags: string[]
+          p_ingestion_run_id: string
+          p_source_path: string
+          p_source_type: string
+          p_title: string
+          p_version: string
+        }
+        Returns: {
+          chunks_written: number
+          document_id: string
+          was_updated: boolean
+        }[]
       }
     }
     Enums: {

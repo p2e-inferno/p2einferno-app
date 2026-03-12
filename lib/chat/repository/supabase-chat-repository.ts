@@ -5,13 +5,14 @@ import type {
   ChatWidgetSession,
   RestoreConversationResult,
 } from "@/lib/chat/types";
-import { createClient } from "@/lib/supabase/client";
+import { ensureJsonResponse } from "@/lib/chat/repository/http";
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("chat:supabase-repository");
 
 interface SupabaseChatRepositoryOptions {
   privyUserId: string | null;
+  accessToken?: string | null;
 }
 
 export class SupabaseChatRepository implements ChatRepository {
@@ -28,62 +29,79 @@ export class SupabaseChatRepository implements ChatRepository {
       return { conversation: null, widget: null };
     }
 
-    log.debug("Supabase chat restore requested but durable chat persistence is not wired yet", {
-      privyUserId: this.options.privyUserId,
+    const response = await fetch("/api/chat/session", {
+      method: "GET",
+      headers: this.getHeaders(),
+      credentials: "include",
     });
 
-    return { conversation: null, widget: null };
+    return ensureJsonResponse<RestoreConversationResult>(response);
   }
 
   async createConversation(conversation: ChatConversation): Promise<ChatConversation> {
-    this.getClient();
-    log.debug("Supabase chat create requested", {
-      privyUserId: this.options.privyUserId,
-      conversationId: conversation.id,
+    const response = await fetch("/api/chat/conversations", {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ conversation }),
     });
-    return conversation;
+
+    const payload = await ensureJsonResponse<{ conversation: ChatConversation }>(response);
+    return payload.conversation;
   }
 
   async appendMessages(
-    _conversationId: string,
-    _messages: ChatMessage[],
+    conversationId: string,
+    messages: ChatMessage[],
   ): Promise<ChatConversation | null> {
-    this.getClient();
-    log.debug("Supabase chat append requested", {
-      privyUserId: this.options.privyUserId,
-      messageCount: _messages.length,
+    const response = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ messages }),
     });
-    return null;
+
+    const payload = await ensureJsonResponse<{ conversation: ChatConversation | null }>(response);
+    return payload.conversation;
   }
 
   async clearConversation(conversationId: string | null): Promise<void> {
-    this.getClient();
-    log.debug("Supabase chat clear requested", {
-      privyUserId: this.options.privyUserId,
-      conversationId,
+    const suffix = conversationId
+      ? `?conversationId=${encodeURIComponent(conversationId)}`
+      : "";
+    const response = await fetch(`/api/chat/conversations/current${suffix}`, {
+      method: "DELETE",
+      headers: this.getHeaders(),
+      credentials: "include",
     });
+
+    await ensureJsonResponse<{ ok: true }>(response);
   }
 
   async saveWidgetSession(session: ChatWidgetSession): Promise<void> {
-    this.getClient();
-    log.debug("Supabase chat widget session save requested", {
+    const response = await fetch("/api/chat/session", {
+      method: "PUT",
+      headers: this.getHeaders(),
+      credentials: "include",
+      body: JSON.stringify({ widget: session }),
+    });
+
+    await ensureJsonResponse<{ ok: true }>(response);
+    log.debug("Supabase chat widget session saved", {
       privyUserId: this.options.privyUserId,
       isOpen: session.isOpen,
     });
   }
 
-  private getClient() {
-    if (!this.isAvailable) {
-      return null;
+  private getHeaders() {
+    const headers: HeadersInit = {
+      "Content-Type": "application/json",
+    };
+
+    if (this.options.accessToken) {
+      headers.Authorization = `Bearer ${this.options.accessToken}`;
     }
 
-    try {
-      return createClient();
-    } catch (error) {
-      log.warn("Unable to initialize supabase client for chat persistence", {
-        error,
-      });
-      return null;
-    }
+    return headers;
   }
 }

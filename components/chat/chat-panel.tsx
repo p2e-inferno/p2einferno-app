@@ -13,6 +13,7 @@ interface ChatPanelProps {
   draft: string;
   messages: ChatMessage[];
   loading: boolean;
+  showTypingIndicator: boolean;
   showSuggestedPrompts: boolean;
   pageLabel: string;
   onClose: () => Promise<void>;
@@ -26,6 +27,7 @@ export function ChatPanel({
   draft,
   messages,
   loading,
+  showTypingIndicator,
   showSuggestedPrompts,
   pageLabel,
   onClose,
@@ -62,7 +64,9 @@ export function ChatPanel({
                       Online
                     </span>
                     <span className="text-[10px] text-slate-500">•</span>
-                    <span className="text-[10px] text-slate-500">{pageLabel}</span>
+                    <span className="text-[10px] text-slate-500">
+                      {pageLabel}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -91,7 +95,11 @@ export function ChatPanel({
             <div className="flex h-[440px] min-h-0 flex-col bg-slate-900/40">
               <div className="min-h-0 flex-1 overflow-hidden">
                 {messages.length === 0 && <ChatEmptyState />}
-                <ChatMessageList messages={messages} loading={loading} />
+                <ChatMessageList
+                  messages={messages}
+                  loading={loading}
+                  showTypingIndicator={showTypingIndicator}
+                />
               </div>
 
               {/* Suggestions & Input */}

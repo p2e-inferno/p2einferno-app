@@ -2,12 +2,15 @@ import type { ChatAdapter } from "@/lib/chat/adapters/chat-adapter";
 import type { ChatAdapterRequest } from "@/lib/chat/types";
 import { createAssistantMessage } from "@/lib/chat/utils";
 
-export function getMockAssistantReply(userText: string): string {
+export function getMockAssistantReply(input: ChatAdapterRequest): string {
+  const { message, assistantContext } = input;
+  const userText = message.content;
   const t = userText.toLowerCase();
 
   if (t.includes("first") || t.includes("start") || t.includes("do here")) {
     return (
-      "Welcome 👋\n\nHere’s a clean way to start:\n" +
+      `Welcome 👋\n\n${assistantContext.starterPrompt}\n\n` +
+      "Here’s a clean way to start:\n" +
       "1) Create an account\n" +
       "2) Complete the first onboarding quest\n" +
       "3) Connect your wallet (optional but recommended)\n" +
@@ -37,7 +40,11 @@ export function getMockAssistantReply(userText: string): string {
     );
   }
 
-  if (t.includes("verify") || t.includes("verification") || t.includes("identity")) {
+  if (
+    t.includes("verify") ||
+    t.includes("verification") ||
+    t.includes("identity")
+  ) {
     return (
       "Verification helps prevent bots and makes rewards fair.\n\n" +
       "Typically you’ll:\n" +
@@ -48,7 +55,10 @@ export function getMockAssistantReply(userText: string): string {
     );
   }
 
-  return "Got you.\n\nTell me one thing: are you here to **learn**, **earn**, or **build**? I’ll point you to the right first step.";
+  return (
+    `Got you.\n\n${assistantContext.starterPrompt}\n\n` +
+    "Tell me one thing: are you here to **learn**, **earn**, or **build**? I’ll point you to the right first step."
+  );
 }
 
 export class MockChatAdapter implements ChatAdapter {
@@ -56,7 +66,8 @@ export class MockChatAdapter implements ChatAdapter {
     await new Promise((resolve) => setTimeout(resolve, 650));
 
     return {
-      message: createAssistantMessage(getMockAssistantReply(input.message.content)),
+      mode: "final" as const,
+      message: createAssistantMessage(getMockAssistantReply(input)),
     };
   }
 }

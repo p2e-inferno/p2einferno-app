@@ -15,9 +15,10 @@ export function ChatWidgetRoot() {
     isPeekDismissed,
     draft,
     messages,
-    status,
+    isBusy,
     route,
     showSuggestedPrompts,
+    showTypingIndicator,
     openWidget,
     closeWidget,
     dismissPeek,
@@ -40,7 +41,8 @@ export function ChatWidgetRoot() {
         open={isOpen}
         draft={draft}
         messages={messages}
-        loading={status === "sending" || status === "hydrating"}
+        loading={isBusy}
+        showTypingIndicator={showTypingIndicator}
         showSuggestedPrompts={showSuggestedPrompts}
         pageLabel={route?.pageLabel ?? "this page"}
         onClose={closeWidget}

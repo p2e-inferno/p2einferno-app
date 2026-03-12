@@ -10,9 +10,13 @@ export interface ChatSessionPersistence {
 
 export function getChatSessionPersistence(
   auth: ChatAuthContext,
+  accessToken?: string | null,
 ): ChatSessionPersistence {
+  const hasResolvedAuthenticatedIdentity =
+    auth.isAuthenticated && Boolean(auth.privyUserId);
   const fallbackRepository = new BrowserChatRepository({
-    authenticated: auth.isAuthenticated,
+    authenticated: hasResolvedAuthenticatedIdentity,
+    privyUserId: auth.privyUserId,
   });
 
   if (!auth.isAuthenticated) {
@@ -24,6 +28,7 @@ export function getChatSessionPersistence(
 
   const preferredRepository = new SupabaseChatRepository({
     privyUserId: auth.privyUserId,
+    accessToken,
   });
 
   return {

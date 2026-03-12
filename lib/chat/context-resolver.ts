@@ -1,3 +1,4 @@
+import { resolveChatRouteBehavior } from "@/lib/chat/route-behavior";
 import type { ChatRouteContext } from "@/lib/chat/types";
 
 function toTitleCase(value: string) {
@@ -14,11 +15,13 @@ export function resolveChatRouteContext(pathnameInput: string | undefined): Chat
   const segment = parts[0] ?? null;
   const routeKey = parts.join(":") || "home";
   const pageLabel = segment ? toTitleCase(segment) : "Home";
+  const behavior = resolveChatRouteBehavior(pathname, segment);
 
   return {
     pathname,
     routeKey,
     pageLabel,
     segment,
+    behavior,
   };
 }

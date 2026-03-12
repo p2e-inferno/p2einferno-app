@@ -1,7 +1,4 @@
-import {
-  CHAT_STORAGE_KEYS,
-  CHAT_WELCOME_MESSAGE,
-} from "@/lib/chat/constants";
+import { CHAT_STORAGE_KEYS, CHAT_WELCOME_MESSAGE } from "@/lib/chat/constants";
 import type { ChatRepository } from "@/lib/chat/repository/chat-repository";
 import type {
   ChatConversation,
@@ -9,22 +6,27 @@ import type {
   ChatWidgetSession,
   RestoreConversationResult,
 } from "@/lib/chat/types";
-import { createConversation } from "@/lib/chat/utils";
+import { createConversation, normalizeChatMessages } from "@/lib/chat/utils";
 
 interface BrowserChatRepositoryOptions {
   authenticated: boolean;
+  privyUserId?: string | null;
 }
 
-function getStorageKey(authenticated: boolean) {
-  return authenticated
-    ? CHAT_STORAGE_KEYS.authenticatedConversation
-    : CHAT_STORAGE_KEYS.anonymousConversation;
+function getStorageKey(options: BrowserChatRepositoryOptions) {
+  if (!options.authenticated) {
+    return CHAT_STORAGE_KEYS.anonymousConversation;
+  }
+
+  return `${CHAT_STORAGE_KEYS.authenticatedConversation}:${options.privyUserId ?? "unknown"}`;
 }
 
-function getWidgetKey(authenticated: boolean) {
-  return authenticated
-    ? CHAT_STORAGE_KEYS.authenticatedWidget
-    : CHAT_STORAGE_KEYS.anonymousWidget;
+function getWidgetKey(options: BrowserChatRepositoryOptions) {
+  if (!options.authenticated) {
+    return CHAT_STORAGE_KEYS.anonymousWidget;
+  }
+
+  return `${CHAT_STORAGE_KEYS.authenticatedWidget}:${options.privyUserId ?? "unknown"}`;
 }
 
 function getStorage() {
@@ -32,7 +34,7 @@ function getStorage() {
     return null;
   }
 
-  return window.localStorage;
+  return window.sessionStorage;
 }
 
 export class BrowserChatRepository implements ChatRepository {
@@ -42,19 +44,37 @@ export class BrowserChatRepository implements ChatRepository {
 
   constructor(private readonly options: BrowserChatRepositoryOptions) {}
 
+  private clearLegacyAuthenticatedStorage(storage: Storage | null) {
+    if (!storage || !this.options.authenticated) {
+      return;
+    }
+
+    storage.removeItem(CHAT_STORAGE_KEYS.authenticatedConversation);
+    storage.removeItem(CHAT_STORAGE_KEYS.authenticatedWidget);
+  }
+
   async restoreActiveConversation(): Promise<RestoreConversationResult> {
     const storage = getStorage();
     if (!storage) {
       return { conversation: null, widget: null };
     }
 
-    const rawConversation = storage.getItem(getStorageKey(this.options.authenticated));
-    const rawWidget = storage.getItem(getWidgetKey(this.options.authenticated));
+    this.clearLegacyAuthenticatedStorage(storage);
+
+    const rawConversation = storage.getItem(getStorageKey(this.options));
+    const rawWidget = storage.getItem(getWidgetKey(this.options));
 
     const conversation = rawConversation
-      ? (JSON.parse(rawConversation) as ChatConversation)
+      ? ({
+          ...(JSON.parse(rawConversation) as ChatConversation),
+          messages: normalizeChatMessages(
+            (JSON.parse(rawConversation) as ChatConversation).messages || [],
+          ),
+        } as ChatConversation)
       : null;
-    const widget = rawWidget ? (JSON.parse(rawWidget) as ChatWidgetSession) : null;
+    const widget = rawWidget
+      ? (JSON.parse(rawWidget) as ChatWidgetSession)
+      : null;
 
     return {
       conversation,
@@ -62,16 +82,17 @@ export class BrowserChatRepository implements ChatRepository {
     };
   }
 
-  async createConversation(conversation: ChatConversation): Promise<ChatConversation> {
+  async createConversation(
+    conversation: ChatConversation,
+  ): Promise<ChatConversation> {
     const storage = getStorage();
     if (!storage) {
       return conversation;
     }
 
-    storage.setItem(
-      getStorageKey(this.options.authenticated),
-      JSON.stringify(conversation),
-    );
+    this.clearLegacyAuthenticatedStorage(storage);
+
+    storage.setItem(getStorageKey(this.options), JSON.stringify(conversation));
 
     return conversation;
   }
@@ -85,9 +106,16 @@ export class BrowserChatRepository implements ChatRepository {
       return null;
     }
 
-    const rawConversation = storage.getItem(getStorageKey(this.options.authenticated));
+    this.clearLegacyAuthenticatedStorage(storage);
+
+    const rawConversation = storage.getItem(getStorageKey(this.options));
     const existing = rawConversation
-      ? (JSON.parse(rawConversation) as ChatConversation)
+      ? ({
+          ...(JSON.parse(rawConversation) as ChatConversation),
+          messages: normalizeChatMessages(
+            (JSON.parse(rawConversation) as ChatConversation).messages || [],
+          ),
+        } as ChatConversation)
       : createConversation(
           this.options.authenticated ? "authenticated" : "anonymous",
           [CHAT_WELCOME_MESSAGE],
@@ -101,7 +129,7 @@ export class BrowserChatRepository implements ChatRepository {
     };
 
     storage.setItem(
-      getStorageKey(this.options.authenticated),
+      getStorageKey(this.options),
       JSON.stringify(nextConversation),
     );
 
@@ -114,7 +142,8 @@ export class BrowserChatRepository implements ChatRepository {
       return;
     }
 
-    storage.removeItem(getStorageKey(this.options.authenticated));
+    this.clearLegacyAuthenticatedStorage(storage);
+    storage.removeItem(getStorageKey(this.options));
   }
 
   async saveWidgetSession(session: ChatWidgetSession): Promise<void> {
@@ -123,6 +152,7 @@ export class BrowserChatRepository implements ChatRepository {
       return;
     }
 
-    storage.setItem(getWidgetKey(this.options.authenticated), JSON.stringify(session));
+    this.clearLegacyAuthenticatedStorage(storage);
+    storage.setItem(getWidgetKey(this.options), JSON.stringify(session));
   }
 }

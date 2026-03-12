@@ -43,68 +43,104 @@ interface ChatStoreActions {
   setRoute: (route: ChatRouteContext) => void;
   setMessages: (messages: ChatMessage[]) => void;
   appendMessages: (messages: ChatMessage[]) => void;
+  updateMessage: (
+    messageId: string,
+    updater: (message: ChatMessage) => ChatMessage,
+  ) => void;
   setActiveConversationId: (conversationId: string | null) => void;
-  applyRestore: (payload: RestoreConversationResult, userId: string | null) => void;
+  applyRestore: (
+    payload: RestoreConversationResult,
+    userId: string | null,
+  ) => void;
   resetConversation: () => void;
   markHydrated: (userId: string | null) => void;
   getWidgetSession: () => ChatWidgetSession;
 }
 
-export const useChatStore = create<ChatWidgetState & ChatStoreActions>((set, get) => ({
-  ...initialState,
-  openWidget: () =>
-    set({
-      isOpen: true,
-      isPeekVisible: false,
-      error: null,
-    }),
-  closeWidget: () => set({ isOpen: false }),
-  setPeekVisible: (visible) => set({ isPeekVisible: visible }),
-  dismissPeek: () => set({ isPeekDismissed: true, isPeekVisible: false }),
-  setDraft: (draft) => set({ draft }),
-  setStatus: (status) => set({ status }),
-  setError: (error) => set({ error }),
-  setAuth: (auth) => set({ auth }),
-  setRoute: (route) => set({ route }),
-  setMessages: (messages) => set({ messages }),
-  appendMessages: (messages) =>
-    set((state) => ({ messages: [...state.messages, ...messages] })),
-  setActiveConversationId: (activeConversationId) => set({ activeConversationId }),
-  applyRestore: (payload, userId) =>
-    set((state) => ({
-      activeConversationId: payload.conversation?.id ?? state.activeConversationId,
-      messages: payload.conversation?.messages?.length
-        ? payload.conversation.messages
-        : [CHAT_WELCOME_MESSAGE],
-      isOpen: payload.widget?.isOpen ?? state.isOpen,
-      isPeekVisible:
-        payload.widget?.isPeekVisible ??
-        (!state.isPeekDismissed && state.isPeekVisible),
-      isPeekDismissed: payload.widget?.isPeekDismissed ?? state.isPeekDismissed,
-      draft: payload.widget?.draft ?? "",
-      hasHydrated: true,
-      lastHydratedUserId: userId,
-      error: null,
-    })),
-  resetConversation: () =>
-    set({
-      activeConversationId: null,
-      messages: [CHAT_WELCOME_MESSAGE],
-      draft: "",
-      status: "idle",
-      error: null,
-    }),
-  markHydrated: (userId) => set({ hasHydrated: true, lastHydratedUserId: userId }),
-  getWidgetSession: () => {
-    const state = get();
-    return {
-      isOpen: state.isOpen,
-      isPeekVisible: state.isPeekVisible,
-      isPeekDismissed: state.isPeekDismissed,
-      draft: state.draft,
-    };
-  },
-}));
+export const useChatStore = create<ChatWidgetState & ChatStoreActions>(
+  (set, get) => ({
+    ...initialState,
+    openWidget: () =>
+      set({
+        isOpen: true,
+        isPeekVisible: false,
+        error: null,
+      }),
+    closeWidget: () => set({ isOpen: false }),
+    setPeekVisible: (visible) => set({ isPeekVisible: visible }),
+    dismissPeek: () => set({ isPeekDismissed: true, isPeekVisible: false }),
+    setDraft: (draft) => set({ draft }),
+    setStatus: (status) => set({ status }),
+    setError: (error) => set({ error }),
+    setAuth: (auth) => set({ auth }),
+    setRoute: (route) => set({ route }),
+    setMessages: (messages) => set({ messages }),
+    appendMessages: (messages) =>
+      set((state) => ({ messages: [...state.messages, ...messages] })),
+    updateMessage: (messageId, updater) =>
+      set((state) => ({
+        messages: state.messages.map((message) =>
+          message.id === messageId ? updater(message) : message,
+        ),
+      })),
+    setActiveConversationId: (activeConversationId) =>
+      set({ activeConversationId }),
+    applyRestore: (payload, userId) =>
+      set((state) => {
+        const didUserChange =
+          state.lastHydratedUserId !== null &&
+          state.lastHydratedUserId !== userId;
+
+        return {
+          activeConversationId:
+            payload.conversation?.id ??
+            payload.widget?.activeConversationId ??
+            (didUserChange ? null : state.activeConversationId),
+          messages: payload.conversation?.messages?.length
+            ? payload.conversation.messages
+            : [CHAT_WELCOME_MESSAGE],
+          isOpen:
+            payload.widget?.isOpen ??
+            (didUserChange ? initialState.isOpen : state.isOpen),
+          isPeekVisible:
+            payload.widget?.isPeekVisible ??
+            (didUserChange
+              ? initialState.isPeekVisible
+              : !state.isPeekDismissed && state.isPeekVisible),
+          isPeekDismissed:
+            payload.widget?.isPeekDismissed ??
+            (didUserChange
+              ? initialState.isPeekDismissed
+              : state.isPeekDismissed),
+          draft:
+            payload.widget?.draft ?? (didUserChange ? initialState.draft : ""),
+          hasHydrated: true,
+          lastHydratedUserId: userId,
+          error: null,
+        };
+      }),
+    resetConversation: () =>
+      set({
+        activeConversationId: null,
+        messages: [CHAT_WELCOME_MESSAGE],
+        draft: "",
+        status: "idle",
+        error: null,
+      }),
+    markHydrated: (userId) =>
+      set({ hasHydrated: true, lastHydratedUserId: userId }),
+    getWidgetSession: () => {
+      const state = get();
+      return {
+        isOpen: state.isOpen,
+        isPeekVisible: state.isPeekVisible,
+        isPeekDismissed: state.isPeekDismissed,
+        draft: state.draft,
+        activeConversationId: state.activeConversationId,
+      };
+    },
+  }),
+);
 
 export function getChatStoreState() {
   return useChatStore.getState();

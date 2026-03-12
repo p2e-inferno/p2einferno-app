@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Bot, Sparkles } from "lucide-react";
+import { Bot } from "lucide-react";
 
 interface ChatLauncherProps {
   onOpen: () => Promise<void>;
@@ -30,4 +30,3 @@ export function ChatLauncher({ onOpen }: ChatLauncherProps) {
     </motion.button>
   );
 }
-

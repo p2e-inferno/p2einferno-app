@@ -39,9 +39,11 @@ export function ChatTeaser({
               <X className="h-3.5 w-3.5" />
             </button>
 
-            <div
-              className="flex cursor-pointer items-start gap-3"
+            <button
+              type="button"
+              className="flex w-full items-start gap-3 text-left"
               onClick={() => void onOpen()}
+              aria-label="Open chat assistant"
             >
               <motion.div
                 animate={{ rotate: [0, -10, 10, -10, 0] }}
@@ -58,7 +60,7 @@ export function ChatTeaser({
                   Ask me where to start 👇
                 </p>
               </div>
-            </div>
+            </button>
 
             {/* Carrot */}
             <div className="absolute -bottom-1.5 right-6 h-3 w-3 rotate-45 border-b border-r border-white/10 bg-slate-900/90" />
@@ -68,4 +70,3 @@ export function ChatTeaser({
     </AnimatePresence>
   );
 }
-

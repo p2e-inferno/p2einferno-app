@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { usePrivy } from "@privy-io/react-auth";
 import { useRouter } from "next/router";
 import {
   CHAT_TEASER_HIDE_DELAY_MS,
@@ -10,11 +9,12 @@ import {
 import { resolveChatRouteContext } from "@/lib/chat/context-resolver";
 import { chatController } from "@/lib/chat/controller";
 import { useChatStore } from "@/lib/chat/store";
+import { useChatAuthSession } from "@/hooks/chat/use-chat-auth-session";
 
 export function useChatBootstrap() {
   const router = useRouter();
-  const { user, authenticated, ready } = usePrivy();
-  const auth = useChatStore((state) => state.auth);
+  const { auth, resolveAccessToken } = useChatAuthSession();
+  const authState = useChatStore((state) => state.auth);
   const isPeekDismissed = useChatStore((state) => state.isPeekDismissed);
   const isOpen = useChatStore((state) => state.isOpen);
   const setPeekVisible = useChatStore((state) => state.setPeekVisible);
@@ -25,31 +25,44 @@ export function useChatBootstrap() {
   );
 
   React.useEffect(() => {
-    const walletAddress = user?.wallet?.address ?? null;
-    const privyUserId = user?.id ?? null;
+    let cancelled = false;
 
-    void chatController.bootstrap({
-      auth: {
-        isReady: ready,
-        isAuthenticated: authenticated,
-        privyUserId,
-        walletAddress,
-      },
-      route,
-    });
-  }, [authenticated, ready, route, user?.id, user?.wallet?.address]);
+    void (async () => {
+      const accessToken = await resolveAccessToken();
+
+      if (cancelled) {
+        return;
+      }
+
+      await chatController.bootstrap({
+        auth,
+        route,
+        accessToken,
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth, resolveAccessToken, route]);
 
   React.useEffect(() => {
-    if (!auth.isReady || isPeekDismissed || isOpen) {
+    if (!authState.isReady || isPeekDismissed || isOpen) {
       return;
     }
 
-    const showTimer = window.setTimeout(() => setPeekVisible(true), CHAT_TEASER_SHOW_DELAY_MS);
-    const hideTimer = window.setTimeout(() => setPeekVisible(false), CHAT_TEASER_HIDE_DELAY_MS);
+    const showTimer = window.setTimeout(
+      () => setPeekVisible(true),
+      CHAT_TEASER_SHOW_DELAY_MS,
+    );
+    const hideTimer = window.setTimeout(
+      () => setPeekVisible(false),
+      CHAT_TEASER_HIDE_DELAY_MS,
+    );
 
     return () => {
       window.clearTimeout(showTimer);
       window.clearTimeout(hideTimer);
     };
-  }, [auth.isReady, isOpen, isPeekDismissed, setPeekVisible]);
+  }, [authState.isReady, isOpen, isPeekDismissed, setPeekVisible]);
 }
