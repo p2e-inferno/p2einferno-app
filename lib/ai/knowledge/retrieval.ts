@@ -67,5 +67,20 @@ export async function searchKnowledgeBase(params: {
       .map((document) => document.id),
   );
 
-  return results.filter((row) => freshDocumentIds.has(row.document_id));
+  const filteredResults = results.filter((row) =>
+    freshDocumentIds.has(row.document_id),
+  );
+
+  if (results.length > 0 && filteredResults.length === 0) {
+    log.warn("freshness filtering removed all KB results", {
+      retrievalOutcome: "freshness_collapse",
+      queryText: params.queryText,
+      audience: params.audience ?? null,
+      domainTags: params.domainTags ?? null,
+      freshnessDays: params.freshnessDays,
+      initialResultCount: results.length,
+    });
+  }
+
+  return filteredResults;
 }

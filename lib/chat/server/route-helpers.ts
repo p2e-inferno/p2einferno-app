@@ -20,6 +20,15 @@ export async function requireChatRouteUser(req: NextRequest) {
   };
 }
 
+export async function resolveOptionalChatRouteUser(req: NextRequest) {
+  const user = await getPrivyUserFromNextRequest(req);
+
+  return {
+    user,
+    response: null,
+  };
+}
+
 export async function parseChatRouteJson<T>(req: NextRequest) {
   try {
     return {

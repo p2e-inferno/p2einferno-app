@@ -2,6 +2,31 @@ import { chatController } from "@/lib/chat/controller";
 import { useChatStore } from "@/lib/chat/store";
 
 describe("chat controller", () => {
+  beforeAll(() => {
+    jest.spyOn(global, "fetch").mockImplementation(async () => {
+      return {
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            message: {
+              id: "assistant_1",
+              role: "assistant",
+              content:
+                "Use the wallet connect button in the header to get started.",
+              ts: Date.now(),
+              status: "complete",
+              error: null,
+            },
+            sources: [],
+          }),
+      } as Response;
+    });
+  });
+
+  afterAll(() => {
+    jest.restoreAllMocks();
+  });
+
   beforeEach(() => {
     window.sessionStorage.clear();
     useChatStore.setState({
@@ -51,7 +76,8 @@ describe("chat controller", () => {
         behavior: {
           key: "general",
           assistantLabel: "General guide",
-          systemHint: "Help users orient themselves and find the next useful step in the app.",
+          systemHint:
+            "Help users orient themselves and find the next useful step in the app.",
         },
       },
     });
@@ -64,6 +90,7 @@ describe("chat controller", () => {
     expect(state.messages[1]?.role).toBe("user");
     expect(state.messages[2]?.role).toBe("assistant");
     expect(state.status).toBe("idle");
+    expect("sources" in state).toBe(false);
   });
 
   it("clears the conversation back to the seeded greeting", async () => {
@@ -82,7 +109,8 @@ describe("chat controller", () => {
         behavior: {
           key: "general",
           assistantLabel: "General guide",
-          systemHint: "Help users orient themselves and find the next useful step in the app.",
+          systemHint:
+            "Help users orient themselves and find the next useful step in the app.",
         },
       },
     });

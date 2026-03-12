@@ -1,8 +1,9 @@
 import { CHAT_WELCOME_MESSAGE } from "@/lib/chat/constants";
 import type { ChatAdapter } from "@/lib/chat/adapters/chat-adapter";
-import { mockChatAdapter } from "@/lib/chat/adapters/mock-chat-adapter";
+import { httpChatAdapter } from "@/lib/chat/adapters/http-chat-adapter";
 import { resolveChatReconciliationPlan } from "@/lib/chat/reconciliation";
 import { buildChatAssistantContext } from "@/lib/chat/route-behavior";
+import { ChatRequestError } from "@/lib/chat/repository/http";
 import { getChatSessionPersistence } from "@/lib/chat/session";
 import { getChatStoreState, useChatStore } from "@/lib/chat/store";
 import type {
@@ -34,7 +35,7 @@ export class ChatController {
   private flowEpoch = 0;
   private lastAuthKey = "anonymous";
 
-  constructor(private readonly adapter: ChatAdapter = mockChatAdapter) {}
+  constructor(private readonly adapter: ChatAdapter = httpChatAdapter) {}
 
   async bootstrap({
     auth,
@@ -176,6 +177,7 @@ export class ChatController {
         auth: state.auth,
         route: state.route,
         assistantContext: buildChatAssistantContext(state.route.behavior),
+        accessToken: options.accessToken,
         lifecycle: {
           onAssistantMessageStart: (message) => {
             if (!this.isOperationCurrent(operation)) {
@@ -237,6 +239,8 @@ export class ChatController {
           return;
         }
 
+        // Source references currently stop at the adapter boundary until a
+        // citation UI/state path is added.
         const assistantMessage = response.message;
 
         useChatStore.getState().appendMessages([assistantMessage]);
@@ -260,7 +264,13 @@ export class ChatController {
       useChatStore.setState({
         status: "error",
         error:
-          error instanceof Error ? error.message : "Unable to send message.",
+          error instanceof ChatRequestError && error.status === 429
+            ? error.reason === "quota"
+              ? "Chat usage limit reached for now. Please try again later."
+              : "Chat is temporarily rate limited. Please wait and try again."
+            : error instanceof Error
+              ? error.message
+              : "Unable to send message.",
       });
     } finally {
       await this.persistWidgetSession(options, operation);

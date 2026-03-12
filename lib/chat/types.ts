@@ -92,6 +92,7 @@ export interface ChatAdapterRequest {
   auth: ChatAuthContext;
   route: ChatRouteContext | null;
   assistantContext: ChatAssistantContext;
+  accessToken?: string | null;
   lifecycle?: ChatAdapterLifecycleHandlers;
 }
 
@@ -104,12 +105,16 @@ export interface ChatSourceReference {
 export type ChatAdapterResponse =
   | {
       // Non-streaming adapters return the final assistant message here.
+      // Source references are transport-only right now; the widget does not yet
+      // persist or render citations end-to-end.
       mode: "final";
       message: ChatMessage;
       sources?: ChatSourceReference[];
     }
   | {
       // Lifecycle-driven adapters must finalize via callbacks and not return a second message.
+      // Source references are transport-only right now; the widget does not yet
+      // persist or render citations end-to-end.
       mode: "lifecycle";
       sources?: ChatSourceReference[];
     };

@@ -1,0 +1,954 @@
+jest.mock("@/lib/ai/knowledge/embeddings", () => ({
+  embedTexts: jest.fn(),
+}));
+
+jest.mock("@/lib/ai/knowledge/retrieval", () => ({
+  searchKnowledgeBase: jest.fn(),
+}));
+
+jest.mock("@/lib/ai/client", () => ({
+  chatCompletion: jest.fn(),
+}));
+
+var warnLog: jest.Mock;
+
+jest.mock("@/lib/utils/logger", () => ({
+  getLogger: () => {
+    warnLog = warnLog || jest.fn();
+
+    return {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: warnLog,
+      error: jest.fn(),
+    };
+  },
+}));
+
+import { chatCompletion } from "@/lib/ai/client";
+import { embedTexts } from "@/lib/ai/knowledge/embeddings";
+import { searchKnowledgeBase } from "@/lib/ai/knowledge/retrieval";
+import { generateChatResponse } from "@/lib/chat/server/respond-service";
+
+const embedTextsMock = embedTexts as jest.MockedFunction<typeof embedTexts>;
+const searchKnowledgeBaseMock = searchKnowledgeBase as jest.MockedFunction<
+  typeof searchKnowledgeBase
+>;
+const chatCompletionMock = chatCompletion as jest.MockedFunction<
+  typeof chatCompletion
+>;
+
+describe("generateChatResponse", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    embedTextsMock.mockResolvedValue([new Array(1536).fill(0.1)]);
+  });
+
+  it("uses the sales profile for homepage requests", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-1",
+        document_id: "doc-1",
+        title: "Business Summary",
+        chunk_text: "P2E Inferno is a gamified educational platform.",
+        metadata: {
+          source_path: "docs/strategy/BUSINESS_SUMMARY.md",
+          source_type: "doc",
+        },
+        rank: 0.8,
+        keyword_rank: 0.6,
+        semantic_rank: 0.9,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content:
+        "P2E Inferno helps people learn frontier tech through quests and bootcamps.",
+      model: "test-model",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_1",
+        message: "What is P2E Inferno?",
+        messages: [
+          { role: "assistant", content: "Welcome" },
+          { role: "user", content: "What is P2E Inferno?" },
+        ],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          behaviorKey: "general",
+          segment: null,
+        },
+      },
+      isAuthenticated: false,
+    });
+
+    expect(searchKnowledgeBaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audience: ["sales"],
+        domainTags: expect.arrayContaining(["business", "marketing"]),
+      }),
+    );
+    expect(chatCompletionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
+            content: expect.stringContaining("Current pathname: /"),
+          }),
+        ]),
+      }),
+    );
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "home_sales",
+        resultCount: 1,
+      }),
+    );
+    expect(response.sources).toEqual([
+      {
+        id: "docs/strategy/BUSINESS_SUMMARY.md",
+        title: "Business Summary",
+        href: undefined,
+      },
+    ]);
+  });
+
+  it("uses the safe catch-all support profile for authenticated non-lobby app routes", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-general",
+        document_id: "doc-general",
+        title: "Navigation Map",
+        chunk_text: "General app navigation guidance.",
+        metadata: {
+          source_path: "docs/categories/NAVIGATION_MAP.md",
+          source_type: "doc",
+        },
+        rank: 0.82,
+        keyword_rank: 0.6,
+        semantic_rank: 0.84,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "General support guidance",
+      model: "test-model",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_general",
+        message: "What should I do on this page?",
+        messages: [{ role: "user", content: "What should I do on this page?" }],
+        route: {
+          pathname: "/profile/settings?tab=wallet",
+          routeKey: "profile:settings",
+          segment: "profile",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(searchKnowledgeBaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audience: ["support"],
+        domainTags: expect.arrayContaining(["navigation", "platform"]),
+      }),
+    );
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({ profile: "general_support" }),
+    );
+  });
+
+  it("ignores contradictory client hints and resolves vendor support from pathname", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-vendor",
+        document_id: "doc-vendor",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Vendor progression and renewal guidance.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.88,
+        keyword_rank: 0.64,
+        semantic_rank: 0.91,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Vendor guidance",
+      model: "test-model",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_vendor",
+        message: "How does vendor renewal work?",
+        messages: [{ role: "user", content: "How does vendor renewal work?" }],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: null,
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(searchKnowledgeBaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audience: ["support"],
+        domainTags: expect.arrayContaining(["vendor", "renewal"]),
+      }),
+    );
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({ profile: "vendor_support" }),
+    );
+  });
+
+  it("ignores contradictory support hints and keeps homepage requests on the sales profile", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-home",
+        document_id: "doc-home",
+        title: "Business Summary",
+        chunk_text: "High-level product overview.",
+        metadata: {
+          source_path: "docs/strategy/BUSINESS_SUMMARY.md",
+          source_type: "doc",
+        },
+        rank: 0.84,
+        keyword_rank: 0.6,
+        semantic_rank: 0.86,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Homepage guidance",
+      model: "test-model",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_home_hint",
+        message: "What can I do here?",
+        messages: [{ role: "user", content: "What can I do here?" }],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: false,
+    });
+
+    expect(searchKnowledgeBaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        audience: ["sales"],
+      }),
+    );
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({ profile: "home_sales" }),
+    );
+  });
+
+  it("uses the bootcamp support profile through the full respond path", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-bootcamp",
+        document_id: "doc-bootcamp",
+        title: "Bootcamp Registration Playbook",
+        chunk_text: "Bootcamp payment and enrollment guidance.",
+        metadata: {
+          source_path:
+            "docs/playbooks/BOOTCAMP_AND_COHORT_REGISTRATION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.87,
+        keyword_rank: 0.66,
+        semantic_rank: 0.89,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Bootcamp support guidance",
+      model: "test-model",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_bootcamp",
+        message: "I paid but my cohort isn't showing up.",
+        messages: [
+          { role: "user", content: "I paid but my cohort isn't showing up." },
+        ],
+        route: {
+          pathname: "/lobby/bootcamps/123",
+          routeKey: "lobby:bootcamps:123",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(searchKnowledgeBaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domainTags: expect.arrayContaining([
+          "bootcamp",
+          "payments",
+          "enrollment",
+        ]),
+      }),
+    );
+    expect(chatCompletionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        maxTokens: 550,
+      }),
+    );
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({ profile: "bootcamp_support" }),
+    );
+  });
+
+  it("normalizes malformed pathname variants before profile resolution", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-normalized",
+        document_id: "doc-normalized",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Vendor progression and renewal guidance.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.88,
+        keyword_rank: 0.64,
+        semantic_rank: 0.91,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Vendor guidance",
+      model: "test-model",
+    });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_normalized",
+        message: "How does vendor renewal work?",
+        messages: [{ role: "user", content: "How does vendor renewal work?" }],
+        route: {
+          pathname: "///lobby//vendor/?foo=bar#section",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
+            content: expect.stringContaining("Current pathname: /lobby/vendor"),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("returns a support-safe weak retrieval fallback for lobby routes without calling the model", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([]);
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_2",
+        message: "Why can't I access this quest?",
+        messages: [{ role: "user", content: "Why can't I access this quest?" }],
+        route: {
+          pathname: "/lobby/quests/quest-1",
+          routeKey: "lobby:quests:quest-1",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "quest_support",
+        resultCount: 0,
+      }),
+    );
+    expect(response.message.content).toContain("I can't confirm");
+    expect(response.message.content).toContain("/lobby/quests");
+    expect(warnLog).toHaveBeenCalledWith(
+      "Using zero-result retrieval fallback for chat response",
+      expect.objectContaining({
+        profile: "quest_support",
+        pathname: "/lobby/quests/quest-1",
+      }),
+    );
+  });
+
+  it("uses a weak fallback for non-zero but low-confidence retrieval", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-low",
+        document_id: "doc-low",
+        title: "Navigation Map",
+        chunk_text: "Some broad navigation context.",
+        metadata: {
+          source_path: "docs/categories/NAVIGATION_MAP.md",
+          source_type: "doc",
+        },
+        rank: 0.51,
+        keyword_rank: 0.42,
+        semantic_rank: 0.58,
+      },
+    ] as any);
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_low",
+        message: "Why is my application pending?",
+        messages: [{ role: "user", content: "Why is my application pending?" }],
+        route: {
+          pathname: "/lobby/apply",
+          routeKey: "lobby:apply",
+          segment: "lobby",
+          behaviorKey: "application",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "bootcamp_support",
+        resultCount: 1,
+      }),
+    );
+    expect(response.message.content).toContain("I can't confirm");
+  });
+
+  it("treats a top result just below the strong threshold as weak", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-boundary-low",
+        document_id: "doc-boundary-low",
+        title: "Navigation Map",
+        chunk_text: "General guidance.",
+        metadata: {
+          source_path: "docs/categories/NAVIGATION_MAP.md",
+          source_type: "doc",
+        },
+        rank: 0.699,
+        keyword_rank: 0.6,
+        semantic_rank: 0.8,
+      },
+    ] as any);
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_boundary_low",
+        message: "Where do I go next?",
+        messages: [{ role: "user", content: "Where do I go next?" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain("I can't confirm");
+  });
+
+  it("treats a top result at the strong threshold as eligible", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-boundary-strong",
+        document_id: "doc-boundary-strong",
+        title: "Navigation Map",
+        chunk_text: "General guidance.",
+        metadata: {
+          source_path: "docs/categories/NAVIGATION_MAP.md",
+          source_type: "doc",
+        },
+        rank: 0.7,
+        keyword_rank: 0.6,
+        semantic_rank: 0.7,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Strong enough guidance",
+      model: "test-model",
+    });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_boundary_strong",
+        message: "Where do I go next?",
+        messages: [{ role: "user", content: "Where do I go next?" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).toHaveBeenCalled();
+  });
+
+  it("does not falsely treat clearly strong complementary top sources as conflicting", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-strong-a",
+        document_id: "doc-strong-a",
+        title: "Vendor Playbook",
+        chunk_text: "Vendor renewal requires following the vendor flow.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.87,
+        keyword_rank: 0.61,
+        semantic_rank: 0.88,
+      },
+      {
+        chunk_id: "chunk-strong-b",
+        document_id: "doc-strong-b",
+        title: "Navigation Map",
+        chunk_text: "The vendor page is under /lobby/vendor.",
+        metadata: {
+          source_path: "docs/categories/NAVIGATION_MAP.md",
+          source_type: "doc",
+        },
+        rank: 0.85,
+        keyword_rank: 0.58,
+        semantic_rank: 0.84,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Strong multi-source answer",
+      model: "test-model",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_multi_source",
+        message: "How does vendor renewal work and where do I find it?",
+        messages: [
+          {
+            role: "user",
+            content: "How does vendor renewal work and where do I find it?",
+          },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).toHaveBeenCalled();
+    expect(response.sources).toHaveLength(2);
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({ profile: "vendor_support" }),
+    );
+  });
+
+  it("does not falsely fall back on realistic complementary support evidence near the strong threshold", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-support-a",
+        document_id: "doc-support-a",
+        title: "Quest Troubleshooting Playbook",
+        chunk_text: "Quest access can depend on progression status.",
+        metadata: {
+          source_path: "docs/playbooks/SUPPORT_TROUBLESHOOTING_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.77,
+        keyword_rank: 0.59,
+        semantic_rank: 0.8,
+      },
+      {
+        chunk_id: "chunk-support-b",
+        document_id: "doc-support-b",
+        title: "Navigation Map",
+        chunk_text: "Users can review quest progress in /lobby/quests.",
+        metadata: {
+          source_path: "docs/categories/NAVIGATION_MAP.md",
+          source_type: "doc",
+        },
+        rank: 0.75,
+        keyword_rank: 0.57,
+        semantic_rank: 0.79,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Use both progression and navigation guidance",
+      model: "test-model",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_support_pair",
+        message: "Why can't I access this quest and where do I check it?",
+        messages: [
+          {
+            role: "user",
+            content: "Why can't I access this quest and where do I check it?",
+          },
+        ],
+        route: {
+          pathname: "/lobby/quests/quest-1",
+          routeKey: "lobby:quests:quest-1",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).toHaveBeenCalled();
+    expect(response.sources).toHaveLength(2);
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({ profile: "quest_support" }),
+    );
+  });
+
+  it("uses a safe fallback for meaningfully conflicting retrieval", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-1",
+        document_id: "doc-1",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Renewal is tied to the active wallet context.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.8,
+        keyword_rank: 0.61,
+        semantic_rank: 0.82,
+      },
+      {
+        chunk_id: "chunk-2",
+        document_id: "doc-2",
+        title: "Rewards, Renewal, and Pullout Playbook",
+        chunk_text: "Pullout and renewal should be explained separately.",
+        metadata: {
+          source_path: "docs/playbooks/REWARDS_RENEWAL_AND_PULLOUT_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.79,
+        keyword_rank: 0.6,
+        semantic_rank: 0.81,
+      },
+    ] as any);
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_conflict",
+        message: "Can I renew from any linked wallet?",
+        messages: [
+          { role: "user", content: "Can I renew from any linked wallet?" },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain("I can't confirm");
+  });
+
+  it("does not fire the conflict gate when both results are at exactly the very-strong threshold (0.82)", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-vs-a",
+        document_id: "doc-vs-a",
+        title: "Doc A",
+        chunk_text: "Guidance from source A.",
+        metadata: { source_path: "docs/a.md", source_type: "doc" },
+        rank: 0.82,
+        keyword_rank: 0.6,
+        semantic_rank: 0.82,
+      },
+      {
+        chunk_id: "chunk-vs-b",
+        document_id: "doc-vs-b",
+        title: "Doc B",
+        chunk_text: "Guidance from source B.",
+        metadata: { source_path: "docs/b.md", source_type: "doc" },
+        rank: 0.82,
+        keyword_rank: 0.6,
+        semantic_rank: 0.82,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Combined answer from both",
+      model: "test-model",
+    });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_vs_boundary",
+        message: "Tell me about this feature",
+        messages: [{ role: "user", content: "Tell me about this feature" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).toHaveBeenCalled();
+  });
+
+  it("fires the conflict gate when one result drops just below the very-strong threshold (0.81)", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-below-a",
+        document_id: "doc-below-a",
+        title: "Doc A",
+        chunk_text: "Guidance from source A.",
+        metadata: { source_path: "docs/a.md", source_type: "doc" },
+        rank: 0.82,
+        keyword_rank: 0.6,
+        semantic_rank: 0.82,
+      },
+      {
+        chunk_id: "chunk-below-b",
+        document_id: "doc-below-b",
+        title: "Doc B",
+        chunk_text: "Guidance from source B.",
+        metadata: { source_path: "docs/b.md", source_type: "doc" },
+        rank: 0.81,
+        keyword_rank: 0.6,
+        semantic_rank: 0.81,
+      },
+    ] as any);
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_below_vs_boundary",
+        message: "Tell me about this feature",
+        messages: [{ role: "user", content: "Tell me about this feature" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain("I can't confirm");
+  });
+
+  it("does not treat results as conflicting when the rank gap exceeds the configured threshold", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-a",
+        document_id: "doc-a",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Renewal is tied to the active wallet context.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.84,
+        keyword_rank: 0.61,
+        semantic_rank: 0.86,
+      },
+      {
+        chunk_id: "chunk-b",
+        document_id: "doc-b",
+        title: "Rewards, Renewal, and Pullout Playbook",
+        chunk_text: "Pullout and renewal should be explained separately.",
+        metadata: {
+          source_path: "docs/playbooks/REWARDS_RENEWAL_AND_PULLOUT_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.79,
+        keyword_rank: 0.6,
+        semantic_rank: 0.82,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Resolved vendor guidance",
+      model: "test-model",
+    });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_non_conflict",
+        message: "Can I renew from any linked wallet?",
+        messages: [
+          { role: "user", content: "Can I renew from any linked wallet?" },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "dashboard",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).toHaveBeenCalled();
+  });
+
+  it("filters weak lower-ranked evidence out of the prompt and sources", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-top",
+        document_id: "doc-top",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Strong vendor guidance.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.86,
+        keyword_rank: 0.64,
+        semantic_rank: 0.9,
+      },
+      {
+        chunk_id: "chunk-weak-tail",
+        document_id: "doc-weak-tail",
+        title: "Weak Tail",
+        chunk_text: "Weak unrelated evidence.",
+        metadata: {
+          source_path: "docs/categories/NAVIGATION_MAP.md",
+          source_type: "doc",
+        },
+        rank: 0.54,
+        keyword_rank: 0.4,
+        semantic_rank: 0.56,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Filtered vendor guidance",
+      model: "test-model",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_filtered_tail",
+        message: "How does vendor renewal work?",
+        messages: [{ role: "user", content: "How does vendor renewal work?" }],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    const request = chatCompletionMock.mock.calls[0]?.[0];
+    expect(JSON.stringify(request)).toContain("Strong vendor guidance.");
+    expect(JSON.stringify(request)).not.toContain("Weak unrelated evidence.");
+    expect(response.sources).toEqual([
+      {
+        id: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+        title: "Vendor Progression Playbook",
+        href: undefined,
+      },
+    ]);
+  });
+
+  it("returns a sales-safe weak retrieval fallback for homepage requests", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([]);
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_3",
+        message: "How does wallet troubleshooting work?",
+        messages: [
+          { role: "user", content: "How does wallet troubleshooting work?" },
+        ],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          segment: null,
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: false,
+    });
+
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain(
+      "At a high level, P2E Inferno helps",
+    );
+    expect(response.message.content).not.toContain("/lobby/vendor");
+  });
+
+  it("keeps weak fallback wording owned by the resolved route profile", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([]);
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_vendor_zero",
+        message: "What does pullout mean here?",
+        messages: [{ role: "user", content: "What does pullout mean here?" }],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(response.message.content).toContain("/lobby/vendor");
+    expect(response.message.content).not.toContain("/lobby/quests");
+  });
+});
