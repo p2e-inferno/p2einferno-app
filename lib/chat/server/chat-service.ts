@@ -78,18 +78,42 @@ export class ChatService {
     privyUserId: string,
   ): Promise<RestoreConversationResult> {
     const widget = await this.getWidgetSession(privyUserId);
-    const conversationId =
-      widget?.activeConversationId ??
-      (await this.getLatestConversationId(privyUserId));
+    const widgetConversationId = widget?.activeConversationId;
 
-    if (!conversationId) {
+    if (widgetConversationId) {
+      const activeConversation = await this.getConversation(
+        privyUserId,
+        widgetConversationId,
+      );
+
+      if (activeConversation) {
+        return { conversation: activeConversation, widget };
+      }
+    }
+
+    const latestConversationId = await this.getLatestConversationId(privyUserId);
+    if (!latestConversationId) {
       return { conversation: null, widget };
     }
 
     const conversation = await this.getConversation(
       privyUserId,
-      conversationId,
+      latestConversationId,
     );
+
+    if (!conversation) {
+      return { conversation: null, widget };
+    }
+
+    if (widget && widget.activeConversationId !== latestConversationId) {
+      const normalizedWidget = {
+        ...widget,
+        activeConversationId: latestConversationId,
+      };
+      await this.saveWidgetSession(privyUserId, normalizedWidget);
+      return { conversation, widget: normalizedWidget };
+    }
+
     return { conversation, widget };
   }
 
@@ -99,20 +123,41 @@ export class ChatService {
   ): Promise<ChatConversation> {
     const now = new Date().toISOString();
     const source: ChatConversation["source"] = "authenticated";
-    const { error } = await this.supabase.from("chat_conversations").upsert(
-      {
+    const existingConversation = await this.getConversationRowById(
+      conversation.id,
+    );
+
+    if (!existingConversation) {
+      const { error } = await this.supabase.from("chat_conversations").insert({
         id: conversation.id,
         privy_user_id: privyUserId,
         source,
         created_at: now,
         updated_at: now,
         cleared_at: null,
-      },
-      { onConflict: "id" },
-    );
+      });
 
-    if (error) {
-      throw error;
+      if (error) {
+        throw error;
+      }
+    } else {
+      if (existingConversation.privy_user_id !== privyUserId) {
+        throw new Error("Conversation already belongs to another user");
+      }
+
+      const { error } = await this.supabase
+        .from("chat_conversations")
+        .update({
+          source,
+          updated_at: now,
+          cleared_at: null,
+        })
+        .eq("id", conversation.id)
+        .eq("privy_user_id", privyUserId);
+
+      if (error) {
+        throw error;
+      }
     }
 
     return {
@@ -140,21 +185,44 @@ export class ChatService {
       return this.getConversation(privyUserId, conversationId);
     }
 
-    const { error: insertError } = await this.supabase
-      .from("chat_messages")
-      .upsert(
-        messages.map((message) => ({
-          id: message.id,
-          conversation_id: conversationId,
+    for (const message of messages) {
+      const existingMessage = await this.getMessageRowById(message.id);
+
+      if (!existingMessage) {
+        const { error: insertError } = await this.supabase
+          .from("chat_messages")
+          .insert({
+            id: message.id,
+            conversation_id: conversationId,
+            role: message.role,
+            content: message.content,
+            sent_at: new Date(message.ts).toISOString(),
+          });
+
+        if (insertError) {
+          throw insertError;
+        }
+
+        continue;
+      }
+
+      if (existingMessage.conversation_id !== conversationId) {
+        throw new Error("Message already belongs to another conversation");
+      }
+
+      const { error: updateError } = await this.supabase
+        .from("chat_messages")
+        .update({
           role: message.role,
           content: message.content,
           sent_at: new Date(message.ts).toISOString(),
-        })),
-        { onConflict: "id" },
-      );
+        })
+        .eq("id", message.id)
+        .eq("conversation_id", conversationId);
 
-    if (insertError) {
-      throw insertError;
+      if (updateError) {
+        throw updateError;
+      }
     }
 
     const { error: updateError } = await this.supabase
@@ -334,6 +402,22 @@ export class ChatService {
     return data?.id ?? null;
   }
 
+  private async getConversationRowById(
+    conversationId: string,
+  ): Promise<ChatConversationRow | null> {
+    const { data, error } = await this.supabase
+      .from("chat_conversations")
+      .select("id, privy_user_id, source, created_at, updated_at, cleared_at")
+      .eq("id", conversationId)
+      .maybeSingle<ChatConversationRow>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
   private async getOwnedConversationRow(
     privyUserId: string,
     conversationId: string,
@@ -345,6 +429,20 @@ export class ChatService {
       .eq("privy_user_id", privyUserId)
       .is("cleared_at", null)
       .maybeSingle<ChatConversationRow>();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  }
+
+  private async getMessageRowById(messageId: string): Promise<ChatMessageRow | null> {
+    const { data, error } = await this.supabase
+      .from("chat_messages")
+      .select("id, conversation_id, role, content, sent_at, created_at")
+      .eq("id", messageId)
+      .maybeSingle<ChatMessageRow>();
 
     if (error) {
       throw error;
