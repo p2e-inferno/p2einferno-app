@@ -2,6 +2,7 @@ import { PrivyProvider } from "@privy-io/react-auth";
 import React, { useEffect } from "react";
 import { useRouter } from "next/router";
 import { AdminAuthProvider } from "@/contexts/admin-context";
+import { ChatWidgetRoot } from "@/components/chat/chat-widget-root";
 import { WagmiProvider } from "./providers/WagmiProvider";
 
 // This component is a workaround for a common issue with scrollbars in server-rendered
@@ -55,6 +56,7 @@ function ClientSideWrapper({ children }: ClientSideWrapperProps) {
       <WagmiProvider>
         <ScrollbarFix />
         {content}
+        <ChatWidgetRoot />
       </WagmiProvider>
     </PrivyProvider>
   );
