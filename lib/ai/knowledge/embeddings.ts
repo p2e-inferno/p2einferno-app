@@ -9,6 +9,14 @@ const DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small";
 const EMBEDDING_BATCH_SIZE = 20;
 const EMBEDDING_TIMEOUT_MS = 30_000;
 
+function summarizeEmbeddingTexts(texts: string[]) {
+  return texts.map((text, index) => ({
+    index,
+    length: text.length,
+    preview: text.trim().slice(0, 160),
+  }));
+}
+
 /**
  * Returns the resolved embedding model name.
  * build.ts must call this and include the returned value as `embedding_model`
@@ -22,6 +30,12 @@ export async function getEmbeddingBatch(texts: string[]): Promise<number[][]> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not configured");
   const model = getEmbeddingModel();
+
+  log.debug("Requesting embedding batch", {
+    model,
+    batchSize: texts.length,
+    texts: summarizeEmbeddingTexts(texts),
+  });
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), EMBEDDING_TIMEOUT_MS);
@@ -46,6 +60,11 @@ export async function getEmbeddingBatch(texts: string[]): Promise<number[][]> {
     }
 
     const data = await response.json();
+    log.debug("Received embedding batch", {
+      model,
+      batchSize: texts.length,
+      vectorCount: Array.isArray(data?.data) ? data.data.length : 0,
+    });
     // OpenRouter returns data sorted by index
     return (data.data as Array<{ embedding: number[] }>).map((d) => d.embedding);
   } catch (err) {
@@ -60,6 +79,12 @@ export async function getEmbeddingBatch(texts: string[]): Promise<number[][]> {
 
 /** Embeds texts in batches of EMBEDDING_BATCH_SIZE with single retry on failure. */
 export async function embedTexts(texts: string[]): Promise<number[][]> {
+  log.debug("Embedding text collection", {
+    textCount: texts.length,
+    batchSize: EMBEDDING_BATCH_SIZE,
+    texts: summarizeEmbeddingTexts(texts),
+  });
+
   const results: number[][] = [];
   for (let i = 0; i < texts.length; i += EMBEDDING_BATCH_SIZE) {
     const batch = texts.slice(i, i + EMBEDDING_BATCH_SIZE);
@@ -73,5 +98,9 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
       results.push(...embeddings);
     }
   }
+  log.debug("Completed embeddings request", {
+    textCount: texts.length,
+    vectorCount: results.length,
+  });
   return results;
 }

@@ -45,6 +45,29 @@ describe("generateChatResponse", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     embedTextsMock.mockResolvedValue([new Array(1536).fill(0.1)]);
+    chatCompletionMock.mockImplementation(async (options) => {
+      const systemMessage = options.messages[0]?.content;
+      if (
+        typeof systemMessage === "string" &&
+        systemMessage.includes("You route chat requests")
+      ) {
+        return {
+          success: true,
+          content: JSON.stringify({
+            route: "grounded_kb",
+            retrievalQuery: "default retrieval query",
+            rationale: "Default test router decision.",
+          }),
+          model: "router-model",
+        };
+      }
+
+      return {
+        success: true,
+        content: "Default assistant reply",
+        model: "test-model",
+      };
+    });
   });
 
   it("uses the sales profile for homepage requests", async () => {
@@ -63,12 +86,23 @@ describe("generateChatResponse", () => {
         semantic_rank: 0.9,
       },
     ] as any);
-    chatCompletionMock.mockResolvedValue({
-      success: true,
-      content:
-        "P2E Inferno helps people learn frontier tech through quests and bootcamps.",
-      model: "test-model",
-    });
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          JSON.stringify({
+            route: "grounded_kb",
+            retrievalQuery: "What is P2E Inferno?",
+            rationale: "Needs grounded product information.",
+          }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "P2E Inferno helps people learn frontier tech through quests and bootcamps.",
+        model: "test-model",
+      });
 
     const response = await generateChatResponse({
       body: {
@@ -99,6 +133,17 @@ describe("generateChatResponse", () => {
         messages: expect.arrayContaining([
           expect.objectContaining({
             role: "system",
+            content: expect.stringContaining("You route chat requests"),
+          }),
+        ]),
+      }),
+    );
+    expect(chatCompletionMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
             content: expect.stringContaining("Current pathname: /"),
           }),
         ]),
@@ -120,6 +165,23 @@ describe("generateChatResponse", () => {
   });
 
   it("returns a natural greeting reply without forcing weak retrieval fallback", async () => {
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "chat_only",
+          retrievalQuery: "",
+          rationale: "Greeting only.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "Hey 👋 I can help you get oriented in the lobby, find quests or bootcamps, or figure out the next useful step.",
+        model: "test-model",
+      });
+
     const response = await generateChatResponse({
       body: {
         conversationId: "chat_greeting",
@@ -137,7 +199,7 @@ describe("generateChatResponse", () => {
 
     expect(embedTextsMock).not.toHaveBeenCalled();
     expect(searchKnowledgeBaseMock).not.toHaveBeenCalled();
-    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
     expect(response.message.content).toContain("Hey");
     expect(response.message.content).toContain("quests or bootcamps");
     expect(response.message.content).not.toContain("I can't confirm that operational detail");
@@ -150,6 +212,23 @@ describe("generateChatResponse", () => {
   });
 
   it("returns a natural thanks reply without retrieval", async () => {
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "chat_only",
+          retrievalQuery: "",
+          rationale: "Acknowledgement only.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "You’re welcome. Tell me what you want to do next and I’ll help.",
+        model: "test-model",
+      });
+
     const response = await generateChatResponse({
       body: {
         conversationId: "chat_thanks",
@@ -166,7 +245,104 @@ describe("generateChatResponse", () => {
     });
 
     expect(embedTextsMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
     expect(response.message.content).toContain("You’re welcome");
+  });
+
+  it("falls back to grounded retrieval when the router fails on an operational question", async () => {
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: false,
+        error: "AI returned empty response",
+        code: "AI_EMPTY_RESPONSE",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "Start with the main lobby checklist, then choose a quest or bootcamp based on your goal.",
+        model: "test-model",
+      });
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-lobby",
+        document_id: "doc-lobby",
+        title: "Lobby onboarding",
+        chunk_text: "Start with the main lobby checklist, then choose a quest or bootcamp based on your goal.",
+        metadata: {
+          source_path: "docs/categories/LOBBY_ONBOARDING.md",
+          source_type: "doc",
+        },
+        rank: 0.83,
+        keyword_rank: 0.62,
+        semantic_rank: 0.85,
+      },
+    ] as any);
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_router_empty",
+        message: "I just landed here. What should I do first?",
+        messages: [
+          { role: "user", content: "I just landed here. What should I do first?" },
+        ],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(embedTextsMock).toHaveBeenCalledWith([
+      "I just landed here. What should I do first?",
+    ]);
+    expect(searchKnowledgeBaseMock).toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(response.message.content).toContain("main lobby checklist");
+    expect(warnLog).toHaveBeenCalledWith(
+      "Chat intent routing failed; using fallback route",
+      expect.objectContaining({
+        pathname: "/lobby",
+        profile: "lobby_support",
+        code: "AI_EMPTY_RESPONSE",
+      }),
+    );
+  });
+
+  it("falls back to direct chat when the router returns fenced JSON", async () => {
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "```json\n{\"route\":\"chat_only\",\"retrievalQuery\":\"\",\"rationale\":\"Greeting\"}\n```",
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Hey there. What are you trying to get done in the lobby?",
+        model: "test-model",
+      });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_router_fenced",
+        message: "hello",
+        messages: [{ role: "user", content: "hello" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(embedTextsMock).not.toHaveBeenCalled();
+    expect(searchKnowledgeBaseMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain("Hey there");
   });
 
   it("uses the safe catch-all support profile for authenticated non-lobby app routes", async () => {
@@ -185,7 +361,17 @@ describe("generateChatResponse", () => {
         semantic_rank: 0.84,
       },
     ] as any);
-    chatCompletionMock.mockResolvedValue({
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "What should I do on this page?",
+          rationale: "Needs grounded navigation guidance.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
       success: true,
       content: "General support guidance",
       model: "test-model",
@@ -233,7 +419,17 @@ describe("generateChatResponse", () => {
         semantic_rank: 0.91,
       },
     ] as any);
-    chatCompletionMock.mockResolvedValue({
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "How does vendor renewal work?",
+          rationale: "Vendor operational question.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
       success: true,
       content: "Vendor guidance",
       model: "test-model",
@@ -281,7 +477,17 @@ describe("generateChatResponse", () => {
         semantic_rank: 0.86,
       },
     ] as any);
-    chatCompletionMock.mockResolvedValue({
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "What can I do here?",
+          rationale: "Needs grounded homepage/product guidance.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
       success: true,
       content: "Homepage guidance",
       model: "test-model",
@@ -329,11 +535,21 @@ describe("generateChatResponse", () => {
         semantic_rank: 0.89,
       },
     ] as any);
-    chatCompletionMock.mockResolvedValue({
-      success: true,
-      content: "Bootcamp support guidance",
-      model: "test-model",
-    });
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "I paid but my cohort isn't showing up.",
+          rationale: "Bootcamp enrollment issue needs grounded support.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Bootcamp support guidance",
+        model: "test-model",
+      });
 
     const response = await generateChatResponse({
       body: {
@@ -420,7 +636,7 @@ describe("generateChatResponse", () => {
     );
   });
 
-  it("returns a support-safe weak retrieval fallback for lobby routes without calling the model", async () => {
+  it("returns a support-safe weak retrieval fallback for lobby routes without calling the answer model", async () => {
     searchKnowledgeBaseMock.mockResolvedValue([]);
 
     const response = await generateChatResponse({
@@ -438,7 +654,7 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
     expect(response.retrievalMeta).toEqual(
       expect.objectContaining({
         profile: "quest_support",
@@ -488,7 +704,7 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
     expect(response.retrievalMeta).toEqual(
       expect.objectContaining({
         profile: "bootcamp_support",
@@ -530,7 +746,7 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
     expect(response.message.content).toContain("I can't confirm");
   });
 
@@ -603,11 +819,21 @@ describe("generateChatResponse", () => {
         semantic_rank: 0.84,
       },
     ] as any);
-    chatCompletionMock.mockResolvedValue({
-      success: true,
-      content: "Strong multi-source answer",
-      model: "test-model",
-    });
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "How does vendor renewal work and where do I find it?",
+          rationale: "Needs grounded vendor guidance.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Strong multi-source answer",
+        model: "test-model",
+      });
 
     const response = await generateChatResponse({
       body: {
@@ -665,11 +891,21 @@ describe("generateChatResponse", () => {
         semantic_rank: 0.79,
       },
     ] as any);
-    chatCompletionMock.mockResolvedValue({
-      success: true,
-      content: "Use both progression and navigation guidance",
-      model: "test-model",
-    });
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "Why can't I access this quest and where do I check it?",
+          rationale: "Needs grounded quest troubleshooting.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Use both progression and navigation guidance",
+        model: "test-model",
+      });
 
     const response = await generateChatResponse({
       body: {
@@ -745,7 +981,7 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
     expect(response.message.content).toContain("I can't confirm");
   });
 
@@ -835,7 +1071,7 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
     expect(response.message.content).toContain("I can't confirm");
   });
 
@@ -923,11 +1159,21 @@ describe("generateChatResponse", () => {
         semantic_rank: 0.56,
       },
     ] as any);
-    chatCompletionMock.mockResolvedValue({
-      success: true,
-      content: "Filtered vendor guidance",
-      model: "test-model",
-    });
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "How does vendor renewal work?",
+          rationale: "Needs grounded vendor guidance.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Filtered vendor guidance",
+        model: "test-model",
+      });
 
     const response = await generateChatResponse({
       body: {
@@ -944,7 +1190,7 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    const request = chatCompletionMock.mock.calls[0]?.[0];
+    const request = chatCompletionMock.mock.calls[1]?.[0];
     expect(JSON.stringify(request)).toContain("Strong vendor guidance.");
     expect(JSON.stringify(request)).not.toContain("Weak unrelated evidence.");
     expect(response.sources).toEqual([
@@ -976,7 +1222,7 @@ describe("generateChatResponse", () => {
       isAuthenticated: false,
     });
 
-    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
     expect(response.message.content).toContain(
       "At a high level, P2E Inferno helps",
     );

@@ -3,6 +3,7 @@
 import { motion } from "framer-motion";
 import { formatChatTime } from "@/lib/chat/utils";
 import type { ChatMessage } from "@/lib/chat/types";
+import { RichText } from "@/components/common/RichText";
 
 interface ChatMessageBubbleProps {
   message: ChatMessage;
@@ -27,8 +28,14 @@ export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
               : "rounded-[1.4rem] rounded-tl-none bg-slate-800/80 border border-white/5 text-slate-200"
           }`}
         >
-          <div className="whitespace-pre-wrap break-words">
-            {message.content}
+          <div
+            className={`whitespace-pre-wrap break-words ${
+              isUser
+                ? "[&_.prose-p]:text-white [&_.prose-strong]:text-white [&_.prose-ul]:text-white [&_.prose-ol]:text-white [&_a]:text-white [&_a]:underline"
+                : ""
+            }`}
+          >
+            <RichText content={message.content} />
           </div>
 
           {/* Subtle reflection on user bubbles */}

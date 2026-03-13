@@ -6,6 +6,23 @@ import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("ai:kb:retrieval");
 
+function summarizeResults(results: SearchAiKbChunkRow[]) {
+  return results.slice(0, 5).map((row, index) => ({
+    index,
+    title: row.title,
+    documentId: row.document_id,
+    sourcePath:
+      typeof row.metadata?.source_path === "string"
+        ? row.metadata.source_path
+        : null,
+    rank: row.rank,
+    semanticRank: row.semantic_rank,
+    keywordRank: row.keyword_rank,
+    chunkLength: row.chunk_text.length,
+    chunkPreview: row.chunk_text.slice(0, 160),
+  }));
+}
+
 interface SearchAiKbChunkRow {
   chunk_id: string;
   document_id: string;
@@ -26,6 +43,15 @@ export async function searchKnowledgeBase(params: {
   freshnessDays?: number;
 }) {
   const supabase = createAdminClient();
+  log.debug("Searching knowledge base", {
+    queryText: params.queryText,
+    queryLength: params.queryText.length,
+    embeddingDimensions: params.queryEmbedding.length,
+    audience: params.audience ?? null,
+    domainTags: params.domainTags ?? null,
+    limit: params.limit ?? 8,
+    freshnessDays: params.freshnessDays ?? null,
+  });
   const { data, error } = await supabase.rpc("search_ai_kb_chunks", {
     query_text: params.queryText,
     query_embedding: params.queryEmbedding,
@@ -40,6 +66,10 @@ export async function searchKnowledgeBase(params: {
   }
 
   const results = (data ?? []) as SearchAiKbChunkRow[];
+  log.debug("Knowledge base search returned", {
+    resultCount: results.length,
+    topResults: summarizeResults(results),
+  });
   if (params.freshnessDays === undefined || results.length === 0) {
     return results;
   }
@@ -70,6 +100,13 @@ export async function searchKnowledgeBase(params: {
   const filteredResults = results.filter((row) =>
     freshDocumentIds.has(row.document_id),
   );
+
+  log.debug("Applied freshness filter to KB results", {
+    freshnessDays: params.freshnessDays,
+    initialResultCount: results.length,
+    filteredResultCount: filteredResults.length,
+    topResults: summarizeResults(filteredResults),
+  });
 
   if (results.length > 0 && filteredResults.length === 0) {
     log.warn("freshness filtering removed all KB results", {

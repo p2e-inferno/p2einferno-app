@@ -41,9 +41,28 @@ export interface AIRequestOptions {
   temperature?: number;
   /** Fallback model IDs if primary is unavailable. Uses OpenRouter native fallback routing. */
   fallbacks?: string[];
+  /** Optional provider-side response format contract. */
+  responseFormat?: AIResponseFormat;
   /** Abort signal for cancellation. */
   signal?: AbortSignal;
 }
+
+export interface AIJsonSchemaResponseFormat {
+  type: "json_schema";
+  json_schema: {
+    name: string;
+    strict?: boolean;
+    schema: Record<string, unknown>;
+  };
+}
+
+export interface AIJsonObjectResponseFormat {
+  type: "json_object";
+}
+
+export type AIResponseFormat =
+  | AIJsonSchemaResponseFormat
+  | AIJsonObjectResponseFormat;
 
 // --- Response types ---
 

@@ -53,8 +53,28 @@ export async function POST(req: NextRequest) {
 
     const validationError = validateChatRespondBody(parsed.body);
     if (validationError) {
+      log.warn("Rejected chat respond request during validation", {
+        isAuthenticated: Boolean(auth.user),
+        validationError,
+        conversationId: parsed.body.conversationId,
+        pathname: parsed.body.route?.pathname,
+        routeKey: parsed.body.route?.routeKey,
+      });
       return chatRouteBadRequest(validationError);
     }
+
+    log.debug("Accepted chat respond request", {
+      isAuthenticated: Boolean(auth.user),
+      userId: auth.user?.id ?? null,
+      conversationId: parsed.body.conversationId,
+      pathname: parsed.body.route.pathname,
+      routeKey: parsed.body.route.routeKey,
+      behaviorKey: parsed.body.route.behaviorKey ?? null,
+      segment: parsed.body.route.segment ?? null,
+      messageLength: parsed.body.message.length,
+      attachmentCount: parsed.body.attachments?.length ?? 0,
+      historyCount: parsed.body.messages.length,
+    });
 
     const usageIdentity = resolveChatRespondUsageIdentity(
       req,
@@ -81,6 +101,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (!burst.allowed) {
+      log.warn("Blocked chat respond request by burst limit", {
+        conversationId: parsed.body.conversationId,
+        pathname: parsed.body.route.pathname,
+        hasMembership,
+        reason: burst.reason ?? "burst",
+        status: burst.status ?? 429,
+      });
       const response = NextResponse.json(
         {
           error: burst.error ?? "Too many requests",
@@ -102,6 +129,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (!quota.allowed) {
+      log.warn("Blocked chat respond request by quota limit", {
+        conversationId: parsed.body.conversationId,
+        pathname: parsed.body.route.pathname,
+        hasMembership,
+        reason: quota.reason ?? "quota",
+        status: quota.status ?? 429,
+      });
       const response = NextResponse.json(
         {
           error: quota.error ?? "Too many requests",
@@ -123,6 +157,15 @@ export async function POST(req: NextRequest) {
     const payload = await generateChatResponse({
       body: parsed.body,
       isAuthenticated: Boolean(auth.user),
+    });
+
+    log.debug("Completed chat respond request", {
+      conversationId: parsed.body.conversationId,
+      pathname: parsed.body.route.pathname,
+      responseMessageId: payload.message.id,
+      responseLength: payload.message.content.length,
+      sourceCount: payload.sources.length,
+      retrievalMeta: payload.retrievalMeta ?? null,
     });
 
     const response = NextResponse.json(payload);

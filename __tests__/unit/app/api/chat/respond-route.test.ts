@@ -168,7 +168,7 @@ describe("POST /api/chat/respond", () => {
     );
   });
 
-  it("rejects overlong history messages", async () => {
+  it("accepts overlong history messages and leaves truncation to prompt assembly", async () => {
     const res = await respondRoute.POST(
       createRequest({
         body: {
@@ -183,12 +183,8 @@ describe("POST /api/chat/respond", () => {
       }) as any,
     );
 
-    expect(res.status).toBe(400);
-    await expect(res.json()).resolves.toEqual({
-      error:
-        "messages must be an array of up to 12 non-empty chat role/content pairs under 1500 characters each",
-    });
-    expect(generateChatResponse).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(generateChatResponse).toHaveBeenCalled();
   });
 
   it("rejects too many history messages", async () => {

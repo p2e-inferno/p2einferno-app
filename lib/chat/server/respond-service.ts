@@ -14,7 +14,6 @@ import {
 import type {
   ChatRespondRequestBody,
   ChatRespondResponseBody,
-  ServerChatRouteProfileId,
 } from "@/lib/chat/server/respond-types";
 import type {
   ChatAttachment,
@@ -31,19 +30,72 @@ const MAX_HISTORY_MESSAGE_LENGTH = 4_000;
 const MAX_HISTORY_TOTAL_CHARS = 12_000;
 const MAX_HISTORY_MESSAGES = 12;
 const HISTORY_WINDOW = 6;
-const MIN_STRONG_RESULT_RANK = 0.7;
-const MIN_STRONG_SEMANTIC_RANK = 0.7;
-const MIN_VERY_STRONG_RESULT_RANK = 0.82;
-const MIN_VERY_STRONG_SEMANTIC_RANK = 0.82;
+const MIN_STRONG_RESULT_RANK = 0.15;
+const MIN_STRONG_SEMANTIC_RANK = 0.15;
+const MIN_VERY_STRONG_RESULT_RANK = 0.35;
+const MIN_VERY_STRONG_SEMANTIC_RANK = 0.35;
 const CONFLICT_RANK_GAP = 0.03;
 const MAX_PROMPT_RESULTS = 4;
 const MAX_TRAILING_RESULT_DROP_FROM_TOP = 0.12;
-const GREETING_PATTERN =
-  /^(?:hi|hello|hey|yo|sup|what'?s up|good (?:morning|afternoon|evening)|howdy)\b[!. ]*$/i;
-const THANKS_PATTERN = /^(?:thanks|thank you|thx|ty)\b[!. ]*$/i;
-const ACK_PATTERN = /^(?:ok|okay|cool|got it|sounds good|nice)\b[!. ]*$/i;
+const ROUTER_MAX_TOKENS = 160;
+const ROUTER_RESPONSE_FORMAT = {
+  type: "json_object" as const,
+};
+
+type ChatIntentRoute = "chat_only" | "grounded_kb" | "clarify";
+
+interface ChatIntentDecision {
+  route: ChatIntentRoute;
+  retrievalQuery?: string;
+  rationale?: string;
+}
 
 type RetrievedChunk = Awaited<ReturnType<typeof searchKnowledgeBase>>[number];
+
+function summarizeChatAttachment(attachment: ChatAttachment, index: number) {
+  return {
+    index,
+    type: attachment.type,
+    name: attachment.name ?? null,
+    declaredSize: attachment.size ?? null,
+    dataLength: attachment.data.length,
+    dataPrefix: attachment.data.slice(0, 48),
+  };
+}
+
+function summarizeHistoryMessage(
+  message: Pick<ChatMessage, "role" | "content" | "attachments">,
+  index: number,
+) {
+  return {
+    index,
+    role: message.role,
+    contentLength: message.content.length,
+    contentPreview: message.content.slice(0, 160),
+    attachmentCount: message.attachments?.length ?? 0,
+    attachments:
+      message.attachments?.map((attachment, attachmentIndex) =>
+        summarizeChatAttachment(attachment, attachmentIndex),
+      ) ?? [],
+  };
+}
+
+function summarizeRetrievedChunks(results: RetrievedChunk[]) {
+  return results.slice(0, 5).map((result, index) => ({
+    index,
+    title: result.title,
+    documentId: result.document_id,
+    sourcePath:
+      typeof result.metadata?.source_path === "string"
+        ? result.metadata.source_path
+        : null,
+    rank: result.rank,
+    semanticRank: result.semantic_rank,
+    keywordRank: result.keyword_rank,
+    chunkLength: result.chunk_text.length,
+    chunkPreview: result.chunk_text.slice(0, 160),
+  }));
+}
 
 function isValidHistoryMessage(
   value: unknown,
@@ -170,6 +222,18 @@ function formatHistoryMessages(
       : recent;
 
   const budgetedRecent = selectHistoryMessagesWithinBudget(normalizedRecent);
+
+  log.debug("Formatted chat history for model input", {
+    requestedHistoryCount: messages.length,
+    recentHistoryCount: recent.length,
+    normalizedHistoryCount: normalizedRecent.length,
+    budgetedHistoryCount: budgetedRecent.length,
+    latestUserTextLength: latestUserText.length,
+    latestAttachmentCount: latestAttachments.length,
+    selectedHistory: budgetedRecent.map((message, index) =>
+      summarizeHistoryMessage(message, index),
+    ),
+  });
 
   return budgetedRecent.map((message) => {
     if (message.role === "assistant") {
@@ -444,62 +508,281 @@ function filterResultsForPrompt(results: RetrievedChunk[]) {
     .slice(0, MAX_PROMPT_RESULTS);
 }
 
-function detectLightweightIntent(userText: string) {
-  const normalized = userText.trim();
-
-  if (!normalized) {
-    return null;
-  }
-
-  if (GREETING_PATTERN.test(normalized)) {
-    return "greeting" as const;
-  }
-
-  if (THANKS_PATTERN.test(normalized)) {
-    return "thanks" as const;
-  }
-
-  if (ACK_PATTERN.test(normalized)) {
-    return "ack" as const;
-  }
-
-  return null;
+function buildRouterInstruction() {
+  return [
+    "You route chat requests for the P2E Inferno in-app assistant.",
+    "Output your decision as a JSON object with the following properties:",
+    '- route: must be one of "chat_only", "grounded_kb", "clarify".',
+    '- retrievalQuery: string.',
+    '- rationale: string.',
+    'Use "chat_only" for greetings, thanks, acknowledgements, and lightweight conversational turns that do not need grounded operational facts.',
+    'Use "grounded_kb" for product, navigation, troubleshooting, quest, bootcamp, vendor, wallet, membership, or process questions that need factual grounding.',
+    'Use "clarify" only when the message is too ambiguous to answer safely or search well.',
+    "If route is grounded_kb, provide a short retrievalQuery optimized for knowledge-base search.",
+    "If route is not grounded_kb, retrievalQuery should be an empty string.",
+    "Prefer chat_only over clarify for plain greetings like hello/hi/hey.",
+  ].join("\n");
 }
 
-function buildLightweightReply(params: {
-  intent: "greeting" | "thanks" | "ack";
-  profileId: ServerChatRouteProfileId;
+function buildDirectChatInstruction(params: {
+  pathname: string;
+  isAuthenticated: boolean;
+  objective: string;
+  responseStyle: string;
 }) {
-  const routeHintByProfile: Record<ServerChatRouteProfileId, string> = {
-    home_sales:
-      "I can explain what P2E Inferno is, how it works, and where to start.",
-    general_support:
-      "I can help you understand what this page does and what to try next.",
-    lobby_support:
-      "I can help you get oriented, find quests or bootcamps, and figure out the next useful step.",
-    quest_support:
-      "I can help you choose a quest, understand requirements, or troubleshoot progress blockers.",
-    bootcamp_support:
-      "I can help you understand applications, cohorts, milestones, and next steps here.",
-    vendor_support:
-      "I can help you understand vendor progression, renewal, and related wallet or membership steps.",
+  const routeContext = params.isAuthenticated
+    ? "The user may be signed in."
+    : "The user may be anonymous.";
+
+  return [
+    "You are the P2E Inferno in-app chat assistant.",
+    params.objective,
+    `Route style: ${params.responseStyle}`,
+    `Current pathname: ${params.pathname}`,
+    routeContext,
+    "Respond naturally and conversationally.",
+    "For greetings, acknowledgements, or thanks, reply like a helpful AI assistant would.",
+    "Do not invent account state or operational facts.",
+    "If the user seems to need factual app guidance, give a short helpful bridge rather than pretending certainty.",
+    "Keep answers concise and practical.",
+  ].join("\n");
+}
+
+function buildClarifyInstruction(params: {
+  pathname: string;
+  isAuthenticated: boolean;
+}) {
+  const routeContext = params.isAuthenticated
+    ? "The user may be signed in."
+    : "The user may be anonymous.";
+
+  return [
+    "You are the P2E Inferno in-app chat assistant.",
+    `Current pathname: ${params.pathname}`,
+    routeContext,
+    "The user message is too ambiguous to answer safely.",
+    "Ask exactly one short clarifying question.",
+    "Do not mention routing, retrieval, or knowledge bases.",
+    "Keep it brief and natural.",
+  ].join("\n");
+}
+
+function parseIntentDecision(content: string): ChatIntentDecision | null {
+  const trimmed = content.trim();
+  const jsonCandidate = (() => {
+    if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+      return trimmed;
+    }
+
+    const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+    if (fenced?.[1]) {
+      return fenced[1].trim();
+    }
+
+    const firstBrace = trimmed.indexOf("{");
+    const lastBrace = trimmed.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return trimmed.slice(firstBrace, lastBrace + 1);
+    }
+
+    return trimmed;
+  })();
+
+  try {
+    const parsed = JSON.parse(jsonCandidate) as Partial<ChatIntentDecision>;
+    if (
+      parsed.route !== "chat_only" &&
+      parsed.route !== "grounded_kb" &&
+      parsed.route !== "clarify"
+    ) {
+      return null;
+    }
+
+    return {
+      route: parsed.route,
+      retrievalQuery:
+        typeof parsed.retrievalQuery === "string"
+          ? parsed.retrievalQuery.trim()
+          : undefined,
+      rationale:
+        typeof parsed.rationale === "string" ? parsed.rationale.trim() : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function getRouterFailureFallback(params: {
+  pathname: string;
+  userText: string;
+  attachments?: ChatAttachment[];
+}) {
+  if ((params.attachments?.length ?? 0) > 0) {
+    return {
+      route: "grounded_kb" as const,
+      retrievalQuery: params.userText.trim(),
+      rationale: "Router failed; attachments should stay grounded.",
+    };
+  }
+
+  const looksOperationalQuestion =
+    params.userText.includes("?") ||
+    /(?:what should i do|what do i do|where do i|how do i|why can'?t i|can i|should i|next step|first step|get started)/i.test(
+      params.userText,
+    );
+
+  if (looksOperationalQuestion) {
+    return {
+      route: "grounded_kb" as const,
+      retrievalQuery: params.userText.trim(),
+      rationale:
+        "Router failed; defaulted to grounded retrieval for an operational question.",
+    };
+  }
+
+  return {
+    route: "chat_only" as const,
+    retrievalQuery: "",
+    rationale: `Router failed; defaulted to direct chat for ${params.pathname}.`,
   };
+}
 
-  if (params.intent === "thanks") {
-    return "You’re welcome. If you want, tell me what you’re trying to do and I’ll help with the next step.";
+async function routeChatIntent(params: {
+  pathname: string;
+  isAuthenticated: boolean;
+  profile: ReturnType<typeof resolveServerChatRouteProfile>;
+  userText: string;
+  attachments?: ChatAttachment[];
+  messages: Array<Pick<ChatMessage, "role" | "content" | "attachments">>;
+}): Promise<ChatIntentDecision> {
+  log.debug("Routing chat intent", {
+    pathname: params.pathname,
+    isAuthenticated: params.isAuthenticated,
+    profile: params.profile.id,
+    userTextLength: params.userText.length,
+    userTextPreview: params.userText.slice(0, 200),
+    attachmentCount: params.attachments?.length ?? 0,
+    attachments:
+      params.attachments?.map((attachment, index) =>
+        summarizeChatAttachment(attachment, index),
+      ) ?? [],
+    historyCount: params.messages.length,
+    history: params.messages.map((message, index) =>
+      summarizeHistoryMessage(message, index),
+    ),
+  });
+
+  if (!params.userText.trim() && (params.attachments?.length ?? 0) > 0) {
+    const decision = {
+      route: "grounded_kb" as const,
+      retrievalQuery: buildAttachmentOnlyRetrievalQuery(
+        params.pathname,
+        params.profile.domainTags,
+      ),
+      rationale: "Attachment-only requests should use grounded retrieval.",
+    };
+    log.debug("Intent route resolved for attachment-only request", decision);
+    return {
+      ...decision,
+    };
   }
 
-  if (params.intent === "ack") {
-    return "Alright. Tell me what you want to do here and I’ll guide you.";
+  const router = await chatCompletion({
+    model: process.env.OPENROUTER_CHAT_ROUTER_MODEL,
+    fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
+    temperature: 0,
+    maxTokens: ROUTER_MAX_TOKENS,
+    responseFormat: ROUTER_RESPONSE_FORMAT,
+    messages: [
+      {
+        role: "system",
+        content: buildRouterInstruction(),
+      },
+      ...formatHistoryMessages(
+        params.messages,
+        params.userText,
+        params.attachments,
+      ),
+      {
+        role: "user",
+        content: JSON.stringify({
+          pathname: params.pathname,
+          isAuthenticated: params.isAuthenticated,
+          profileId: params.profile.id,
+          userMessage: params.userText,
+          hasAttachments: Boolean(params.attachments?.length),
+        }),
+      },
+    ],
+  });
+
+  if (!router.success) {
+    log.warn("Chat intent routing failed; using fallback route", {
+      pathname: params.pathname,
+      profile: params.profile.id,
+      code: router.code,
+      error: router.error,
+    });
+    const fallback = getRouterFailureFallback({
+      pathname: params.pathname,
+      userText: params.userText,
+      attachments: params.attachments,
+    });
+    log.debug("Using router fallback decision", fallback);
+    return fallback;
   }
 
-  return `Hey 👋 ${routeHintByProfile[params.profileId]}`;
+  const decision = parseIntentDecision(router.content);
+  if (!decision) {
+    log.warn("Chat intent router returned unparseable output; using fallback route", {
+      pathname: params.pathname,
+      profile: params.profile.id,
+      outputPreview: router.content.slice(0, 200),
+    });
+    const fallback = getRouterFailureFallback({
+      pathname: params.pathname,
+      userText: params.userText,
+      attachments: params.attachments,
+    });
+    log.debug("Using router fallback decision after parse failure", {
+      fallback,
+      rawRouterOutput: router.content.slice(0, 200),
+    });
+    return fallback;
+  }
+
+  log.debug("Chat intent route resolved", {
+    pathname: params.pathname,
+    profile: params.profile.id,
+    decision,
+  });
+  return decision;
 }
 
 export async function generateChatResponse(params: {
   body: ChatRespondRequestBody;
   isAuthenticated: boolean;
 }): Promise<ChatRespondResponseBody> {
+  log.debug("Starting chat response generation", {
+    conversationId: params.body.conversationId,
+    pathname: params.body.route.pathname,
+    routeKey: params.body.route.routeKey,
+    behaviorKey: params.body.route.behaviorKey ?? null,
+    segment: params.body.route.segment ?? null,
+    isAuthenticated: params.isAuthenticated,
+    messageLength: params.body.message.length,
+    messagePreview: params.body.message.slice(0, 200),
+    attachmentCount: params.body.attachments?.length ?? 0,
+    attachments:
+      params.body.attachments?.map((attachment, index) =>
+        summarizeChatAttachment(attachment, index),
+      ) ?? [],
+    historyCount: params.body.messages.length,
+    history: params.body.messages.map((message, index) =>
+      summarizeHistoryMessage(message, index),
+    ),
+  });
+
   const normalizedPathname = normalizeChatRoutePathname(
     params.body.route.pathname,
   );
@@ -507,16 +790,122 @@ export async function generateChatResponse(params: {
     isAuthenticated: params.isAuthenticated,
   });
   const userText = params.body.message.trim();
-  const lightweightIntent = detectLightweightIntent(userText);
+  const intentDecision = await routeChatIntent({
+    pathname: normalizedPathname,
+    isAuthenticated: params.isAuthenticated,
+    profile,
+    userText,
+    attachments: params.body.attachments,
+    messages: params.body.messages,
+  });
 
-  if (lightweightIntent && (!params.body.attachments || params.body.attachments.length === 0)) {
+  log.debug("Resolved chat route profile and intent", {
+    conversationId: params.body.conversationId,
+    normalizedPathname,
+    profile: profile.id,
+    audience: profile.audience,
+    domainTags: profile.domainTags,
+    intentDecision,
+  });
+
+  if (intentDecision.route === "chat_only") {
+    const direct = await chatCompletion({
+      fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
+      temperature: 0.4,
+      maxTokens: 220,
+      messages: [
+        {
+          role: "system",
+          content: buildDirectChatInstruction({
+            pathname: normalizedPathname,
+            isAuthenticated: params.isAuthenticated,
+            objective: profile.assistantObjective,
+            responseStyle: profile.responseStyle,
+          }),
+        },
+        ...formatHistoryMessages(
+          params.body.messages,
+          userText,
+          params.body.attachments,
+        ),
+        {
+          role: "user",
+          content: formatUserMessageContent(userText, params.body.attachments),
+        },
+      ],
+    });
+
+    if (!direct.success) {
+      log.error("Direct chat completion failed", {
+        pathname: normalizedPathname,
+        profile: profile.id,
+        code: direct.code,
+        error: direct.error,
+      });
+      throw new Error("Unable to generate a chat response right now.");
+    }
+
+    log.debug("Returning direct chat response", {
+      conversationId: params.body.conversationId,
+      profile: profile.id,
+      responseLength: direct.content.length,
+      responsePreview: direct.content.slice(0, 200),
+    });
     return {
-      message: createAssistantMessage(
-        buildLightweightReply({
-          intent: lightweightIntent,
-          profileId: profile.id,
-        }),
-      ),
+      message: createAssistantMessage(direct.content),
+      sources: [],
+      retrievalMeta: {
+        profile: profile.id,
+        audience: profile.audience,
+        domainTags: profile.domainTags,
+        resultCount: 0,
+      },
+    };
+  }
+
+  if (intentDecision.route === "clarify") {
+    const clarify = await chatCompletion({
+      fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
+      temperature: 0.2,
+      maxTokens: 120,
+      messages: [
+        {
+          role: "system",
+          content: buildClarifyInstruction({
+            pathname: normalizedPathname,
+            isAuthenticated: params.isAuthenticated,
+          }),
+        },
+        ...formatHistoryMessages(
+          params.body.messages,
+          userText,
+          params.body.attachments,
+        ),
+        {
+          role: "user",
+          content: formatUserMessageContent(userText, params.body.attachments),
+        },
+      ],
+    });
+
+    if (!clarify.success) {
+      log.error("Clarifying chat completion failed", {
+        pathname: normalizedPathname,
+        profile: profile.id,
+        code: clarify.code,
+        error: clarify.error,
+      });
+      throw new Error("Unable to generate a chat response right now.");
+    }
+
+    log.debug("Returning clarifying chat response", {
+      conversationId: params.body.conversationId,
+      profile: profile.id,
+      responseLength: clarify.content.length,
+      responsePreview: clarify.content.slice(0, 200),
+    });
+    return {
+      message: createAssistantMessage(clarify.content),
       sources: [],
       retrievalMeta: {
         profile: profile.id,
@@ -528,8 +917,15 @@ export async function generateChatResponse(params: {
   }
 
   const retrievalQuery =
+    intentDecision.retrievalQuery ||
     userText ||
     buildAttachmentOnlyRetrievalQuery(normalizedPathname, profile.domainTags);
+  log.debug("Preparing grounded retrieval", {
+    conversationId: params.body.conversationId,
+    profile: profile.id,
+    retrievalQuery,
+    retrievalQueryLength: retrievalQuery.length,
+  });
   const [queryEmbedding] = await embedTexts([retrievalQuery]);
 
   if (!queryEmbedding) {
@@ -545,6 +941,14 @@ export async function generateChatResponse(params: {
     freshnessDays: profile.freshnessDays,
   });
 
+  log.debug("Retrieved knowledge base results for chat", {
+    conversationId: params.body.conversationId,
+    profile: profile.id,
+    retrievalQuery,
+    resultCount: results.length,
+    results: summarizeRetrievedChunks(results),
+  });
+
   if (shouldUseWeakRetrievalFallback(results)) {
     if (results.length === 0) {
       log.warn("Using zero-result retrieval fallback for chat response", {
@@ -552,9 +956,7 @@ export async function generateChatResponse(params: {
         profile: profile.id,
         retrievalOutcome: "no_usable_results",
       });
-    }
-
-    if (results.length > 0) {
+    } else {
       log.warn("Using weak retrieval fallback for chat response", {
         pathname: normalizedPathname,
         profile: profile.id,
@@ -565,21 +967,22 @@ export async function generateChatResponse(params: {
       });
     }
 
-    return {
-      message: createAssistantMessage(profile.weakRetrievalReply),
-      sources: [],
-      retrievalMeta: {
-        profile: profile.id,
-        audience: profile.audience,
-        domainTags: profile.domainTags,
-        resultCount: results.length,
-      },
-    };
+    // We intentionally do NOT return early here with a hardcoded fallback string.
+    // We let the AI naturally handle the lack of strong knowledge using the
+    // `profile.weakRetrievalMode` instructions provided in the system prompt.
   }
 
   const promptResults = filterResultsForPrompt(results);
 
+  log.debug("Selected prompt results for grounded answer", {
+    conversationId: params.body.conversationId,
+    profile: profile.id,
+    promptResultCount: promptResults.length,
+    promptResults: summarizeRetrievedChunks(promptResults),
+  });
+
   const completion = await chatCompletion({
+    fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
     temperature: 0.2,
     maxTokens: profile.maxTokens ?? 450,
     messages: [
@@ -622,6 +1025,13 @@ export async function generateChatResponse(params: {
     throw new Error("Unable to generate a grounded response right now.");
   }
 
+  log.debug("Returning grounded chat response", {
+    conversationId: params.body.conversationId,
+    profile: profile.id,
+    sourceCount: promptResults.length,
+    responseLength: completion.content.length,
+    responsePreview: completion.content.slice(0, 200),
+  });
   return {
     message: createAssistantMessage(completion.content),
     sources: mapSources(promptResults),
