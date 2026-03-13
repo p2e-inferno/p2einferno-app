@@ -20,6 +20,7 @@ export function createMessage(
   options: {
     status?: ChatMessageStatus;
     error?: string | null;
+    attachments?: ChatMessage["attachments"];
   } = {},
 ): ChatMessage {
   return {
@@ -29,6 +30,7 @@ export function createMessage(
     ts: Date.now(),
     status: options.status ?? "complete",
     error: options.error ?? null,
+    attachments: options.attachments,
   };
 }
 
@@ -42,8 +44,11 @@ export function createAssistantMessage(
   return createMessage("assistant", content, options);
 }
 
-export function createUserMessage(content: string): ChatMessage {
-  return createMessage("user", content);
+export function createUserMessage(
+  content: string,
+  attachments?: ChatMessage["attachments"],
+): ChatMessage {
+  return createMessage("user", content, { attachments });
 }
 
 export function isPersistableChatMessage(message: ChatMessage) {

@@ -7,6 +7,9 @@ import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
+import { toast } from "react-hot-toast";
+import { validateChatAttachment } from "@/lib/chat/attachment-validation";
+import type { ChatMessage } from "@/lib/chat/types";
 
 interface ChatAttachment {
   id: string;
@@ -19,7 +22,10 @@ interface ChatComposerProps {
   value: string;
   disabled: boolean;
   onChange: (value: string) => Promise<void>;
-  onSubmit: (value: string) => Promise<void>;
+  onSubmit: (payload: {
+    text: string;
+    attachments?: ChatMessage["attachments"];
+  }) => Promise<void>;
 }
 
 export function ChatComposer({
@@ -30,6 +36,37 @@ export function ChatComposer({
 }: ChatComposerProps) {
   const [attachments, setAttachments] = React.useState<ChatAttachment[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const processFiles = (files: File[]) => {
+    setAttachments((prev) => {
+      let current = [...prev];
+      let limitReached = false;
+
+      for (const file of files) {
+        const { isValid, error } = validateChatAttachment(file, current.length);
+
+        if (!isValid) {
+          if (!limitReached) {
+            toast.error(error || "Invalid file", {
+              duration: 4000,
+            });
+            limitReached = true;
+          }
+          continue;
+        }
+
+        const isImage = file.type.startsWith("image/");
+        const attachment: ChatAttachment = {
+          id: Math.random().toString(36).substring(7),
+          file,
+          previewUrl: URL.createObjectURL(file),
+          type: isImage ? "image" : "file",
+        };
+        current.push(attachment);
+      }
+      return current;
+    });
+  };
 
   const editor = useEditor({
     immediatelyRender: false,
@@ -50,11 +87,13 @@ export function ChatComposer({
       attributes: {
         class:
           "prose prose-invert max-w-none focus:outline-none min-h-[40px] max-h-[200px] overflow-y-auto px-1 py-2 text-sm text-white placeholder:text-slate-500 leading-relaxed transition-all",
+        role: "textbox",
+        "aria-label": "Chat message",
       },
       handleKeyDown: (_view, event) => {
         if (event.key === "Enter" && !event.shiftKey) {
           event.preventDefault();
-          handleActionSubmit();
+          void handleActionSubmit();
           return true;
         }
         return false;
@@ -63,25 +102,26 @@ export function ChatComposer({
         const items = event.clipboardData?.items;
         if (!items) return false;
 
-        let handled = false;
+        const files: File[] = [];
         for (const item of Array.from(items)) {
           if (item.type.startsWith("image/")) {
             const file = item.getAsFile();
             if (file) {
-              addFile(file);
-              handled = true;
+              files.push(file);
             }
           }
         }
-        return handled;
+        if (files.length > 0) {
+          processFiles(files);
+          return true;
+        }
+        return false;
       },
       handleDrop: (_view, event) => {
         const files = event.dataTransfer?.files;
         if (!files || files.length === 0) return false;
 
-        for (const file of Array.from(files)) {
-          addFile(file);
-        }
+        processFiles(Array.from(files));
         return true;
       },
     },
@@ -94,7 +134,6 @@ export function ChatComposer({
   // Sync external value (e.g. from prompt selection) to editor
   React.useEffect(() => {
     if (editor && value !== editor.getText()) {
-      // Small optimization: only update if significant change, or clearing
       if (value === "" && !editor.isEmpty) {
         editor.commands.clearContent();
       } else if (value !== "" && editor.isEmpty) {
@@ -102,17 +141,6 @@ export function ChatComposer({
       }
     }
   }, [value, editor]);
-
-  const addFile = (file: File) => {
-    const isImage = file.type.startsWith("image/");
-    const attachment: ChatAttachment = {
-      id: Math.random().toString(36).substring(7),
-      file,
-      previewUrl: URL.createObjectURL(file),
-      type: isImage ? "image" : "file",
-    };
-    setAttachments((prev) => [...prev, attachment]);
-  };
 
   const removeAttachment = (id: string) => {
     setAttachments((prev) => {
@@ -122,13 +150,33 @@ export function ChatComposer({
     });
   };
 
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
   const handleActionSubmit = async () => {
     const content = editor?.getText() || "";
     if (content.trim().length === 0 && attachments.length === 0) return;
 
-    // In a real app, we'd upload attachments here first. 
-    // For now, we clear the UI as expected by the user.
-    await onSubmit(content);
+    // Convert attachments to Base64 for the LLM
+    const encodedAttachments = await Promise.all(
+      attachments.map(async (a) => ({
+        type: "image" as const,
+        data: await fileToBase64(a.file),
+        name: a.file.name,
+        size: a.file.size,
+      })),
+    );
+
+    await onSubmit({
+      text: content,
+      attachments: encodedAttachments,
+    });
 
     // Cleanup
     editor?.commands.clearContent();
@@ -138,9 +186,8 @@ export function ChatComposer({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      Array.from(e.target.files).forEach(addFile);
+      processFiles(Array.from(e.target.files));
     }
-    // Clear input so same file can be selected again if removed
     e.target.value = "";
   };
 
@@ -210,6 +257,7 @@ export function ChatComposer({
             onChange={handleFileChange}
             className="hidden"
             multiple
+            accept="image/jpeg,image/png,image/webp,image/jpg"
           />
         </button>
 
@@ -219,7 +267,7 @@ export function ChatComposer({
 
         <button
           type="button"
-          onClick={handleActionSubmit}
+          onClick={() => void handleActionSubmit()}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:scale-[1.05] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-50 disabled:grayscale"
           aria-label="Send message"
           disabled={disabled || (editor.isEmpty && attachments.length === 0)}
@@ -227,8 +275,6 @@ export function ChatComposer({
           <Send className="h-4.5 w-4.5" />
         </button>
       </div>
-
     </div>
   );
 }
-

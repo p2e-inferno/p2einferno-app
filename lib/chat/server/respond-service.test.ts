@@ -28,7 +28,10 @@ jest.mock("@/lib/utils/logger", () => ({
 import { chatCompletion } from "@/lib/ai/client";
 import { embedTexts } from "@/lib/ai/knowledge/embeddings";
 import { searchKnowledgeBase } from "@/lib/ai/knowledge/retrieval";
-import { generateChatResponse } from "@/lib/chat/server/respond-service";
+import {
+  generateChatResponse,
+  validateChatRespondBody,
+} from "@/lib/chat/server/respond-service";
 
 const embedTextsMock = embedTexts as jest.MockedFunction<typeof embedTexts>;
 const searchKnowledgeBaseMock = searchKnowledgeBase as jest.MockedFunction<
@@ -114,6 +117,56 @@ describe("generateChatResponse", () => {
         href: undefined,
       },
     ]);
+  });
+
+  it("returns a natural greeting reply without forcing weak retrieval fallback", async () => {
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_greeting",
+        message: "hello",
+        messages: [{ role: "user", content: "hello" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(embedTextsMock).not.toHaveBeenCalled();
+    expect(searchKnowledgeBaseMock).not.toHaveBeenCalled();
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain("Hey");
+    expect(response.message.content).toContain("quests or bootcamps");
+    expect(response.message.content).not.toContain("I can't confirm that operational detail");
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "lobby_support",
+        resultCount: 0,
+      }),
+    );
+  });
+
+  it("returns a natural thanks reply without retrieval", async () => {
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_thanks",
+        message: "thanks",
+        messages: [{ role: "user", content: "thanks" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(embedTextsMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain("You’re welcome");
   });
 
   it("uses the safe catch-all support profile for authenticated non-lobby app routes", async () => {
@@ -950,5 +1003,344 @@ describe("generateChatResponse", () => {
 
     expect(response.message.content).toContain("/lobby/vendor");
     expect(response.message.content).not.toContain("/lobby/quests");
+  });
+
+  it("accepts attachment-only requests at validation time", () => {
+    expect(
+      validateChatRespondBody({
+        conversationId: "chat_attachment_only",
+        message: "",
+        attachments: [
+          {
+            type: "image",
+            data: "data:image/png;base64,Zm9v",
+            name: "context.png",
+            size: 3,
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: "",
+            attachments: [
+              {
+                type: "image",
+                data: "data:image/png;base64,Zm9v",
+                name: "context.png",
+                size: 3,
+              },
+            ],
+          },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("does not reject long assistant history turns during validation", () => {
+    expect(
+      validateChatRespondBody({
+        conversationId: "chat_long_history",
+        message: "follow up",
+        messages: [
+          {
+            role: "assistant",
+            content: "A".repeat(2_100),
+          },
+          {
+            role: "user",
+            content: "follow up",
+          },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      }),
+    ).toBeNull();
+  });
+
+  it("rejects oversized attachment payloads on the server", () => {
+    const oversizedPayload = "A".repeat(3 * 1024 * 1024);
+
+    expect(
+      validateChatRespondBody({
+        conversationId: "chat_oversized_attachment",
+        message: "",
+        attachments: [
+          {
+            type: "image",
+            data: `data:image/png;base64,${oversizedPayload}`,
+            name: "large.png",
+            size: 3 * 1024 * 1024,
+          },
+        ],
+        messages: [],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      }),
+    ).toContain("Image size exceeds");
+  });
+
+  it("forwards attachments to the model as image content parts", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-vision",
+        document_id: "doc-vision",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Vendor progression and renewal guidance.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.88,
+        keyword_rank: 0.64,
+        semantic_rank: 0.91,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "That screenshot looks like the vendor renewal flow.",
+      model: "test-model",
+    });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_with_attachment",
+        message: "What does this screen mean?",
+        attachments: [
+          {
+            type: "image",
+            data: "data:image/png;base64,Zm9v",
+            name: "vendor.png",
+            size: 3,
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: "What does this screen mean?",
+            attachments: [
+              {
+                type: "image",
+                data: "data:image/png;base64,Zm9v",
+                name: "vendor.png",
+                size: 3,
+              },
+            ],
+          },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(chatCompletionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "user",
+            content: expect.arrayContaining([
+              expect.objectContaining({
+                type: "text",
+              }),
+              expect.objectContaining({
+                type: "image_url",
+                image_url: { url: "data:image/png;base64,Zm9v" },
+              }),
+            ]),
+          }),
+        ]),
+      }),
+    );
+  });
+
+  it("deduplicates the latest attachment-bearing user turn from history", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-vision-dedupe",
+        document_id: "doc-vision-dedupe",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Vendor progression and renewal guidance.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.88,
+        keyword_rank: 0.64,
+        semantic_rank: 0.91,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Deduped vendor guidance",
+      model: "test-model",
+    });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_attachment_dedupe",
+        message: "What does this screen mean?",
+        attachments: [
+          {
+            type: "image",
+            data: "data:image/png;base64,Zm9v",
+            name: "vendor.png",
+            size: 3,
+          },
+        ],
+        messages: [
+          {
+            role: "assistant",
+            content: "Welcome",
+          },
+          {
+            role: "user",
+            content: "What does this screen mean?",
+            attachments: [
+              {
+                type: "image",
+                data: "data:image/png;base64,Zm9v",
+                name: "vendor.png",
+                size: 3,
+              },
+            ],
+          },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    const request = chatCompletionMock.mock.calls.at(-1)?.[0];
+    const userMessages = request?.messages.filter(
+      (message) => message.role === "user",
+    );
+
+    expect(userMessages).toHaveLength(1);
+  });
+
+  it("drops the oldest history first when the recent context exceeds the budget", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-budget",
+        document_id: "doc-budget",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Vendor progression and renewal guidance.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.88,
+        keyword_rank: 0.64,
+        semantic_rank: 0.91,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Budgeted vendor guidance",
+      model: "test-model",
+    });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_history_budget",
+        message: "latest question",
+        messages: [
+          { role: "assistant", content: `OLDEST_MARKER_${"a".repeat(4000)}` },
+          { role: "user", content: `OLDER_MARKER_${"b".repeat(4000)}` },
+          { role: "assistant", content: `${"c".repeat(4000)}_RECENT_MARKER` },
+          { role: "user", content: `${"d".repeat(4000)}_NEWER_MARKER` },
+          { role: "assistant", content: "right before latest" },
+          { role: "user", content: "latest question" },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    const request = chatCompletionMock.mock.calls.at(-1)?.[0];
+    const serialized = JSON.stringify(request);
+
+    expect(serialized).not.toContain("OLDEST_MARKER");
+    expect(serialized).not.toContain("OLDER_MARKER");
+    expect(serialized).toContain("RECENT_MARKER");
+    expect(serialized).toContain("NEWER_MARKER");
+    expect(serialized).toContain("right before latest");
+  });
+
+  it("keeps the tail of oversized history messages", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-tail",
+        document_id: "doc-tail",
+        title: "Vendor Progression Playbook",
+        chunk_text: "Vendor progression and renewal guidance.",
+        metadata: {
+          source_path: "docs/playbooks/VENDOR_PROGRESSION_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.88,
+        keyword_rank: 0.64,
+        semantic_rank: 0.91,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Tail-preserved guidance",
+      model: "test-model",
+    });
+
+    const longAssistantMessage = `UNIQUE_HEAD_START_${"x".repeat(4200)}_IMPORTANT_TAIL`;
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_tail_history",
+        message: "latest question",
+        messages: [
+          { role: "assistant", content: longAssistantMessage },
+          { role: "user", content: "latest question" },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    const request = chatCompletionMock.mock.calls.at(-1)?.[0];
+    const serialized = JSON.stringify(request);
+
+    expect(serialized).toContain("IMPORTANT_TAIL");
+    expect(serialized).not.toContain("UNIQUE_HEAD_START");
   });
 });

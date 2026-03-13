@@ -18,7 +18,9 @@ describe("ChatTeaser", () => {
       />,
     );
 
-    const openButton = screen.getByRole("button", { name: /open chat assistant/i });
+    const openButton = screen.getByRole("button", {
+      name: /open chat assistant/i,
+    });
     await user.tab();
     await user.tab();
     expect(openButton).toHaveFocus();
@@ -26,7 +28,9 @@ describe("ChatTeaser", () => {
     await user.keyboard("{Enter}");
     expect(onOpen).toHaveBeenCalledTimes(1);
 
-    await user.click(screen.getByRole("button", { name: /dismiss help teaser/i }));
+    await user.click(
+      screen.getByRole("button", { name: /dismiss help teaser/i }),
+    );
     expect(onDismiss).toHaveBeenCalledTimes(1);
     expect(onOpen).toHaveBeenCalledTimes(1);
   });

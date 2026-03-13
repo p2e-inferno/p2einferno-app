@@ -39,10 +39,14 @@ describe("ChatPanel", () => {
     );
     expect(onClearConversation).toHaveBeenCalledTimes(1);
 
-    const input = screen.getByRole("textbox", { name: /chat message/i });
-    await user.click(input);
-    await user.keyboard("{Enter}");
+    expect(
+      screen.getByRole("textbox", { name: /chat message/i }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /send message/i }));
 
-    expect(onSendMessage).toHaveBeenCalledWith("Hello");
+    expect(onSendMessage).toHaveBeenCalledWith({
+      text: "Hello",
+      attachments: [],
+    });
   });
 });

@@ -1,5 +1,9 @@
 import type { KnowledgeAudience } from "@/lib/ai/knowledge/types";
-import type { ChatMessage, ChatSourceReference } from "@/lib/chat/types";
+import type {
+  ChatAttachment,
+  ChatMessage,
+  ChatSourceReference,
+} from "@/lib/chat/types";
 
 export type ServerChatRouteProfileId =
   | "home_sales"
@@ -21,7 +25,8 @@ export interface ChatRespondRouteInput {
 export interface ChatRespondRequestBody {
   conversationId: string;
   message: string;
-  messages: Array<Pick<ChatMessage, "role" | "content">>;
+  attachments?: ChatAttachment[];
+  messages: Array<Pick<ChatMessage, "role" | "content" | "attachments">>;
   route: ChatRespondRouteInput;
 }
 

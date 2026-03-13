@@ -26,3 +26,11 @@ export const CHAT_SUGGESTED_PROMPTS: SuggestedPrompt[] = [
 export const CHAT_WELCOME_MESSAGE: ChatMessage = createAssistantMessage(
   "Hey 👋 I’m your in-app guide. Ask me anything — or tap a quick prompt below to get started.",
 );
+
+export const CHAT_ATTACHMENT_LIMITS = {
+  maxSize: 2 * 1024 * 1024, // 2MB
+  maxTotalSize: 4 * 1024 * 1024, // 4MB across all attachments
+  maxCount: 2,
+  maxNameLength: 200,
+  allowedTypes: ["image/jpeg", "image/png", "image/webp", "image/jpg"],
+} as const;

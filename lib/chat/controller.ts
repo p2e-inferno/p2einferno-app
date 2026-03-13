@@ -129,17 +129,23 @@ export class ChatController {
   }
 
   async sendMessage(
-    rawText: string,
+    payload: string | { text: string; attachments?: ChatMessage["attachments"] },
     options: ChatControllerActionOptions = {},
   ) {
     const state = getChatStoreState();
+    const rawText = typeof payload === "string" ? payload : payload.text;
+    const attachments = typeof payload === "string" ? undefined : payload.attachments;
     const trimmed = rawText.trim();
 
-    if (!trimmed || state.status === "sending" || !state.route) {
+    if (
+      (!trimmed && (!attachments || attachments.length === 0)) ||
+      state.status === "sending" ||
+      !state.route
+    ) {
       return;
     }
 
-    const userMessage = createUserMessage(trimmed);
+    const userMessage = createUserMessage(trimmed, attachments);
     const messagesAfterUser = [...state.messages, userMessage];
     const source = state.auth.isAuthenticated ? "authenticated" : "anonymous";
     const conversationId =

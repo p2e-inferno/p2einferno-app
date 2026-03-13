@@ -8,6 +8,9 @@ import {
   selectChatIsBusy,
   selectChatShouldShowTypingIndicator,
 } from "@/lib/chat/selectors";
+import {
+  ChatMessage,
+} from "@/lib/chat/types";
 import { useChatStore } from "@/lib/chat/store";
 import { useChatAuthSession } from "@/hooks/chat/use-chat-auth-session";
 
@@ -43,8 +46,10 @@ export function useChatWidget() {
       setPeekVisible: async (visible: boolean) => {
         store.setPeekVisible(visible);
       },
-      sendMessage: async (message: string) => {
-        await chatController.sendMessage(message, {
+      sendMessage: async (
+        payload: string | { text: string; attachments?: ChatMessage["attachments"] },
+      ) => {
+        await chatController.sendMessage(payload, {
           accessToken: await resolveAccessToken(),
         });
       },

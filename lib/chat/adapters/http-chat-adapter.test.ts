@@ -35,6 +35,14 @@ describe("HttpChatAdapter", () => {
         ts: 1,
         status: "complete",
         error: null,
+        attachments: [
+          {
+            type: "image",
+            data: "data:image/png;base64,Zm9v",
+            name: "proof.png",
+            size: 3,
+          },
+        ],
       },
       messages: [
         {
@@ -52,6 +60,14 @@ describe("HttpChatAdapter", () => {
           ts: 1,
           status: "complete",
           error: null,
+          attachments: [
+            {
+              type: "image",
+              data: "data:image/png;base64,Zm9v",
+              name: "proof.png",
+              size: 3,
+            },
+          ],
         },
       ],
       auth: {
@@ -91,9 +107,28 @@ describe("HttpChatAdapter", () => {
         body: JSON.stringify({
           conversationId: "chat_1",
           message: "hello",
+          attachments: [
+            {
+              type: "image",
+              data: "data:image/png;base64,Zm9v",
+              name: "proof.png",
+              size: 3,
+            },
+          ],
           messages: [
             { role: "assistant", content: "welcome" },
-            { role: "user", content: "hello" },
+            {
+              role: "user",
+              content: "hello",
+              attachments: [
+                {
+                  type: "image",
+                  data: "data:image/png;base64,Zm9v",
+                  name: "proof.png",
+                  size: 3,
+                },
+              ],
+            },
           ],
           route: {
             pathname: "/lobby/vendor",

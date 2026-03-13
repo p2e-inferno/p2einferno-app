@@ -17,14 +17,19 @@ export function ChatMessageBubble({ message }: ChatMessageBubbleProps) {
       animate={{ opacity: 1, y: 0, scale: 1 }}
       className={`flex w-full group ${isUser ? "justify-end" : "justify-start"}`}
     >
-      <div className={`flex max-w-[85%] flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}>
+      <div
+        className={`flex max-w-[85%] flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}
+      >
         <div
-          className={`relative px-4 py-3 text-sm leading-relaxed shadow-sm transition-all ${isUser
-            ? "rounded-[1.4rem] rounded-tr-none bg-primary text-white font-medium"
-            : "rounded-[1.4rem] rounded-tl-none bg-slate-800/80 border border-white/5 text-slate-200"
-            }`}
+          className={`relative px-4 py-3 text-sm leading-relaxed shadow-sm transition-all ${
+            isUser
+              ? "rounded-[1.4rem] rounded-tr-none bg-primary text-white font-medium"
+              : "rounded-[1.4rem] rounded-tl-none bg-slate-800/80 border border-white/5 text-slate-200"
+          }`}
         >
-          <div className="whitespace-pre-wrap break-words">{message.content}</div>
+          <div className="whitespace-pre-wrap break-words">
+            {message.content}
+          </div>
 
           {/* Subtle reflection on user bubbles */}
           {isUser && (

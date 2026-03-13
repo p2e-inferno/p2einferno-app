@@ -23,7 +23,6 @@ export function ChatSuggestedPrompts({
           <ArrowRight className="h-3.5 w-3.5 shrink-0 opacity-50 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
         </button>
       ))}
-
     </div>
   );
 }

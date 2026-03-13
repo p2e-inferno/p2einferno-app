@@ -19,7 +19,11 @@ interface ChatPanelProps {
   onClose: () => Promise<void>;
   onClearConversation: () => Promise<void>;
   onDraftChange: (value: string) => Promise<void>;
-  onSendMessage: (value: string) => Promise<void>;
+  onSendMessage: (
+    payload:
+      | string
+      | { text: string; attachments?: ChatMessage["attachments"] },
+  ) => Promise<void>;
 }
 
 export function ChatPanel({
@@ -117,7 +121,7 @@ export function ChatPanel({
                       value={draft}
                       disabled={loading}
                       onChange={onDraftChange}
-                      onSubmit={onSendMessage}
+                      onSubmit={(payload) => onSendMessage(payload)}
                     />
                   </div>
                 </div>

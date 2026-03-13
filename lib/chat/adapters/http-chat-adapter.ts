@@ -12,9 +12,11 @@ export class HttpChatAdapter implements ChatAdapter {
       body: JSON.stringify({
         conversationId: input.conversationId,
         message: input.message.content,
+        attachments: input.message.attachments,
         messages: input.messages.map((message) => ({
           role: message.role,
           content: message.content,
+          attachments: message.attachments,
         })),
         route: {
           pathname: input.route?.pathname ?? "/",

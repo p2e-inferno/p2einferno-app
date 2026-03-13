@@ -12,17 +12,16 @@ export function ChatTypingIndicator() {
           className="h-1.5 w-1.5 rounded-full bg-primary/50"
           animate={{
             opacity: [0.3, 1, 0.3],
-            scale: [0.8, 1.1, 0.8]
+            scale: [0.8, 1.1, 0.8],
           }}
           transition={{
             duration: 1.2,
             repeat: Infinity,
             ease: "easeInOut",
-            delay: i * 0.2
+            delay: i * 0.2,
           }}
         />
       ))}
     </div>
   );
 }
-

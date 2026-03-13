@@ -12,6 +12,13 @@ export type ChatAssistantMode =
   | "dashboard"
   | "admin";
 
+export interface ChatAttachment {
+  type: "image";
+  data: string; // data:image/...;base64,...
+  name?: string;
+  size?: number;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -19,6 +26,7 @@ export interface ChatMessage {
   ts: number;
   status: ChatMessageStatus;
   error?: string | null;
+  attachments?: ChatAttachment[];
 }
 
 export interface SuggestedPrompt {
