@@ -20,8 +20,16 @@ export interface ImageUrlContent {
   };
 }
 
+export interface VideoUrlContent {
+  type: "video_url";
+  video_url: {
+    /** HTTPS URL or data:video/mp4;base64,... */
+    url: string;
+  };
+}
+
 /** Plain string for text-only, or array for vision/multi-part messages. */
-export type MessageContent = string | Array<TextContent | ImageUrlContent>;
+export type MessageContent = string | Array<TextContent | ImageUrlContent | VideoUrlContent>;
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -43,6 +51,8 @@ export interface AIRequestOptions {
   fallbacks?: string[];
   /** Optional provider-side response format contract. */
   responseFormat?: AIResponseFormat;
+  /** Optional reasoning depth for models that support it (e.g. Gemini 3.1 'minimal' | 'low' | 'medium' | 'high'). */
+  thinkingLevel?: string;
   /** Abort signal for cancellation. */
   signal?: AbortSignal;
 }

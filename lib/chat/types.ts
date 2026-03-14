@@ -13,8 +13,8 @@ export type ChatAssistantMode =
   | "admin";
 
 export interface ChatAttachment {
-  type: "image";
-  data: string; // data:image/...;base64,...
+  type: "image" | "video";
+  data: string; // data:image/...;base64,... or data:video/...;base64,...
   name?: string;
   size?: number;
 }

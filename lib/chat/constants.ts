@@ -32,5 +32,5 @@ export const CHAT_ATTACHMENT_LIMITS = {
   maxTotalSize: 4 * 1024 * 1024, // 4MB across all attachments
   maxCount: 2,
   maxNameLength: 200,
-  allowedTypes: ["image/jpeg", "image/png", "image/webp", "image/jpg"],
+  allowedTypes: ["image/jpeg", "image/png", "image/webp", "image/jpg", "video/mp4", "video/quicktime", "video/webm"],
 } as const;

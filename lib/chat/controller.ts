@@ -331,6 +331,7 @@ export class ChatController {
   async deleteMessage(messageId: string, options: ChatControllerActionOptions = {}) {
     const state = getChatStoreState();
     const conversationId = state.activeConversationId;
+    const preDeleteMessages = [...state.messages];
     const messageToDelete = state.messages.find(m => m.id === messageId);
     
     if (!messageToDelete) {
@@ -359,11 +360,8 @@ export class ChatController {
       }
 
       if (preferredDeleteFailed) {
-        // Rollback local state so the user sees the message still exists/failed to delete
-        // We re-insert it where it was. Since we don't have index easily, we just append or use store methods
-        // Actually, store doesn't have a 'restore' but we can append.
-        // Given this is a reliability fix, we should notify the user.
-        useChatStore.getState().appendMessages([messageToDelete]);
+        // Rollback local state accurately using the pre-delete snapshot
+        useChatStore.getState().setMessages(preDeleteMessages);
         useChatStore.setState({
           error: "Failed to delete message from server. Please try again.",
         });

@@ -332,9 +332,10 @@ function haveMatchingAttachments(
 function buildAttachmentOnlyRetrievalQuery(
   pathname: string,
   domainTags: string[],
+  mediaType: "image" | "video" = "image",
 ) {
   const tags = domainTags.slice(0, 3).join(", ");
-  return `Help request for ${pathname}${tags ? ` about ${tags}` : ""} based on an attached image.`;
+  return `Help request for ${pathname}${tags ? ` about ${tags}` : ""} based on an attached ${mediaType}.`;
 }
 
 function formatUserMessageContent(
@@ -353,14 +354,20 @@ function formatUserMessageContent(
       type: "text",
       text:
         normalizedText ||
-        "The user shared image(s) and wants help based on what is shown.",
+        "The user shared media attachment(s) and wants help based on what is shown.",
     },
-    ...normalizedAttachments.map((attachment) => ({
-      type: "image_url" as const,
-      image_url: {
-        url: attachment.data,
-      },
-    })),
+    ...normalizedAttachments.map((attachment) => {
+      if (attachment.type === "video") {
+        return {
+          type: "video_url" as const,
+          video_url: { url: attachment.data },
+        };
+      }
+      return {
+        type: "image_url" as const,
+        image_url: { url: attachment.data },
+      };
+    }),
   ];
 }
 
@@ -831,6 +838,15 @@ export async function generateChatResponse(params: {
   });
 
   const hasAttachments = Boolean(params.body.attachments?.length);
+  const hasVideo = params.body.attachments?.some(a => a.type === "video");
+  
+  // For images and general chat, we use a balanced flash model.
+  // For video, we route specifically to Gemini 3.1 Flash-Lite which has native video understanding.
+  const multimodalModel = hasVideo 
+    ? "google/gemini-3.1-flash-lite-preview" 
+    : "google/gemini-2.0-flash-001";
+  
+  const thinkingLevel = hasVideo ? "medium" : undefined;
 
   log.debug("Resolved chat route profile and intent", {
     conversationId: params.body.conversationId,
@@ -843,8 +859,9 @@ export async function generateChatResponse(params: {
 
   if (intentDecision.route === "chat_only") {
     const direct = await chatCompletion({
-      model: hasAttachments ? "google/gemini-2.0-flash-001" : undefined,
-      fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
+      model: hasAttachments ? multimodalModel : undefined,
+      thinkingLevel,
+      fallbacks: [multimodalModel, "anthropic/claude-3-haiku"],
       temperature: 0.4,
       maxTokens: 220,
       messages: [
@@ -899,8 +916,9 @@ export async function generateChatResponse(params: {
 
   if (intentDecision.route === "clarify") {
     const clarify = await chatCompletion({
-      model: hasAttachments ? "google/gemini-2.0-flash-001" : undefined,
-      fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
+      model: hasAttachments ? multimodalModel : undefined,
+      thinkingLevel,
+      fallbacks: [multimodalModel, "anthropic/claude-3-haiku"],
       temperature: 0.2,
       maxTokens: 120,
       messages: [
@@ -954,7 +972,11 @@ export async function generateChatResponse(params: {
   const retrievalQuery =
     intentDecision.retrievalQuery ||
     userText ||
-    buildAttachmentOnlyRetrievalQuery(normalizedPathname, profile.domainTags);
+    buildAttachmentOnlyRetrievalQuery(
+      normalizedPathname, 
+      profile.domainTags, 
+      hasVideo ? "video" : "image"
+    );
   log.debug("Preparing grounded retrieval", {
     conversationId: params.body.conversationId,
     profile: profile.id,
@@ -1017,8 +1039,9 @@ export async function generateChatResponse(params: {
   });
 
   const completion = await chatCompletion({
-    model: hasAttachments ? "google/gemini-2.0-flash-001" : undefined,
-    fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
+    model: hasAttachments ? multimodalModel : undefined,
+    thinkingLevel,
+    fallbacks: [multimodalModel, "anthropic/claude-3-haiku"],
     temperature: 0.2,
     maxTokens: profile.maxTokens ?? 450,
     messages: [

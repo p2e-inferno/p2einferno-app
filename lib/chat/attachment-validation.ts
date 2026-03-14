@@ -6,7 +6,7 @@ export interface AttachmentValidationResult {
   error?: string;
 }
 
-const DATA_URL_PATTERN = /^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i;
+const DATA_URL_PATTERN = /^data:((?:image|video)\/[a-z0-9.+-]+);base64,([a-z0-9+/=\s]+)$/i;
 
 function estimateBase64DecodedBytes(base64Payload: string) {
   const normalized = base64Payload.replace(/\s+/g, "");
@@ -52,7 +52,7 @@ export function validateChatAttachment(
   if (!CHAT_ATTACHMENT_LIMITS.allowedTypes.includes(file.type as any)) {
     return {
       isValid: false,
-      error: "Invalid file type. Only JPG, PNG, and WEBP images are supported.",
+      error: "Invalid file type. Supported types: JPG, PNG, WEBP, and Video (MP4, MOV, WEBM).",
     };
   }
 
@@ -80,10 +80,10 @@ export function validateChatAttachmentPayload(
     };
   }
 
-  if (attachment.type !== "image") {
+  if (attachment.type !== "image" && attachment.type !== "video") {
     return {
       isValid: false,
-      error: "Only image attachments are supported.",
+      error: "Only image and video attachments are supported.",
     };
   }
 
@@ -108,14 +108,14 @@ export function validateChatAttachmentPayload(
   if (!parsed) {
     return {
       isValid: false,
-      error: "Attachments must be base64-encoded JPG, PNG, or WEBP data URLs.",
+      error: "Attachments must be base64-encoded image or video data URLs.",
     };
   }
 
   if (!CHAT_ATTACHMENT_LIMITS.allowedTypes.includes(parsed.mimeType as any)) {
     return {
       isValid: false,
-      error: "Invalid file type. Only JPG, PNG, and WEBP images are supported.",
+      error: "Invalid file type. Supported types: JPG, PNG, WEBP, and Video (MP4, MOV, WEBM).",
     };
   }
 

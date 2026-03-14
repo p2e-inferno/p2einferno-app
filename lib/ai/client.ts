@@ -37,11 +37,11 @@ function summarizeMessageContent(content: unknown) {
       typeof part === "object" &&
       (part as { type?: unknown }).type === "text",
   ) as Array<{ text?: unknown }>;
-  const imageCount = content.filter(
+  const multimediaCount = content.filter(
     (part) =>
       part &&
       typeof part === "object" &&
-      (part as { type?: unknown }).type === "image_url",
+      ((part as { type?: unknown }).type === "image_url" || (part as { type?: unknown }).type === "video_url" || (part as { type?: unknown }).type === "media_url"),
   ).length;
   const text = textParts
     .map((part) => (typeof part.text === "string" ? part.text : ""))
@@ -51,7 +51,7 @@ function summarizeMessageContent(content: unknown) {
   return {
     kind: "multi_part",
     partCount: content.length,
-    imageCount,
+    multimediaCount,
     textLength: text.length,
     preview: truncatePreview(text, 160),
   };
@@ -193,6 +193,9 @@ export async function chatCompletion(
     }
     if (options.responseFormat) {
       body.response_format = options.responseFormat;
+    }
+    if (options.thinkingLevel) {
+      body.thinking_level = options.thinkingLevel;
     }
     if (options.fallbacks?.length) {
       body.route = "fallback";

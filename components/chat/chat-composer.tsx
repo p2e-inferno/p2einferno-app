@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Send, Paperclip, X, File as FileIcon } from "lucide-react";
+import { Send, Paperclip, X, File as FileIcon, Plus, Ban, Video } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -9,13 +9,14 @@ import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
 import { validateChatAttachment } from "@/lib/chat/attachment-validation";
+import { CHAT_ATTACHMENT_LIMITS } from "@/lib/chat/constants";
 import type { ChatMessage } from "@/lib/chat/types";
 
 interface ChatAttachment {
   id: string;
   file: File;
   previewUrl: string;
-  type: "image" | "file";
+  type: "image" | "video";
 }
 
 interface ChatComposerProps {
@@ -35,6 +36,7 @@ export function ChatComposer({
   onSubmit,
 }: ChatComposerProps) {
   const [attachments, setAttachments] = React.useState<ChatAttachment[]>([]);
+  const [dragState, setDragState] = React.useState<"none" | "supported" | "unsupported">("none");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const processFiles = (files: File[]) => {
@@ -55,12 +57,12 @@ export function ChatComposer({
           continue;
         }
 
-        const isImage = file.type.startsWith("image/");
+        const isVideo = file.type.startsWith("video/");
         const attachment: ChatAttachment = {
           id: Math.random().toString(36).substring(7),
           file,
           previewUrl: URL.createObjectURL(file),
-          type: isImage ? "image" : "file",
+          type: isVideo ? "video" : "image",
         };
         current.push(attachment);
       }
@@ -117,12 +119,9 @@ export function ChatComposer({
         }
         return false;
       },
-      handleDrop: (_view, event) => {
-        const files = event.dataTransfer?.files;
-        if (!files || files.length === 0) return false;
-
-        processFiles(Array.from(files));
-        return true;
+      handleDrop: () => {
+        // Handled by the container div to support UI overlays
+        return false;
       },
     },
     onUpdate: ({ editor }) => {
@@ -150,6 +149,40 @@ export function ChatComposer({
     });
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (disabled) return;
+
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      const items = Array.from(e.dataTransfer.items);
+      const allSupported = items.every(item => 
+        item.kind === "file" && CHAT_ATTACHMENT_LIMITS.allowedTypes.includes(item.type as any)
+      );
+      setDragState(allSupported ? "supported" : "unsupported");
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragState("none");
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragState("none");
+    
+    if (disabled) return;
+
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0) {
+      processFiles(Array.from(files));
+    }
+  };
+
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -166,7 +199,7 @@ export function ChatComposer({
     // Convert attachments to Base64 for the LLM
     const encodedAttachments = await Promise.all(
       attachments.map(async (a) => ({
-        type: "image" as const,
+        type: a.type,
         data: await fileToBase64(a.file),
         name: a.file.name,
         size: a.file.size,
@@ -222,7 +255,7 @@ export function ChatComposer({
                   />
                 ) : (
                   <div className="flex flex-col items-center gap-1 p-2">
-                    <FileIcon className="h-6 w-6 text-slate-400" />
+                    <Video className="h-6 w-6 text-slate-400" />
                     <span className="max-w-full truncate text-[8px] text-slate-500">
                       {atat.file.name}
                     </span>
@@ -242,7 +275,35 @@ export function ChatComposer({
       </AnimatePresence>
 
       {/* Main Input Area */}
-      <div className="relative flex items-end gap-2 rounded-3xl border border-white/10 bg-slate-950/80 p-2 shadow-inner ring-primary/20 transition-all focus-within:border-white/20 focus-within:ring-4">
+      <div 
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className="relative flex items-end gap-2 rounded-3xl border border-white/10 bg-slate-950/80 p-2 shadow-inner ring-primary/20 transition-all focus-within:border-white/20 focus-within:ring-4"
+      >
+        {/* Drag Overlay */}
+        <AnimatePresence>
+          {dragState !== "none" && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-slate-900/60 backdrop-blur-[2px] pointer-events-none"
+            >
+              <div className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-2xl ${
+                dragState === "supported" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-800/60 text-slate-400 border border-white/5"
+              }`}>
+                {dragState === "supported" ? (
+                  <Plus className="h-4 w-4" />
+                ) : (
+                  <Ban className="h-4 w-4 opacity-50" />
+                )}
+                <span>{dragState === "supported" ? "Drop to attach" : "Unsupported file type"}</span>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -257,7 +318,7 @@ export function ChatComposer({
             onChange={handleFileChange}
             className="hidden"
             multiple
-            accept="image/jpeg,image/png,image/webp,image/jpg"
+            accept={CHAT_ATTACHMENT_LIMITS.allowedTypes.join(",")}
           />
         </button>
 

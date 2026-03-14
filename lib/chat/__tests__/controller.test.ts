@@ -124,4 +124,42 @@ describe("chat controller", () => {
     expect(state.messages[0]?.role).toBe("assistant");
     expect(state.activeConversationId).toBeNull();
   });
+
+  it("rolls back failed durable deletes accurately to preserve chronology", async () => {
+    // 1. Setup authenticated state with multiple messages
+    const messages: any[] = [
+      { id: "m1", role: "assistant", content: "1", ts: 1, status: "complete", error: null },
+      { id: "m2", role: "user", content: "2", ts: 2, status: "complete", error: null },
+      { id: "m3", role: "assistant", content: "3", ts: 3, status: "complete", error: null },
+    ];
+    useChatStore.setState({ 
+      messages,
+      activeConversationId: "chat_1",
+      auth: { isReady: true, isAuthenticated: true, privyUserId: "u1", walletAddress: "w1" }
+    });
+
+    // 2. Mock fetch to fail for DELETE
+    const fetchSpy = global.fetch as jest.Mock;
+    fetchSpy.mockImplementationOnce(async (_url, init) => {
+      if (init?.method === "DELETE") {
+        return { 
+          ok: false, 
+          status: 500, 
+          json: async () => ({ error: "Failed" }),
+          text: async () => JSON.stringify({ error: "Failed" })
+        };
+      }
+      return { ok: true, json: async () => ({ ok: true }) };
+    });
+
+    // 3. Attempt to delete middle message
+    await chatController.deleteMessage("m2");
+
+    const state = useChatStore.getState();
+
+    // 4. Verify rollback restored message at the correct index (chronology preserved)
+    expect(state.messages).toHaveLength(3);
+    expect(state.messages[1]?.id).toBe("m2");
+    expect(state.error).toBe("Failed to delete message from server. Please try again.");
+  });
 });
