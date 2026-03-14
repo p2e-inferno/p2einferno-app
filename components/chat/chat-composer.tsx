@@ -8,15 +8,34 @@ import Placeholder from "@tiptap/extension-placeholder";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 import { toast } from "react-hot-toast";
+import { upload } from "@vercel/blob/client";
+import {
+  buildChatAttachmentBlobPath,
+  buildChatAttachmentProxyUrl,
+} from "@/lib/chat/attachment-serving";
+import { getChatAttachmentHandleUploadUrl } from "@/lib/chat/blob-upload-config";
 import { validateChatAttachment } from "@/lib/chat/attachment-validation";
 import { CHAT_ATTACHMENT_LIMITS } from "@/lib/chat/constants";
 import type { ChatMessage } from "@/lib/chat/types";
+import { getLogger } from "@/lib/utils/logger";
+import { Loader2, AlertCircle } from "lucide-react";
+
+const log = getLogger("components:chat-composer");
 
 interface ChatAttachment {
   id: string;
   file: File;
   previewUrl: string;
   type: "image" | "video";
+  status: "uploading" | "ready" | "error";
+  url?: string;
+  progress?: number;
+}
+
+interface UploadClientPayload {
+  attachmentId: string;
+  fileName: string;
+  clientStartedAt: number;
 }
 
 interface ChatComposerProps {
@@ -38,36 +57,176 @@ export function ChatComposer({
   const [attachments, setAttachments] = React.useState<ChatAttachment[]>([]);
   const [dragState, setDragState] = React.useState<"none" | "supported" | "unsupported">("none");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const attachmentsRef = React.useRef<ChatAttachment[]>([]);
+
+  React.useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
 
   const processFiles = (files: File[]) => {
-    setAttachments((prev) => {
-      let current = [...prev];
-      let limitReached = false;
+    const nextAttachments = [...attachmentsRef.current];
+    const uploadsToStart: Array<{ id: string; file: File }> = [];
+    let limitReached = false;
 
-      for (const file of files) {
-        const { isValid, error } = validateChatAttachment(file, current.length);
+    for (const file of files) {
+      const { isValid, error } = validateChatAttachment(file, nextAttachments.length);
 
-        if (!isValid) {
-          if (!limitReached) {
-            toast.error(error || "Invalid file", {
-              duration: 4000,
-            });
-            limitReached = true;
-          }
-          continue;
+      if (!isValid) {
+        if (!limitReached) {
+          toast.error(error || "Invalid file", {
+            duration: 4000,
+          });
+          limitReached = true;
         }
-
-        const isVideo = file.type.startsWith("video/");
-        const attachment: ChatAttachment = {
-          id: Math.random().toString(36).substring(7),
-          file,
-          previewUrl: URL.createObjectURL(file),
-          type: isVideo ? "video" : "image",
-        };
-        current.push(attachment);
+        continue;
       }
-      return current;
+
+      const isVideo = file.type.startsWith("video/");
+      const attachmentId = Math.random().toString(36).substring(7);
+      const attachment: ChatAttachment = {
+        id: attachmentId,
+        file,
+        previewUrl: URL.createObjectURL(file),
+        type: isVideo ? "video" : "image",
+        status: "uploading",
+      };
+      nextAttachments.push(attachment);
+      uploadsToStart.push({ id: attachmentId, file });
+    }
+
+    attachmentsRef.current = nextAttachments;
+    setAttachments(nextAttachments);
+
+    for (const uploadTarget of uploadsToStart) {
+      void performUpload(uploadTarget.id, uploadTarget.file);
+    }
+  };
+
+  const performUpload = async (id: string, file: File) => {
+    // Sanitize filename: remove special characters and spaces to avoid CSP/API issues with SDK
+    const timestamp = Date.now();
+    const parts = file.name.split('.');
+    const extension = parts.length > 1 ? parts.pop() : 'file';
+    const baseName = parts.join('.').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const blobPath = buildChatAttachmentBlobPath(
+      `${baseName}-${id}-${timestamp}.${extension}`,
+    );
+    const startedAt = Date.now();
+    const startedPerf = performance.now();
+    let firstProgressAt: number | null = null;
+    let reachedNinetyFiveAt: number | null = null;
+    let reachedHundredAt: number | null = null;
+    const clientPayload: UploadClientPayload = {
+      attachmentId: id,
+      fileName: file.name,
+      clientStartedAt: startedAt,
+    };
+
+    log.debug("starting chat attachment upload", {
+      attachmentId: id,
+      fileName: file.name,
+      blobPath,
+      size: file.size,
+      type: file.type,
+      startedAt,
     });
+    try {
+      const newBlob = await upload(blobPath, file, {
+        access: "private",
+        handleUploadUrl: getChatAttachmentHandleUploadUrl(),
+        clientPayload: JSON.stringify(clientPayload),
+        multipart: false, // CRITICAL: Avoids platform CORS wall on vercel.com coordination API
+        onUploadProgress: (progressEvent) => {
+          const nowPerf = performance.now();
+          if (firstProgressAt === null) {
+            firstProgressAt = nowPerf;
+            log.debug("chat attachment upload received first progress event", {
+              attachmentId: id,
+              elapsedMs: Math.round(nowPerf - startedPerf),
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+              percentage: progressEvent.percentage,
+            });
+          }
+          if (reachedNinetyFiveAt === null && progressEvent.percentage >= 95) {
+            reachedNinetyFiveAt = nowPerf;
+            log.debug("chat attachment upload reached 95 percent", {
+              attachmentId: id,
+              elapsedMs: Math.round(nowPerf - startedPerf),
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+            });
+          }
+          if (reachedHundredAt === null && progressEvent.percentage >= 100) {
+            reachedHundredAt = nowPerf;
+            log.debug("chat attachment upload reached 100 percent", {
+              attachmentId: id,
+              elapsedMs: Math.round(nowPerf - startedPerf),
+              loaded: progressEvent.loaded,
+              total: progressEvent.total,
+            });
+          }
+          log.debug("chat attachment upload progress", {
+            attachmentId: id,
+            percentage: progressEvent.percentage,
+          });
+          setAttachments((prev) =>
+            prev.map((a) =>
+              a.id === id ? { ...a, progress: progressEvent.percentage } : a
+            )
+          );
+        },
+      });
+      const resolvedPerf = performance.now();
+
+      log.info("chat attachment upload completed", {
+        attachmentId: id,
+        blobPath: newBlob.pathname,
+        totalElapsedMs: Math.round(resolvedPerf - startedPerf),
+        timeToFirstProgressMs:
+          firstProgressAt === null ? null : Math.round(firstProgressAt - startedPerf),
+        timeToNinetyFiveMs:
+          reachedNinetyFiveAt === null
+            ? null
+            : Math.round(reachedNinetyFiveAt - startedPerf),
+        timeToHundredMs:
+          reachedHundredAt === null
+            ? null
+            : Math.round(reachedHundredAt - startedPerf),
+        settleAfterHundredMs:
+          reachedHundredAt === null
+            ? null
+            : Math.round(resolvedPerf - reachedHundredAt),
+      });
+
+      const attachmentUrl = buildChatAttachmentProxyUrl(
+        newBlob.pathname,
+        window.location.origin,
+      );
+
+      const readyAtPerf = performance.now();
+      setAttachments((prev) =>
+        prev.map((a) =>
+          a.id === id ? { ...a, status: "ready", url: attachmentUrl } : a
+        )
+      );
+      log.debug("chat attachment marked ready in composer state", {
+        attachmentId: id,
+        elapsedMs: Math.round(readyAtPerf - startedPerf),
+        attachmentUrl,
+      });
+    } catch (error) {
+      const failedAtPerf = performance.now();
+      log.error("chat attachment upload failed", {
+        attachmentId: id,
+        elapsedMs: Math.round(failedAtPerf - startedPerf),
+        error,
+      });
+      setAttachments((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, status: "error" } : a))
+      );
+      toast.error(`Upload failed for ${file.name}`);
+    }
   };
 
   const editor = useEditor({
@@ -106,7 +265,10 @@ export function ChatComposer({
 
         const files: File[] = [];
         for (const item of Array.from(items)) {
-          if (item.type.startsWith("image/")) {
+          const isImage = item.type.startsWith("image/");
+          const isVideo = item.type.startsWith("video/");
+          
+          if (isImage || isVideo) {
             const file = item.getAsFile();
             if (file) {
               files.push(file);
@@ -145,7 +307,9 @@ export function ChatComposer({
     setAttachments((prev) => {
       const found = prev.find((a) => a.id === id);
       if (found) URL.revokeObjectURL(found.previewUrl);
-      return prev.filter((a) => a.id !== id);
+      const next = prev.filter((a) => a.id !== id);
+      attachmentsRef.current = next;
+      return next;
     });
   };
 
@@ -183,28 +347,21 @@ export function ChatComposer({
     }
   };
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = (error) => reject(error);
-    });
-  };
+  // We no longer need fileToBase64 as we use Vercel Blob URLs
 
   const handleActionSubmit = async () => {
     const content = editor?.getText() || "";
     if (content.trim().length === 0 && attachments.length === 0) return;
 
-    // Convert attachments to Base64 for the LLM
-    const encodedAttachments = await Promise.all(
-      attachments.map(async (a) => ({
+    // Convert attachments to LLM payload using Vercel URLs
+    const encodedAttachments = attachments
+      .filter((a) => a.status === "ready" && a.url)
+      .map((a) => ({
         type: a.type,
-        data: await fileToBase64(a.file),
+        data: a.url!, // This is now a https://... URL
         name: a.file.name,
         size: a.file.size,
-      })),
-    );
+      }));
 
     await onSubmit({
       text: content,
@@ -214,6 +371,7 @@ export function ChatComposer({
     // Cleanup
     editor?.commands.clearContent();
     attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
+    attachmentsRef.current = [];
     setAttachments([]);
   };
 
@@ -261,6 +419,30 @@ export function ChatComposer({
                     </span>
                   </div>
                 )}
+                
+                {/* Upload Status Overlays */}
+                {atat.status === "uploading" && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm px-2">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary mb-1" />
+                    {atat.progress !== undefined && (
+                      <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                        <motion.div 
+                          className="h-full bg-primary"
+                          initial={{ width: 0 }}
+                          animate={{ width: `${atat.progress}%` }}
+                          transition={{ duration: 0.1 }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {atat.status === "error" && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-red-950/60 backdrop-blur-sm">
+                    <AlertCircle className="h-5 w-5 text-red-400" />
+                  </div>
+                )}
+
                 <button
                   type="button"
                   onClick={() => removeAttachment(atat.id)}
@@ -331,7 +513,11 @@ export function ChatComposer({
           onClick={() => void handleActionSubmit()}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:scale-[1.05] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-50 disabled:grayscale"
           aria-label="Send message"
-          disabled={disabled || (editor.isEmpty && attachments.length === 0)}
+          disabled={
+            disabled || 
+            (editor.isEmpty && attachments.length === 0) ||
+            attachments.some(a => a.status === "uploading")
+          }
         >
           <Send className="h-4.5 w-4.5" />
         </button>

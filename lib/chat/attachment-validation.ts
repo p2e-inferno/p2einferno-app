@@ -15,6 +15,24 @@ function estimateBase64DecodedBytes(base64Payload: string) {
 }
 
 function parseAttachmentDataUrl(data: string) {
+  try {
+    const parsedUrl = new URL(data);
+    if (parsedUrl.protocol === "http:" || parsedUrl.protocol === "https:") {
+      return {
+        mimeType: "unknown",
+        decodedBytes: 0,
+        isUrl: true,
+      };
+    }
+  } catch {}
+
+  if (data.startsWith("/")) {
+    return {
+      mimeType: "unknown",
+      decodedBytes: 0,
+      isUrl: true,
+    };
+  }
   const match = DATA_URL_PATTERN.exec(data);
 
   if (!match) {
@@ -27,6 +45,7 @@ function parseAttachmentDataUrl(data: string) {
   return {
     mimeType,
     decodedBytes: estimateBase64DecodedBytes(base64Payload),
+    isUrl: false,
   };
 }
 
@@ -108,18 +127,18 @@ export function validateChatAttachmentPayload(
   if (!parsed) {
     return {
       isValid: false,
-      error: "Attachments must be base64-encoded image or video data URLs.",
+      error: "Attachments must be base64-encoded image/video data URLs or valid storage URLs.",
     };
   }
 
-  if (!CHAT_ATTACHMENT_LIMITS.allowedTypes.includes(parsed.mimeType as any)) {
+  if (!parsed.isUrl && !CHAT_ATTACHMENT_LIMITS.allowedTypes.includes(parsed.mimeType as any)) {
     return {
       isValid: false,
       error: "Invalid file type. Supported types: JPG, PNG, WEBP, and Video (MP4, MOV, WEBM).",
     };
   }
 
-  if (parsed.decodedBytes > CHAT_ATTACHMENT_LIMITS.maxSize) {
+  if (!parsed.isUrl && parsed.decodedBytes > CHAT_ATTACHMENT_LIMITS.maxSize) {
     const fileSizeMB = (parsed.decodedBytes / 1024 / 1024).toFixed(2);
     const maxSizeMB = (CHAT_ATTACHMENT_LIMITS.maxSize / 1024 / 1024).toFixed(0);
     return {

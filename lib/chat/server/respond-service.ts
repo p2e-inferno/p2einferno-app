@@ -8,6 +8,7 @@ import {
   validateChatAttachmentPayload,
 } from "@/lib/chat/attachment-validation";
 import { CHAT_ATTACHMENT_LIMITS } from "@/lib/chat/constants";
+import { resolveChatAttachmentsForModel } from "@/lib/chat/server/attachment-content";
 import {
   normalizeChatRoutePathname,
   resolveServerChatRouteProfile,
@@ -206,11 +207,11 @@ export function validateChatRespondBody(
   return null;
 }
 
-function formatHistoryMessages(
+async function formatHistoryMessages(
   messages: Array<Pick<ChatMessage, "role" | "content" | "attachments">>,
   latestUserText: string,
   latestAttachments: ChatAttachment[] = [],
-): AIChatMessage[] {
+): Promise<AIChatMessage[]> {
   const recent = messages.slice(-HISTORY_WINDOW);
   const normalizedRecent =
     recent[recent.length - 1]?.role === "user" &&
@@ -251,7 +252,7 @@ function formatHistoryMessages(
     ),
   });
 
-  return budgetedRecent.map((message) => {
+  return Promise.all(budgetedRecent.map(async (message) => {
     if (message.role === "assistant") {
       return {
         role: message.role,
@@ -259,14 +260,18 @@ function formatHistoryMessages(
       };
     }
 
+    const resolvedAttachments = await resolveChatAttachmentsForModel(
+      message.attachments,
+    );
+
     return {
       role: message.role,
       content: formatUserMessageContent(
         truncateHistoryContent(message.content),
-        message.attachments,
+        resolvedAttachments,
       ),
     };
-  });
+  }));
 }
 
 function selectHistoryMessagesWithinBudget(
@@ -723,6 +728,11 @@ async function routeChatIntent(params: {
   }
 
   const hasAttachments = Boolean(params.attachments?.length);
+  const historyMessages = await formatHistoryMessages(
+    params.messages,
+    params.userText,
+    params.attachments,
+  );
   const router = await chatCompletion({
     model: process.env.OPENROUTER_CHAT_ROUTER_MODEL,
     fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
@@ -736,11 +746,7 @@ async function routeChatIntent(params: {
         role: "system",
         content: buildRouterInstruction(hasAttachments),
       },
-      ...formatHistoryMessages(
-        params.messages,
-        params.userText,
-        params.attachments,
-      ),
+      ...historyMessages,
       {
         role: "user",
         content: JSON.stringify({
@@ -858,6 +864,14 @@ export async function generateChatResponse(params: {
   });
 
   if (intentDecision.route === "chat_only") {
+    const historyMessages = await formatHistoryMessages(
+      params.body.messages,
+      userText,
+      params.body.attachments,
+    );
+    const resolvedAttachments = await resolveChatAttachmentsForModel(
+      params.body.attachments,
+    );
     const direct = await chatCompletion({
       model: hasAttachments ? multimodalModel : undefined,
       thinkingLevel,
@@ -874,14 +888,10 @@ export async function generateChatResponse(params: {
             responseStyle: profile.responseStyle,
           }),
         },
-        ...formatHistoryMessages(
-          params.body.messages,
-          userText,
-          params.body.attachments,
-        ),
+        ...historyMessages,
         {
           role: "user",
-          content: formatUserMessageContent(userText, params.body.attachments),
+          content: formatUserMessageContent(userText, resolvedAttachments),
         },
       ],
     });
@@ -915,6 +925,14 @@ export async function generateChatResponse(params: {
   }
 
   if (intentDecision.route === "clarify") {
+    const historyMessages = await formatHistoryMessages(
+      params.body.messages,
+      userText,
+      params.body.attachments,
+    );
+    const resolvedAttachments = await resolveChatAttachmentsForModel(
+      params.body.attachments,
+    );
     const clarify = await chatCompletion({
       model: hasAttachments ? multimodalModel : undefined,
       thinkingLevel,
@@ -929,14 +947,10 @@ export async function generateChatResponse(params: {
             isAuthenticated: params.isAuthenticated,
           }),
         },
-        ...formatHistoryMessages(
-          params.body.messages,
-          userText,
-          params.body.attachments,
-        ),
+        ...historyMessages,
         {
           role: "user",
-          content: formatUserMessageContent(userText, params.body.attachments),
+          content: formatUserMessageContent(userText, resolvedAttachments),
         },
       ],
     });
@@ -1038,13 +1052,21 @@ export async function generateChatResponse(params: {
     promptResults: summarizeRetrievedChunks(promptResults),
   });
 
+  const historyMessages = await formatHistoryMessages(
+    params.body.messages,
+    userText,
+    params.body.attachments,
+  );
+  const resolvedAttachments = await resolveChatAttachmentsForModel(
+    params.body.attachments,
+  );
   const completion = await chatCompletion({
     model: hasAttachments ? multimodalModel : undefined,
     thinkingLevel,
     fallbacks: [multimodalModel, "anthropic/claude-3-haiku"],
     temperature: 0.2,
     maxTokens: profile.maxTokens ?? 450,
-    messages: [
+      messages: [
       {
         role: "system",
         content: buildSystemInstruction({
@@ -1055,11 +1077,7 @@ export async function generateChatResponse(params: {
           weakRetrievalMode: profile.weakRetrievalMode,
         }),
       },
-      ...formatHistoryMessages(
-        params.body.messages,
-        userText,
-        params.body.attachments,
-      ),
+      ...historyMessages,
       {
         role: "user",
         content: formatUserMessageContent(
@@ -1068,7 +1086,7 @@ export async function generateChatResponse(params: {
             `Retrieved knowledge:\n${formatRetrievedKnowledge(promptResults)}`,
             "Answer using the retrieved knowledge. If the knowledge is incomplete, say that clearly.",
           ].join("\n\n"),
-          params.body.attachments,
+          resolvedAttachments,
         ),
       },
     ],

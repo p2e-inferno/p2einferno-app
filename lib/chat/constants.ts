@@ -12,6 +12,8 @@ export const CHAT_TEASER_SHOW_DELAY_MS = 3000;
 export const CHAT_TEASER_HIDE_DELAY_MS = 15000;
 export const CHAT_PANEL_MOBILE_CLASS =
   "w-[calc(100vw-1.5rem)] max-w-[420px] h-[460px] max-h-[calc(100vh-8rem)]";
+export const CHAT_ATTACHMENT_UPLOAD_ROUTE = "/api/chat/attachments/upload";
+export const CHAT_ATTACHMENT_BLOB_PREFIX = "chat-attachments";
 
 export const CHAT_SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   {
@@ -28,8 +30,8 @@ export const CHAT_WELCOME_MESSAGE: ChatMessage = createAssistantMessage(
 );
 
 export const CHAT_ATTACHMENT_LIMITS = {
-  maxSize: 2 * 1024 * 1024, // 2MB
-  maxTotalSize: 4 * 1024 * 1024, // 4MB across all attachments
+  maxSize: 5 * 1024 * 1024, // 5MB
+  maxTotalSize: 10 * 1024 * 1024, // 10MB across all attachments
   maxCount: 2,
   maxNameLength: 200,
   allowedTypes: ["image/jpeg", "image/png", "image/webp", "image/jpg", "video/mp4", "video/quicktime", "video/webm"],

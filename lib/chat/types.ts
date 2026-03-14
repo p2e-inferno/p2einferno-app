@@ -14,7 +14,7 @@ export type ChatAssistantMode =
 
 export interface ChatAttachment {
   type: "image" | "video";
-  data: string; // data:image/...;base64,... or data:video/...;base64,...
+  data: string; // data URL or app/blob-backed URL
   name?: string;
   size?: number;
 }

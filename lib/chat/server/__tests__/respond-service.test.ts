@@ -10,6 +10,10 @@ jest.mock("@/lib/ai/client", () => ({
   chatCompletion: jest.fn(),
 }));
 
+jest.mock("@/lib/chat/server/attachment-content", () => ({
+  resolveChatAttachmentsForModel: jest.fn(async (attachments?: unknown[]) => attachments ?? []),
+}));
+
 var warnLog: jest.Mock;
 
 jest.mock("@/lib/utils/logger", () => ({
@@ -1439,7 +1443,7 @@ describe("generateChatResponse", () => {
   });
 
   it("rejects oversized attachment payloads on the server", () => {
-    const oversizedPayload = "A".repeat(3 * 1024 * 1024);
+    const oversizedPayload = "A".repeat(6 * 1024 * 1024);
 
     expect(
       validateChatRespondBody({
@@ -1450,7 +1454,7 @@ describe("generateChatResponse", () => {
             type: "image",
             data: `data:image/png;base64,${oversizedPayload}`,
             name: "large.png",
-            size: 3 * 1024 * 1024,
+            size: 6 * 1024 * 1024,
           },
         ],
         messages: [],
