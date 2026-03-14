@@ -136,6 +136,43 @@ export class BrowserChatRepository implements ChatRepository {
     return nextConversation;
   }
 
+  async removeMessage(
+    _conversationId: string,
+    messageId: string,
+  ): Promise<void> {
+    const storage = getStorage();
+    if (!storage) {
+      return;
+    }
+
+    this.clearLegacyAuthenticatedStorage(storage);
+
+    const rawConversation = storage.getItem(getStorageKey(this.options));
+    if (!rawConversation) {
+      return;
+    }
+
+    const conversation = JSON.parse(rawConversation) as ChatConversation;
+    const nextMessages = (conversation.messages || []).filter(
+      (m) => m.id !== messageId,
+    );
+
+    if (nextMessages.length === conversation.messages.length) {
+      return;
+    }
+
+    const nextConversation: ChatConversation = {
+      ...conversation,
+      messages: nextMessages,
+      updatedAt: Date.now(),
+    };
+
+    storage.setItem(
+      getStorageKey(this.options),
+      JSON.stringify(nextConversation),
+    );
+  }
+
   async clearConversation(_conversationId: string | null): Promise<void> {
     const storage = getStorage();
     if (!storage) {

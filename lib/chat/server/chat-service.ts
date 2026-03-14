@@ -241,6 +241,42 @@ export class ChatService {
     return this.getConversation(privyUserId, conversationId);
   }
 
+  async removeMessage(
+    privyUserId: string,
+    conversationId: string,
+    messageId: string,
+  ): Promise<void> {
+    const ownedConversation = await this.getOwnedConversationRow(
+      privyUserId,
+      conversationId,
+    );
+    if (!ownedConversation) {
+      throw new Error("Conversation not found");
+    }
+
+    const { error: deleteError } = await this.supabase
+      .from("chat_messages")
+      .delete()
+      .eq("id", messageId)
+      .eq("conversation_id", conversationId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    const { error: updateError } = await this.supabase
+      .from("chat_conversations")
+      .update({
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", conversationId)
+      .eq("privy_user_id", privyUserId);
+
+    if (updateError) {
+      throw updateError;
+    }
+  }
+
   async clearConversation(
     privyUserId: string,
     conversationId: string | null,

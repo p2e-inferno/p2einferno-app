@@ -20,6 +20,7 @@ jest.mock("@/lib/chat/server/chat-service", () => ({
     createConversation: jest.fn(),
     appendMessages: jest.fn(),
     clearConversation: jest.fn(),
+    removeMessage: jest.fn(),
   },
 }));
 
@@ -28,6 +29,7 @@ const { chatService } = require("@/lib/chat/server/chat-service");
 const sessionRoute = require("@/app/api/chat/session/route");
 const conversationsRoute = require("@/app/api/chat/conversations/route");
 const messagesRoute = require("@/app/api/chat/conversations/[conversationId]/messages/route");
+const messageDeleteRoute = require("@/app/api/chat/conversations/[conversationId]/messages/[messageId]/route");
 const currentRoute = require("@/app/api/chat/conversations/current/route");
 
 describe("chat api routes", () => {
@@ -133,5 +135,31 @@ describe("chat api routes", () => {
       "did:1",
       "chat_1",
     );
+  });
+ 
+  it("deletes a specific message through the route layer", async () => {
+    const res = await messageDeleteRoute.DELETE({} as any, {
+      params: Promise.resolve({ conversationId: "chat_1", messageId: "m1" }),
+    });
+ 
+    expect(res.status).toBe(200);
+    expect(chatService.removeMessage).toHaveBeenCalledWith(
+      "did:1",
+      "chat_1",
+      "m1",
+    );
+  });
+
+  it("returns 401 when deleting a message without authentication", async () => {
+    privy.getPrivyUserFromNextRequest.mockResolvedValueOnce(null);
+
+    const res = await messageDeleteRoute.DELETE({} as any, {
+      params: Promise.resolve({ conversationId: "chat_1", messageId: "m1" }),
+    });
+
+    expect(res.status).toBe(401);
+    await expect(res.json()).resolves.toEqual({
+      error: "Authentication required",
+    });
   });
 });

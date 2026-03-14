@@ -25,6 +25,8 @@ export function ChatWidgetRoot() {
     clearConversation,
     sendMessage,
     setDraft,
+    retryMessage,
+    deleteMessage,
   } = useChatWidget();
 
   return (
@@ -49,6 +51,8 @@ export function ChatWidgetRoot() {
         onClearConversation={clearConversation}
         onDraftChange={setDraft}
         onSendMessage={sendMessage}
+        onRetryMessage={retryMessage}
+        onDeleteMessage={deleteMessage}
       />
 
       {!isOpen && <ChatLauncher onOpen={openWidget} />}

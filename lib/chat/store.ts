@@ -47,6 +47,7 @@ interface ChatStoreActions {
     messageId: string,
     updater: (message: ChatMessage) => ChatMessage,
   ) => void;
+  removeMessage: (messageId: string) => void;
   setActiveConversationId: (conversationId: string | null) => void;
   applyRestore: (
     payload: RestoreConversationResult,
@@ -82,6 +83,10 @@ export const useChatStore = create<ChatWidgetState & ChatStoreActions>(
         messages: state.messages.map((message) =>
           message.id === messageId ? updater(message) : message,
         ),
+      })),
+    removeMessage: (messageId) =>
+      set((state) => ({
+        messages: state.messages.filter((message) => message.id !== messageId),
       })),
     setActiveConversationId: (activeConversationId) =>
       set({ activeConversationId }),

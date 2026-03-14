@@ -1,6 +1,7 @@
 import { chatCompletion } from "@/lib/ai/client";
 import { embedTexts } from "@/lib/ai/knowledge/embeddings";
 import { searchKnowledgeBase } from "@/lib/ai/knowledge/retrieval";
+import { normalizeAppLinks } from "@/lib/ai/utils/normalize-app-links";
 import type { ChatMessage as AIChatMessage } from "@/lib/ai/types";
 import {
   getChatAttachmentPayloadSize,
@@ -221,7 +222,22 @@ function formatHistoryMessages(
       ? recent.slice(0, -1)
       : recent;
 
-  const budgetedRecent = selectHistoryMessagesWithinBudget(normalizedRecent);
+  // Server-side safety net: collapse consecutive same-role messages.
+  // When a prior request failed, the client may send history with two
+  // consecutive user messages and no assistant response between them.
+  // Keeping only the later message in each run prevents AI confusion.
+  const deduplicatedRecent = normalizedRecent.reduce<
+    Array<Pick<ChatMessage, "role" | "content" | "attachments">>
+  >((acc, msg) => {
+    const last = acc[acc.length - 1];
+    if (last && last.role === msg.role && msg.role === "user") {
+      // Replace the earlier orphaned user message with the newer one
+      return [...acc.slice(0, -1), msg];
+    }
+    return [...acc, msg];
+  }, []);
+
+  const budgetedRecent = selectHistoryMessagesWithinBudget(deduplicatedRecent);
 
   log.debug("Formatted chat history for model input", {
     requestedHistoryCount: messages.length,
@@ -508,9 +524,21 @@ function filterResultsForPrompt(results: RetrievedChunk[]) {
     .slice(0, MAX_PROMPT_RESULTS);
 }
 
-function buildRouterInstruction() {
-  return [
+function buildRouterInstruction(hasAttachments: boolean) {
+  const baseInstructions = [
     "You route chat requests for the P2E Inferno in-app assistant.",
+  ];
+
+  if (hasAttachments) {
+    return [
+      ...baseInstructions,
+      "The user provided an image. Image requests should almost ALWAYS be routed to 'grounded_kb'.",
+      "Return ONLY a raw JSON object string with NO markdown formatting, like this: {\"route\": \"grounded_kb\", \"retrievalQuery\": \"<short description of image>\", \"rationale\": \"<reason>\"}",
+    ].join("\n");
+  }
+
+  return [
+    ...baseInstructions,
     "Output your decision as a JSON object with the following properties:",
     '- route: must be one of "chat_only", "grounded_kb", "clarify".',
     '- retrievalQuery: string.',
@@ -687,16 +715,19 @@ async function routeChatIntent(params: {
     };
   }
 
+  const hasAttachments = Boolean(params.attachments?.length);
   const router = await chatCompletion({
     model: process.env.OPENROUTER_CHAT_ROUTER_MODEL,
     fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
     temperature: 0,
     maxTokens: ROUTER_MAX_TOKENS,
-    responseFormat: ROUTER_RESPONSE_FORMAT,
+    // Drop forced JSON object formatting when dealing with multi-modal inputs
+    // as it frequently causes timeout failures during vision processing
+    responseFormat: hasAttachments ? undefined : ROUTER_RESPONSE_FORMAT,
     messages: [
       {
         role: "system",
-        content: buildRouterInstruction(),
+        content: buildRouterInstruction(hasAttachments),
       },
       ...formatHistoryMessages(
         params.messages,
@@ -799,6 +830,8 @@ export async function generateChatResponse(params: {
     messages: params.body.messages,
   });
 
+  const hasAttachments = Boolean(params.body.attachments?.length);
+
   log.debug("Resolved chat route profile and intent", {
     conversationId: params.body.conversationId,
     normalizedPathname,
@@ -810,6 +843,7 @@ export async function generateChatResponse(params: {
 
   if (intentDecision.route === "chat_only") {
     const direct = await chatCompletion({
+      model: hasAttachments ? "google/gemini-2.0-flash-001" : undefined,
       fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
       temperature: 0.4,
       maxTokens: 220,
@@ -852,7 +886,7 @@ export async function generateChatResponse(params: {
       responsePreview: direct.content.slice(0, 200),
     });
     return {
-      message: createAssistantMessage(direct.content),
+      message: createAssistantMessage(normalizeAppLinks(direct.content)),
       sources: [],
       retrievalMeta: {
         profile: profile.id,
@@ -865,6 +899,7 @@ export async function generateChatResponse(params: {
 
   if (intentDecision.route === "clarify") {
     const clarify = await chatCompletion({
+      model: hasAttachments ? "google/gemini-2.0-flash-001" : undefined,
       fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
       temperature: 0.2,
       maxTokens: 120,
@@ -905,7 +940,7 @@ export async function generateChatResponse(params: {
       responsePreview: clarify.content.slice(0, 200),
     });
     return {
-      message: createAssistantMessage(clarify.content),
+      message: createAssistantMessage(normalizeAppLinks(clarify.content)),
       sources: [],
       retrievalMeta: {
         profile: profile.id,
@@ -982,6 +1017,7 @@ export async function generateChatResponse(params: {
   });
 
   const completion = await chatCompletion({
+    model: hasAttachments ? "google/gemini-2.0-flash-001" : undefined,
     fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
     temperature: 0.2,
     maxTokens: profile.maxTokens ?? 450,
@@ -1033,7 +1069,7 @@ export async function generateChatResponse(params: {
     responsePreview: completion.content.slice(0, 200),
   });
   return {
-    message: createAssistantMessage(completion.content),
+    message: createAssistantMessage(normalizeAppLinks(completion.content)),
     sources: mapSources(promptResults),
     retrievalMeta: {
       profile: profile.id,

@@ -58,6 +58,16 @@ export function useChatWidget() {
           accessToken: await resolveAccessToken(),
         });
       },
+      retryMessage: async (messageId: string) => {
+        await chatController.retryMessage(messageId, {
+          accessToken: await resolveAccessToken(),
+        });
+      },
+      deleteMessage: async (messageId: string) => {
+        await chatController.deleteMessage(messageId, {
+          accessToken: await resolveAccessToken(),
+        });
+      },
       setDraft: async (draft: string) => {
         store.setDraft(draft);
       },

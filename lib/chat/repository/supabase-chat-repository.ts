@@ -65,6 +65,22 @@ export class SupabaseChatRepository implements ChatRepository {
     return payload.conversation;
   }
 
+  async removeMessage(
+    conversationId: string,
+    messageId: string,
+  ): Promise<void> {
+    const response = await fetch(
+      `/api/chat/conversations/${conversationId}/messages/${messageId}`,
+      {
+        method: "DELETE",
+        headers: this.getHeaders(),
+        credentials: "include",
+      },
+    );
+
+    await ensureJsonResponse<{ ok: true }>(response);
+  }
+
   async clearConversation(conversationId: string | null): Promise<void> {
     const suffix = conversationId
       ? `?conversationId=${encodeURIComponent(conversationId)}`

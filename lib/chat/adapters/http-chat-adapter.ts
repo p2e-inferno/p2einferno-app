@@ -13,11 +13,13 @@ export class HttpChatAdapter implements ChatAdapter {
         conversationId: input.conversationId,
         message: input.message.content,
         attachments: input.message.attachments,
-        messages: input.messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-          attachments: message.attachments,
-        })),
+        messages: input.messages
+          .filter((message) => message.status !== "error")
+          .map((message) => ({
+            role: message.role,
+            content: message.content,
+            attachments: message.attachments,
+          })),
         route: {
           pathname: input.route?.pathname ?? "/",
           routeKey: input.route?.routeKey ?? "home",

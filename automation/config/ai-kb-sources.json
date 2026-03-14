@@ -98,6 +98,14 @@
       "staleDays": 14
     },
     {
+      "sourcePath": "docs/playbooks/PREREQUISITES_AND_ELIGIBILITY_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Prerequisites and Eligibility Playbook",
+      "audience": ["support", "ops"],
+      "domainTags": ["prerequisites", "eligibility", "quests", "daily-quests", "milestones"],
+      "staleDays": 14
+    },
+    {
       "sourcePath": "docs/strategy/DGTokenVendor_Knowledge_Base.md",
       "sourceType": "doc",
       "title": "DG Token Vendor Knowledge Base",
@@ -135,6 +143,14 @@
       "title": "Business Summary",
       "audience": ["sales", "social", "ops"],
       "domainTags": ["business", "positioning", "strategy"],
+      "staleDays": 45
+    },
+    {
+      "sourcePath": "docs/strategy/EXECUTIVE_SUMMARY_POSITIONING.md",
+      "sourceType": "doc",
+      "title": "Executive Summary Positioning",
+      "audience": ["sales", "social", "ops"],
+      "domainTags": ["positioning", "partnerships", "grants", "market", "traction"],
       "staleDays": 45
     },
     {

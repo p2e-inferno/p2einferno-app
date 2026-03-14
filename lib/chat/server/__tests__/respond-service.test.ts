@@ -42,8 +42,11 @@ const chatCompletionMock = chatCompletion as jest.MockedFunction<
 >;
 
 describe("generateChatResponse", () => {
+  const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    process.env.NEXT_PUBLIC_APP_URL = "https://test.p2einferno.com";
     embedTextsMock.mockResolvedValue([new Array(1536).fill(0.1)]);
     chatCompletionMock.mockImplementation(async (options) => {
       const systemMessage = options.messages[0]?.content;
@@ -68,6 +71,10 @@ describe("generateChatResponse", () => {
         model: "test-model",
       };
     });
+  });
+
+  afterAll(() => {
+    process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
   });
 
   it("uses the sales profile for homepage requests", async () => {
@@ -247,6 +254,50 @@ describe("generateChatResponse", () => {
     expect(embedTextsMock).not.toHaveBeenCalled();
     expect(chatCompletionMock).toHaveBeenCalledTimes(2);
     expect(response.message.content).toContain("You’re welcome");
+  });
+
+  it("expands app-relative routes into absolute markdown links for direct chat replies", async () => {
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "chat_only",
+          retrievalQuery: "",
+          rationale: "Direct route-aware reply.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "Open `/lobby/profile`, then visit [Verify Identity](/gooddollar-verification), and if needed continue in /lobby/vendor.",
+        model: "test-model",
+      });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_route_links_direct",
+        message: "Where do I go?",
+        messages: [{ role: "user", content: "Where do I go?" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(response.message.content).toContain(
+      "[`/lobby/profile`](https://test.p2einferno.com/lobby/profile)",
+    );
+    expect(response.message.content).toContain(
+      "[Verify Identity](https://test.p2einferno.com/gooddollar-verification)",
+    );
+    expect(response.message.content).toContain(
+      "[/lobby/vendor](https://test.p2einferno.com/lobby/vendor)",
+    );
   });
 
   it("falls back to grounded retrieval when the router fails on an operational question", async () => {
@@ -636,7 +687,7 @@ describe("generateChatResponse", () => {
     );
   });
 
-  it("returns a support-safe weak retrieval fallback for lobby routes without calling the answer model", async () => {
+  it("returns a model-generated reply even on zero-result weak retrieval", async () => {
     searchKnowledgeBaseMock.mockResolvedValue([]);
 
     const response = await generateChatResponse({
@@ -654,15 +705,25 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(chatCompletionMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
+            content: expect.stringContaining("For weak support evidence, give safe next steps"),
+          }),
+        ]),
+      }),
+    );
     expect(response.retrievalMeta).toEqual(
       expect.objectContaining({
         profile: "quest_support",
         resultCount: 0,
       }),
     );
-    expect(response.message.content).toContain("I can't confirm");
-    expect(response.message.content).toContain("/lobby/quests");
+    expect(response.message.content).toBe("Default assistant reply");
     expect(warnLog).toHaveBeenCalledWith(
       "Using zero-result retrieval fallback for chat response",
       expect.objectContaining({
@@ -672,7 +733,7 @@ describe("generateChatResponse", () => {
     );
   });
 
-  it("uses a weak fallback for non-zero but low-confidence retrieval", async () => {
+  it("uses a model-generated reply for non-zero but low-confidence retrieval", async () => {
     searchKnowledgeBaseMock.mockResolvedValue([
       {
         chunk_id: "chunk-low",
@@ -704,17 +765,17 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
     expect(response.retrievalMeta).toEqual(
       expect.objectContaining({
         profile: "bootcamp_support",
         resultCount: 1,
       }),
     );
-    expect(response.message.content).toContain("I can't confirm");
+    expect(response.message.content).toBe("Default assistant reply");
   });
 
-  it("treats a top result just below the strong threshold as weak", async () => {
+  it("treats a top result just below the strong threshold as weak but still calls the model", async () => {
     searchKnowledgeBaseMock.mockResolvedValue([
       {
         chunk_id: "chunk-boundary-low",
@@ -746,8 +807,8 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
-    expect(response.message.content).toContain("I can't confirm");
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(response.message.content).toBe("Default assistant reply");
   });
 
   it("treats a top result at the strong threshold as eligible", async () => {
@@ -981,8 +1042,8 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
-    expect(response.message.content).toContain("I can't confirm");
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(response.message.content).toBe("Default assistant reply");
   });
 
   it("does not fire the conflict gate when both results are at exactly the very-strong threshold (0.82)", async () => {
@@ -1071,8 +1132,8 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
-    expect(response.message.content).toContain("I can't confirm");
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(response.message.content).toBe("Default assistant reply");
   });
 
   it("does not treat results as conflicting when the rank gap exceeds the configured threshold", async () => {
@@ -1202,6 +1263,62 @@ describe("generateChatResponse", () => {
     ]);
   });
 
+  it("expands app-relative routes into absolute markdown links for grounded replies", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-grounded-routes",
+        document_id: "doc-grounded-routes",
+        title: "Navigation Map",
+        chunk_text: "Users can continue in /lobby/quests and /lobby/vendor.",
+        metadata: {
+          source_path: "docs/categories/NAVIGATION_MAP.md",
+          source_type: "doc",
+        },
+        rank: 0.88,
+        keyword_rank: 0.64,
+        semantic_rank: 0.9,
+      },
+    ] as any);
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "Where should I go next?",
+          rationale: "Needs grounded navigation guidance.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "Start in /lobby/quests. If the issue is vendor-related, go to `/lobby/vendor`.",
+        model: "test-model",
+      });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_route_links_grounded",
+        message: "Where should I go next?",
+        messages: [{ role: "user", content: "Where should I go next?" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(response.message.content).toContain(
+      "[/lobby/quests](https://test.p2einferno.com/lobby/quests)",
+    );
+    expect(response.message.content).toContain(
+      "[`/lobby/vendor`](https://test.p2einferno.com/lobby/vendor)",
+    );
+  });
+
   it("returns a sales-safe weak retrieval fallback for homepage requests", async () => {
     searchKnowledgeBaseMock.mockResolvedValue([]);
 
@@ -1222,11 +1339,8 @@ describe("generateChatResponse", () => {
       isAuthenticated: false,
     });
 
-    expect(chatCompletionMock).toHaveBeenCalledTimes(1);
-    expect(response.message.content).toContain(
-      "At a high level, P2E Inferno helps",
-    );
-    expect(response.message.content).not.toContain("/lobby/vendor");
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(response.message.content).toBe("Default assistant reply");
   });
 
   it("keeps weak fallback wording owned by the resolved route profile", async () => {
@@ -1247,8 +1361,19 @@ describe("generateChatResponse", () => {
       isAuthenticated: true,
     });
 
-    expect(response.message.content).toContain("/lobby/vendor");
-    expect(response.message.content).not.toContain("/lobby/quests");
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(chatCompletionMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
+            content: expect.stringContaining("Current pathname: /lobby/vendor"),
+          }),
+        ]),
+      }),
+    );
+    expect(response.message.content).toBe("Default assistant reply");
   });
 
   it("accepts attachment-only requests at validation time", () => {

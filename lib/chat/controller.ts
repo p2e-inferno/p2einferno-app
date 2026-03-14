@@ -130,7 +130,7 @@ export class ChatController {
 
   async sendMessage(
     payload: string | { text: string; attachments?: ChatMessage["attachments"] },
-    options: ChatControllerActionOptions = {},
+    options: ChatControllerActionOptions & { existingMessage?: ChatMessage } = {},
   ) {
     const state = getChatStoreState();
     const rawText = typeof payload === "string" ? payload : payload.text;
@@ -145,8 +145,10 @@ export class ChatController {
       return;
     }
 
-    const userMessage = createUserMessage(trimmed, attachments);
-    const messagesAfterUser = [...state.messages, userMessage];
+    const userMessage = options.existingMessage || createUserMessage(trimmed, attachments);
+    const messagesAfterUser = options.existingMessage 
+      ? state.messages 
+      : [...state.messages, userMessage];
     const source = state.auth.isAuthenticated ? "authenticated" : "anonymous";
     const conversationId =
       state.activeConversationId ??
@@ -156,7 +158,7 @@ export class ChatController {
     useChatStore.setState({
       status: "sending",
       error: null,
-      draft: "",
+      draft: options.existingMessage ? state.draft : "",
       activeConversationId: conversationId,
       messages: messagesAfterUser,
     });
@@ -266,6 +268,16 @@ export class ChatController {
       if (!this.isOperationCurrent(operation)) {
         return;
       }
+
+      // Mark the orphaned user message as failed so it is excluded from
+      // future history sent to the server, preventing cascading context
+      // misalignment in subsequent AI requests.
+      useChatStore.getState().updateMessage(userMessage.id, (msg) => ({
+        ...msg,
+        status: "error",
+        error: "Message failed to send.",
+      }));
+
       log.error("Failed to send chat message", { error });
       useChatStore.setState({
         status: "error",
@@ -280,6 +292,95 @@ export class ChatController {
       });
     } finally {
       await this.persistWidgetSession(options, operation);
+    }
+  }
+
+  async retryMessage(
+    messageId: string,
+    options: ChatControllerActionOptions = {},
+  ) {
+    const state = getChatStoreState();
+    const failedMessage = state.messages.find(
+      (m) => m.id === messageId && m.status === "error" && m.role === "user",
+    );
+
+    if (!failedMessage || state.status === "sending" || !state.route) {
+      return;
+    }
+
+    // Reset the message status so it appears normal in the UI
+    useChatStore.getState().updateMessage(messageId, (msg) => ({
+      ...msg,
+      status: "complete",
+      error: null,
+    }));
+
+    // Re-send using the existing sendMessage flow, specifying the 
+    // refreshed message to ensure it is correctly persisted (status: complete).
+    const refreshedMessage = getChatStoreState().messages.find(m => m.id === messageId);
+    if (!refreshedMessage) {
+      return;
+    }
+
+    await this.sendMessage(
+      { text: refreshedMessage.content, attachments: refreshedMessage.attachments },
+      { ...options, existingMessage: refreshedMessage },
+    );
+  }
+
+  async deleteMessage(messageId: string, options: ChatControllerActionOptions = {}) {
+    const state = getChatStoreState();
+    const conversationId = state.activeConversationId;
+    const messageToDelete = state.messages.find(m => m.id === messageId);
+    
+    if (!messageToDelete) {
+      return;
+    }
+
+    // 1. Local removal
+    useChatStore.getState().removeMessage(messageId);
+
+    // 2. Durable removal if we have an active conversation
+    if (conversationId) {
+      const operation = this.createOperationContext(state.auth);
+      const persistence = this.getPersistence(operation.auth, options);
+      let preferredDeleteFailed = false;
+
+      if (persistence.preferredRepository.isAvailable) {
+        await persistence.preferredRepository.removeMessage(conversationId, messageId).catch((error: unknown) => {
+          preferredDeleteFailed = true;
+          log.warn("Failed to delete durable chat message from preferred repository", {
+            repository: persistence.preferredRepository.name,
+            conversationId,
+            messageId,
+            error
+          });
+        });
+      }
+
+      if (preferredDeleteFailed) {
+        // Rollback local state so the user sees the message still exists/failed to delete
+        // We re-insert it where it was. Since we don't have index easily, we just append or use store methods
+        // Actually, store doesn't have a 'restore' but we can append.
+        // Given this is a reliability fix, we should notify the user.
+        useChatStore.getState().appendMessages([messageToDelete]);
+        useChatStore.setState({
+          error: "Failed to delete message from server. Please try again.",
+        });
+        return;
+      }
+
+      // 3. Best-effort fallback removal (session storage)
+      if (persistence.fallbackRepository.isAvailable && persistence.fallbackRepository !== persistence.preferredRepository) {
+        await persistence.fallbackRepository.removeMessage(conversationId, messageId).catch((error: unknown) => {
+          log.warn("Failed to delete durable chat message from fallback repository (best effort)", {
+            repository: persistence.fallbackRepository.name,
+            conversationId,
+            messageId,
+            error
+          });
+        });
+      }
     }
   }
 

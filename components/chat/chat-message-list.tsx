@@ -10,12 +10,16 @@ interface ChatMessageListProps {
   messages: ChatMessage[];
   loading: boolean;
   showTypingIndicator: boolean;
+  onRetryMessage: (messageId: string) => Promise<void>;
+  onDeleteMessage: (messageId: string) => Promise<void>;
 }
 
 export function ChatMessageList({
   messages,
   loading,
   showTypingIndicator,
+  onRetryMessage,
+  onDeleteMessage,
 }: ChatMessageListProps) {
   const listRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -36,7 +40,12 @@ export function ChatMessageList({
       className="scrollbar-hide flex h-full min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4"
     >
       {messages.map((message) => (
-        <ChatMessageBubble key={message.id} message={message} />
+        <ChatMessageBubble
+          key={message.id}
+          message={message}
+          onRetry={() => void onRetryMessage(message.id)}
+          onDelete={() => void onDeleteMessage(message.id)}
+        />
       ))}
 
       {showTypingIndicator && (

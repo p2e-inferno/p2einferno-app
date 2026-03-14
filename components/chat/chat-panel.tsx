@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, RotateCcw, X } from "lucide-react";
+import { Bot, RotateCcw, X, Loader2 } from "lucide-react";
 import { ChatComposer } from "@/components/chat/chat-composer";
 import { ChatEmptyState } from "@/components/chat/chat-empty-state";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
 import { ChatSuggestedPrompts } from "@/components/chat/chat-suggested-prompts";
 import type { ChatMessage } from "@/lib/chat/types";
+
+import { ChatTooltip } from "@/components/chat/chat-tooltip";
 
 interface ChatPanelProps {
   open: boolean;
@@ -24,6 +27,8 @@ interface ChatPanelProps {
       | string
       | { text: string; attachments?: ChatMessage["attachments"] },
   ) => Promise<void>;
+  onRetryMessage: (messageId: string) => Promise<void>;
+  onDeleteMessage: (messageId: string) => Promise<void>;
 }
 
 export function ChatPanel({
@@ -38,7 +43,21 @@ export function ChatPanel({
   onClearConversation,
   onDraftChange,
   onSendMessage,
+  onRetryMessage,
+  onDeleteMessage,
 }: ChatPanelProps) {
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleClearConversation = async () => {
+    if (isResetting) return;
+    setIsResetting(true);
+    try {
+      await onClearConversation();
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <AnimatePresence>
       {open && (
@@ -76,22 +95,30 @@ export function ChatPanel({
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/50 transition-all hover:bg-white/10 hover:text-white"
-                  onClick={() => void onClearConversation()}
-                  aria-label="Clear conversation"
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/5 text-white/50 transition-all hover:bg-white/10 hover:text-white"
-                  onClick={() => void onClose()}
-                  aria-label="Close chat"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <ChatTooltip label="Clear History">
+                  <button
+                    onClick={() => void handleClearConversation()}
+                    disabled={isResetting || messages.length <= 1}
+                    className="group p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-all outline-none disabled:opacity-30 disabled:pointer-events-none active:scale-95"
+                    aria-label="Clear conversation"
+                  >
+                    {isResetting ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    ) : (
+                      <RotateCcw className="w-4 h-4" />
+                    )}
+                  </button>
+                </ChatTooltip>
+
+                <ChatTooltip label="Close Chat">
+                  <button
+                    onClick={() => void onClose()}
+                    className="group p-2 rounded-xl text-white/40 hover:text-white hover:bg-white/5 transition-all outline-none active:scale-95"
+                    aria-label="Close chat"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </ChatTooltip>
               </div>
             </div>
 
@@ -103,6 +130,8 @@ export function ChatPanel({
                   messages={messages}
                   loading={loading}
                   showTypingIndicator={showTypingIndicator}
+                  onRetryMessage={onRetryMessage}
+                  onDeleteMessage={onDeleteMessage}
                 />
               </div>
 

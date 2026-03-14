@@ -8,7 +8,7 @@ export const CHAT_STORAGE_KEYS = {
   authenticatedWidget: "chat-widget:authenticated-widget",
 } as const;
 
-export const CHAT_TEASER_SHOW_DELAY_MS = 600;
+export const CHAT_TEASER_SHOW_DELAY_MS = 3000;
 export const CHAT_TEASER_HIDE_DELAY_MS = 15000;
 export const CHAT_PANEL_MOBILE_CLASS =
   "w-[calc(100vw-1.5rem)] max-w-[420px] h-[460px] max-h-[calc(100vh-8rem)]";

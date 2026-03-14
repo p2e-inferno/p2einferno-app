@@ -3,6 +3,8 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { Sparkles, X } from "lucide-react";
 
+import { ChatTooltip } from "@/components/chat/chat-tooltip";
+
 interface ChatTeaserProps {
   open: boolean;
   visible: boolean;
@@ -22,22 +24,41 @@ export function ChatTeaser({
     <AnimatePresence>
       {!open && visible && !dismissed && (
         <motion.div
-          initial={{ opacity: 0, y: 10, scale: 0.9, filter: "blur(10px)" }}
-          animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-          exit={{ opacity: 0, y: 10, scale: 0.9, filter: "blur(10px)" }}
-          className="absolute bottom-20 right-0 z-50 w-max"
+          initial={{ opacity: 0, y: 20, scale: 0.95, filter: "blur(10px)" }}
+          animate={{ 
+            opacity: 1, 
+            y: [0, 12, 0], 
+            scale: 1, 
+            filter: "blur(0px)" 
+          }}
+          exit={{ opacity: 0, y: 20, scale: 0.95, filter: "blur(10px)" }}
+          transition={{ 
+            y: { 
+              duration: 1.2, 
+              repeat: Infinity, 
+              ease: "easeInOut" 
+            },
+            opacity: { duration: 0.5 },
+            scale: { duration: 0.5 },
+            filter: { duration: 0.5 }
+          }}
+          className="absolute bottom-24 right-0 z-50 w-max"
         >
           <div className="relative w-[280px] max-w-[calc(100vw-4rem)] rounded-2xl border border-white/10 bg-slate-900/90 px-4 py-3 shadow-2xl backdrop-blur-md">
-            <button
-              onClick={(event) => {
-                event.stopPropagation();
-                void onDismiss();
-              }}
-              className="absolute right-2 top-2 text-slate-500 transition-colors hover:text-white"
-              aria-label="Dismiss help teaser"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
+            <div className="absolute right-2 top-2">
+              <ChatTooltip label="Dismiss">
+                <button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void onDismiss();
+                  }}
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-white/0 text-slate-500 transition-colors hover:bg-white/5 hover:text-white"
+                  aria-label="Dismiss help teaser"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </ChatTooltip>
+            </div>
 
             <button
               type="button"

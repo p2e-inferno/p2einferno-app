@@ -14,6 +14,10 @@ export interface ChatRepository {
     conversationId: string,
     messages: ChatMessage[],
   ): Promise<ChatConversation | null>;
+  removeMessage(
+    conversationId: string,
+    messageId: string,
+  ): Promise<void>;
   clearConversation(conversationId: string | null): Promise<void>;
   saveWidgetSession(session: ChatWidgetSession): Promise<void>;
 }
