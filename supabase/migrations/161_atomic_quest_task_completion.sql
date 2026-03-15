@@ -1,6 +1,8 @@
 -- Atomically claim a verified quest transaction and persist task completion.
 -- This closes the orphaned-claim window where a tx hash could be reserved
 -- even if the subsequent completion INSERT/UPDATE failed.
+-- Note: p_chain_id carries a DEFAULT to satisfy PostgreSQL's rule that
+-- parameters following a defaulted parameter must also declare defaults.
 
 CREATE OR REPLACE FUNCTION public.complete_quest_task_with_tx(
   p_user_id TEXT,
@@ -11,7 +13,7 @@ CREATE OR REPLACE FUNCTION public.complete_quest_task_with_tx(
   p_submission_data JSONB DEFAULT NULL,
   p_submission_status TEXT DEFAULT 'completed',
   p_admin_feedback TEXT DEFAULT NULL,
-  p_chain_id INTEGER,
+  p_chain_id INTEGER DEFAULT NULL,
   p_tx_hash TEXT DEFAULT NULL,
   p_task_type TEXT DEFAULT NULL,
   p_verified_amount TEXT DEFAULT NULL,
