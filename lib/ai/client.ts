@@ -14,6 +14,22 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL_FALLBACK = "google/gemini-2.0-flash-001";
 const DEFAULT_OPENROUTER_TIMEOUT_MS = 15_000;
 
+function dedupeModels(models: Array<string | undefined | null>) {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const model of models) {
+    if (!model || seen.has(model)) {
+      continue;
+    }
+
+    seen.add(model);
+    unique.push(model);
+  }
+
+  return unique;
+}
+
 function summarizeMessageContent(content: unknown) {
   if (typeof content === "string") {
     return {
@@ -164,11 +180,14 @@ export async function chatCompletion(
 
   const model =
     options.model || process.env.OPENROUTER_DEFAULT_MODEL || DEFAULT_MODEL_FALLBACK;
+  const fallbackModels = dedupeModels(
+    (options.fallbacks ?? []).filter((fallback) => fallback !== model),
+  );
 
   log.debug("AI request", {
     model,
     messageCount: options.messages.length,
-    hasFallbacks: Boolean(options.fallbacks?.length),
+    hasFallbacks: Boolean(fallbackModels.length),
     maxTokens: options.maxTokens,
     temperature: options.temperature,
     responseFormat: options.responseFormat?.type ?? null,
@@ -197,9 +216,9 @@ export async function chatCompletion(
     if (options.thinkingLevel) {
       body.thinking_level = options.thinkingLevel;
     }
-    if (options.fallbacks?.length) {
+    if (fallbackModels.length) {
       body.route = "fallback";
-      body.models = [model, ...options.fallbacks];
+      body.models = [model, ...fallbackModels];
     }
 
     const timeoutMs = (() => {
@@ -278,9 +297,8 @@ export async function chatCompletion(
               ? truncatePreview(JSON.stringify(rawContent), 160)
               : "",
       });
-      if (options.fallbacks && options.fallbacks.length > 0) {
-        const nextModel = options.fallbacks[0];
-        const remainingFallbacks = options.fallbacks.slice(1);
+      if (fallbackModels.length > 0) {
+        const [nextModel, ...remainingFallbacks] = fallbackModels;
         log.warn("Manual retry triggered due to empty response", {
           failedModel: model,
           nextModel,

@@ -49,19 +49,28 @@ export function extractChatAttachmentBlobPath(value: string) {
     return null;
   }
 
+  if (isChatAttachmentBlobPath(value)) {
+    return value;
+  }
+
   try {
     const parsed = new URL(value, "http://local.test");
-    if (parsed.pathname !== CHAT_ATTACHMENT_FILE_ROUTE) {
-      return null;
+    if (parsed.pathname === CHAT_ATTACHMENT_FILE_ROUTE) {
+      const pathname = parsed.searchParams.get("pathname");
+      if (!pathname || !isChatAttachmentBlobPath(pathname)) {
+        return null;
+      }
+
+      return pathname;
     }
 
-    const pathname = parsed.searchParams.get("pathname");
-    if (!pathname || !isChatAttachmentBlobPath(pathname)) {
-      return null;
+    const normalizedPathname = parsed.pathname.replace(/^\/+/, "");
+    if (isChatAttachmentBlobPath(normalizedPathname)) {
+      return normalizedPathname;
     }
-
-    return pathname;
   } catch {
     return null;
   }
+
+  return null;
 }

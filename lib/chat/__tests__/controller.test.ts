@@ -162,4 +162,52 @@ describe("chat controller", () => {
     expect(state.messages[1]?.id).toBe("m2");
     expect(state.error).toBe("Failed to delete message from server. Please try again.");
   });
+
+  it("restores only the deleted message when durable delete fails after newer updates", async () => {
+    useChatStore.setState({
+      messages: [
+        { id: "m1", role: "assistant", content: "1", ts: 1, status: "complete", error: null },
+        { id: "m2", role: "user", content: "2", ts: 2, status: "complete", error: null },
+        { id: "m3", role: "assistant", content: "3", ts: 3, status: "complete", error: null },
+      ],
+      activeConversationId: "chat_1",
+      auth: { isReady: true, isAuthenticated: true, privyUserId: "u1", walletAddress: "w1" }
+    });
+
+    let rejectDelete: ((reason?: unknown) => void) | null = null;
+    const fetchSpy = global.fetch as jest.Mock;
+    fetchSpy.mockImplementationOnce(async (_url, init) => {
+      if (init?.method === "DELETE") {
+        return await new Promise((_resolve, reject) => {
+          rejectDelete = reject;
+        });
+      }
+      return { ok: true, json: async () => ({ ok: true }) };
+    });
+
+    const deletePromise = chatController.deleteMessage("m2");
+
+    useChatStore.getState().appendMessages([
+      {
+        id: "m4",
+        role: "assistant",
+        content: "newer",
+        ts: 4,
+        status: "complete",
+        error: null,
+      },
+    ]);
+
+    rejectDelete?.(new Error("Failed"));
+    await deletePromise;
+
+    const state = useChatStore.getState();
+    expect(state.messages.map((message) => message.id)).toEqual([
+      "m1",
+      "m2",
+      "m3",
+      "m4",
+    ]);
+    expect(state.error).toBe("Failed to delete message from server. Please try again.");
+  });
 });

@@ -14,6 +14,7 @@ import {
   buildChatAttachmentProxyUrl,
 } from "@/lib/chat/attachment-serving";
 import { getChatAttachmentHandleUploadUrl } from "@/lib/chat/blob-upload-config";
+import { canSubmitChatComposer } from "@/lib/chat/composer-submit";
 import { validateChatAttachment } from "@/lib/chat/attachment-validation";
 import { CHAT_ATTACHMENT_LIMITS } from "@/lib/chat/constants";
 import type { ChatMessage } from "@/lib/chat/types";
@@ -351,7 +352,6 @@ export function ChatComposer({
 
   const handleActionSubmit = async () => {
     const content = editor?.getText() || "";
-    if (content.trim().length === 0 && attachments.length === 0) return;
 
     // Convert attachments to LLM payload using Vercel URLs
     const encodedAttachments = attachments
@@ -363,16 +363,21 @@ export function ChatComposer({
         size: a.file.size,
       }));
 
-    await onSubmit({
-      text: content,
-      attachments: encodedAttachments,
-    });
+    if (!canSubmitChatComposer({ text: content, attachments, disabled })) {
+      return;
+    }
 
-    // Cleanup
+    // Clear composer immediately before the async request so the UI responds
+    // right away instead of leaving attachment chips visible during the API call.
     editor?.commands.clearContent();
     attachments.forEach((a) => URL.revokeObjectURL(a.previewUrl));
     attachmentsRef.current = [];
     setAttachments([]);
+
+    await onSubmit({
+      text: content,
+      attachments: encodedAttachments,
+    });
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -383,6 +388,12 @@ export function ChatComposer({
   };
 
   if (!editor) return null;
+
+  const isSendDisabled = !canSubmitChatComposer({
+    text: editor.getText(),
+    attachments,
+    disabled,
+  });
 
   return (
     <div className="flex flex-col gap-2">
@@ -513,11 +524,7 @@ export function ChatComposer({
           onClick={() => void handleActionSubmit()}
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 hover:scale-[1.05] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-50 disabled:grayscale"
           aria-label="Send message"
-          disabled={
-            disabled || 
-            (editor.isEmpty && attachments.length === 0) ||
-            attachments.some(a => a.status === "uploading")
-          }
+          disabled={isSendDisabled}
         >
           <Send className="h-4.5 w-4.5" />
         </button>

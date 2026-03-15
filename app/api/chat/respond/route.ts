@@ -4,6 +4,7 @@ import {
   parseChatRouteJson,
   resolveOptionalChatRouteUser,
 } from "@/lib/chat/server/route-helpers";
+import { ChatAttachmentAccessError } from "@/lib/chat/server/attachment-access";
 import {
   enforceChatRespondBurstLimit,
   enforceChatRespondQuotaLimit,
@@ -157,6 +158,7 @@ export async function POST(req: NextRequest) {
     const payload = await generateChatResponse({
       body: parsed.body,
       isAuthenticated: Boolean(auth.user),
+      attachmentOwnerIdentityKey: usageIdentity.identityKey,
     });
 
     log.debug("Completed chat respond request", {
@@ -174,6 +176,13 @@ export async function POST(req: NextRequest) {
       burst.anonymousSessionId ?? quota.anonymousSessionId,
     );
   } catch (error) {
+    if (error instanceof ChatAttachmentAccessError) {
+      return NextResponse.json(
+        { error: "One or more attachments could not be accessed" },
+        { status: 403 },
+      );
+    }
+
     log.error("Failed to generate chat response", { error });
     return NextResponse.json(
       { error: "Unable to generate chat response" },

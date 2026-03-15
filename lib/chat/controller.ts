@@ -331,10 +331,12 @@ export class ChatController {
   async deleteMessage(messageId: string, options: ChatControllerActionOptions = {}) {
     const state = getChatStoreState();
     const conversationId = state.activeConversationId;
-    const preDeleteMessages = [...state.messages];
     const messageToDelete = state.messages.find(m => m.id === messageId);
+    const messageToDeleteIndex = state.messages.findIndex(
+      (message) => message.id === messageId,
+    );
     
-    if (!messageToDelete) {
+    if (!messageToDelete || messageToDeleteIndex < 0) {
       return;
     }
 
@@ -360,10 +362,24 @@ export class ChatController {
       }
 
       if (preferredDeleteFailed) {
-        // Rollback local state accurately using the pre-delete snapshot
-        useChatStore.getState().setMessages(preDeleteMessages);
-        useChatStore.setState({
-          error: "Failed to delete message from server. Please try again.",
+        useChatStore.setState((currentState) => {
+          if (currentState.messages.some((message) => message.id === messageId)) {
+            return {
+              error: "Failed to delete message from server. Please try again.",
+            };
+          }
+
+          const nextMessages = [...currentState.messages];
+          nextMessages.splice(
+            Math.min(messageToDeleteIndex, nextMessages.length),
+            0,
+            messageToDelete,
+          );
+
+          return {
+            messages: nextMessages,
+            error: "Failed to delete message from server. Please try again.",
+          };
         });
         return;
       }

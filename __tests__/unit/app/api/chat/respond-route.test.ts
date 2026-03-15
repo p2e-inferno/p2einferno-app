@@ -2,6 +2,14 @@ const getPrivyUserFromNextRequest = jest.fn();
 const hasActiveChatMembership = jest.fn();
 const generateChatResponse = jest.fn();
 
+class MockChatAttachmentAccessError extends Error {}
+
+const { ReadableStream } = require("stream/web");
+
+if (!global.ReadableStream) {
+  global.ReadableStream = ReadableStream;
+}
+
 jest.mock("next/server", () => {
   class MockHeaders {
     private values = new Map<string, string>();
@@ -59,6 +67,10 @@ jest.mock("next/server", () => {
 jest.mock("@/lib/auth/privy", () => ({
   getPrivyUserFromNextRequest: (...args: unknown[]) =>
     getPrivyUserFromNextRequest(...args),
+}));
+
+jest.mock("@/lib/chat/server/attachment-access", () => ({
+  ChatAttachmentAccessError: MockChatAttachmentAccessError,
 }));
 
 jest.mock("@/lib/chat/server/respond-membership", () => ({
@@ -185,6 +197,19 @@ describe("POST /api/chat/respond", () => {
 
     expect(res.status).toBe(200);
     expect(generateChatResponse).toHaveBeenCalled();
+  });
+
+  it("returns 403 when an attachment cannot be accessed by the current identity", async () => {
+    generateChatResponse.mockRejectedValue(
+      new MockChatAttachmentAccessError("Attachment access denied"),
+    );
+
+    const res = await respondRoute.POST(createRequest({}) as any);
+
+    expect(res.status).toBe(403);
+    await expect(res.json()).resolves.toEqual({
+      error: "One or more attachments could not be accessed",
+    });
   });
 
   it("rejects too many history messages", async () => {

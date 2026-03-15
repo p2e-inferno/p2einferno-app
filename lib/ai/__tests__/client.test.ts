@@ -119,6 +119,29 @@ describe("chatCompletion", () => {
     ]);
   });
 
+  test("should dedupe fallback models and exclude the primary model", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(mockOpenRouterResponse());
+
+    await chatCompletion({
+      model: "primary/model",
+      messages: [{ role: "user", content: "Hello" }],
+      fallbacks: [
+        "primary/model",
+        "fallback/model-a",
+        "fallback/model-a",
+        "fallback/model-b",
+      ],
+    });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const body = JSON.parse(fetchCall[1].body);
+    expect(body.models).toEqual([
+      "primary/model",
+      "fallback/model-a",
+      "fallback/model-b",
+    ]);
+  });
+
   test("should not include route/models when no fallbacks", async () => {
     (global.fetch as jest.Mock).mockResolvedValue(mockOpenRouterResponse());
 

@@ -70,7 +70,7 @@ export function ChatPanel({
         >
           <div className="flex min-h-0 flex-col">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/5 bg-slate-800/40 px-6 py-5 backdrop-blur-md">
+            <div className="relative z-10 flex items-center justify-between border-b border-white/5 bg-slate-800/40 px-6 py-5 backdrop-blur-md">
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-gradient-to-tr from-slate-800 to-slate-700 shadow-inner">

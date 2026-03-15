@@ -136,6 +136,7 @@ function isValidHistoryMessage(
   );
 }
 
+
 export function validateChatRespondBody(
   body: ChatRespondRequestBody | null,
 ): string | null {
@@ -184,12 +185,13 @@ export function validateChatRespondBody(
     return "message or attachments are required";
   }
 
-  if (
-    !Array.isArray(body.messages) ||
-    body.messages.length > MAX_HISTORY_MESSAGES ||
-    !body.messages.every(isValidHistoryMessage)
-  ) {
-    return "messages must be an array of up to 12 non-empty chat role/content pairs under 1500 characters each";
+  if (!Array.isArray(body.messages) || body.messages.length > MAX_HISTORY_MESSAGES) {
+    return "messages must be an array of up to 12 chat history entries";
+  }
+
+  const invalidMessage = body.messages.find((m) => !isValidHistoryMessage(m));
+  if (invalidMessage) {
+    return "messages must be an array of up to 12 chat history entries with valid roles and attachments";
   }
 
   if (
@@ -211,8 +213,15 @@ async function formatHistoryMessages(
   messages: Array<Pick<ChatMessage, "role" | "content" | "attachments">>,
   latestUserText: string,
   latestAttachments: ChatAttachment[] = [],
+  attachmentOwnerIdentityKey?: string,
 ): Promise<AIChatMessage[]> {
-  const recent = messages.slice(-HISTORY_WINDOW);
+  // Defensive: drop ghost messages (empty content + no attachments) before windowing.
+  // Attachments are now persisted to the DB so this should not occur for new messages,
+  // but pre-migration rows may still arrive without attachment data.
+  const withoutGhosts = messages.filter(
+    (m) => m.content.trim() || (m.attachments?.length ?? 0) > 0,
+  );
+  const recent = withoutGhosts.slice(-HISTORY_WINDOW);
   const normalizedRecent =
     recent[recent.length - 1]?.role === "user" &&
     recent[recent.length - 1]?.content.trim() === latestUserText.trim() &&
@@ -252,7 +261,11 @@ async function formatHistoryMessages(
     ),
   });
 
-  return Promise.all(budgetedRecent.map(async (message) => {
+  const latestAttachmentBearingHistoryIndex = budgetedRecent.findLastIndex(
+    (message) => message.role === "user" && (message.attachments?.length ?? 0) > 0,
+  );
+
+  return Promise.all(budgetedRecent.map(async (message, index) => {
     if (message.role === "assistant") {
       return {
         role: message.role,
@@ -260,9 +273,13 @@ async function formatHistoryMessages(
       };
     }
 
-    const resolvedAttachments = await resolveChatAttachmentsForModel(
-      message.attachments,
-    );
+    const resolvedAttachments =
+      index === latestAttachmentBearingHistoryIndex
+        ? await resolveChatAttachmentsForModel(
+            message.attachments,
+            attachmentOwnerIdentityKey,
+          )
+        : [];
 
     return {
       role: message.role,
@@ -440,10 +457,38 @@ function buildSystemInstruction(params: {
   const routeContext = params.isAuthenticated
     ? "The user may be signed in."
     : "The user may be anonymous.";
+  const abilitiesInstruction = [
+    "Abilities",
+    "",
+    "You can help users understand what they are seeing, explain how features and flows work, and guide them toward the next useful step.",
+    "",
+    "You can:",
+    "- answer questions using retrieved internal knowledge when grounded product or operational information is needed",
+    "- understand attached images, including screenshots",
+    "- understand attached videos, including screen recordings",
+    "- use the current route and the conversation history to keep your replies relevant",
+    "- explain what you can and cannot do in plain language when the user asks",
+    "",
+    "You should:",
+    "- respond naturally, like a capable AI assistant, not like a scripted support bot",
+    "- be direct, helpful, and concise",
+    "- rely on retrieved knowledge for factual or operational claims",
+    "- say clearly when the available knowledge does not confirm something",
+    "- give the safest next step when you cannot confirm a detail",
+    "",
+    "You cannot:",
+    "- click buttons, navigate the app for the user, submit forms, change settings, or take actions on the user's behalf",
+    "- inspect hidden account state, wallet state, admin state, or backend data",
+    "- invent product behavior, policies, outcomes, or user-specific state",
+    "- pretend to have seen or verified something that was not actually provided",
+    "",
+    "If the user asks what you can do, answer from these abilities and limits in a natural way.",
+  ].join("\n");
 
   return [
     "You are the P2E Inferno in-app chat assistant.",
     params.objective,
+    abilitiesInstruction,
     `Route style: ${params.responseStyle}`,
     `Current pathname: ${params.pathname}`,
     routeContext,
@@ -577,6 +622,10 @@ function buildDirectChatInstruction(params: {
   return [
     "You are the P2E Inferno in-app chat assistant.",
     params.objective,
+    "Abilities",
+    "",
+    "You can help explain the app, answer general questions, and understand attached screenshots or screen recordings when the user shares them.",
+    "You should sound natural and conversational, but you must not invent account-specific facts or claim to have taken actions in the app.",
     `Route style: ${params.responseStyle}`,
     `Current pathname: ${params.pathname}`,
     routeContext,
@@ -598,6 +647,9 @@ function buildClarifyInstruction(params: {
 
   return [
     "You are the P2E Inferno in-app chat assistant.",
+    "Abilities",
+    "",
+    "You can ask a short follow-up question when the user's request is too unclear to answer safely or interpret reliably from the message and any attachments.",
     `Current pathname: ${params.pathname}`,
     routeContext,
     "The user message is too ambiguous to answer safely.",
@@ -694,6 +746,7 @@ async function routeChatIntent(params: {
   userText: string;
   attachments?: ChatAttachment[];
   messages: Array<Pick<ChatMessage, "role" | "content" | "attachments">>;
+  attachmentOwnerIdentityKey?: string;
 }): Promise<ChatIntentDecision> {
   log.debug("Routing chat intent", {
     pathname: params.pathname,
@@ -732,6 +785,7 @@ async function routeChatIntent(params: {
     params.messages,
     params.userText,
     params.attachments,
+    params.attachmentOwnerIdentityKey,
   );
   const router = await chatCompletion({
     model: process.env.OPENROUTER_CHAT_ROUTER_MODEL,
@@ -806,6 +860,7 @@ async function routeChatIntent(params: {
 export async function generateChatResponse(params: {
   body: ChatRespondRequestBody;
   isAuthenticated: boolean;
+  attachmentOwnerIdentityKey?: string;
 }): Promise<ChatRespondResponseBody> {
   log.debug("Starting chat response generation", {
     conversationId: params.body.conversationId,
@@ -841,6 +896,7 @@ export async function generateChatResponse(params: {
     userText,
     attachments: params.body.attachments,
     messages: params.body.messages,
+    attachmentOwnerIdentityKey: params.attachmentOwnerIdentityKey,
   });
 
   const hasAttachments = Boolean(params.body.attachments?.length);
@@ -868,14 +924,16 @@ export async function generateChatResponse(params: {
       params.body.messages,
       userText,
       params.body.attachments,
+      params.attachmentOwnerIdentityKey,
     );
     const resolvedAttachments = await resolveChatAttachmentsForModel(
       params.body.attachments,
+      params.attachmentOwnerIdentityKey,
     );
     const direct = await chatCompletion({
       model: hasAttachments ? multimodalModel : undefined,
       thinkingLevel,
-      fallbacks: [multimodalModel, "anthropic/claude-3-haiku"],
+      fallbacks: ["anthropic/claude-3-haiku"],
       temperature: 0.4,
       maxTokens: 220,
       messages: [
@@ -929,14 +987,16 @@ export async function generateChatResponse(params: {
       params.body.messages,
       userText,
       params.body.attachments,
+      params.attachmentOwnerIdentityKey,
     );
     const resolvedAttachments = await resolveChatAttachmentsForModel(
       params.body.attachments,
+      params.attachmentOwnerIdentityKey,
     );
     const clarify = await chatCompletion({
       model: hasAttachments ? multimodalModel : undefined,
       thinkingLevel,
-      fallbacks: [multimodalModel, "anthropic/claude-3-haiku"],
+      fallbacks: ["anthropic/claude-3-haiku"],
       temperature: 0.2,
       maxTokens: 120,
       messages: [
@@ -1056,14 +1116,16 @@ export async function generateChatResponse(params: {
     params.body.messages,
     userText,
     params.body.attachments,
+    params.attachmentOwnerIdentityKey,
   );
   const resolvedAttachments = await resolveChatAttachmentsForModel(
     params.body.attachments,
+    params.attachmentOwnerIdentityKey,
   );
   const completion = await chatCompletion({
     model: hasAttachments ? multimodalModel : undefined,
     thinkingLevel,
-    fallbacks: [multimodalModel, "anthropic/claude-3-haiku"],
+    fallbacks: ["anthropic/claude-3-haiku"],
     temperature: 0.2,
     maxTokens: profile.maxTokens ?? 450,
       messages: [
@@ -1082,7 +1144,9 @@ export async function generateChatResponse(params: {
         role: "user",
         content: formatUserMessageContent(
           [
-            userText ? `User question:\n${userText}` : "The user did not send text.",
+            userText
+              ? `User question:\n${userText}`
+              : `The user shared ${hasVideo ? "a video" : "an image"} without any text. Analyse the ${hasVideo ? "video" : "image"}, describe what you observe, connect it to the P2E Inferno context, and offer relevant assistance.`,
             `Retrieved knowledge:\n${formatRetrievedKnowledge(promptResults)}`,
             "Answer using the retrieved knowledge. If the knowledge is incomplete, say that clearly.",
           ].join("\n\n"),

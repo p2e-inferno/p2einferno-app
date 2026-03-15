@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/server";
+import {
+  buildChatAttachmentProxyPath,
+  extractChatAttachmentBlobPath,
+} from "@/lib/chat/attachment-serving";
 import type {
   ChatConversation,
   ChatMessage,
@@ -16,6 +20,13 @@ interface ChatConversationRow {
   cleared_at: string | null;
 }
 
+interface StoredAttachment {
+  type: "image" | "video";
+  pathname: string;
+  name: string | null;
+  size: number | null;
+}
+
 interface ChatMessageRow {
   id: string;
   conversation_id: string;
@@ -23,6 +34,7 @@ interface ChatMessageRow {
   content: string;
   sent_at: string;
   created_at: string;
+  attachments: StoredAttachment[] | null;
 }
 
 interface ChatWidgetSessionRow {
@@ -43,7 +55,32 @@ function mapMessage(row: ChatMessageRow): ChatMessage {
     ts: Date.parse(row.sent_at || row.created_at),
     status: "complete",
     error: null,
+    attachments: row.attachments?.map((a) => ({
+      type: a.type,
+      data: buildChatAttachmentProxyPath(a.pathname),
+      name: a.name ?? undefined,
+      size: a.size ?? undefined,
+    })),
   };
+}
+
+function extractStoredAttachments(
+  attachments: ChatMessage["attachments"],
+): StoredAttachment[] | null {
+  if (!attachments?.length) return null;
+  const stored = attachments
+    .map((a) => {
+      const pathname = extractChatAttachmentBlobPath(a.data);
+      if (!pathname) return null;
+      return {
+        type: a.type,
+        pathname,
+        name: a.name ?? null,
+        size: a.size ?? null,
+      };
+    })
+    .filter((a): a is StoredAttachment => a !== null);
+  return stored.length > 0 ? stored : null;
 }
 
 function mapConversation(
@@ -197,6 +234,7 @@ export class ChatService {
             role: message.role,
             content: message.content,
             sent_at: new Date(message.ts).toISOString(),
+            attachments: extractStoredAttachments(message.attachments),
           });
 
         if (insertError) {
@@ -216,6 +254,7 @@ export class ChatService {
           role: message.role,
           content: message.content,
           sent_at: new Date(message.ts).toISOString(),
+          attachments: extractStoredAttachments(message.attachments),
         })
         .eq("id", message.id)
         .eq("conversation_id", conversationId);
@@ -404,7 +443,7 @@ export class ChatService {
 
     const { data: messageRows, error: messageError } = await this.supabase
       .from("chat_messages")
-      .select("id, conversation_id, role, content, sent_at, created_at")
+      .select("id, conversation_id, role, content, sent_at, created_at, attachments")
       .eq("conversation_id", conversationId)
       .order("sent_at", { ascending: true })
       .returns<ChatMessageRow[]>();
@@ -476,7 +515,7 @@ export class ChatService {
   private async getMessageRowById(messageId: string): Promise<ChatMessageRow | null> {
     const { data, error } = await this.supabase
       .from("chat_messages")
-      .select("id, conversation_id, role, content, sent_at, created_at")
+      .select("id, conversation_id, role, content, sent_at, created_at, attachments")
       .eq("id", messageId)
       .maybeSingle<ChatMessageRow>();
 

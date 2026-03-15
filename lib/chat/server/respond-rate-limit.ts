@@ -46,6 +46,8 @@ export interface ChatRespondUsageIdentity {
 
 const burstBuckets = new Map<string, Bucket>();
 const quotaBuckets = new Map<string, Bucket>();
+const attachmentBurstBuckets = new Map<string, Bucket>();
+const attachmentQuotaBuckets = new Map<string, Bucket>();
 
 function trimBucketStore(store: Map<string, Bucket>, now = Date.now()) {
   for (const [key, bucket] of store) {
@@ -179,6 +181,8 @@ export function getChatAnonymousSessionCookieName() {
 export function clearChatRespondRateLimitState() {
   burstBuckets.clear();
   quotaBuckets.clear();
+  attachmentBurstBuckets.clear();
+  attachmentQuotaBuckets.clear();
   hasWarnedDegradedAnonymousFallback = false;
 }
 
@@ -186,6 +190,8 @@ export function getChatRespondRateLimitBucketSizes() {
   return {
     burst: burstBuckets.size,
     quota: quotaBuckets.size,
+    attachmentBurst: attachmentBurstBuckets.size,
+    attachmentQuota: attachmentQuotaBuckets.size,
   };
 }
 
@@ -291,6 +297,106 @@ export function enforceChatRespondQuotaLimit({
       allowed: false,
       status: 429,
       error: "Chat usage limit reached for this period.",
+      reason: "quota",
+      retryAfterSeconds: quota.retryAfterSeconds,
+      tier,
+      anonymousSessionId: identity.shouldSetAnonymousCookie
+        ? identity.anonymousSessionId
+        : undefined,
+    };
+  }
+
+  return {
+    allowed: true,
+    tier,
+    anonymousSessionId: identity.shouldSetAnonymousCookie
+      ? identity.anonymousSessionId
+      : undefined,
+  };
+}
+
+function getAttachmentBurstLimit(tier: ChatRespondUsageTier) {
+  switch (tier) {
+    case "member":
+      return getEnvNumber("CHAT_ATTACHMENT_UPLOAD_BURST_MEMBER_MAX", 10);
+    case "authenticated":
+      return getEnvNumber("CHAT_ATTACHMENT_UPLOAD_BURST_AUTH_MAX", 6);
+    default:
+      return getEnvNumber("CHAT_ATTACHMENT_UPLOAD_BURST_ANON_MAX", 3);
+  }
+}
+
+function getAttachmentQuotaLimit(tier: ChatRespondUsageTier) {
+  switch (tier) {
+    case "member":
+      return getEnvNumber("CHAT_ATTACHMENT_UPLOAD_QUOTA_MEMBER_MAX", 60);
+    case "authenticated":
+      return getEnvNumber("CHAT_ATTACHMENT_UPLOAD_QUOTA_AUTH_MAX", 30);
+    default:
+      return getEnvNumber("CHAT_ATTACHMENT_UPLOAD_QUOTA_ANON_MAX", 12);
+  }
+}
+
+export function enforceChatAttachmentUploadBurstLimit({
+  identity,
+  hasMembership,
+}: BurstLimiterOptions): UsageLimitResult {
+  const tier = getTier(identity.privyUserId, hasMembership);
+  const burstWindowMs = getBurstWindowMs();
+  const { ip, identityKey } = identity;
+
+  const burstKeys = identity.privyUserId
+    ? [identityKey]
+    : ([identityKey, ip ? `anon-ip:${ip}` : null].filter(Boolean) as string[]);
+
+  for (const key of burstKeys) {
+    const burst = hitBucket(
+      attachmentBurstBuckets,
+      `attachment-burst:${key}`,
+      getAttachmentBurstLimit(tier),
+      burstWindowMs,
+    );
+    if (!burst.allowed) {
+      return {
+        allowed: false,
+        status: 429,
+        error: "Too many attachment uploads. Please wait and try again.",
+        reason: "burst",
+        retryAfterSeconds: burst.retryAfterSeconds,
+        tier,
+        anonymousSessionId: identity.shouldSetAnonymousCookie
+          ? identity.anonymousSessionId
+          : undefined,
+      };
+    }
+  }
+
+  return {
+    allowed: true,
+    tier,
+    anonymousSessionId: identity.shouldSetAnonymousCookie
+      ? identity.anonymousSessionId
+      : undefined,
+  };
+}
+
+export function enforceChatAttachmentUploadQuotaLimit({
+  identity,
+  hasMembership,
+}: QuotaLimiterOptions): UsageLimitResult {
+  const tier = getTier(identity.privyUserId, hasMembership);
+  const quota = hitBucket(
+    attachmentQuotaBuckets,
+    `attachment-quota:${identity.identityKey}`,
+    getAttachmentQuotaLimit(tier),
+    getQuotaWindowMs(),
+  );
+
+  if (!quota.allowed) {
+    return {
+      allowed: false,
+      status: 429,
+      error: "Attachment upload limit reached for now. Please try again later.",
       reason: "quota",
       retryAfterSeconds: quota.retryAfterSeconds,
       tier,

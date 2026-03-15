@@ -15,6 +15,11 @@ export class HttpChatAdapter implements ChatAdapter {
         attachments: input.message.attachments,
         messages: input.messages
           .filter((message) => message.status !== "error")
+          // Drop ghost messages: image-only turns whose attachment data was lost
+          // when the conversation was restored from the server (attachments are not
+          // persisted to the DB). Sending these causes server validation failures
+          // because the message has neither content nor attachments.
+          .filter((message) => message.content.trim() || (message.attachments?.length ?? 0) > 0)
           .map((message) => ({
             role: message.role,
             content: message.content,

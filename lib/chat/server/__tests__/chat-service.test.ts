@@ -16,6 +16,12 @@ type MessageRow = {
   content: string;
   sent_at: string;
   created_at: string;
+  attachments?: Array<{
+    type: "image" | "video";
+    pathname: string;
+    name: string | null;
+    size: number | null;
+  }> | null;
 };
 
 type WidgetRow = {
@@ -332,6 +338,58 @@ describe("ChatService", () => {
     expect(supabase.__conversationInsert).not.toHaveBeenCalled();
     expect(supabase.__messageInsert).toHaveBeenCalledTimes(1);
     expect(conversation?.messages[0]?.content).toBe("hi");
+  });
+
+  it("persists direct blob URLs as attachment pathnames and reconstructs proxy paths on restore", async () => {
+    const supabase = makeSupabaseMock({
+      chat_conversations: [
+        {
+          id: "chat_1",
+          privy_user_id: "did:1",
+          source: "authenticated",
+          created_at: new Date(1).toISOString(),
+          updated_at: new Date(1).toISOString(),
+          cleared_at: null,
+        },
+      ],
+    });
+
+    const service = new ChatService(supabase as any);
+    const conversation = await service.appendMessages("did:1", "chat_1", [
+      {
+        id: "m1",
+        role: "user",
+        content: "",
+        ts: 2,
+        status: "complete",
+        error: null,
+        attachments: [
+          {
+            type: "image",
+            data: "https://example.private.blob.vercel-storage.com/chat-attachments/test.png?download=1",
+            name: "test.png",
+            size: 123,
+          },
+        ],
+      },
+    ]);
+
+    expect(supabase.__tables.chat_messages[0]?.attachments).toEqual([
+      {
+        type: "image",
+        pathname: "chat-attachments/test.png",
+        name: "test.png",
+        size: 123,
+      },
+    ]);
+    expect(conversation?.messages[0]?.attachments).toEqual([
+      {
+        type: "image",
+        data: "/api/chat/attachments/upload/file?pathname=chat-attachments%2Ftest.png",
+        name: "test.png",
+        size: 123,
+      },
+    ]);
   });
 
   it("rejects creating a conversation that already belongs to another user", async () => {

@@ -38,6 +38,20 @@ describe("chat attachment serving", () => {
     ).toBe("chat-attachments/example.png");
   });
 
+  it("extracts the underlying blob pathname from direct blob URLs", () => {
+    expect(
+      extractChatAttachmentBlobPath(
+        "https://example.private.blob.vercel-storage.com/chat-attachments/example.png?download=1",
+      ),
+    ).toBe("chat-attachments/example.png");
+  });
+
+  it("accepts raw chat attachment pathnames", () => {
+    expect(extractChatAttachmentBlobPath("chat-attachments/example.png")).toBe(
+      "chat-attachments/example.png",
+    );
+  });
+
   it("rejects non-chat attachment paths", () => {
     expect(isChatAttachmentBlobPath("chat-attachments/example.png")).toBe(true);
     expect(isChatAttachmentBlobPath("other/example.png")).toBe(false);

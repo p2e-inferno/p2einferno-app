@@ -601,6 +601,42 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_attachment_uploads: {
+        Row: {
+          anonymous_session_id: string | null
+          created_at: string
+          owner_identity_key: string
+          pathname: string
+          privy_user_id: string | null
+          source_ip: string | null
+          status: string
+          updated_at: string
+          uploaded_at: string | null
+        }
+        Insert: {
+          anonymous_session_id?: string | null
+          created_at?: string
+          owner_identity_key: string
+          pathname: string
+          privy_user_id?: string | null
+          source_ip?: string | null
+          status?: string
+          updated_at?: string
+          uploaded_at?: string | null
+        }
+        Update: {
+          anonymous_session_id?: string | null
+          created_at?: string
+          owner_identity_key?: string
+          pathname?: string
+          privy_user_id?: string | null
+          source_ip?: string | null
+          status?: string
+          updated_at?: string
+          uploaded_at?: string | null
+        }
+        Relationships: []
+      }
       chat_conversations: {
         Row: {
           cleared_at: string | null
@@ -630,6 +666,7 @@ export type Database = {
       }
       chat_messages: {
         Row: {
+          attachments: Json | null
           content: string
           conversation_id: string
           created_at: string
@@ -638,6 +675,7 @@ export type Database = {
           sent_at: string
         }
         Insert: {
+          attachments?: Json | null
           content: string
           conversation_id: string
           created_at?: string
@@ -646,6 +684,7 @@ export type Database = {
           sent_at: string
         }
         Update: {
+          attachments?: Json | null
           content?: string
           conversation_id?: string
           created_at?: string
@@ -3563,6 +3602,25 @@ export type Database = {
       check_and_increment_csp_rate_limit: {
         Args: { p_ip: string; p_max: number; p_window_seconds: number }
         Returns: boolean
+      }
+      complete_quest_task_with_tx: {
+        Args: {
+          p_admin_feedback?: string
+          p_block_number?: number
+          p_event_name?: string
+          p_existing_completion_id?: string
+          p_log_index?: number
+          p_quest_id: string
+          p_submission_data?: Json
+          p_submission_status?: string
+          p_task_id: string
+          p_task_type?: string
+          p_tx_hash?: string
+          p_user_id: string
+          p_verification_data?: Json
+          p_verified_amount?: string
+        }
+        Returns: Json
       }
       complete_withdrawal: {
         Args: { p_tx_hash: string; p_withdrawal_id: string }

@@ -1,6 +1,10 @@
 import { get } from "@vercel/blob";
 import type { ChatAttachment } from "@/lib/chat/types";
 import { extractChatAttachmentBlobPath } from "@/lib/chat/attachment-serving";
+import {
+  ChatAttachmentAccessError,
+  assertChatAttachmentOwnership,
+} from "@/lib/chat/server/attachment-access";
 
 function isDataUrl(value: string) {
   return value.startsWith("data:");
@@ -8,6 +12,7 @@ function isDataUrl(value: string) {
 
 export async function resolveChatAttachmentForModel(
   attachment: ChatAttachment,
+  ownerIdentityKey?: string,
 ): Promise<ChatAttachment> {
   if (isDataUrl(attachment.data)) {
     return attachment;
@@ -17,6 +22,12 @@ export async function resolveChatAttachmentForModel(
   if (!blobPath) {
     return attachment;
   }
+
+  if (!ownerIdentityKey) {
+    throw new ChatAttachmentAccessError();
+  }
+
+  await assertChatAttachmentOwnership(blobPath, ownerIdentityKey);
 
   const result = await get(blobPath, {
     access: "private",
@@ -40,12 +51,15 @@ export async function resolveChatAttachmentForModel(
 
 export async function resolveChatAttachmentsForModel(
   attachments?: ChatAttachment[],
+  ownerIdentityKey?: string,
 ) {
   if (!attachments?.length) {
     return [];
   }
 
   return Promise.all(
-    attachments.map((attachment) => resolveChatAttachmentForModel(attachment)),
+    attachments.map((attachment) =>
+      resolveChatAttachmentForModel(attachment, ownerIdentityKey),
+    ),
   );
 }

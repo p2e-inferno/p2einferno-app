@@ -36,6 +36,7 @@ import {
   generateChatResponse,
   validateChatRespondBody,
 } from "@/lib/chat/server/respond-service";
+import { resolveChatAttachmentsForModel } from "@/lib/chat/server/attachment-content";
 
 const embedTextsMock = embedTexts as jest.MockedFunction<typeof embedTexts>;
 const searchKnowledgeBaseMock = searchKnowledgeBase as jest.MockedFunction<
@@ -44,6 +45,10 @@ const searchKnowledgeBaseMock = searchKnowledgeBase as jest.MockedFunction<
 const chatCompletionMock = chatCompletion as jest.MockedFunction<
   typeof chatCompletion
 >;
+const resolveChatAttachmentsForModelMock =
+  resolveChatAttachmentsForModel as jest.MockedFunction<
+    typeof resolveChatAttachmentsForModel
+  >;
 
 describe("generateChatResponse", () => {
   const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -1614,6 +1619,155 @@ describe("generateChatResponse", () => {
     );
 
     expect(userMessages).toHaveLength(1);
+  });
+
+  it("resolves only the most recent attachment-bearing history turn", async () => {
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-history-vision",
+        document_id: "doc-history-vision",
+        title: "History Vision Playbook",
+        chunk_text: "Use the latest attachment-bearing turn for follow-ups.",
+        metadata: {
+          source_path: "docs/playbooks/HISTORY_VISION.md",
+          source_type: "playbook",
+        },
+        rank: 0.81,
+        keyword_rank: 0.6,
+        semantic_rank: 0.84,
+      },
+    ] as any);
+    chatCompletionMock.mockResolvedValue({
+      success: true,
+      content: "Follow-up guidance",
+      model: "test-model",
+    });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_history_attachment_followup",
+        message: "What should I do next?",
+        messages: [
+          {
+            role: "user",
+            content: "First screenshot",
+            attachments: [
+              {
+                type: "image",
+                data: "data:image/png;base64,Zmlyc3Q=",
+                name: "first.png",
+                size: 5,
+              },
+            ],
+          },
+          {
+            role: "assistant",
+            content: "Thanks",
+          },
+          {
+            role: "user",
+            content: "Second screenshot",
+            attachments: [
+              {
+                type: "image",
+                data: "data:image/png;base64,c2Vjb25k",
+                name: "second.png",
+                size: 6,
+              },
+            ],
+          },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(resolveChatAttachmentsForModelMock).toHaveBeenCalledWith(
+      [
+        {
+          type: "image",
+          data: "data:image/png;base64,c2Vjb25k",
+          name: "second.png",
+          size: 6,
+        },
+      ],
+      undefined,
+    );
+    expect(resolveChatAttachmentsForModelMock).not.toHaveBeenCalledWith(
+      [
+        {
+          type: "image",
+          data: "data:image/png;base64,Zmlyc3Q=",
+          name: "first.png",
+          size: 5,
+        },
+      ],
+      undefined,
+    );
+  });
+
+  it("threads the attachment owner identity into router history resolution", async () => {
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "chat_only",
+          retrievalQuery: "",
+          rationale: "Direct chat",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Router follow-up answer",
+        model: "test-model",
+      });
+
+    await generateChatResponse({
+      body: {
+        conversationId: "chat_router_history_attachment",
+        message: "What next?",
+        messages: [
+          {
+            role: "user",
+            content: "See this screenshot",
+            attachments: [
+              {
+                type: "image",
+                data: "https://app.example.com/api/chat/attachments/upload/file?pathname=chat-attachments%2Ftest.png",
+                name: "test.png",
+                size: 10,
+              },
+            ],
+          },
+        ],
+        route: {
+          pathname: "/lobby/vendor",
+          routeKey: "lobby:vendor",
+          segment: "lobby",
+          behaviorKey: "general",
+        },
+      },
+      isAuthenticated: true,
+      attachmentOwnerIdentityKey: "anon-session:test",
+    });
+
+    expect(resolveChatAttachmentsForModelMock).toHaveBeenCalledWith(
+      [
+        {
+          type: "image",
+          data: "https://app.example.com/api/chat/attachments/upload/file?pathname=chat-attachments%2Ftest.png",
+          name: "test.png",
+          size: 10,
+        },
+      ],
+      "anon-session:test",
+    );
   });
 
   it("drops the oldest history first when the recent context exceeds the budget", async () => {
