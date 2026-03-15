@@ -1,3 +1,5 @@
+export {};
+
 jest.mock("@/lib/utils/logger", () => ({
   getLogger: () => ({
     info: jest.fn(),
@@ -26,15 +28,18 @@ jest.mock("@/lib/email/admin-notifications", () => ({
   sendQuestReviewNotification: jest.fn(),
 }));
 
-const handler = require("@/pages/api/quests/complete-task").default as typeof import("@/pages/api/quests/complete-task").default;
-const { getVerificationStrategy } = require("@/lib/quests/verification/registry") as typeof import("@/lib/quests/verification/registry");
-const { createAdminClient } = require("@/lib/supabase/server") as typeof import("@/lib/supabase/server");
-const { getPrivyUser } = require("@/lib/auth/privy") as typeof import("@/lib/auth/privy");
-const {
-  checkQuestPrerequisites,
-  getUserPrimaryWallet,
-} = require("@/lib/quests/prerequisite-checker") as typeof import("@/lib/quests/prerequisite-checker");
-const { sendQuestReviewNotification } = require("@/lib/email/admin-notifications") as typeof import("@/lib/email/admin-notifications");
+const handler = require("@/pages/api/quests/complete-task")
+  .default as typeof import("@/pages/api/quests/complete-task").default;
+const { getVerificationStrategy } =
+  require("@/lib/quests/verification/registry") as typeof import("@/lib/quests/verification/registry");
+const { createAdminClient } =
+  require("@/lib/supabase/server") as typeof import("@/lib/supabase/server");
+const { getPrivyUser } =
+  require("@/lib/auth/privy") as typeof import("@/lib/auth/privy");
+const { checkQuestPrerequisites, getUserPrimaryWallet } =
+  require("@/lib/quests/prerequisite-checker") as typeof import("@/lib/quests/prerequisite-checker");
+const { sendQuestReviewNotification } =
+  require("@/lib/email/admin-notifications") as typeof import("@/lib/email/admin-notifications");
 
 const mockGetVerificationStrategy = getVerificationStrategy as jest.Mock;
 const mockCreateAdminClient = createAdminClient as jest.Mock;
@@ -485,12 +490,10 @@ describe("POST /api/quests/complete-task", () => {
     });
     mockGetVerificationStrategy.mockReturnValue({ verify });
 
-    const rpc = jest
-      .fn()
-      .mockResolvedValueOnce({
-        data: { success: false, kind: "db_error", error: "write failed" },
-        error: null,
-      });
+    const rpc = jest.fn().mockResolvedValueOnce({
+      data: { success: false, kind: "db_error", error: "write failed" },
+      error: null,
+    });
 
     const supabase = makeSupabase({ rpc });
     mockCreateAdminClient.mockReturnValue(supabase);
@@ -514,6 +517,71 @@ describe("POST /api/quests/complete-task", () => {
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ error: "Failed to complete task" }),
+    );
+  });
+
+  it("returns 409 when the atomic completion reports a stale existing completion", async () => {
+    const verify = jest.fn().mockResolvedValue({
+      success: true,
+      metadata: {
+        eventName: "TokensPurchased",
+        amount: "10",
+        logIndex: 1,
+        blockNumber: "2",
+      },
+    });
+    mockGetVerificationStrategy.mockReturnValue({ verify });
+
+    const rpc = jest.fn().mockResolvedValue({
+      data: {
+        success: false,
+        kind: "not_found",
+        error: "Existing task completion not found",
+      },
+      error: null,
+    });
+
+    const supabase = makeSupabase({ rpc });
+    const originalFrom = (supabase as any).from;
+    (supabase as any).from = jest.fn((table: string) => {
+      const builder = originalFrom(table);
+      if (table === "user_task_completions") {
+        return {
+          ...builder,
+          single: jest.fn().mockResolvedValue({
+            data: {
+              id: "completion-1",
+              submission_status: "retry",
+            },
+          }),
+        };
+      }
+      return builder;
+    });
+    mockCreateAdminClient.mockReturnValue(supabase);
+
+    const req = {
+      method: "POST",
+      body: {
+        questId: "quest-1",
+        taskId: "task-1",
+        verificationData: { transactionHash: "0xabc" },
+      },
+    } as any;
+
+    const res = {
+      status: jest.fn().mockReturnThis(),
+      json: jest.fn(),
+    } as any;
+
+    await handler(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: "Existing task completion not found",
+        code: "TASK_COMPLETION_STALE",
+      }),
     );
   });
 });

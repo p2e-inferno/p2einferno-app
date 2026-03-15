@@ -1,3 +1,10 @@
+const deleteChatAttachmentsWithOwnershipCleanupMock = jest.fn();
+
+jest.mock("@/lib/chat/server/attachment-access", () => ({
+  deleteChatAttachmentsWithOwnershipCleanup: (...args: unknown[]) =>
+    deleteChatAttachmentsWithOwnershipCleanupMock(...args),
+}));
+
 import { ChatService } from "@/lib/chat/server/chat-service";
 
 type ConversationRow = {
@@ -56,6 +63,18 @@ function makeQueryBuilder<T extends Record<string, unknown>>(applyFilters: () =>
         previous().filter((row) => row[column as keyof T] === value);
       return builder;
     }),
+    not: jest.fn((column: string, operator: string, value: unknown) => {
+      const previous = applyFilters;
+      applyFilters = () =>
+        previous().filter((row) => {
+          const rowValue = row[column as keyof T];
+          if (operator === "is") {
+            return rowValue !== value;
+          }
+          return true;
+        });
+      return builder;
+    }),
     order: jest.fn(
       (column: string, options?: { ascending?: boolean }) => {
         const previous = applyFilters;
@@ -90,6 +109,12 @@ function makeQueryBuilder<T extends Record<string, unknown>>(applyFilters: () =>
       return { data: filtered[0] ?? null, error: null };
     }),
     returns: jest.fn(async () => ({ data: applyFilters(), error: null })),
+    then: (
+      resolve: (value: { data: T[]; error: null }) => void,
+      _reject?: (reason?: unknown) => void,
+    ) => {
+      resolve({ data: applyFilters(), error: null });
+    },
   };
 
   return builder;
@@ -154,6 +179,27 @@ function makeSupabaseMock(seed?: Partial<Tables>) {
     makeUpdateBuilder(tables.chat_messages, patch),
   );
 
+  const messageDelete = jest.fn(() => {
+    let filters: Array<(row: MessageRow) => boolean> = [];
+    const builder: any = {
+      eq: jest.fn((column: string, value: unknown) => {
+        filters.push((row) => row[column as keyof MessageRow] === value);
+        return builder;
+      }),
+      then: (
+        resolve: (value: { data: null; error: null }) => void,
+        _reject?: (reason?: unknown) => void,
+      ) => {
+        tables.chat_messages = tables.chat_messages.filter(
+          (row) => !filters.every((filter) => filter(row)),
+        );
+        resolve({ data: null, error: null });
+      },
+    };
+
+    return builder;
+  });
+
   const widgetUpsert = jest.fn(async (payload: WidgetRow) => {
     const existingIndex = tables.chat_widget_sessions.findIndex(
       (row) => row.privy_user_id === payload.privy_user_id,
@@ -188,6 +234,7 @@ function makeSupabaseMock(seed?: Partial<Tables>) {
           select: jest.fn(() =>
             makeQueryBuilder(() => tables.chat_messages),
           ),
+          delete: messageDelete,
           insert: messageInsert,
           update: messageUpdate,
         };
@@ -208,12 +255,17 @@ function makeSupabaseMock(seed?: Partial<Tables>) {
     __conversationInsert: conversationInsert,
     __conversationUpdate: conversationUpdate,
     __messageInsert: messageInsert,
+    __messageDelete: messageDelete,
     __messageUpdate: messageUpdate,
     __widgetUpsert: widgetUpsert,
   };
 }
 
 describe("ChatService", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it("restores the active conversation with messages", async () => {
     const supabase = makeSupabaseMock({
       chat_widget_sessions: [
@@ -435,12 +487,77 @@ describe("ChatService", () => {
           cleared_at: null,
         },
       ],
+      chat_messages: [
+        {
+          id: "m1",
+          conversation_id: "chat_latest",
+          role: "user",
+          content: "with attachment",
+          sent_at: new Date(2).toISOString(),
+          created_at: new Date(2).toISOString(),
+          attachments: [
+            {
+              type: "image",
+              pathname: "chat-attachments/latest.png",
+              name: "latest.png",
+              size: 123,
+            },
+          ],
+        },
+      ],
     });
 
     const service = new ChatService(supabase as any);
     await expect(
       service.clearConversation("did:1", null),
     ).resolves.toBeUndefined();
+    expect(deleteChatAttachmentsWithOwnershipCleanupMock).toHaveBeenCalledWith([
+      "chat-attachments/latest.png",
+    ]);
+  });
+
+  it("deletes a removed message's attachments after the delete succeeds", async () => {
+    const supabase = makeSupabaseMock({
+      chat_conversations: [
+        {
+          id: "chat_1",
+          privy_user_id: "did:1",
+          source: "authenticated",
+          created_at: new Date(1).toISOString(),
+          updated_at: new Date(1).toISOString(),
+          cleared_at: null,
+        },
+      ],
+      chat_messages: [
+        {
+          id: "m1",
+          conversation_id: "chat_1",
+          role: "user",
+          content: "attached",
+          sent_at: new Date(1).toISOString(),
+          created_at: new Date(1).toISOString(),
+          attachments: [
+            {
+              type: "image",
+              pathname: "chat-attachments/remove-me.png",
+              name: "remove-me.png",
+              size: 321,
+            },
+          ],
+        },
+      ],
+    });
+
+    const service = new ChatService(supabase as any);
+
+    await expect(
+      service.removeMessage("did:1", "chat_1", "m1"),
+    ).resolves.toBeUndefined();
+
+    expect(deleteChatAttachmentsWithOwnershipCleanupMock).toHaveBeenCalledWith([
+      "chat-attachments/remove-me.png",
+    ]);
+    expect(supabase.__tables.chat_messages).toEqual([]);
   });
 
   it("drops invalid active conversation ids when saving widget sessions", async () => {

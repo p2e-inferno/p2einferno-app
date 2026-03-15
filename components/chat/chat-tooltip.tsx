@@ -10,9 +10,9 @@ interface ChatTooltipProps {
 
 export const ChatTooltip = ({ label, children }: ChatTooltipProps) => {
   const [isHovered, setIsHovered] = useState(false);
-  
+
   return (
-    <div 
+    <div
       className="relative flex flex-col items-center"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
@@ -20,7 +20,7 @@ export const ChatTooltip = ({ label, children }: ChatTooltipProps) => {
       {children}
       <AnimatePresence>
         {isHovered && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 5, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 5, scale: 0.95 }}

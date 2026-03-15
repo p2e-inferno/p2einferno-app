@@ -1,4 +1,6 @@
+import { del } from "@vercel/blob";
 import type { NextRequest, NextResponse } from "next/server";
+import { isChatAttachmentBlobPath } from "@/lib/chat/attachment-serving";
 import { resolveOptionalChatRouteUser } from "@/lib/chat/server/route-helpers";
 import {
   enforceChatAttachmentUploadBurstLimit,
@@ -214,4 +216,41 @@ export async function assertChatAttachmentOwnership(
   }
 
   return record;
+}
+
+export async function deleteChatAttachmentOwnershipRecords(pathnames: string[]) {
+  if (!pathnames.length) {
+    return;
+  }
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("chat_attachment_uploads")
+    .delete()
+    .in("pathname", pathnames);
+
+  if (error) {
+    throw new Error(
+      `Unable to delete chat attachment ownership records: ${error.message}`,
+    );
+  }
+}
+
+export async function deleteChatAttachments(pathnames: string[]) {
+  const uniquePathnames = Array.from(
+    new Set(pathnames.filter((pathname) => isChatAttachmentBlobPath(pathname))),
+  );
+
+  if (!uniquePathnames.length) {
+    return;
+  }
+
+  await del(uniquePathnames);
+}
+
+export async function deleteChatAttachmentsWithOwnershipCleanup(
+  pathnames: string[],
+) {
+  await deleteChatAttachments(pathnames);
+  await deleteChatAttachmentOwnershipRecords(pathnames);
 }

@@ -478,8 +478,7 @@ export default async function handler(
           p_verification_data: verificationData,
           p_submission_data: inputData ?? null,
           p_submission_status: initialStatus,
-          p_admin_feedback:
-            initialStatus === "retry" ? aiRetryFeedback : null,
+          p_admin_feedback: initialStatus === "retry" ? aiRetryFeedback : null,
           p_chain_id: CHAIN_ID,
           p_tx_hash: pendingTxRegistration.txHash,
           p_task_type: pendingTxRegistration.taskType,
@@ -504,13 +503,11 @@ export default async function handler(
         return res.status(500).json({ error: "Failed to complete task" });
       }
 
-      const atomicPayload = atomicResult as
-        | {
-            success?: boolean;
-            kind?: string;
-            error?: string;
-          }
-        | null;
+      const atomicPayload = atomicResult as {
+        success?: boolean;
+        kind?: string;
+        error?: string;
+      } | null;
 
       if (!atomicPayload?.success) {
         if (atomicPayload?.kind === "tx_conflict") {
@@ -519,6 +516,15 @@ export default async function handler(
               atomicPayload.error ||
               "This transaction has already been used to complete a quest task",
             code: "TX_ALREADY_USED",
+          });
+        }
+
+        if (atomicPayload?.kind === "not_found") {
+          return res.status(409).json({
+            error:
+              atomicPayload.error ||
+              "Task submission could not be updated because it no longer exists",
+            code: "TASK_COMPLETION_STALE",
           });
         }
 

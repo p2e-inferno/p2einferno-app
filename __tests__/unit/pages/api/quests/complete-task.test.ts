@@ -1,3 +1,5 @@
+export {};
+
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
@@ -32,15 +34,18 @@ jest.mock("@/lib/email/admin-notifications", () => ({
   sendQuestReviewNotification: jest.fn().mockResolvedValue(undefined),
 }));
 
-const handler = require("@/pages/api/quests/complete-task").default as typeof import("@/pages/api/quests/complete-task").default;
-const { createAdminClient } = require("@/lib/supabase/server") as typeof import("@/lib/supabase/server");
-const { getPrivyUser } = require("@/lib/auth/privy") as typeof import("@/lib/auth/privy");
-const { createPrivyClient } = require("@/lib/utils/privyUtils") as typeof import("@/lib/utils/privyUtils");
-const {
-  checkQuestPrerequisites,
-  getUserPrimaryWallet,
-} = require("@/lib/quests/prerequisite-checker") as typeof import("@/lib/quests/prerequisite-checker");
-const { getVerificationStrategy } = require("@/lib/quests/verification/registry") as typeof import("@/lib/quests/verification/registry");
+const handler = require("@/pages/api/quests/complete-task")
+  .default as typeof import("@/pages/api/quests/complete-task").default;
+const { createAdminClient } =
+  require("@/lib/supabase/server") as typeof import("@/lib/supabase/server");
+const { getPrivyUser } =
+  require("@/lib/auth/privy") as typeof import("@/lib/auth/privy");
+const { createPrivyClient } =
+  require("@/lib/utils/privyUtils") as typeof import("@/lib/utils/privyUtils");
+const { checkQuestPrerequisites, getUserPrimaryWallet } =
+  require("@/lib/quests/prerequisite-checker") as typeof import("@/lib/quests/prerequisite-checker");
+const { getVerificationStrategy } =
+  require("@/lib/quests/verification/registry") as typeof import("@/lib/quests/verification/registry");
 
 const mockCreateAdminClient = createAdminClient as jest.MockedFunction<
   typeof createAdminClient

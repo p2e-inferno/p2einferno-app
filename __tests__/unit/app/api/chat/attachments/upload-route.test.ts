@@ -1,10 +1,12 @@
-const handleUpload = jest.fn();
-const resolveChatAttachmentAccessIdentity = jest.fn();
-const enforceChatAttachmentUploadLimits = jest.fn();
-const persistChatAttachmentOwnership = jest.fn();
-const markChatAttachmentUploaded = jest.fn();
-const applyChatAnonymousSessionCookie = jest.fn((response) => response);
-const isTrustedChatAttachmentOrigin = jest.fn();
+export {};
+
+const handleUploadMock = jest.fn();
+const resolveChatAttachmentAccessIdentityMock = jest.fn();
+const enforceChatAttachmentUploadLimitsMock = jest.fn();
+const persistChatAttachmentOwnershipMock = jest.fn();
+const markChatAttachmentUploadedMock = jest.fn();
+const applyChatAnonymousSessionCookieMock = jest.fn((response) => response);
+const isTrustedChatAttachmentOriginMock = jest.fn();
 
 jest.mock("next/server", () => {
   class MockHeaders {
@@ -57,11 +59,13 @@ jest.mock("next/server", () => {
 });
 
 jest.mock("@vercel/blob/client", () => ({
-  handleUpload: (...args: unknown[]) => handleUpload(...args),
+  handleUpload: (...args: any[]) => handleUploadMock(...args),
 }));
 
 jest.mock("@/lib/chat/blob-upload-config", () => ({
-  getChatAttachmentCallbackUrl: jest.fn(() => "https://app.example.com/api/chat/attachments/upload"),
+  getChatAttachmentCallbackUrl: jest.fn(
+    () => "https://app.example.com/api/chat/attachments/upload",
+  ),
   getChatAttachmentUploadConstraints: jest.fn(() => ({
     access: "private",
     allowOverwrite: false,
@@ -71,18 +75,18 @@ jest.mock("@/lib/chat/blob-upload-config", () => ({
 }));
 
 jest.mock("@/lib/chat/server/attachment-access", () => ({
-  applyChatAnonymousSessionCookie: (...args: unknown[]) =>
-    applyChatAnonymousSessionCookie(...args),
-  enforceChatAttachmentUploadLimits: (...args: unknown[]) =>
-    enforceChatAttachmentUploadLimits(...args),
-  isTrustedChatAttachmentOrigin: (...args: unknown[]) =>
-    isTrustedChatAttachmentOrigin(...args),
-  markChatAttachmentUploaded: (...args: unknown[]) =>
-    markChatAttachmentUploaded(...args),
-  persistChatAttachmentOwnership: (...args: unknown[]) =>
-    persistChatAttachmentOwnership(...args),
-  resolveChatAttachmentAccessIdentity: (...args: unknown[]) =>
-    resolveChatAttachmentAccessIdentity(...args),
+  applyChatAnonymousSessionCookie: (...args: any[]) =>
+    applyChatAnonymousSessionCookieMock(args[0]),
+  enforceChatAttachmentUploadLimits: (...args: any[]) =>
+    enforceChatAttachmentUploadLimitsMock(...args),
+  isTrustedChatAttachmentOrigin: (...args: any[]) =>
+    isTrustedChatAttachmentOriginMock(...args),
+  markChatAttachmentUploaded: (...args: any[]) =>
+    markChatAttachmentUploadedMock(...args),
+  persistChatAttachmentOwnership: (...args: any[]) =>
+    persistChatAttachmentOwnershipMock(...args),
+  resolveChatAttachmentAccessIdentity: (...args: any[]) =>
+    resolveChatAttachmentAccessIdentityMock(...args),
 }));
 
 const uploadRoute = require("@/app/api/chat/attachments/upload/route");
@@ -90,8 +94,8 @@ const uploadRoute = require("@/app/api/chat/attachments/upload/route");
 describe("POST /api/chat/attachments/upload", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    isTrustedChatAttachmentOrigin.mockReturnValue(true);
-    resolveChatAttachmentAccessIdentity.mockResolvedValue({
+    isTrustedChatAttachmentOriginMock.mockReturnValue(true);
+    resolveChatAttachmentAccessIdentityMock.mockResolvedValue({
       authUserId: null,
       hasMembership: false,
       usageIdentity: {
@@ -102,25 +106,27 @@ describe("POST /api/chat/attachments/upload", () => {
         privyUserId: null,
       },
     });
-    enforceChatAttachmentUploadLimits.mockReturnValue({ allowed: true });
-    handleUpload.mockImplementation(async ({ onBeforeGenerateToken, onUploadCompleted }) => {
-      const before = await onBeforeGenerateToken(
-        "chat-attachments/example.png",
-        JSON.stringify({
-          attachmentId: "att-1",
-          fileName: "example.png",
-          clientStartedAt: 123,
-        }),
-      );
-      await onUploadCompleted({
-        blob: {
-          pathname: "chat-attachments/example.png",
-          url: "https://example.private.blob.vercel-storage.com/chat-attachments/example.png",
-        },
-        tokenPayload: before.tokenPayload,
-      });
-      return { clientToken: "client-token" };
-    });
+    enforceChatAttachmentUploadLimitsMock.mockReturnValue({ allowed: true });
+    handleUploadMock.mockImplementation(
+      async ({ onBeforeGenerateToken, onUploadCompleted }) => {
+        const before = await onBeforeGenerateToken(
+          "chat-attachments/example.png",
+          JSON.stringify({
+            attachmentId: "att-1",
+            fileName: "example.png",
+            clientStartedAt: 123,
+          }),
+        );
+        await onUploadCompleted({
+          blob: {
+            pathname: "chat-attachments/example.png",
+            url: "https://example.private.blob.vercel-storage.com/chat-attachments/example.png",
+          },
+          tokenPayload: before.tokenPayload,
+        });
+        return { clientToken: "client-token" };
+      },
+    );
   });
 
   function createRequest(body?: unknown) {
@@ -151,7 +157,7 @@ describe("POST /api/chat/attachments/upload", () => {
   }
 
   it("rejects untrusted origins before issuing upload tokens", async () => {
-    isTrustedChatAttachmentOrigin.mockReturnValue(false);
+    isTrustedChatAttachmentOriginMock.mockReturnValue(false);
 
     const res = await uploadRoute.POST(createRequest() as any);
 
@@ -159,7 +165,7 @@ describe("POST /api/chat/attachments/upload", () => {
     await expect(res.json()).resolves.toEqual({
       error: "Untrusted upload origin",
     });
-    expect(handleUpload).not.toHaveBeenCalled();
+    expect(handleUploadMock).not.toHaveBeenCalled();
   });
 
   it("persists attachment ownership before minting the token and marks upload completion", async () => {
@@ -167,7 +173,7 @@ describe("POST /api/chat/attachments/upload", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ clientToken: "client-token" });
-    expect(persistChatAttachmentOwnership).toHaveBeenCalledWith({
+    expect(persistChatAttachmentOwnershipMock).toHaveBeenCalledWith({
       pathname: "chat-attachments/example.png",
       identity: expect.objectContaining({
         usageIdentity: expect.objectContaining({
@@ -175,9 +181,9 @@ describe("POST /api/chat/attachments/upload", () => {
         }),
       }),
     });
-    expect(markChatAttachmentUploaded).toHaveBeenCalledWith(
+    expect(markChatAttachmentUploadedMock).toHaveBeenCalledWith(
       "chat-attachments/example.png",
     );
-    expect(applyChatAnonymousSessionCookie).toHaveBeenCalled();
+    expect(applyChatAnonymousSessionCookieMock).toHaveBeenCalled();
   });
 });

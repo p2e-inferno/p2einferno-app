@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Send, Paperclip, X, File as FileIcon, Plus, Ban, Video } from "lucide-react";
+import { Send, Paperclip, X, Plus, Ban, Video } from "lucide-react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
@@ -56,7 +56,9 @@ export function ChatComposer({
   onSubmit,
 }: ChatComposerProps) {
   const [attachments, setAttachments] = React.useState<ChatAttachment[]>([]);
-  const [dragState, setDragState] = React.useState<"none" | "supported" | "unsupported">("none");
+  const [dragState, setDragState] = React.useState<
+    "none" | "supported" | "unsupported"
+  >("none");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const attachmentsRef = React.useRef<ChatAttachment[]>([]);
 
@@ -70,7 +72,10 @@ export function ChatComposer({
     let limitReached = false;
 
     for (const file of files) {
-      const { isValid, error } = validateChatAttachment(file, nextAttachments.length);
+      const { isValid, error } = validateChatAttachment(
+        file,
+        nextAttachments.length,
+      );
 
       if (!isValid) {
         if (!limitReached) {
@@ -106,9 +111,12 @@ export function ChatComposer({
   const performUpload = async (id: string, file: File) => {
     // Sanitize filename: remove special characters and spaces to avoid CSP/API issues with SDK
     const timestamp = Date.now();
-    const parts = file.name.split('.');
-    const extension = parts.length > 1 ? parts.pop() : 'file';
-    const baseName = parts.join('.').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const parts = file.name.split(".");
+    const extension = parts.length > 1 ? parts.pop() : "file";
+    const baseName = parts
+      .join(".")
+      .replace(/[^a-z0-9]/gi, "_")
+      .toLowerCase();
     const blobPath = buildChatAttachmentBlobPath(
       `${baseName}-${id}-${timestamp}.${extension}`,
     );
@@ -173,8 +181,8 @@ export function ChatComposer({
           });
           setAttachments((prev) =>
             prev.map((a) =>
-              a.id === id ? { ...a, progress: progressEvent.percentage } : a
-            )
+              a.id === id ? { ...a, progress: progressEvent.percentage } : a,
+            ),
           );
         },
       });
@@ -185,7 +193,9 @@ export function ChatComposer({
         blobPath: newBlob.pathname,
         totalElapsedMs: Math.round(resolvedPerf - startedPerf),
         timeToFirstProgressMs:
-          firstProgressAt === null ? null : Math.round(firstProgressAt - startedPerf),
+          firstProgressAt === null
+            ? null
+            : Math.round(firstProgressAt - startedPerf),
         timeToNinetyFiveMs:
           reachedNinetyFiveAt === null
             ? null
@@ -208,8 +218,8 @@ export function ChatComposer({
       const readyAtPerf = performance.now();
       setAttachments((prev) =>
         prev.map((a) =>
-          a.id === id ? { ...a, status: "ready", url: attachmentUrl } : a
-        )
+          a.id === id ? { ...a, status: "ready", url: attachmentUrl } : a,
+        ),
       );
       log.debug("chat attachment marked ready in composer state", {
         attachmentId: id,
@@ -224,7 +234,7 @@ export function ChatComposer({
         error,
       });
       setAttachments((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, status: "error" } : a))
+        prev.map((a) => (a.id === id ? { ...a, status: "error" } : a)),
       );
       toast.error(`Upload failed for ${file.name}`);
     }
@@ -268,7 +278,7 @@ export function ChatComposer({
         for (const item of Array.from(items)) {
           const isImage = item.type.startsWith("image/");
           const isVideo = item.type.startsWith("video/");
-          
+
           if (isImage || isVideo) {
             const file = item.getAsFile();
             if (file) {
@@ -317,13 +327,15 @@ export function ChatComposer({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (disabled) return;
 
     if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
       const items = Array.from(e.dataTransfer.items);
-      const allSupported = items.every(item => 
-        item.kind === "file" && CHAT_ATTACHMENT_LIMITS.allowedTypes.includes(item.type as any)
+      const allSupported = items.every(
+        (item) =>
+          item.kind === "file" &&
+          CHAT_ATTACHMENT_LIMITS.allowedTypes.includes(item.type as any),
       );
       setDragState(allSupported ? "supported" : "unsupported");
     }
@@ -339,7 +351,7 @@ export function ChatComposer({
     e.preventDefault();
     e.stopPropagation();
     setDragState("none");
-    
+
     if (disabled) return;
 
     const files = e.dataTransfer?.files;
@@ -430,14 +442,14 @@ export function ChatComposer({
                     </span>
                   </div>
                 )}
-                
+
                 {/* Upload Status Overlays */}
                 {atat.status === "uploading" && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/60 backdrop-blur-sm px-2">
                     <Loader2 className="h-5 w-5 animate-spin text-primary mb-1" />
                     {atat.progress !== undefined && (
                       <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                        <motion.div 
+                        <motion.div
                           className="h-full bg-primary"
                           initial={{ width: 0 }}
                           animate={{ width: `${atat.progress}%` }}
@@ -447,7 +459,7 @@ export function ChatComposer({
                     )}
                   </div>
                 )}
-                
+
                 {atat.status === "error" && (
                   <div className="absolute inset-0 flex items-center justify-center bg-red-950/60 backdrop-blur-sm">
                     <AlertCircle className="h-5 w-5 text-red-400" />
@@ -468,7 +480,7 @@ export function ChatComposer({
       </AnimatePresence>
 
       {/* Main Input Area */}
-      <div 
+      <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -483,15 +495,23 @@ export function ChatComposer({
               exit={{ opacity: 0 }}
               className="absolute inset-0 z-10 flex items-center justify-center rounded-3xl bg-slate-900/60 backdrop-blur-[2px] pointer-events-none"
             >
-              <div className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-2xl ${
-                dragState === "supported" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-slate-800/60 text-slate-400 border border-white/5"
-              }`}>
+              <div
+                className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium shadow-2xl ${
+                  dragState === "supported"
+                    ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    : "bg-slate-800/60 text-slate-400 border border-white/5"
+                }`}
+              >
                 {dragState === "supported" ? (
                   <Plus className="h-4 w-4" />
                 ) : (
                   <Ban className="h-4 w-4 opacity-50" />
                 )}
-                <span>{dragState === "supported" ? "Drop to attach" : "Unsupported file type"}</span>
+                <span>
+                  {dragState === "supported"
+                    ? "Drop to attach"
+                    : "Unsupported file type"}
+                </span>
               </div>
             </motion.div>
           )}

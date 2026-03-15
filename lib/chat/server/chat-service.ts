@@ -4,12 +4,18 @@ import {
   buildChatAttachmentProxyPath,
   extractChatAttachmentBlobPath,
 } from "@/lib/chat/attachment-serving";
+import {
+  deleteChatAttachmentsWithOwnershipCleanup,
+} from "@/lib/chat/server/attachment-access";
 import type {
   ChatConversation,
   ChatMessage,
   ChatWidgetSession,
   RestoreConversationResult,
 } from "@/lib/chat/types";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("chat:service");
 
 interface ChatConversationRow {
   id: string;
@@ -83,6 +89,14 @@ function extractStoredAttachments(
   return stored.length > 0 ? stored : null;
 }
 
+function extractStoredAttachmentPathnames(
+  attachments: StoredAttachment[] | null | undefined,
+) {
+  return (attachments ?? [])
+    .map((attachment) => attachment.pathname)
+    .filter((pathname): pathname is string => Boolean(pathname));
+}
+
 function mapConversation(
   row: ChatConversationRow,
   messages: ChatMessage[],
@@ -110,6 +124,21 @@ export class ChatService {
   constructor(
     private readonly supabase: SupabaseClient = createAdminClient(),
   ) {}
+
+  private async deleteAttachmentBlobs(pathnames: string[]) {
+    if (!pathnames.length) {
+      return;
+    }
+
+    try {
+      await deleteChatAttachmentsWithOwnershipCleanup(pathnames);
+    } catch (error) {
+      log.warn("Failed to delete chat attachment blobs from Vercel Blob", {
+        count: pathnames.length,
+        error,
+      });
+    }
+  }
 
   async restoreActiveConversation(
     privyUserId: string,
@@ -293,6 +322,21 @@ export class ChatService {
       throw new Error("Conversation not found");
     }
 
+    const { data: messageRow, error: messageReadError } = await this.supabase
+      .from("chat_messages")
+      .select("attachments")
+      .eq("id", messageId)
+      .eq("conversation_id", conversationId)
+      .maybeSingle<{ attachments: StoredAttachment[] | null }>();
+
+    if (messageReadError) {
+      throw messageReadError;
+    }
+
+    const pathnames = Array.from(
+      new Set(extractStoredAttachmentPathnames(messageRow?.attachments)),
+    );
+
     const { error: deleteError } = await this.supabase
       .from("chat_messages")
       .delete()
@@ -314,6 +358,8 @@ export class ChatService {
     if (updateError) {
       throw updateError;
     }
+
+    await this.deleteAttachmentBlobs(pathnames);
   }
 
   async clearConversation(
@@ -326,6 +372,26 @@ export class ChatService {
     if (!resolvedConversationId) {
       return;
     }
+
+    const { data: messageRows, error: messageRowsError } = await this.supabase
+      .from("chat_messages")
+      .select("attachments")
+      .eq("conversation_id", resolvedConversationId)
+      .not("attachments", "is", null);
+
+    if (messageRowsError) {
+      throw messageRowsError;
+    }
+
+    const pathnames = Array.from(
+      new Set(
+        (messageRows ?? []).flatMap((row) =>
+          extractStoredAttachmentPathnames(
+            (row as { attachments?: StoredAttachment[] | null }).attachments,
+          ),
+        ),
+      ),
+    );
 
     const { error } = await this.supabase
       .from("chat_conversations")
@@ -360,6 +426,8 @@ export class ChatService {
     if (widgetError) {
       throw widgetError;
     }
+
+    await this.deleteAttachmentBlobs(pathnames);
   }
 
   async saveWidgetSession(

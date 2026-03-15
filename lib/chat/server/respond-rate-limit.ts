@@ -26,7 +26,7 @@ interface QuotaLimiterOptions {
   hasMembership: boolean;
 }
 
-interface UsageLimitResult {
+export interface UsageLimitResult {
   allowed: boolean;
   status?: number;
   error?: string;

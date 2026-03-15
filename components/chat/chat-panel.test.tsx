@@ -31,6 +31,8 @@ describe("ChatPanel", () => {
         onClearConversation={onClearConversation}
         onDraftChange={onDraftChange}
         onSendMessage={onSendMessage}
+        onRetryMessage={jest.fn().mockResolvedValue(undefined)}
+        onDeleteMessage={jest.fn().mockResolvedValue(undefined)}
       />,
     );
 

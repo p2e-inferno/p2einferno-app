@@ -1,6 +1,8 @@
-const get = jest.fn();
-const resolveChatAttachmentAccessIdentity = jest.fn();
-const assertChatAttachmentOwnership = jest.fn();
+export {};
+
+const getMock = jest.fn();
+const resolveChatAttachmentAccessIdentityMock = jest.fn();
+const assertChatAttachmentOwnershipMock = jest.fn();
 
 jest.mock("next/server", () => {
   class MockResponse {
@@ -35,17 +37,17 @@ jest.mock("next/server", () => {
 });
 
 jest.mock("@vercel/blob", () => ({
-  get: (...args: unknown[]) => get(...args),
+  get: (...args: any[]) => getMock(...args),
 }));
 
 class MockChatAttachmentAccessError extends Error {}
 
 jest.mock("@/lib/chat/server/attachment-access", () => ({
   ChatAttachmentAccessError: MockChatAttachmentAccessError,
-  assertChatAttachmentOwnership: (...args: unknown[]) =>
-    assertChatAttachmentOwnership(...args),
-  resolveChatAttachmentAccessIdentity: (...args: unknown[]) =>
-    resolveChatAttachmentAccessIdentity(...args),
+  assertChatAttachmentOwnership: (...args: any[]) =>
+    assertChatAttachmentOwnershipMock(...args),
+  resolveChatAttachmentAccessIdentity: (...args: any[]) =>
+    resolveChatAttachmentAccessIdentityMock(...args),
 }));
 
 const fileRoute = require("@/app/api/chat/attachments/upload/file/route");
@@ -53,12 +55,12 @@ const fileRoute = require("@/app/api/chat/attachments/upload/file/route");
 describe("GET /api/chat/attachments/upload/file", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    resolveChatAttachmentAccessIdentity.mockResolvedValue({
+    resolveChatAttachmentAccessIdentityMock.mockResolvedValue({
       usageIdentity: {
         identityKey: "anon-session:test",
       },
     });
-    get.mockResolvedValue({
+    getMock.mockResolvedValue({
       statusCode: 200,
       stream: new Response("hello").body,
       headers: new Headers(),
@@ -86,7 +88,7 @@ describe("GET /api/chat/attachments/upload/file", () => {
   }
 
   it("denies access when ownership does not match the current chat identity", async () => {
-    assertChatAttachmentOwnership.mockRejectedValue(
+    assertChatAttachmentOwnershipMock.mockRejectedValue(
       new MockChatAttachmentAccessError("denied"),
     );
 
@@ -98,11 +100,11 @@ describe("GET /api/chat/attachments/upload/file", () => {
     await expect(res.json()).resolves.toEqual({
       error: "Attachment not found",
     });
-    expect(get).not.toHaveBeenCalled();
+    expect(getMock).not.toHaveBeenCalled();
   });
 
   it("streams the blob after ownership verification succeeds", async () => {
-    assertChatAttachmentOwnership.mockResolvedValue({
+    assertChatAttachmentOwnershipMock.mockResolvedValue({
       owner_identity_key: "anon-session:test",
       status: "uploaded",
     });
@@ -111,11 +113,11 @@ describe("GET /api/chat/attachments/upload/file", () => {
       createRequest("chat-attachments/example.png") as any,
     );
 
-    expect(assertChatAttachmentOwnership).toHaveBeenCalledWith(
+    expect(assertChatAttachmentOwnershipMock).toHaveBeenCalledWith(
       "chat-attachments/example.png",
       "anon-session:test",
     );
-    expect(get).toHaveBeenCalledWith("chat-attachments/example.png", {
+    expect(getMock).toHaveBeenCalledWith("chat-attachments/example.png", {
       access: "private",
     });
     expect(res.status).toBe(200);
@@ -123,11 +125,11 @@ describe("GET /api/chat/attachments/upload/file", () => {
   });
 
   it("forwards range requests for partial video streaming", async () => {
-    assertChatAttachmentOwnership.mockResolvedValue({
+    assertChatAttachmentOwnershipMock.mockResolvedValue({
       owner_identity_key: "anon-session:test",
       status: "uploaded",
     });
-    get.mockResolvedValue({
+    getMock.mockResolvedValue({
       statusCode: 200,
       stream: new Response("partial").body,
       headers: new Headers({
@@ -159,7 +161,7 @@ describe("GET /api/chat/attachments/upload/file", () => {
       },
     } as any);
 
-    expect(get).toHaveBeenCalledWith("chat-attachments/clip.mp4", {
+    expect(getMock).toHaveBeenCalledWith("chat-attachments/clip.mp4", {
       access: "private",
       headers: { range: "bytes=0-6" },
     });

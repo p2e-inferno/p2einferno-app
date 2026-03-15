@@ -1,6 +1,7 @@
 import { CHAT_WELCOME_MESSAGE } from "@/lib/chat/constants";
 import type { ChatAdapter } from "@/lib/chat/adapters/chat-adapter";
 import { httpChatAdapter } from "@/lib/chat/adapters/http-chat-adapter";
+import { extractChatAttachmentBlobPath } from "@/lib/chat/attachment-serving";
 import { resolveChatReconciliationPlan } from "@/lib/chat/reconciliation";
 import { buildChatAssistantContext } from "@/lib/chat/route-behavior";
 import { ChatRequestError } from "@/lib/chat/repository/http";
@@ -36,6 +37,55 @@ export class ChatController {
   private lastAuthKey = "anonymous";
 
   constructor(private readonly adapter: ChatAdapter = httpChatAdapter) {}
+
+  private getAttachmentPathnames(messages: ChatMessage[]) {
+    return Array.from(
+      new Set(
+        messages.flatMap((message) =>
+          (message.attachments ?? [])
+            .map((attachment) => extractChatAttachmentBlobPath(attachment.data))
+            .filter((pathname): pathname is string => Boolean(pathname)),
+        ),
+      ),
+    );
+  }
+
+  private async cleanupAnonymousAttachments(
+    pathnames: string[],
+    options: ChatControllerActionOptions,
+  ) {
+    if (!pathnames.length) {
+      return;
+    }
+
+    try {
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+      if (options.accessToken) {
+        headers.Authorization = `Bearer ${options.accessToken}`;
+      }
+
+      const response = await fetch("/api/chat/attachments/cleanup", {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({ pathnames }),
+      });
+
+      if (!response.ok) {
+        throw new ChatRequestError(
+          "Anonymous attachment cleanup failed",
+          response.status,
+        );
+      }
+    } catch (error) {
+      log.warn("Failed to clean up anonymous chat attachments during reset", {
+        count: pathnames.length,
+        error,
+      });
+    }
+  }
 
   async bootstrap({
     auth,
@@ -403,6 +453,7 @@ export class ChatController {
     const operation = this.createOperationContext(state.auth, true);
     const persistence = this.getPersistence(operation.auth, options);
     let durableClearFailed = false;
+    const attachmentPathnames = this.getAttachmentPathnames(state.messages);
 
     if (persistence.preferredRepository.isAvailable) {
       await persistence.preferredRepository
@@ -427,6 +478,10 @@ export class ChatController {
           "Unable to clear your saved chat right now. Your previous conversation is still available.",
       });
       return;
+    }
+
+    if (!state.auth.isAuthenticated) {
+      await this.cleanupAnonymousAttachments(attachmentPathnames, options);
     }
 
     await persistence.fallbackRepository.clearConversation(

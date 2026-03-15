@@ -2,6 +2,18 @@ import { chatController } from "@/lib/chat/controller";
 import { useChatStore } from "@/lib/chat/store";
 
 describe("chat controller", () => {
+  function makeDeferred<T>() {
+    let resolve!: (value: T | PromiseLike<T>) => void;
+    let reject!: (reason?: unknown) => void;
+
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res;
+      reject = rej;
+    });
+
+    return { promise, resolve, reject };
+  }
+
   beforeAll(() => {
     jest.spyOn(global, "fetch").mockImplementation(async () => {
       return {
@@ -125,6 +137,58 @@ describe("chat controller", () => {
     expect(state.activeConversationId).toBeNull();
   });
 
+  it("best-effort cleans up anonymous attachment blobs during reset", async () => {
+    const fetchSpy = global.fetch as jest.Mock;
+
+    useChatStore.setState({
+      auth: {
+        isReady: true,
+        isAuthenticated: false,
+        privyUserId: null,
+        walletAddress: null,
+      },
+      messages: [
+        {
+          id: "seed",
+          role: "assistant",
+          content: "Hi",
+          ts: 1,
+          status: "complete",
+          error: null,
+        },
+        {
+          id: "user_1",
+          role: "user",
+          content: "",
+          ts: 2,
+          status: "complete",
+          error: null,
+          attachments: [
+            {
+              type: "image",
+              data: "/api/chat/attachments/upload/file?pathname=chat-attachments%2Fexample.png",
+              name: "example.png",
+              size: 10,
+            },
+          ],
+        },
+      ],
+    });
+
+    await chatController.clearConversation();
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/chat/attachments/cleanup", {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        pathnames: ["chat-attachments/example.png"],
+      }),
+    });
+  });
+
   it("rolls back failed durable deletes accurately to preserve chronology", async () => {
     // 1. Setup authenticated state with multiple messages
     const messages: any[] = [
@@ -174,31 +238,32 @@ describe("chat controller", () => {
       auth: { isReady: true, isAuthenticated: true, privyUserId: "u1", walletAddress: "w1" }
     });
 
-    let rejectDelete: ((reason?: unknown) => void) | null = null;
+    const deleteRequest = makeDeferred<Response>();
     const fetchSpy = global.fetch as jest.Mock;
     fetchSpy.mockImplementationOnce(async (_url, init) => {
       if (init?.method === "DELETE") {
-        return await new Promise((_resolve, reject) => {
-          rejectDelete = reject;
-        });
+        return await deleteRequest.promise;
       }
       return { ok: true, json: async () => ({ ok: true }) };
     });
 
     const deletePromise = chatController.deleteMessage("m2");
 
-    useChatStore.getState().appendMessages([
-      {
-        id: "m4",
-        role: "assistant",
-        content: "newer",
-        ts: 4,
-        status: "complete",
-        error: null,
-      },
-    ]);
+    useChatStore.setState((state) => ({
+      messages: [
+        ...state.messages,
+        {
+          id: "m4",
+          role: "assistant",
+          content: "newer",
+          ts: 4,
+          status: "complete",
+          error: null,
+        },
+      ],
+    }));
 
-    rejectDelete?.(new Error("Failed"));
+    deleteRequest.reject(new Error("Failed"));
     await deletePromise;
 
     const state = useChatStore.getState();

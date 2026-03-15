@@ -28,6 +28,7 @@ function createRepository(
     restoreActiveConversation: jest.fn(),
     createConversation: jest.fn(),
     appendMessages: jest.fn(),
+    removeMessage: jest.fn(),
     clearConversation: jest.fn(),
     saveWidgetSession: jest.fn(),
   };

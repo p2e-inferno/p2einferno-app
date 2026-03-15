@@ -15,7 +15,13 @@ describe("ChatMessageList", () => {
 
   it("shows the typing indicator for the existing non-streaming loading path", () => {
     render(
-      <ChatMessageList messages={baseMessages} loading showTypingIndicator />,
+      <ChatMessageList
+        messages={baseMessages}
+        loading
+        showTypingIndicator
+        onRetryMessage={jest.fn().mockResolvedValue(undefined)}
+        onDeleteMessage={jest.fn().mockResolvedValue(undefined)}
+      />,
     );
 
     expect(screen.getByText(/assistant is typing/i)).toBeInTheDocument();
@@ -37,6 +43,8 @@ describe("ChatMessageList", () => {
         ]}
         loading
         showTypingIndicator={false}
+        onRetryMessage={jest.fn().mockResolvedValue(undefined)}
+        onDeleteMessage={jest.fn().mockResolvedValue(undefined)}
       />,
     );
 

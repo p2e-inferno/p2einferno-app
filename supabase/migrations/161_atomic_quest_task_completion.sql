@@ -81,11 +81,9 @@ BEGIN
       AND task_id = p_task_id;
 
     IF NOT FOUND THEN
-      RETURN jsonb_build_object(
-        'success', false,
-        'kind', 'not_found',
-        'error', 'Existing task completion not found'
-      );
+      RAISE EXCEPTION USING
+        ERRCODE = 'P0002',
+        MESSAGE = 'Existing task completion not found';
     END IF;
   ELSE
     INSERT INTO public.user_task_completions (
@@ -111,6 +109,12 @@ BEGIN
 
   RETURN jsonb_build_object('success', true);
 EXCEPTION
+  WHEN SQLSTATE 'P0002' THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'kind', 'not_found',
+      'error', 'Existing task completion not found'
+    );
   WHEN OTHERS THEN
     RETURN jsonb_build_object(
       'success', false,

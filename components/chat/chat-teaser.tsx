@@ -25,22 +25,22 @@ export function ChatTeaser({
       {!open && visible && !dismissed && (
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.95, filter: "blur(10px)" }}
-          animate={{ 
-            opacity: 1, 
-            y: [0, 12, 0], 
-            scale: 1, 
-            filter: "blur(0px)" 
+          animate={{
+            opacity: 1,
+            y: [0, 12, 0],
+            scale: 1,
+            filter: "blur(0px)",
           }}
           exit={{ opacity: 0, y: 20, scale: 0.95, filter: "blur(10px)" }}
-          transition={{ 
-            y: { 
-              duration: 1.2, 
-              repeat: Infinity, 
-              ease: "easeInOut" 
+          transition={{
+            y: {
+              duration: 1.2,
+              repeat: Infinity,
+              ease: "easeInOut",
             },
             opacity: { duration: 0.5 },
             scale: { duration: 0.5 },
-            filter: { duration: 0.5 }
+            filter: { duration: 0.5 },
           }}
           className="absolute bottom-24 right-0 z-50 w-max"
         >

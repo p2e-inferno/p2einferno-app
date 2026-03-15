@@ -136,12 +136,12 @@ describe("chat api routes", () => {
       "chat_1",
     );
   });
- 
+
   it("deletes a specific message through the route layer", async () => {
     const res = await messageDeleteRoute.DELETE({} as any, {
       params: Promise.resolve({ conversationId: "chat_1", messageId: "m1" }),
     });
- 
+
     expect(res.status).toBe(200);
     expect(chatService.removeMessage).toHaveBeenCalledWith(
       "did:1",
