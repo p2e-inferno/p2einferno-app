@@ -230,6 +230,14 @@ describe("generateChatResponse", () => {
 
     expect(runChatAgentLoopMock).toHaveBeenCalledWith(
       expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
+            content: expect.stringContaining(
+              "briefly suggest a screenshot or screen recording only if that would materially improve accuracy",
+            ),
+          }),
+        ]),
         routeProfile: expect.objectContaining({
           id: "home_onboarding",
           domainTags: expect.arrayContaining(["onboarding", "wallet"]),
@@ -422,6 +430,12 @@ describe("generateChatResponse", () => {
     expect(runChatAgentLoopMock).toHaveBeenCalledWith(
       expect.objectContaining({
         messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
+            content: expect.stringContaining(
+              "If the user already shared an image or video, use it directly instead of asking them to send another one.",
+            ),
+          }),
           expect.objectContaining({
             role: "user",
             content: expect.any(Array),

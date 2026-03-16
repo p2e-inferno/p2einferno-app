@@ -549,6 +549,8 @@ function buildAgentInstruction(params: {
     "- avoid using the tool for plain greetings, thanks, acknowledgements, and lightweight social turns",
     "- say clearly when the available knowledge does not confirm something",
     "- give the safest next step when you cannot confirm a detail",
+    "- when the user needs exact UI-level help about what is visible on their screen, first answer with the grounded guidance you have, then briefly suggest a screenshot or screen recording only if that would materially improve accuracy",
+    "- do not ask for screenshots or screen recordings for conceptual questions or issues that are already sufficiently answered from knowledge and conversation context",
     "",
     "You cannot:",
     "- click buttons, navigate the app for the user, submit forms, change settings, or take actions on the user's behalf",
@@ -561,6 +563,7 @@ function buildAgentInstruction(params: {
     routeContext,
     "Do not invent app-specific procedures from general prior knowledge when the knowledge base tool can answer.",
     "For attachment-only requests, use the attachment plus current route context to decide whether grounded retrieval is needed.",
+    "If the user already shared an image or video, use it directly instead of asking them to send another one.",
     "If the user asks what you can do, answer from these abilities and limits in a natural way.",
     "Keep answers concise and practical.",
   ].join("\n");
