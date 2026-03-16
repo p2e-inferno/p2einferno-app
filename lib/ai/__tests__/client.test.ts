@@ -119,6 +119,29 @@ describe("chatCompletion", () => {
     ]);
   });
 
+  test("should dedupe fallback models and exclude the primary model", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(mockOpenRouterResponse());
+
+    await chatCompletion({
+      model: "primary/model",
+      messages: [{ role: "user", content: "Hello" }],
+      fallbacks: [
+        "primary/model",
+        "fallback/model-a",
+        "fallback/model-a",
+        "fallback/model-b",
+      ],
+    });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const body = JSON.parse(fetchCall[1].body);
+    expect(body.models).toEqual([
+      "primary/model",
+      "fallback/model-a",
+      "fallback/model-b",
+    ]);
+  });
+
   test("should not include route/models when no fallbacks", async () => {
     (global.fetch as jest.Mock).mockResolvedValue(mockOpenRouterResponse());
 
@@ -145,6 +168,47 @@ describe("chatCompletion", () => {
     const body = JSON.parse(fetchCall[1].body);
     expect(body.max_tokens).toBe(500);
     expect(body.temperature).toBe(0.3);
+  });
+
+  test("should pass response_format when provided", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(mockOpenRouterResponse());
+
+    await chatCompletion({
+      messages: [{ role: "user", content: "Hello" }],
+      responseFormat: {
+        type: "json_schema",
+        json_schema: {
+          name: "test_schema",
+          strict: true,
+          schema: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              answer: { type: "string" },
+            },
+            required: ["answer"],
+          },
+        },
+      },
+    });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const body = JSON.parse(fetchCall[1].body);
+    expect(body.response_format).toEqual({
+      type: "json_schema",
+      json_schema: {
+        name: "test_schema",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            answer: { type: "string" },
+          },
+          required: ["answer"],
+        },
+      },
+    });
   });
 
   test("should include attribution headers", async () => {
@@ -234,9 +298,12 @@ describe("chatCompletion", () => {
     const abortError = new Error("The operation was aborted");
     abortError.name = "AbortError";
     (global.fetch as jest.Mock).mockRejectedValue(abortError);
+    const controller = new AbortController();
+    controller.abort();
 
     const result = await chatCompletion({
       messages: [{ role: "user", content: "Hello" }],
+      signal: controller.signal,
     });
 
     expect(result.success).toBe(false);
@@ -291,6 +358,34 @@ describe("chatCompletion", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.content).toBe("trimmed response");
+    }
+  });
+
+  test("should extract text from array-form content parts", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        model: "test/model",
+        choices: [
+          {
+            message: {
+              content: [
+                { type: "text", text: "Hello" },
+                { type: "text", text: " from array content" },
+              ],
+            },
+          },
+        ],
+      }),
+    });
+
+    const result = await chatCompletion({
+      messages: [{ role: "user", content: "Hello" }],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.content).toBe("Hello from array content");
     }
   });
 });

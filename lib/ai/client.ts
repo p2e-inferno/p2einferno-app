@@ -14,6 +14,92 @@ const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL_FALLBACK = "google/gemini-2.0-flash-001";
 const DEFAULT_OPENROUTER_TIMEOUT_MS = 15_000;
 
+function dedupeModels(models: Array<string | undefined | null>) {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+
+  for (const model of models) {
+    if (!model || seen.has(model)) {
+      continue;
+    }
+
+    seen.add(model);
+    unique.push(model);
+  }
+
+  return unique;
+}
+
+function summarizeMessageContent(content: unknown) {
+  if (typeof content === "string") {
+    return {
+      kind: "text",
+      length: content.length,
+      preview: truncatePreview(content, 160),
+    };
+  }
+
+  if (!Array.isArray(content)) {
+    return {
+      kind: typeof content,
+      length: 0,
+      preview: "",
+    };
+  }
+
+  const textParts = content.filter(
+    (part) =>
+      part &&
+      typeof part === "object" &&
+      (part as { type?: unknown }).type === "text",
+  ) as Array<{ text?: unknown }>;
+  const multimediaCount = content.filter(
+    (part) =>
+      part &&
+      typeof part === "object" &&
+      ((part as { type?: unknown }).type === "image_url" || (part as { type?: unknown }).type === "video_url" || (part as { type?: unknown }).type === "media_url"),
+  ).length;
+  const text = textParts
+    .map((part) => (typeof part.text === "string" ? part.text : ""))
+    .join("")
+    .trim();
+
+  return {
+    kind: "multi_part",
+    partCount: content.length,
+    multimediaCount,
+    textLength: text.length,
+    preview: truncatePreview(text, 160),
+  };
+}
+
+function extractTextFromContent(content: unknown): string | null {
+  if (typeof content === "string") {
+    const trimmed = content.trim();
+    return trimmed || null;
+  }
+
+  if (!Array.isArray(content)) {
+    return null;
+  }
+
+  const text = content
+    .map((part) => {
+      if (!part || typeof part !== "object") {
+        return "";
+      }
+
+      const candidate = part as { type?: unknown; text?: unknown };
+      return candidate.type === "text" && typeof candidate.text === "string"
+        ? candidate.text
+        : "";
+    })
+    .join("")
+    .trim();
+
+  return text || null;
+}
+
 function truncatePreview(value: string, maxLen = 200): string {
   const trimmed = value.trim();
   if (trimmed.length <= maxLen) return trimmed;
@@ -94,11 +180,22 @@ export async function chatCompletion(
 
   const model =
     options.model || process.env.OPENROUTER_DEFAULT_MODEL || DEFAULT_MODEL_FALLBACK;
+  const fallbackModels = dedupeModels(
+    (options.fallbacks ?? []).filter((fallback) => fallback !== model),
+  );
 
   log.debug("AI request", {
     model,
     messageCount: options.messages.length,
-    hasFallbacks: Boolean(options.fallbacks?.length),
+    hasFallbacks: Boolean(fallbackModels.length),
+    maxTokens: options.maxTokens,
+    temperature: options.temperature,
+    responseFormat: options.responseFormat?.type ?? null,
+    messages: options.messages.map((message, index) => ({
+      index,
+      role: message.role,
+      content: summarizeMessageContent(message.content),
+    })),
   });
 
   try {
@@ -113,9 +210,15 @@ export async function chatCompletion(
     if (options.temperature !== undefined) {
       body.temperature = options.temperature;
     }
-    if (options.fallbacks?.length) {
+    if (options.responseFormat) {
+      body.response_format = options.responseFormat;
+    }
+    if (options.thinkingLevel) {
+      body.thinking_level = options.thinkingLevel;
+    }
+    if (fallbackModels.length) {
       body.route = "fallback";
-      body.models = [model, ...options.fallbacks];
+      body.models = [model, ...fallbackModels];
     }
 
     const timeoutMs = (() => {
@@ -180,13 +283,33 @@ export async function chatCompletion(
 
     const data = await response.json();
 
-    const content = data?.choices?.[0]?.message?.content;
-    if (typeof content !== "string" || !content.trim()) {
+    const rawContent = data?.choices?.[0]?.message?.content;
+    const content = extractTextFromContent(rawContent);
+    if (!content) {
       log.warn("Empty AI response", {
         model,
-        contentType: typeof content,
+        contentType: Array.isArray(rawContent) ? "array" : typeof rawContent,
         hasChoices: Array.isArray(data?.choices),
+        rawContentPreview:
+          typeof rawContent === "string"
+            ? truncatePreview(rawContent, 160)
+            : Array.isArray(rawContent)
+              ? truncatePreview(JSON.stringify(rawContent), 160)
+              : "",
       });
+      if (fallbackModels.length > 0) {
+        const [nextModel, ...remainingFallbacks] = fallbackModels;
+        log.warn("Manual retry triggered due to empty response", {
+          failedModel: model,
+          nextModel,
+        });
+        return chatCompletion({
+          ...options,
+          model: nextModel,
+          fallbacks: remainingFallbacks,
+        });
+      }
+
       return {
         success: false,
         error: "AI returned empty response",
@@ -205,12 +328,14 @@ export async function chatCompletion(
 
     log.info("AI response received", {
       model: actualModel,
-      contentLength: content.trim().length,
+      contentLength: content.length,
+      contentPreview: truncatePreview(content, 200),
+      usage,
     });
 
     return {
       success: true,
-      content: content.trim(),
+      content,
       model: actualModel,
       usage,
     };

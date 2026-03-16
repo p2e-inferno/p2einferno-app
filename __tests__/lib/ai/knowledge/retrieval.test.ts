@@ -2,6 +2,9 @@
  * Unit tests for AI Knowledge Base retrieval module
  */
 
+var errorLog: jest.Mock;
+var warnLog: jest.Mock;
+
 const mockRpc = jest.fn();
 const mockSelect = jest.fn();
 const mockIn = jest.fn();
@@ -15,12 +18,17 @@ jest.mock("@/lib/supabase/server", () => ({
 }));
 
 jest.mock("@/lib/utils/logger", () => ({
-  getLogger: () => ({
-    debug: jest.fn(),
-    info: jest.fn(),
-    warn: jest.fn(),
-    error: jest.fn(),
-  }),
+  getLogger: () => {
+    warnLog = warnLog || jest.fn();
+    errorLog = errorLog || jest.fn();
+
+    return {
+      debug: jest.fn(),
+      info: jest.fn(),
+      warn: warnLog,
+      error: errorLog,
+    };
+  },
 }));
 
 import { searchKnowledgeBase } from "@/lib/ai/knowledge/retrieval";
@@ -167,5 +175,46 @@ describe("searchKnowledgeBase", () => {
     expect(mockIn).toHaveBeenCalledWith("id", ["fresh-doc", "stale-doc"]);
     expect(result).toHaveLength(1);
     expect(result[0]?.document_id).toBe("fresh-doc");
+  });
+
+  it("logs when freshness filtering removes all results", async () => {
+    mockRpc.mockResolvedValue({
+      data: [
+        {
+          chunk_id: "stale-chunk",
+          document_id: "stale-doc",
+          title: "Stale",
+          chunk_text: "stale content",
+          metadata: {},
+          rank: 0.8,
+          keyword_rank: 0.3,
+          semantic_rank: 0.9,
+        },
+      ],
+      error: null,
+    });
+    mockIn.mockResolvedValue({
+      data: [{ id: "stale-doc", last_reviewed_at: "2026-01-01T00:00:00.000Z" }],
+      error: null,
+    });
+    jest
+      .spyOn(Date, "now")
+      .mockReturnValue(new Date("2026-03-12T00:00:00.000Z").getTime());
+
+    const result = await searchKnowledgeBase({
+      queryText: "stale test",
+      queryEmbedding: new Array(1536).fill(0),
+      freshnessDays: 7,
+    });
+
+    expect(result).toEqual([]);
+    expect(warnLog).toHaveBeenCalledWith(
+      "freshness filtering removed all KB results",
+      expect.objectContaining({
+        retrievalOutcome: "freshness_collapse",
+        initialResultCount: 1,
+        queryText: "stale test",
+      }),
+    );
   });
 });

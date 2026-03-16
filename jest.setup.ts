@@ -53,6 +53,7 @@ jest.mock("@privy-io/react-auth", () => ({
     user: null,
     authenticated: false,
     ready: true,
+    getAccessToken: jest.fn().mockResolvedValue(null),
     login: jest.fn(),
     logout: jest.fn(),
   }),

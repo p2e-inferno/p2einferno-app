@@ -1,5 +1,6 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import type { LinkedAccountWithMetadata, User } from "@privy-io/server-auth";
+import { CHAIN_ID } from "@/lib/blockchain/config";
 import { createAdminClient } from "@/lib/supabase/server";
 import {
   getPrivyUser,
@@ -19,7 +20,6 @@ import {
   isVendorBlockchainTaskType,
   isTxHashRequiredTaskType,
 } from "@/lib/quests/vendorTaskTypes";
-import { registerQuestTransaction } from "@/lib/quests/verification/replay-prevention";
 import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
 
 const log = getLogger("api:quests:complete-task");
@@ -378,35 +378,6 @@ export default async function handler(
       // If AI_NOT_CONFIGURED, verificationData stays null — normal manual flow
     }
 
-    if (pendingTxRegistration) {
-      // Intentionally register before persisting completion to claim tx hash early
-      // and prevent replay attacks. Tradeoff: if completion INSERT/UPDATE fails
-      // afterward, the tx remains claimed (orphaned) and cannot be retried.
-      const registerData = await registerQuestTransaction(supabase, {
-        txHash: pendingTxRegistration.txHash,
-        userId: effectiveUserId,
-        taskId,
-        taskType: pendingTxRegistration.taskType,
-        metadata: pendingTxRegistration.metadata,
-      });
-
-      if (!registerData.success) {
-        if (registerData.kind === "rpc_error") {
-          return res.status(500).json({
-            error: "Failed to register transaction",
-            code: "TX_REGISTER_FAILED",
-          });
-        }
-
-        return res.status(400).json({
-          error:
-            registerData.error ||
-            "This transaction has already been used to complete a quest task",
-          code: "TX_ALREADY_USED",
-        });
-      }
-    }
-
     // Determine initial status
     // AI-approved tasks bypass admin review. If AI ran and deferred, always send to admin review.
     const initialStatus = aiApproved
@@ -492,7 +463,80 @@ export default async function handler(
     // Complete the task (INSERT new or UPDATE existing for resubmission)
     let completionError;
 
-    if (existingCompletion) {
+    if (pendingTxRegistration) {
+      const parsedBlockNumber =
+        pendingTxRegistration.metadata.blockNumber !== null
+          ? Number(pendingTxRegistration.metadata.blockNumber)
+          : null;
+      const { data: atomicResult, error: atomicError } = await supabase.rpc(
+        "complete_quest_task_with_tx",
+        {
+          p_user_id: effectiveUserId,
+          p_quest_id: questId,
+          p_task_id: taskId,
+          p_existing_completion_id: existingCompletion?.id ?? null,
+          p_verification_data: verificationData,
+          p_submission_data: inputData ?? null,
+          p_submission_status: initialStatus,
+          p_admin_feedback: initialStatus === "retry" ? aiRetryFeedback : null,
+          p_chain_id: CHAIN_ID,
+          p_tx_hash: pendingTxRegistration.txHash,
+          p_task_type: pendingTxRegistration.taskType,
+          p_verified_amount: pendingTxRegistration.metadata.amount,
+          p_event_name: pendingTxRegistration.metadata.eventName,
+          p_block_number:
+            typeof parsedBlockNumber === "number" &&
+            Number.isFinite(parsedBlockNumber)
+              ? parsedBlockNumber
+              : null,
+          p_log_index: pendingTxRegistration.metadata.logIndex,
+        },
+      );
+
+      if (atomicError) {
+        log.error("Atomic task completion RPC failed", {
+          error: atomicError,
+          taskId,
+          questId,
+          userId: effectiveUserId,
+        });
+        return res.status(500).json({ error: "Failed to complete task" });
+      }
+
+      const atomicPayload = atomicResult as {
+        success?: boolean;
+        kind?: string;
+        error?: string;
+      } | null;
+
+      if (!atomicPayload?.success) {
+        if (atomicPayload?.kind === "tx_conflict") {
+          return res.status(400).json({
+            error:
+              atomicPayload.error ||
+              "This transaction has already been used to complete a quest task",
+            code: "TX_ALREADY_USED",
+          });
+        }
+
+        if (atomicPayload?.kind === "not_found") {
+          return res.status(409).json({
+            error:
+              atomicPayload.error ||
+              "Task submission could not be updated because it no longer exists",
+            code: "TASK_COMPLETION_STALE",
+          });
+        }
+
+        log.error("Atomic task completion returned failure", {
+          atomicPayload,
+          taskId,
+          questId,
+          userId: effectiveUserId,
+        });
+        return res.status(500).json({ error: "Failed to complete task" });
+      }
+    } else if (existingCompletion) {
       // UPDATE existing completion for retry/failed cases
       const { error } = await supabase
         .from("user_task_completions")

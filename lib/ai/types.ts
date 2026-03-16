@@ -20,8 +20,16 @@ export interface ImageUrlContent {
   };
 }
 
+export interface VideoUrlContent {
+  type: "video_url";
+  video_url: {
+    /** HTTPS URL or data:video/mp4;base64,... */
+    url: string;
+  };
+}
+
 /** Plain string for text-only, or array for vision/multi-part messages. */
-export type MessageContent = string | Array<TextContent | ImageUrlContent>;
+export type MessageContent = string | Array<TextContent | ImageUrlContent | VideoUrlContent>;
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -41,9 +49,30 @@ export interface AIRequestOptions {
   temperature?: number;
   /** Fallback model IDs if primary is unavailable. Uses OpenRouter native fallback routing. */
   fallbacks?: string[];
+  /** Optional provider-side response format contract. */
+  responseFormat?: AIResponseFormat;
+  /** Optional reasoning depth for models that support it (e.g. Gemini 3.1 'minimal' | 'low' | 'medium' | 'high'). */
+  thinkingLevel?: string;
   /** Abort signal for cancellation. */
   signal?: AbortSignal;
 }
+
+export interface AIJsonSchemaResponseFormat {
+  type: "json_schema";
+  json_schema: {
+    name: string;
+    strict?: boolean;
+    schema: Record<string, unknown>;
+  };
+}
+
+export interface AIJsonObjectResponseFormat {
+  type: "json_object";
+}
+
+export type AIResponseFormat =
+  | AIJsonSchemaResponseFormat
+  | AIJsonObjectResponseFormat;
 
 // --- Response types ---
 

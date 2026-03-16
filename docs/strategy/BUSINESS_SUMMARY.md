@@ -1,5 +1,10 @@
 # P2E Inferno - Business & Product Strategy Summary
 
+> Purpose: A product-native strategic overview of what P2E Inferno is, why it exists, how its ecosystem fits together, and what kind of transformation it is designed to create for users.
+> Retrieval Role: Primary source for user-facing, product-native explanations of what P2E Inferno is, why it exists, how the ecosystem fits together, and what kind of experience it offers.
+> Best used for: user questions, learner-facing explanations, product overview answers, mission/context answers, and natural high-level assistant responses.
+> Companion source: `EXECUTIVE_SUMMARY_POSITIONING.md` should be preferred when the context is grants, partnerships, sponsors, institutional outreach, or sharper external positioning.
+
 ## 1. Project Description
 P2E INFERNO is a gamified educational platform that empowers users to master frontier technologies—including AI and Web3—through hands-on, incentive-driven learning. We leverage blockchain technology not just as a subject, but as the transparent, trustless, and censorship-resistant infrastructure that ensures a credibly neutral and egalitarian learning economy.
 
