@@ -14,6 +14,10 @@ jest.mock("@/lib/chat/server/attachment-content", () => ({
   resolveChatAttachmentsForModel: jest.fn(async (attachments?: unknown[]) => attachments ?? []),
 }));
 
+jest.mock("@/lib/chat/server/chat-agent-loop", () => ({
+  runChatAgentLoop: jest.fn(),
+}));
+
 var warnLog: jest.Mock;
 
 jest.mock("@/lib/utils/logger", () => ({
@@ -37,6 +41,7 @@ import {
   validateChatRespondBody,
 } from "@/lib/chat/server/respond-service";
 import { resolveChatAttachmentsForModel } from "@/lib/chat/server/attachment-content";
+import { runChatAgentLoop } from "@/lib/chat/server/chat-agent-loop";
 
 const embedTextsMock = embedTexts as jest.MockedFunction<typeof embedTexts>;
 const searchKnowledgeBaseMock = searchKnowledgeBase as jest.MockedFunction<
@@ -49,6 +54,9 @@ const resolveChatAttachmentsForModelMock =
   resolveChatAttachmentsForModel as jest.MockedFunction<
     typeof resolveChatAttachmentsForModel
   >;
+const runChatAgentLoopMock = runChatAgentLoop as jest.MockedFunction<
+  typeof runChatAgentLoop
+>;
 
 describe("generateChatResponse", () => {
   const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -56,7 +64,15 @@ describe("generateChatResponse", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     process.env.NEXT_PUBLIC_APP_URL = "https://test.p2einferno.com";
+    delete process.env.CHAT_TOOL_AGENT_ENABLED;
     embedTextsMock.mockResolvedValue([new Array(1536).fill(0.1)]);
+    runChatAgentLoopMock.mockResolvedValue({
+      content: "Agent reply",
+      sources: [],
+      usedToolCalls: false,
+      iterations: 1,
+      stopReason: "final_answer",
+    });
     chatCompletionMock.mockImplementation(async (options) => {
       const systemMessage = options.messages[0]?.content;
       if (
@@ -178,6 +194,310 @@ describe("generateChatResponse", () => {
         href: undefined,
       },
     ]);
+  });
+
+  it("uses the tool-agent path behind the feature flag for homepage onboarding", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content:
+        "Start by connecting to the app, then check whether you're using an embedded or external wallet.",
+      sources: [
+        {
+          id: "docs/playbooks/GETTING_STARTED_PLAYBOOK.md",
+          title: "Getting Started",
+          href: undefined,
+        },
+      ],
+      usedToolCalls: true,
+      iterations: 2,
+      stopReason: "final_answer",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_home",
+        message: "I just landed here. What should I do first?",
+        messages: [{ role: "user", content: "I just landed here. What should I do first?" }],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          behaviorKey: "general",
+          segment: null,
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
+            content: expect.stringContaining(
+              "briefly suggest a screenshot or screen recording only if that would materially improve accuracy",
+            ),
+          }),
+        ]),
+        routeProfile: expect.objectContaining({
+          id: "home_onboarding",
+          domainTags: expect.arrayContaining(["onboarding", "wallet"]),
+        }),
+      }),
+    );
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "home_onboarding",
+        resultCount: 1,
+      }),
+    );
+    expect(response.message.content).toContain("connecting to the app");
+  });
+
+  it("keeps homepage wallet-type questions on the onboarding profile in the agent path", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content:
+        "To check your wallet type, look at whether you connected with email/social first or linked an external wallet.",
+      sources: [
+        {
+          id: "docs/playbooks/WALLETS_MEMBERSHIP_AND_ACCESS_PLAYBOOK.md",
+          title: "Wallets, Membership, and Access Playbook",
+          href: undefined,
+        },
+      ],
+      usedToolCalls: true,
+      iterations: 2,
+      stopReason: "final_answer",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_wallet_type",
+        message:
+          "how do i check my wallet or determine if im using embedded or external wallet and whats the difference",
+        messages: [
+          {
+            role: "assistant",
+            content:
+              "To get started with P2E Inferno, follow these steps: connect to the app first...",
+          },
+          {
+            role: "user",
+            content:
+              "how do i check my wallet or determine if im using embedded or external wallet and whats the difference",
+          },
+        ],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          behaviorKey: "general",
+          segment: null,
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        routeProfile: expect.objectContaining({
+          id: "home_onboarding",
+          domainTags: expect.arrayContaining(["wallet", "onboarding"]),
+          audience: ["support", "sales"],
+        }),
+      }),
+    );
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "home_onboarding",
+        resultCount: 1,
+      }),
+    );
+    expect(response.message.content).toContain("wallet type");
+  });
+
+  it("falls back to the legacy router path when tool-agent returns no tool calls for a grounding-preferred request", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content: "Generic answer",
+      sources: [],
+      usedToolCalls: false,
+      iterations: 1,
+      stopReason: "final_answer",
+    });
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-1",
+        document_id: "doc-1",
+        title: "Getting Started",
+        chunk_text: "Connect first, then review your wallet setup.",
+        metadata: {
+          source_path: "docs/playbooks/GETTING_STARTED_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.86,
+        keyword_rank: 0.63,
+        semantic_rank: 0.88,
+      },
+    ] as any);
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "I just landed here. What should I do first?",
+          rationale: "Needs grounded onboarding guidance.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Connect first, then review your wallet setup.",
+        model: "test-model",
+      });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_fallback",
+        message: "I just landed here. What should I do first?",
+        messages: [{ role: "user", content: "I just landed here. What should I do first?" }],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          behaviorKey: "general",
+          segment: null,
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalled();
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "home_sales",
+        resultCount: 1,
+      }),
+    );
+  });
+
+  it("preserves attachment-only requests through the agent path", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content: "I can see the screenshot and help you from here.",
+      sources: [],
+      usedToolCalls: false,
+      iterations: 1,
+      stopReason: "final_answer",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_attachment_only",
+        message: "",
+        attachments: [
+          {
+            type: "image",
+            name: "screenshot.png",
+            size: 128,
+            data: "data:image/png;base64,AAAA",
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content: "",
+            attachments: [
+              {
+                type: "image",
+                name: "screenshot.png",
+                size: 128,
+                data: "data:image/png;base64,AAAA",
+              },
+            ],
+          },
+        ],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "system",
+            content: expect.stringContaining(
+              "If the user already shared an image or video, use it directly instead of asking them to send another one.",
+            ),
+          }),
+          expect.objectContaining({
+            role: "user",
+            content: expect.any(Array),
+          }),
+        ]),
+      }),
+    );
+    expect(response.message.content).toContain("see the screenshot");
+  });
+
+  it("falls back to the legacy router path when the agent loop throws", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockRejectedValue(new Error("tool loop failed"));
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-1",
+        document_id: "doc-1",
+        title: "Getting Started",
+        chunk_text: "Connect first, then review your wallet setup.",
+        metadata: {
+          source_path: "docs/playbooks/GETTING_STARTED_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.86,
+        keyword_rank: 0.63,
+        semantic_rank: 0.88,
+      },
+    ] as any);
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          route: "grounded_kb",
+          retrievalQuery: "I just landed here. What should I do first?",
+          rationale: "Needs grounded onboarding guidance.",
+        }),
+        model: "router-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Connect first, then review your wallet setup.",
+        model: "test-model",
+      });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_throw",
+        message: "I just landed here. What should I do first?",
+        messages: [{ role: "user", content: "I just landed here. What should I do first?" }],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          behaviorKey: "general",
+          segment: null,
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalled();
+    expect(response.message.content).toContain("Connect first");
   });
 
   it("returns a natural greeting reply without forcing weak retrieval fallback", async () => {

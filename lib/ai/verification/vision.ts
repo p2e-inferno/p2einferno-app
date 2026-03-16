@@ -148,6 +148,15 @@ export async function verifyScreenshotWithAI(options: {
     return { success: false, error: result.error, code: result.code };
   }
 
+  if (!("content" in result)) {
+    return {
+      success: false,
+      error: "AI returned an unexpected tool-call response",
+      code: "AI_UNEXPECTED_TOOL_CALL",
+      model: result.model,
+    };
+  }
+
   const parsed = parseVisionDecisionResponse(result.content);
   if (!parsed) {
     return {
