@@ -1,6 +1,37 @@
 let currentUserId = "did:1";
 let currentSupabase: ReturnType<typeof createFakeSupabase>;
 
+interface ConversationRow {
+  [key: string]: string | null | undefined;
+  id: string;
+  privy_user_id: string;
+  source: "anonymous" | "authenticated";
+  created_at: string;
+  updated_at: string;
+  cleared_at: string | null;
+}
+
+interface WidgetRow {
+  [key: string]: string | boolean | null;
+  privy_user_id: string;
+  is_open: boolean;
+  is_peek_visible: boolean;
+  is_peek_dismissed: boolean;
+  draft: string;
+  active_conversation_id: string | null;
+  updated_at: string;
+}
+
+interface MessageRow {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant";
+  content: string;
+  ts: number;
+  status: "complete" | "streaming" | "error";
+  error: string | null;
+}
+
 jest.mock("next/server", () => ({
   NextResponse: class {
     static json(body: unknown, init: { status?: number } = {}) {
@@ -23,12 +54,12 @@ jest.mock("@/lib/supabase/server", () => ({
 }));
 
 function createFakeSupabase() {
-  const conversations = new Map<string, any>();
-  const widgets = new Map<string, any>();
-  const messages = new Map<string, any[]>();
+  const conversations = new Map<string, ConversationRow>();
+  const widgets = new Map<string, WidgetRow>();
+  const messages = new Map<string, MessageRow[]>();
 
   const makeConversationSelect = () => {
-    let filters: Record<string, any> = {};
+    let filters: Record<string, string | null> = {};
     let requireClearedNull = false;
     let orderBy: string | null = null;
     let orderAscending = true;
@@ -71,10 +102,10 @@ function createFakeSupabase() {
             const rightValue = right[orderBy!];
             if (leftValue === rightValue) return 0;
             return orderAscending
-              ? leftValue < rightValue
+              ? (leftValue ?? "") < (rightValue ?? "")
                 ? -1
                 : 1
-              : leftValue > rightValue
+              : (leftValue ?? "") > (rightValue ?? "")
                 ? -1
                 : 1;
           });
@@ -92,7 +123,7 @@ function createFakeSupabase() {
   };
 
   const makeWidgetSelect = () => {
-    let filters: Record<string, any> = {};
+    let filters: Record<string, string | boolean | null> = {};
 
     const builder: any = {
       eq(field: string, value: any) {
@@ -138,37 +169,36 @@ function createFakeSupabase() {
   };
 
   const makeConversationUpdate = () => {
-    const filters: Record<string, any> = {};
-    let payload: any = null;
+    return (payload: Partial<ConversationRow>) => {
+      const filters: Record<string, string | null> = {};
 
-    const builder: any = {
-      eq(field: string, value: any) {
-        filters[field] = value;
-        return builder;
-      },
-      then(
-        resolve: (value: { data: null; error: null }) => void,
-        reject?: (reason?: unknown) => void,
-      ) {
-        try {
-          for (const row of conversations.values()) {
-            const matches = Object.entries(filters).every(
-              ([filterField, filterValue]) => row[filterField] === filterValue,
-            );
-            if (matches && payload) {
-              conversations.set(row.id, { ...row, ...payload });
+      const builder: any = {
+        eq(field: string, value: string | null) {
+          filters[field] = value;
+          return builder;
+        },
+        then(
+          resolve: (value: { data: null; error: null }) => void,
+          reject?: (reason?: unknown) => void,
+        ) {
+          try {
+            for (const row of conversations.values()) {
+              const matches = Object.entries(filters).every(
+                ([filterField, filterValue]) =>
+                  row[filterField as keyof ConversationRow] === filterValue,
+              );
+              if (matches) {
+                conversations.set(row.id, { ...row, ...payload });
+              }
             }
+
+            resolve({ data: null, error: null });
+          } catch (error) {
+            reject?.(error);
           }
+        },
+      };
 
-          resolve({ data: null, error: null });
-        } catch (error) {
-          reject?.(error);
-        }
-      },
-    };
-
-    return (nextPayload: any) => {
-      payload = nextPayload;
       return builder;
     };
   };
@@ -180,18 +210,20 @@ function createFakeSupabase() {
       if (table === "chat_conversations") {
         return {
           select: jest.fn(() => makeConversationSelect()),
-          upsert: jest.fn(async (payload: any) => {
+          upsert: jest.fn(async (payload: ConversationRow) => {
             conversations.set(payload.id, payload);
             return { error: null };
           }),
-          update: jest.fn((payload: any) => updateConversation(payload)),
+          update: jest.fn((payload: Partial<ConversationRow>) =>
+            updateConversation(payload),
+          ),
         };
       }
 
       if (table === "chat_messages") {
         return {
           select: jest.fn(() => makeMessageSelect()),
-          upsert: jest.fn(async (payload: any[]) => {
+          upsert: jest.fn(async (payload: MessageRow[]) => {
             for (const row of payload) {
               const existing = messages.get(row.conversation_id) || [];
               const deduped = existing.filter((entry) => entry.id !== row.id);
@@ -205,7 +237,7 @@ function createFakeSupabase() {
       if (table === "chat_widget_sessions") {
         return {
           select: jest.fn(() => makeWidgetSelect()),
-          upsert: jest.fn(async (payload: any) => {
+          upsert: jest.fn(async (payload: WidgetRow) => {
             widgets.set(payload.privy_user_id, payload);
             return { error: null };
           }),

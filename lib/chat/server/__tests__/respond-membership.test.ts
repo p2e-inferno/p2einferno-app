@@ -34,6 +34,10 @@ const createPublicClientUnifiedMock =
 const checkUserKeyOwnershipMock = checkUserKeyOwnership as jest.MockedFunction<
   typeof checkUserKeyOwnership
 >;
+type PublicClientResult = ReturnType<typeof createPublicClientUnified>;
+type UserKeyOwnershipResult = Awaited<ReturnType<typeof checkUserKeyOwnership>>;
+const originalNationLockAddress =
+  process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS;
 
 describe("hasActiveChatMembership", () => {
   beforeEach(() => {
@@ -42,7 +46,18 @@ describe("hasActiveChatMembership", () => {
     clearChatMembershipCache();
     process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS =
       "0x0000000000000000000000000000000000000001";
-    createPublicClientUnifiedMock.mockReturnValue({} as any);
+    createPublicClientUnifiedMock.mockReturnValue({} as PublicClientResult);
+  });
+
+  afterEach(() => {
+    clearChatMembershipCache();
+    if (originalNationLockAddress === undefined) {
+      delete process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS;
+      return;
+    }
+
+    process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS =
+      originalNationLockAddress;
   });
 
   it("returns false when membership lookup errors", async () => {
@@ -52,11 +67,12 @@ describe("hasActiveChatMembership", () => {
   });
 
   it("returns true when the user has a valid key", async () => {
-    checkUserKeyOwnershipMock.mockResolvedValue({
+    const result: UserKeyOwnershipResult = {
       hasValidKey: true,
       checkedAddresses: ["0x123"],
       errors: [],
-    } as any);
+    };
+    checkUserKeyOwnershipMock.mockResolvedValue(result);
 
     await expect(hasActiveChatMembership("did:2")).resolves.toBe(true);
   });
@@ -75,11 +91,12 @@ describe("hasActiveChatMembership", () => {
   });
 
   it("bounds membership cache growth", async () => {
-    checkUserKeyOwnershipMock.mockResolvedValue({
+    const result: UserKeyOwnershipResult = {
       hasValidKey: true,
       checkedAddresses: ["0x123"],
       errors: [],
-    } as any);
+    };
+    checkUserKeyOwnershipMock.mockResolvedValue(result);
 
     for (let index = 0; index < 230; index += 1) {
       await hasActiveChatMembership(`did:${index}`);

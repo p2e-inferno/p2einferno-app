@@ -50,28 +50,93 @@ Once that foundation is in place, everything else becomes much easier.
 
 ## What To Set Up First
 
-## 1. Sign in and understand your wallet situation
+## 1. Connect to the app first, then set up wallet usage correctly
 
-Before doing anything else, understand which wallet the app is currently using.
+Before talking about self-custody wallet setup, the first real step is to connect to the app.
 
-P2E Inferno can work with:
+Users can enter P2E Inferno through:
 
-- an embedded Privy wallet
-- linked external wallets such as MetaMask
+- email
+- an existing Ethereum wallet
+- supported social account login such as Farcaster
 
-The app prefers a linked external wallet when it is available on the current device. If not, it may fall back to the embedded wallet.
+This matters because P2E Inferno uses Privy. That means a user can begin using the app even if they do not yet have an external wallet ready, because Privy can provide an embedded wallet experience.
 
-This matters because some features check:
+So the correct starting mental model is:
 
-- any linked wallet on your account
+1. connect to the app
+2. understand which wallet the app is using
+3. decide whether to keep using the embedded wallet temporarily or link an external wallet
+4. complete profile and account linking
+5. move into the first onboarding quests
 
-while others depend on:
+A user does not need to arrive with a self-custody wallet already set up in order to begin.
 
-- the exact active wallet currently being used
+## 2. Understand the difference between embedded wallet access and external wallet readiness
 
-If you are unsure, check your profile and linked accounts first.
+New users can start with the embedded wallet, but they should understand its role clearly.
 
-## 2. Complete any essential verification or access prerequisites
+The embedded wallet is useful because:
+
+- it lets the user get started quickly
+- it reduces first-day friction
+- it works as a fallback when no external wallet is available on the device
+
+However, an external self-custody wallet is still strongly recommended for most serious quest participation.
+
+That is especially important when:
+
+- a quest requires the user to interact with onchain apps outside P2E Inferno
+- the user will move across multiple Web3 apps or protocols
+- the user wants to avoid confusion between embedded-wallet actions and external-wallet actions
+
+Best practice for most users:
+
+- connect to the app first
+- then link or set up an external wallet as early as possible
+- use that external wallet consistently for broader onchain activity
+
+This reduces wallet mix-up and makes off-platform quest tasks much easier.
+
+## 3. On mobile, use the wallet's in-app browser for the cleanest Web3 experience
+
+This is one of the most important onboarding rules for mobile users.
+
+On mobile, users should be guided to open P2E Inferno from the in-app browser inside their wallet app whenever they want to use an external wallet for Web3 interactions.
+
+Examples include:
+
+- MetaMask in-app browser
+- Rabby in-app browser
+- Coinbase Wallet in-app browser
+
+Why this matters:
+
+- normal mobile browsers such as Chrome or Firefox may not expose the external wallet correctly
+- when the external wallet is not available in the browser context, the app may fall back to the embedded wallet
+- that can create confusion about which wallet is active for signing, access, or quest completion
+
+Best practice for mobile users:
+
+- if they want to use their external wallet, open the app from the wallet app's browser
+- do not assume a normal mobile browser will preserve the same wallet context
+
+## 4. Complete account and profile linking early
+
+After connecting, users should go to their profile and complete as much account linking as possible.
+
+The profile is where users should review and connect important identity and access pieces such as:
+
+- email
+- wallet
+- Telegram
+- Farcaster, if they have one
+
+This matters because early profile setup reduces friction later when quests or ecosystem actions depend on linked identity, communication, or wallet continuity.
+
+The assistant should guide users to `/lobby/profile` early, not only when something is broken.
+
+## 5. Complete any essential verification or access prerequisites
 
 Some experiences may require:
 
@@ -82,7 +147,7 @@ Some experiences may require:
 
 Not every user needs all of these immediately, but if a feature says you are ineligible, the reason is usually one of those.
 
-## 3. Enter through the right doorway
+## 6. Enter through the right doorway
 
 Most new users should enter through one of these paths:
 
@@ -173,12 +238,13 @@ The important thing is to understand that the vendor is part of the app’s broa
 
 For most users, this is the recommended order:
 
-1. Get your wallet and account setup right.
-2. Visit the lobby and understand the main action areas.
-3. Start a bootcamp application or enter the quests area, depending on your goal.
-4. Complete a first low-friction action such as check-in, a basic quest step, or a guided setup task.
-5. Learn where your next proof-of-work or progression task lives.
-6. Only then start exploring deeper progression systems like vendor stages, membership strategy, or optimization of rewards.
+1. Connect to the app using email, wallet, or supported social login.
+2. Identify whether the app is currently using the embedded wallet or a linked external wallet.
+3. If possible, link or set up an external self-custody wallet early.
+4. On mobile, use the wallet app's in-app browser when interacting with the app through an external wallet.
+5. Visit `/lobby/profile` and complete important account linking such as email, wallet, Telegram, and Farcaster if available.
+6. Complete the onboarding-style quests that establish account readiness, such as Rosy Beginnings and wallet setup.
+7. Then move into broader quest, bootcamp, or daily participation flows.
 
 ## A Good First-Week Path
 
@@ -186,11 +252,37 @@ This is the healthiest first-week approach for a new user:
 
 ### Day 1: Get oriented
 
-- sign in
-- check your linked wallets
-- understand whether the active wallet is embedded or external
+- connect to the app
+- understand whether the current wallet is embedded or external
+- if possible, link or prepare an external self-custody wallet
+- if on mobile, open the app from the wallet's in-app browser for external-wallet flows
+- visit `/lobby/profile`
+- complete key account linking such as email, wallet, Telegram, and Farcaster if available
 - explore the lobby
 - identify whether you are here primarily for learning, quests, or broader ecosystem participation
+- identify the onboarding quests that establish account readiness before moving deeper into the ecosystem
+
+## The First Quests Should Build Account Readiness
+
+Before moving into deeper quest participation, new users should establish a clean operating foundation.
+
+The most important early quest pattern is:
+
+- connect and link the needed accounts
+- set up or link a usable self-custody wallet
+- make sure profile-level identity is complete
+- only then move into broader quest participation
+
+Two especially important examples are:
+
+- **Rosy Beginnings**
+  - this is the account-linking and profile-readiness quest
+  - it helps users complete the basic identity setup needed for clean participation
+- **Set Up Wallet**
+  - this is the self-custody wallet setup step
+  - it matters because many broader Web3 quests depend on a wallet the user controls outside the app
+
+These are not optional side details. They are foundational onboarding steps.
 
 ### Day 2: Start one guided path
 

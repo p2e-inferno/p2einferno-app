@@ -8,6 +8,8 @@ import {
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("api:chat-attachments:cleanup");
+const MAX_CLEANUP_PATHNAMES = 20;
+const OWNERSHIP_CHECK_BATCH_SIZE = 5;
 
 interface CleanupBody {
   pathnames?: unknown;
@@ -15,7 +17,16 @@ interface CleanupBody {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: "Invalid cleanup payload" },
+        { status: 400 },
+      );
+    }
+
     if (typeof body !== "object" || body === null || Array.isArray(body)) {
       return NextResponse.json(
         { error: "Invalid cleanup payload" },
@@ -34,7 +45,7 @@ export async function POST(request: NextRequest) {
             typeof value === "string" && isChatAttachmentBlobPath(value),
         ),
       ),
-    );
+    ).slice(0, MAX_CLEANUP_PATHNAMES);
 
     if (!requestedPathnames.length) {
       return NextResponse.json({ deletedCount: 0 });
@@ -43,23 +54,36 @@ export async function POST(request: NextRequest) {
     const identity = await resolveChatAttachmentAccessIdentity(request);
     const verifiedPathnames: string[] = [];
 
-    await Promise.all(
-      requestedPathnames.map(async (pathname) => {
-        try {
-          await assertChatAttachmentOwnership(
-            pathname,
-            identity.usageIdentity.identityKey,
-          );
-          verifiedPathnames.push(pathname);
-        } catch (error) {
-          log.warn("Skipped chat attachment cleanup for unowned pathname", {
-            pathname,
-            identityKey: identity.usageIdentity.identityKey,
-            error,
-          });
-        }
-      }),
-    );
+    const redactedIdentityKey = identity.usageIdentity.identityKey.slice(-6);
+
+    for (
+      let startIndex = 0;
+      startIndex < requestedPathnames.length;
+      startIndex += OWNERSHIP_CHECK_BATCH_SIZE
+    ) {
+      const batch = requestedPathnames.slice(
+        startIndex,
+        startIndex + OWNERSHIP_CHECK_BATCH_SIZE,
+      );
+
+      await Promise.all(
+        batch.map(async (pathname) => {
+          try {
+            await assertChatAttachmentOwnership(
+              pathname,
+              identity.usageIdentity.identityKey,
+            );
+            verifiedPathnames.push(pathname);
+          } catch (error) {
+            log.warn("Skipped chat attachment cleanup for unowned pathname", {
+              pathname,
+              identityKey: `***${redactedIdentityKey}`,
+              error,
+            });
+          }
+        }),
+      );
+    }
 
     if (!verifiedPathnames.length) {
       return NextResponse.json({ deletedCount: 0 });

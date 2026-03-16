@@ -39,6 +39,10 @@ export class SupabaseChatRepository implements ChatRepository {
   }
 
   async createConversation(conversation: ChatConversation): Promise<ChatConversation> {
+    if (!this.isAvailable) {
+      throw new Error("Chat repository is not available");
+    }
+
     const response = await fetch("/api/chat/conversations", {
       method: "POST",
       headers: this.getHeaders(),

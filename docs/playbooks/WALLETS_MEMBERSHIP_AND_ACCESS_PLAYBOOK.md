@@ -35,6 +35,27 @@ If those three answers are clear, most access problems become straightforward.
 
 ## Embedded Wallet vs External Wallet
 
+## The onboarding rule most new users need
+
+A user does not need an external wallet before connecting to the app.
+
+Because P2E Inferno uses Privy, a user can begin by connecting through:
+
+- email
+- an existing wallet
+- supported social login such as Farcaster
+
+This means the embedded wallet can help a user get started immediately.
+
+However, the embedded wallet should be treated as a convenience and fallback layer, not always the ideal long-term action wallet.
+
+For most users, the healthiest pattern is:
+
+1. connect to the app first
+2. understand whether the current wallet is embedded or external
+3. link or set up an external self-custody wallet as early as practical
+4. use that external wallet consistently for broader Web3 activity
+
 ## Embedded wallet
 
 The embedded wallet is the wallet managed through the Privy account experience.
@@ -75,6 +96,24 @@ This means:
 - the app may fall back to the embedded wallet in that situation
 - this is normal behavior, not random switching
 
+## Mobile rule: use the wallet app's in-app browser
+
+When a user wants to use an external wallet on mobile, they should usually access P2E Inferno from the wallet app's in-app browser.
+
+Examples include:
+
+- MetaMask
+- Rabby
+- Coinbase Wallet
+
+Why this matters:
+
+- standard mobile browsers may not expose the external wallet correctly
+- if the external wallet is not available in that browser context, the app may fall back to the embedded wallet
+- this can create confusion about active wallet context, signing, and eligibility
+
+Support and AI guidance should treat this as a first-line recommendation for mobile onboarding, not as an edge case.
+
 ## What Setup Is Best For Most Users
 
 ## Best simple setup
@@ -95,6 +134,8 @@ If a user already holds:
 - a verified identity flow
 
 on an external wallet, then that wallet should usually stay linked and be treated as the primary action wallet for the relevant features.
+
+This is also the better long-term setup for users who expect to complete quests that involve external Web3 apps or protocols beyond P2E Inferno itself.
 
 ## Best setup for advanced users
 

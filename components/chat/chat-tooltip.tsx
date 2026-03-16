@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 
 interface ChatTooltipProps {
@@ -10,6 +10,7 @@ interface ChatTooltipProps {
 
 export const ChatTooltip = ({ label, children }: ChatTooltipProps) => {
   const [isHovered, setIsHovered] = useState(false);
+  const tooltipId = useId();
 
   return (
     <div
@@ -19,11 +20,14 @@ export const ChatTooltip = ({ label, children }: ChatTooltipProps) => {
       onFocus={() => setIsHovered(true)}
       onBlur={() => setIsHovered(false)}
       tabIndex={0}
+      aria-describedby={isHovered ? tooltipId : undefined}
     >
       {children}
       <AnimatePresence>
         {isHovered && (
           <motion.div
+            id={tooltipId}
+            role="tooltip"
             initial={{ opacity: 0, y: 5, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 5, scale: 0.95 }}
