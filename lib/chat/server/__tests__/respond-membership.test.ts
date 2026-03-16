@@ -6,16 +6,14 @@ jest.mock("@/lib/services/user-key-service", () => ({
   checkUserKeyOwnership: jest.fn(),
 }));
 
-var warnLog: jest.Mock;
+let warnLog: jest.Mock;
 
 jest.mock("@/lib/utils/logger", () => ({
   getLogger: () => {
-    warnLog = warnLog || jest.fn();
-
     return {
       debug: jest.fn(),
       info: jest.fn(),
-      warn: warnLog,
+      warn: (...args: unknown[]) => warnLog(...args),
       error: jest.fn(),
     };
   },
@@ -40,6 +38,7 @@ const checkUserKeyOwnershipMock = checkUserKeyOwnership as jest.MockedFunction<
 describe("hasActiveChatMembership", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    warnLog = jest.fn();
     clearChatMembershipCache();
     process.env.NEXT_PUBLIC_DG_NATION_LOCK_ADDRESS =
       "0x0000000000000000000000000000000000000001";

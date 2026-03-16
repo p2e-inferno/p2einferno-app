@@ -42,7 +42,7 @@ describe("ChatMessageList", () => {
           },
         ]}
         loading
-        showTypingIndicator={false}
+        showTypingIndicator
         onRetryMessage={jest.fn().mockResolvedValue(undefined)}
         onDeleteMessage={jest.fn().mockResolvedValue(undefined)}
       />,

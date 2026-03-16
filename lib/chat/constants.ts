@@ -14,6 +14,9 @@ export const CHAT_PANEL_MOBILE_CLASS =
   "w-[calc(100vw-1.5rem)] max-w-[420px] h-[460px] max-h-[calc(100vh-8rem)]";
 export const CHAT_ATTACHMENT_UPLOAD_ROUTE = "/api/chat/attachments/upload";
 export const CHAT_ATTACHMENT_BLOB_PREFIX = "chat-attachments";
+export const CHAT_WELCOME_MESSAGE_ID = "chat_welcome_message";
+export const CHAT_WELCOME_MESSAGE_TEXT =
+  "Hey 👋 I’m your in-app guide. Ask me anything — or tap a quick prompt below to get started.";
 
 export const CHAT_SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   {
@@ -25,9 +28,10 @@ export const CHAT_SUGGESTED_PROMPTS: SuggestedPrompt[] = [
   { label: "Verify identity", prompt: "What is verification and why do I need it?" },
 ];
 
-export const CHAT_WELCOME_MESSAGE: ChatMessage = createAssistantMessage(
-  "Hey 👋 I’m your in-app guide. Ask me anything — or tap a quick prompt below to get started.",
-);
+export const CHAT_WELCOME_MESSAGE: ChatMessage = {
+  ...createAssistantMessage(CHAT_WELCOME_MESSAGE_TEXT),
+  id: CHAT_WELCOME_MESSAGE_ID,
+};
 
 export const CHAT_ATTACHMENT_LIMITS = {
   maxSize: 5 * 1024 * 1024, // 5MB

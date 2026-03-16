@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Bot } from "lucide-react";
 
@@ -8,12 +9,30 @@ interface ChatLauncherProps {
 }
 
 export function ChatLauncher({ onOpen }: ChatLauncherProps) {
+  const [isOpening, setIsOpening] = useState(false);
+
+  const handleOpen = async () => {
+    if (isOpening) {
+      return;
+    }
+
+    setIsOpening(true);
+    try {
+      await onOpen();
+    } finally {
+      setIsOpening(false);
+    }
+  };
+
   return (
     <motion.button
-      whileHover={{ scale: 1.05, y: -2 }}
-      whileTap={{ scale: 0.95 }}
-      onClick={() => void onOpen()}
-      className="group relative h-16 w-16 overflow-hidden rounded-[1.75rem] bg-slate-900 p-[1px] shadow-2xl transition-all"
+      whileHover={isOpening ? undefined : { scale: 1.05, y: -2 }}
+      whileTap={isOpening ? undefined : { scale: 0.95 }}
+      onClick={() => void handleOpen()}
+      disabled={isOpening}
+      className={`group relative h-16 w-16 overflow-hidden rounded-[1.75rem] bg-slate-900 p-[1px] shadow-2xl transition-all ${
+        isOpening ? "cursor-wait opacity-80" : ""
+      }`}
       aria-label="Open onboarding assistant"
     >
       {/* Animated Border Gradient */}

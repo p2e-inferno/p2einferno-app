@@ -16,6 +16,9 @@ export const ChatTooltip = ({ label, children }: ChatTooltipProps) => {
       className="relative flex flex-col items-center"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onFocus={() => setIsHovered(true)}
+      onBlur={() => setIsHovered(false)}
+      tabIndex={0}
     >
       {children}
       <AnimatePresence>

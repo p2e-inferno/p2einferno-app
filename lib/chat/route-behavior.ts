@@ -61,7 +61,7 @@ export function resolveChatRouteBehavior(
   pathname: string,
   segment: string | null,
 ): ChatRouteBehavior {
-  if (pathname.startsWith("/admin")) {
+  if (pathname === "/admin" || pathname.startsWith("/admin/")) {
     return ROUTE_BEHAVIOR_MAP.admin;
   }
 

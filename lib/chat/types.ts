@@ -83,7 +83,6 @@ export interface RestoreConversationResult {
 }
 
 export interface ChatWidgetState extends ChatWidgetSession {
-  activeConversationId: string | null;
   messages: ChatMessage[];
   status: ChatRequestStatus;
   error: string | null;

@@ -15,8 +15,18 @@ interface CleanupBody {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CleanupBody;
-    const rawPathnames = Array.isArray(body.pathnames) ? body.pathnames : [];
+    const body = await request.json();
+    if (typeof body !== "object" || body === null || Array.isArray(body)) {
+      return NextResponse.json(
+        { error: "Invalid cleanup payload" },
+        { status: 400 },
+      );
+    }
+
+    const typedBody = body as CleanupBody;
+    const rawPathnames = Array.isArray(typedBody.pathnames)
+      ? typedBody.pathnames
+      : [];
     const requestedPathnames = Array.from(
       new Set(
         rawPathnames.filter(

@@ -1,3 +1,7 @@
+import {
+  CHAT_WELCOME_MESSAGE_ID,
+  CHAT_WELCOME_MESSAGE_TEXT,
+} from "@/lib/chat/constants";
 import type { ChatMessage, ChatWidgetState } from "@/lib/chat/types";
 
 export function selectChatCanSend(state: ChatWidgetState) {
@@ -5,7 +9,12 @@ export function selectChatCanSend(state: ChatWidgetState) {
 }
 
 export function selectChatHasOnlyWelcomeMessage(messages: ChatMessage[]) {
-  return messages.length <= 1;
+  return (
+    messages.length === 1 &&
+    messages[0]?.role === "assistant" &&
+    (messages[0].id === CHAT_WELCOME_MESSAGE_ID ||
+      messages[0].content === CHAT_WELCOME_MESSAGE_TEXT)
+  );
 }
 
 export function selectChatHasActiveStreamingAssistantMessage(

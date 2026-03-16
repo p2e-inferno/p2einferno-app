@@ -54,12 +54,15 @@ export class SupabaseChatRepository implements ChatRepository {
     conversationId: string,
     messages: ChatMessage[],
   ): Promise<ChatConversation | null> {
-    const response = await fetch(`/api/chat/conversations/${conversationId}/messages`, {
-      method: "POST",
-      headers: this.getHeaders(),
-      credentials: "include",
-      body: JSON.stringify({ messages }),
-    });
+    const response = await fetch(
+      `/api/chat/conversations/${encodeURIComponent(conversationId)}/messages`,
+      {
+        method: "POST",
+        headers: this.getHeaders(),
+        credentials: "include",
+        body: JSON.stringify({ messages }),
+      },
+    );
 
     const payload = await ensureJsonResponse<{ conversation: ChatConversation | null }>(response);
     return payload.conversation;
@@ -70,7 +73,7 @@ export class SupabaseChatRepository implements ChatRepository {
     messageId: string,
   ): Promise<void> {
     const response = await fetch(
-      `/api/chat/conversations/${conversationId}/messages/${messageId}`,
+      `/api/chat/conversations/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}`,
       {
         method: "DELETE",
         headers: this.getHeaders(),

@@ -48,6 +48,7 @@ export function ChatTeaser({
             <div className="absolute right-2 top-2">
               <ChatTooltip label="Dismiss">
                 <button
+                  type="button"
                   onClick={(event) => {
                     event.stopPropagation();
                     void onDismiss();

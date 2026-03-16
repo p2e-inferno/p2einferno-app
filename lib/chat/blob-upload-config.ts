@@ -3,7 +3,13 @@ import {
   CHAT_ATTACHMENT_UPLOAD_ROUTE,
 } from "./constants";
 
-const LOCALHOST_HOSTNAMES = new Set(["localhost", "127.0.0.1", "0.0.0.0"]);
+const LOCALHOST_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "::1",
+  "0:0:0:0:0:0:0:1",
+]);
 
 function normalizeOrigin(value?: string | null) {
   if (!value) {

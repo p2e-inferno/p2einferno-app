@@ -144,18 +144,26 @@ function createFakeSupabase() {
     const builder: any = {
       eq(field: string, value: any) {
         filters[field] = value;
-        for (const row of conversations.values()) {
-          const matches = Object.entries(filters).every(
-            ([filterField, filterValue]) => row[filterField] === filterValue,
-          );
-          if (matches && payload) {
-            conversations.set(row.id, { ...row, ...payload });
-          }
-        }
         return builder;
       },
-      then(resolve: (value: { data: null; error: null }) => void) {
-        resolve({ data: null, error: null });
+      then(
+        resolve: (value: { data: null; error: null }) => void,
+        reject?: (reason?: unknown) => void,
+      ) {
+        try {
+          for (const row of conversations.values()) {
+            const matches = Object.entries(filters).every(
+              ([filterField, filterValue]) => row[filterField] === filterValue,
+            );
+            if (matches && payload) {
+              conversations.set(row.id, { ...row, ...payload });
+            }
+          }
+
+          resolve({ data: null, error: null });
+        } catch (error) {
+          reject?.(error);
+        }
       },
     };
 
