@@ -20,6 +20,32 @@ const SERVER_CHAT_ROUTE_PROFILES: Record<
       "At a high level, P2E Inferno helps people learn frontier tech through guided bootcamps, quests, and progression systems.\n\n" +
       "If you want to get started, the best path is to create an account, explore the lobby, and choose between quests or bootcamps based on whether you want quick action or structured learning.",
   },
+  home_onboarding: {
+    id: "home_onboarding",
+    audience: ["support", "sales"],
+    domainTags: [
+      "onboarding",
+      "getting-started",
+      "navigation",
+      "wallet",
+      "quests",
+      "bootcamps",
+    ],
+    retrievalLimit: 6,
+    freshnessDays: 21,
+    maxTokens: 525,
+    assistantObjective:
+      "Help new or recently arrived users understand how to begin, what to connect first, and the next safe onboarding step in P2E Inferno.",
+    responseStyle: "Operational, onboarding-first, and not marketing-heavy.",
+    weakRetrievalMode: "support",
+    weakRetrievalReply:
+      "I can't confirm the exact onboarding detail from the knowledge I retrieved.\n\n" +
+      "Safest next steps:\n" +
+      "1. Connect to the app and confirm whether you are using an embedded or external wallet\n" +
+      "2. Visit `/lobby/profile` and complete the key account links you need\n" +
+      "3. If you're on mobile and want to use an external wallet, open the app from the wallet's in-app browser\n\n" +
+      "If you tell me exactly where you're stuck, I'll narrow the next step.",
+  },
   general_support: {
     id: "general_support",
     audience: ["support"],
@@ -205,6 +231,34 @@ export function resolveServerChatRouteProfile(
   }
 
   return SERVER_CHAT_ROUTE_PROFILES.home_sales;
+}
+
+export function resolveAgentChatRouteProfile(params: {
+  pathname: string | null | undefined;
+  isAuthenticated: boolean;
+  userText: string;
+}) {
+  const baseProfile = resolveServerChatRouteProfile(params.pathname, {
+    isAuthenticated: params.isAuthenticated,
+  });
+  const normalizedUserText = params.userText.trim().toLowerCase();
+  const isHomepage = normalizeChatRoutePathname(params.pathname) === "/";
+  const looksLikeHomepageOnboarding =
+    isHomepage &&
+    (
+      /(?:what should i do first|what do i do here|where do i begin|how do i start|how do i begin|get started|just landed here|first step)/i.test(
+        normalizedUserText,
+      ) ||
+      /(?:embedded wallet|external wallet|wallet type|which wallet|check my wallet|using embedded|using external|difference between embedded|difference between external|connect (?:my )?wallet|link (?:my )?wallet|self-custody wallet|in-app browser|profile linking|link accounts|telegram|farcaster)/i.test(
+        normalizedUserText,
+      )
+    );
+
+  if (looksLikeHomepageOnboarding) {
+    return SERVER_CHAT_ROUTE_PROFILES.home_onboarding;
+  }
+
+  return baseProfile;
 }
 
 export function getServerChatRouteProfiles() {

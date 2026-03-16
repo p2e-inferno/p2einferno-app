@@ -165,6 +165,47 @@ When AI requests retry:
 
 - `admin_feedback` is set to the AI’s `reason` so the user sees what to fix and can resubmit.
 
+## Consumer 2: Chat Tool-Calling Agent (`chatAgentLoop`)
+
+### Goal
+
+Replace the legacy manual routing architecture with an agentic tool-calling loop that allows the model to decide when and how to search the knowledge base. This ensures onboarding, policy, and troubleshooting queries are properly grounded in reality, solving issues with overly generic or hallucinated responses on those topics.
+
+### Integration Point (Server)
+
+File: `lib/chat/server/respond-service.ts`
+
+The AI integration surfaces behind the `CHAT_TOOL_AGENT_ENABLED` boolean environment variable. 
+When true, requests that look like they need grounding (e.g. "how do I get started?", queries with attachments) are routed via `runChatAgentLoop(...)` rather than the old `chatCompletion` router prompts.
+
+### Agent Loop Mechanics
+
+File: `lib/chat/server/chat-agent-loop.ts`
+
+The agent loop leverages standard OpenRouter `tools` and `tool_calls` capabilities.
+1. The model receives a system prompt containing standard defaults and dynamic configuration (`routeProfile` constraints).
+2. The model can optionally return `finish_reason: "tool_calls"`.
+3. If tool calls are made, the server executes the tool natively on the backend (e.g., retrieving KB chunks).
+4. Results are pushed back to the conversation as `tool` role messages.
+5. The loop continues until the model makes a final text response, hits `MAX_ITERATIONS` (configured to 3), or errors.
+
+To avoid redundant or infinite querying, the loop performs runtime deduplication on queries so the model cannot endlessly request the exact same search term across turns.
+
+### Tools Available
+
+Currently, the single available tool is the `search_knowledge_base` tool (`lib/chat/server/tools/search-knowledge-base-tool.ts`) implemented via `executeChatTool(...)`.
+
+- The model passes a `query` (and optionally a `limit`).
+- It generates embeddings against that query.
+- It queries the `knowledge_chunks` vectors in Supabase (`searchKnowledgeBase(...)`).
+- It filters the chunks utilizing existing helper utilities (`filterResultsForPrompt`).
+- Returns structured JSON to the model containing the retrieved text or explicit error responses (e.g., query too long).
+
+### Configuration
+
+- `CHAT_TOOL_AGENT_ENABLED`: Enables the feature path. If false, the legacy router logic is executed.
+- `OPENROUTER_DEFAULT_MODEL`: By default, the agent uses the platform default model for text tasks, dynamically switching to visual multimodal models only when attachments are present.
+
 ## Files created / modified (current implementation)
 
 ### Created

@@ -7,6 +7,7 @@ import type {
 
 export type ServerChatRouteProfileId =
   | "home_sales"
+  | "home_onboarding"
   | "general_support"
   | "lobby_support"
   | "quest_support"

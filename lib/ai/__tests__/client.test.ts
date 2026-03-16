@@ -225,6 +225,38 @@ describe("chatCompletion", () => {
     expect(headers["X-Title"]).toBe("P2E Inferno");
   });
 
+  test("should pass tool-calling parameters only when provided", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue(mockOpenRouterResponse());
+
+    await chatCompletion({
+      messages: [{ role: "user", content: "How do I get started?" }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "search_knowledge_base",
+            description: "Search the KB",
+            parameters: {
+              type: "object",
+              properties: {
+                query: { type: "string" },
+              },
+              required: ["query"],
+            },
+          },
+        },
+      ],
+      toolChoice: "auto",
+      parallelToolCalls: false,
+    });
+
+    const fetchCall = (global.fetch as jest.Mock).mock.calls[0];
+    const body = JSON.parse(fetchCall[1].body);
+    expect(body.tools).toHaveLength(1);
+    expect(body.tool_choice).toBe("auto");
+    expect(body.parallel_tool_calls).toBe(false);
+  });
+
   test("should return AI_API_ERROR on non-200 status", async () => {
     (global.fetch as jest.Mock).mockResolvedValue({
       ok: false,
@@ -386,6 +418,79 @@ describe("chatCompletion", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.content).toBe("Hello from array content");
+    }
+  });
+
+  test("should return a tool-call response when provider returns tool calls", async () => {
+    (global.fetch as jest.Mock).mockResolvedValue({
+      ok: true,
+      json: jest.fn().mockResolvedValue({
+        model: "test/tool-model",
+        choices: [
+          {
+            finish_reason: "tool_calls",
+            message: {
+              content: null,
+              tool_calls: [
+                {
+                  id: "call_123",
+                  type: "function",
+                  function: {
+                    name: "search_knowledge_base",
+                    arguments: JSON.stringify({
+                      query: "how do i get started",
+                      limit: 4,
+                    }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      }),
+    });
+
+    const result = await chatCompletion({
+      messages: [{ role: "user", content: "How do I get started?" }],
+      tools: [
+        {
+          type: "function",
+          function: {
+            name: "search_knowledge_base",
+            parameters: {
+              type: "object",
+              properties: {
+                query: { type: "string" },
+              },
+              required: ["query"],
+            },
+          },
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success && result.finishReason === "tool_calls") {
+      expect(result.toolCalls).toEqual([
+        {
+          id: "call_123",
+          type: "function",
+          function: {
+            name: "search_knowledge_base",
+            arguments: JSON.stringify({
+              query: "how do i get started",
+              limit: 4,
+            }),
+          },
+        },
+      ]);
+      expect(result.assistantMessage).toEqual({
+        role: "assistant",
+        content: null,
+        tool_calls: result.toolCalls,
+      });
+    } else {
+      throw new Error("Expected tool-call response");
     }
   });
 });

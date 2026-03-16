@@ -6,7 +6,12 @@
  */
 
 import { getLogger } from "@/lib/utils/logger";
-import type { AIRequestOptions, AIResult } from "./types";
+import type {
+  AIAssistantToolCallMessage,
+  AIRequestOptions,
+  AIResult,
+  AIToolCall,
+} from "./types";
 
 const log = getLogger("ai:client");
 
@@ -31,6 +36,14 @@ function dedupeModels(models: Array<string | undefined | null>) {
 }
 
 function summarizeMessageContent(content: unknown) {
+  if (content === null) {
+    return {
+      kind: "null",
+      length: 0,
+      preview: "",
+    };
+  }
+
   if (typeof content === "string") {
     return {
       kind: "text",
@@ -71,6 +84,76 @@ function summarizeMessageContent(content: unknown) {
     textLength: text.length,
     preview: truncatePreview(text, 160),
   };
+}
+
+function summarizeToolCalls(toolCalls: unknown) {
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+
+  return toolCalls.map((toolCall, index) => {
+    const candidate =
+      toolCall && typeof toolCall === "object"
+        ? (toolCall as {
+            id?: unknown;
+            function?: { name?: unknown; arguments?: unknown };
+          })
+        : {};
+
+    return {
+      index,
+      id: typeof candidate.id === "string" ? candidate.id : null,
+      name:
+        typeof candidate.function?.name === "string"
+          ? candidate.function.name
+          : null,
+      argumentsLength:
+        typeof candidate.function?.arguments === "string"
+          ? candidate.function.arguments.length
+          : 0,
+      argumentsPreview:
+        typeof candidate.function?.arguments === "string"
+          ? truncatePreview(candidate.function.arguments, 160)
+          : "",
+    };
+  });
+}
+
+function normalizeToolCalls(toolCalls: unknown): AIToolCall[] {
+  if (!Array.isArray(toolCalls)) {
+    return [];
+  }
+
+  return toolCalls.flatMap((toolCall) => {
+    if (!toolCall || typeof toolCall !== "object") {
+      return [];
+    }
+
+    const candidate = toolCall as {
+      id?: unknown;
+      type?: unknown;
+      function?: { name?: unknown; arguments?: unknown };
+    };
+
+    if (
+      typeof candidate.id !== "string" ||
+      typeof candidate.function?.name !== "string" ||
+      typeof candidate.function?.arguments !== "string"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        id: candidate.id,
+        type: candidate.type === "function" ? "function" : "function",
+        function: {
+          name: candidate.function.name,
+          arguments: candidate.function.arguments,
+        },
+      },
+    ];
+  });
 }
 
 function extractTextFromContent(content: unknown): string | null {
@@ -195,6 +278,12 @@ export async function chatCompletion(
       index,
       role: message.role,
       content: summarizeMessageContent(message.content),
+      toolCallCount:
+        message.role === "assistant" &&
+        "tool_calls" in message &&
+        Array.isArray(message.tool_calls)
+          ? message.tool_calls.length
+          : 0,
     })),
   });
 
@@ -215,6 +304,11 @@ export async function chatCompletion(
     }
     if (options.thinkingLevel) {
       body.thinking_level = options.thinkingLevel;
+    }
+    if (options.tools?.length) {
+      body.tools = options.tools;
+      body.tool_choice = options.toolChoice ?? "auto";
+      body.parallel_tool_calls = options.parallelToolCalls ?? false;
     }
     if (fallbackModels.length) {
       body.route = "fallback";
@@ -282,8 +376,57 @@ export async function chatCompletion(
     }
 
     const data = await response.json();
+    const choice = data?.choices?.[0];
+    const finishReason =
+      typeof choice?.finish_reason === "string" ? choice.finish_reason : undefined;
+    const rawMessage = choice?.message;
+    const toolCalls = normalizeToolCalls(rawMessage?.tool_calls);
+    if (toolCalls.length > 0 || finishReason === "tool_calls") {
+      if (toolCalls.length === 0) {
+        log.warn("AI response indicated tool calls but no valid tool calls parsed", {
+          model,
+          finishReason,
+          rawToolCalls: summarizeToolCalls(rawMessage?.tool_calls),
+        });
+      } else {
+        const actualModel = data?.model || model;
+        const usage = data?.usage
+          ? {
+              promptTokens: data.usage.prompt_tokens ?? 0,
+              completionTokens: data.usage.completion_tokens ?? 0,
+              totalTokens: data.usage.total_tokens ?? 0,
+            }
+          : undefined;
+        const assistantMessage: AIAssistantToolCallMessage = {
+          role: "assistant",
+          content:
+            rawMessage?.content === null ||
+            typeof rawMessage?.content === "string" ||
+            Array.isArray(rawMessage?.content)
+              ? rawMessage.content
+              : null,
+          tool_calls: toolCalls,
+        };
 
-    const rawContent = data?.choices?.[0]?.message?.content;
+        log.info("AI tool-call response received", {
+          model: actualModel,
+          finishReason,
+          toolCalls: summarizeToolCalls(toolCalls),
+          usage,
+        });
+
+        return {
+          success: true,
+          model: actualModel,
+          finishReason: "tool_calls",
+          toolCalls,
+          assistantMessage,
+          usage,
+        };
+      }
+    }
+
+    const rawContent = rawMessage?.content;
     const content = extractTextFromContent(rawContent);
     if (!content) {
       log.warn("Empty AI response", {
@@ -337,6 +480,7 @@ export async function chatCompletion(
       success: true,
       content,
       model: actualModel,
+      finishReason,
       usage,
     };
   } catch (error: unknown) {
