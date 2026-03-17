@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { CHAT_WELCOME_MESSAGE } from "@/lib/chat/constants";
+import { dedupeMessagesById } from "@/lib/chat/utils";
 import type {
   ChatAuthContext,
   ChatMessage,
@@ -8,17 +9,6 @@ import type {
   ChatWidgetState,
   RestoreConversationResult,
 } from "@/lib/chat/types";
-
-function dedupeMessagesById(messages: ChatMessage[]) {
-  const seen = new Set<string>();
-  return messages.filter((message) => {
-    if (seen.has(message.id)) {
-      return false;
-    }
-    seen.add(message.id);
-    return true;
-  });
-}
 
 const initialAuth: ChatAuthContext = {
   isReady: false,

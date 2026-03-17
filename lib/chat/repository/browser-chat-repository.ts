@@ -6,7 +6,11 @@ import type {
   ChatWidgetSession,
   RestoreConversationResult,
 } from "@/lib/chat/types";
-import { createConversation, normalizeChatMessages } from "@/lib/chat/utils";
+import {
+  createConversation,
+  dedupeMessagesById,
+  normalizeChatMessages,
+} from "@/lib/chat/utils";
 
 interface BrowserChatRepositoryOptions {
   authenticated: boolean;
@@ -35,17 +39,6 @@ function getStorage() {
   }
 
   return window.sessionStorage;
-}
-
-function dedupeMessagesById(messages: ChatMessage[]) {
-  const seen = new Set<string>();
-  return messages.filter((message) => {
-    if (seen.has(message.id)) {
-      return false;
-    }
-    seen.add(message.id);
-    return true;
-  });
 }
 
 export class BrowserChatRepository implements ChatRepository {

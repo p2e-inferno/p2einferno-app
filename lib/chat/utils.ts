@@ -76,6 +76,17 @@ export function normalizeChatMessages(
   return messages.map(normalizeChatMessage);
 }
 
+export function dedupeMessagesById(messages: ChatMessage[]) {
+  const seen = new Set<string>();
+  return messages.filter((message) => {
+    if (seen.has(message.id)) {
+      return false;
+    }
+    seen.add(message.id);
+    return true;
+  });
+}
+
 export function createConversationId() {
   return `chat_${createId()}`;
 }

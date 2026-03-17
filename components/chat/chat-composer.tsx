@@ -242,6 +242,7 @@ export function ChatComposer({
 
   const editor = useEditor({
     immediatelyRender: false,
+    autofocus: "end",
     extensions: [
       StarterKit.configure({
         heading: false,
@@ -313,6 +314,18 @@ export function ChatComposer({
       }
     }
   }, [value, editor]);
+
+  // Autofocus when editor is ready and not disabled
+  React.useEffect(() => {
+    if (editor && !disabled) {
+      // Use a microtask/small delay to ensure Tiptap has finished mounting
+      // and doesn't lose focus due to animation-related layout shifts.
+      const timer = setTimeout(() => {
+        editor.commands.focus("end");
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [editor, disabled]);
 
   const removeAttachment = (id: string) => {
     setAttachments((prev) => {

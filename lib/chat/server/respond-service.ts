@@ -507,7 +507,7 @@ function buildDirectChatInstruction(params: {
   return [
     "You are the P2E Inferno in-app chat assistant.",
     params.objective,
-    "Purpose",
+    "Purpose:",
     "",
     "You help users move forward inside P2E Inferno. By default, guide them toward the next useful action that supports bootcamp enrollment, feature engagement, and quest completion when that fits the conversation.",
     "Do this naturally and helpfully, not in a pushy, repetitive, or rigid way.",
@@ -518,11 +518,11 @@ function buildDirectChatInstruction(params: {
     "Treat short follow-up messages as continuations of the current topic unless the user clearly introduces a new one.",
     "Before asking for clarification, use the established thread, the user's stated role, goals, skills, and constraints, and any available route or attachment context to infer what they most likely mean.",
     "When factual grounding is needed, use the conversation context to shape the most useful answer rather than relying on the latest message alone.",
-    "Abilities",
+    "Abilities:",
     "",
     "You can help explain the app, answer general questions, and understand attached screenshots or screen recordings when the user shares them.",
     "You should sound natural and conversational, but you must not invent account-specific facts or claim to have taken actions in the app.",
-    "Response rules",
+    "Response rules:",
     "",
     "- Lead with the most useful recommendation, answer, or next step first, then add brief supporting context",
     "- Keep responses concise by default: no more than 3-4 short sentences unless the user asks for more detail",
@@ -769,7 +769,9 @@ async function routeChatIntent(params: {
   userText: string;
   attachments?: ChatAttachment[];
   messages: Array<Pick<ChatMessage, "role" | "content" | "attachments">>;
+  historyMessages: AIChatMessage[];
   attachmentOwnerIdentityKey?: string;
+  signal?: AbortSignal;
 }): Promise<ChatIntentDecision> {
   log.debug("Routing chat intent", {
     pathname: params.pathname,
@@ -804,12 +806,6 @@ async function routeChatIntent(params: {
   }
 
   const hasAttachments = Boolean(params.attachments?.length);
-  const historyMessages = await formatHistoryMessages(
-    params.messages,
-    params.userText,
-    params.attachments,
-    params.attachmentOwnerIdentityKey,
-  );
   const router = await chatCompletion({
     model: process.env.OPENROUTER_CHAT_ROUTER_MODEL,
     fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
@@ -823,7 +819,7 @@ async function routeChatIntent(params: {
         role: "system",
         content: buildRouterInstruction(hasAttachments),
       },
-      ...historyMessages,
+      ...params.historyMessages,
       {
         role: "user",
         content: JSON.stringify({
@@ -835,9 +831,13 @@ async function routeChatIntent(params: {
         }),
       },
     ],
+    signal: params.signal,
   });
 
   if (!router.success) {
+    if (router.code === "AI_CANCELLED") {
+      throw new DOMException("Chat intent routing was cancelled", "AbortError");
+    }
     log.warn("Chat intent routing failed; using fallback route", {
       pathname: params.pathname,
       profile: params.profile.id,
@@ -897,6 +897,7 @@ export async function generateChatResponse(params: {
   body: ChatRespondRequestBody;
   isAuthenticated: boolean;
   attachmentOwnerIdentityKey?: string;
+  signal?: AbortSignal;
 }): Promise<ChatRespondResponseBody> {
   log.debug("Starting chat response generation", {
     conversationId: params.body.conversationId,
@@ -937,18 +938,18 @@ export async function generateChatResponse(params: {
     ? "google/gemini-3.1-flash-lite-preview"
     : "google/gemini-2.0-flash-001";
   const thinkingLevel = hasVideo ? "medium" : undefined;
+  const historyMessages = await formatHistoryMessages(
+    params.body.messages,
+    userText,
+    params.body.attachments,
+    params.attachmentOwnerIdentityKey,
+  );
+  const resolvedAttachments = await resolveChatAttachmentsForModel(
+    params.body.attachments,
+    params.attachmentOwnerIdentityKey,
+  );
 
   if (toolAgentEnabled) {
-    const historyMessages = await formatHistoryMessages(
-      params.body.messages,
-      userText,
-      params.body.attachments,
-      params.attachmentOwnerIdentityKey,
-    );
-    const resolvedAttachments = await resolveChatAttachmentsForModel(
-      params.body.attachments,
-      params.attachmentOwnerIdentityKey,
-    );
     const agentMessages: AIChatMessage[] = [
       {
         role: "system",
@@ -975,6 +976,7 @@ export async function generateChatResponse(params: {
         temperature: hasAttachments ? 0.2 : 0.3,
         maxTokens: profile.maxTokens ?? 450,
         thinkingLevel,
+        signal: params.signal,
       });
 
       if (agentResult.usedToolCalls || !shouldPreferToolGrounding({
@@ -1010,6 +1012,9 @@ export async function generateChatResponse(params: {
         pathname: normalizedPathname,
       });
     } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw error;
+      }
       log.warn("Tool-agent path failed; falling back to legacy router path", {
         conversationId: params.body.conversationId,
         profile: profile.id,
@@ -1026,7 +1031,9 @@ export async function generateChatResponse(params: {
     userText,
     attachments: params.body.attachments,
     messages: params.body.messages,
+    historyMessages,
     attachmentOwnerIdentityKey: params.attachmentOwnerIdentityKey,
+    signal: params.signal,
   });
 
   log.debug("Resolved chat route profile and intent", {
@@ -1039,16 +1046,6 @@ export async function generateChatResponse(params: {
   });
 
   if (intentDecision.route === "chat_only") {
-    const historyMessages = await formatHistoryMessages(
-      params.body.messages,
-      userText,
-      params.body.attachments,
-      params.attachmentOwnerIdentityKey,
-    );
-    const resolvedAttachments = await resolveChatAttachmentsForModel(
-      params.body.attachments,
-      params.attachmentOwnerIdentityKey,
-    );
     const direct = await chatCompletion({
       model: hasAttachments ? multimodalModel : undefined,
       thinkingLevel,
@@ -1071,9 +1068,13 @@ export async function generateChatResponse(params: {
           content: formatUserMessageContent(userText, resolvedAttachments),
         },
       ],
+      signal: params.signal,
     });
 
     if (!direct.success) {
+      if (direct.code === "AI_CANCELLED") {
+        throw new DOMException("Direct chat completion was cancelled", "AbortError");
+      }
       log.error("Direct chat completion failed", {
         pathname: normalizedPathname,
         profile: legacyProfile.id,
@@ -1106,16 +1107,6 @@ export async function generateChatResponse(params: {
   }
 
   if (intentDecision.route === "clarify") {
-    const historyMessages = await formatHistoryMessages(
-      params.body.messages,
-      userText,
-      params.body.attachments,
-      params.attachmentOwnerIdentityKey,
-    );
-    const resolvedAttachments = await resolveChatAttachmentsForModel(
-      params.body.attachments,
-      params.attachmentOwnerIdentityKey,
-    );
     const clarify = await chatCompletion({
       model: hasAttachments ? multimodalModel : undefined,
       thinkingLevel,
@@ -1136,9 +1127,13 @@ export async function generateChatResponse(params: {
           content: formatUserMessageContent(userText, resolvedAttachments),
         },
       ],
+      signal: params.signal,
     });
 
     if (!clarify.success) {
+      if (clarify.code === "AI_CANCELLED") {
+        throw new DOMException("Clarifying chat completion was cancelled", "AbortError");
+      }
       log.error("Clarifying chat completion failed", {
         pathname: normalizedPathname,
         profile: legacyProfile.id,
@@ -1239,16 +1234,6 @@ export async function generateChatResponse(params: {
     promptResults: summarizeRetrievedChunks(promptResults),
   });
 
-  const historyMessages = await formatHistoryMessages(
-    params.body.messages,
-    userText,
-    params.body.attachments,
-    params.attachmentOwnerIdentityKey,
-  );
-  const resolvedAttachments = await resolveChatAttachmentsForModel(
-    params.body.attachments,
-    params.attachmentOwnerIdentityKey,
-  );
   const completion = await chatCompletion({
     model: hasAttachments ? multimodalModel : undefined,
     thinkingLevel,
@@ -1281,9 +1266,13 @@ export async function generateChatResponse(params: {
         ),
       },
     ],
+    signal: params.signal,
   });
 
   if (!completion.success) {
+    if (completion.code === "AI_CANCELLED") {
+      throw new DOMException("Grounded chat completion was cancelled", "AbortError");
+    }
     log.error("Model completion failed for chat respond", {
       code: completion.code,
       error: completion.error,

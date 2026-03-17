@@ -43,6 +43,7 @@ describe("resolveChatRespondUsageIdentity", () => {
     getUpstashRedisMock.mockReturnValue(null);
     delete process.env.VERCEL_ENV;
     delete process.env.VERCEL_URL;
+    delete process.env.CHAT_RESPOND_BURST_WINDOW_MS;
     delete process.env.CHAT_RESPOND_BURST_ANON_MAX;
     delete process.env.CHAT_RESPOND_BURST_AUTH_MAX;
     delete process.env.CHAT_RESPOND_BURST_MEMBER_MAX;
@@ -162,6 +163,7 @@ describe("resolveChatRespondUsageIdentity", () => {
 
   it("uses Redis-backed counters with environment-scoped keys when configured", async () => {
     process.env.CHAT_RESPOND_BURST_AUTH_MAX = "1";
+    process.env.CHAT_RESPOND_BURST_WINDOW_MS = "60000";
     process.env.VERCEL_ENV = "preview";
     process.env.VERCEL_URL = "preview-123.example.vercel.app";
 
@@ -211,6 +213,7 @@ describe("resolveChatRespondUsageIdentity", () => {
 
   it("uses a production prefix without VERCEL_URL in Redis keys", async () => {
     process.env.CHAT_RESPOND_BURST_AUTH_MAX = "1";
+    process.env.CHAT_RESPOND_BURST_WINDOW_MS = "60000";
     process.env.VERCEL_ENV = "production";
     process.env.VERCEL_URL = "preview-123.example.vercel.app";
 

@@ -161,6 +161,7 @@ export async function POST(req: NextRequest) {
       body: parsed.body,
       isAuthenticated: Boolean(auth.user),
       attachmentOwnerIdentityKey: usageIdentity.identityKey,
+      signal: req.signal,
     });
 
     log.debug("Completed chat respond request", {
