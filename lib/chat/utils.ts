@@ -56,23 +56,35 @@ export function isPersistableChatMessage(message: ChatMessage) {
 }
 
 export function normalizeChatMessage(
-  message: Omit<ChatMessage, "status" | "error"> &
-    Partial<Pick<ChatMessage, "status" | "error">>,
+  message: Omit<ChatMessage, "status" | "error" | "requestError"> &
+    Partial<Pick<ChatMessage, "status" | "error" | "requestError">>,
 ): ChatMessage {
   return {
     ...message,
     status: message.status ?? "complete",
     error: message.error ?? null,
+    requestError: message.requestError ?? null,
   };
 }
 
 export function normalizeChatMessages(
   messages: Array<
-    Omit<ChatMessage, "status" | "error"> &
-      Partial<Pick<ChatMessage, "status" | "error">>
+    Omit<ChatMessage, "status" | "error" | "requestError"> &
+      Partial<Pick<ChatMessage, "status" | "error" | "requestError">>
   >,
 ) {
   return messages.map(normalizeChatMessage);
+}
+
+export function dedupeMessagesById(messages: ChatMessage[]) {
+  const seen = new Set<string>();
+  return messages.filter((message) => {
+    if (seen.has(message.id)) {
+      return false;
+    }
+    seen.add(message.id);
+    return true;
+  });
 }
 
 export function createConversationId() {

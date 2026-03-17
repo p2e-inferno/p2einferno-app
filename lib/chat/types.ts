@@ -2,6 +2,14 @@ export type ChatRole = "user" | "assistant";
 export type ChatMessageStatus = "complete" | "streaming" | "error";
 
 export type ChatRequestStatus = "idle" | "hydrating" | "sending" | "error";
+export type ChatRateLimitTier = "anonymous" | "authenticated" | "member";
+
+export interface ChatMessageRequestError {
+  status: number;
+  reason?: "burst" | "quota";
+  retryAfterSeconds?: number;
+  tier?: ChatRateLimitTier;
+}
 
 export type ChatConversationSource = "anonymous" | "authenticated";
 export type ChatAssistantMode =
@@ -26,6 +34,7 @@ export interface ChatMessage {
   ts: number;
   status: ChatMessageStatus;
   error?: string | null;
+  requestError?: ChatMessageRequestError | null;
   attachments?: ChatAttachment[];
 }
 

@@ -6,7 +6,11 @@ import type {
   ChatWidgetSession,
   RestoreConversationResult,
 } from "@/lib/chat/types";
-import { createConversation, normalizeChatMessages } from "@/lib/chat/utils";
+import {
+  createConversation,
+  dedupeMessagesById,
+  normalizeChatMessages,
+} from "@/lib/chat/utils";
 
 interface BrowserChatRepositoryOptions {
   authenticated: boolean;
@@ -124,7 +128,7 @@ export class BrowserChatRepository implements ChatRepository {
     const nextConversation: ChatConversation = {
       ...existing,
       id: conversationId || existing.id,
-      messages: [...existing.messages, ...messages],
+      messages: dedupeMessagesById([...existing.messages, ...messages]),
       updatedAt: Date.now(),
     };
 

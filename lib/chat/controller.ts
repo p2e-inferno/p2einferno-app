@@ -87,6 +87,139 @@ export class ChatController {
     }
   }
 
+  private async rollbackPersistedMessage(
+    conversationId: string,
+    messageId: string,
+    options: ChatControllerActionOptions,
+    operation: ChatOperationContext,
+  ) {
+    const persistence = this.getPersistence(operation.auth, options);
+
+    if (persistence.preferredRepository.isAvailable) {
+      try {
+        await persistence.preferredRepository.removeMessage(
+          conversationId,
+          messageId,
+        );
+      } catch (error) {
+        log.warn("Failed to roll back persisted chat message in preferred repository", {
+          repository: persistence.preferredRepository.name,
+          conversationId,
+          messageId,
+          error,
+        });
+      }
+    }
+
+    if (!this.isOperationCurrent(operation)) {
+      return;
+    }
+
+    if (
+      persistence.fallbackRepository.isAvailable &&
+      persistence.fallbackRepository !== persistence.preferredRepository
+    ) {
+      try {
+        await persistence.fallbackRepository.removeMessage(
+          conversationId,
+          messageId,
+        );
+      } catch (error) {
+        log.warn("Failed to roll back persisted chat message in fallback repository", {
+          repository: persistence.fallbackRepository.name,
+          conversationId,
+          messageId,
+          error,
+        });
+      }
+    }
+  }
+
+  private formatRetryAt(retryAfterSeconds: number) {
+    const retryAt = new Date(Date.now() + retryAfterSeconds * 1000);
+    const now = new Date();
+    const includeDate = retryAt.toDateString() !== now.toDateString();
+
+    return new Intl.DateTimeFormat(undefined, {
+      ...(includeDate
+        ? {
+            month: "short",
+            day: "numeric",
+          }
+        : {}),
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }).format(retryAt);
+  }
+
+  private getRateLimitMessage(
+    reason: ChatRequestError["reason"],
+    retryAfterSeconds?: number,
+    tier?: ChatRequestError["tier"],
+  ) {
+    if (
+      typeof retryAfterSeconds === "number" &&
+      Number.isFinite(retryAfterSeconds) &&
+      retryAfterSeconds > 0
+    ) {
+      const formattedRetryAt = this.formatRetryAt(retryAfterSeconds);
+
+      if (reason === "quota") {
+        if (tier === "anonymous") {
+          return `You’ve reached your chat limit for this period. You can chat again at ${formattedRetryAt}. Connect to the app to unlock higher chat limits.`;
+        }
+
+        if (tier === "authenticated") {
+          return `You’ve reached your chat limit for this period. You can chat again at ${formattedRetryAt}. Purchase a membership to unlock higher chat limits.`;
+        }
+
+        return `You’ve reached your chat limit for this period. You can chat again at ${formattedRetryAt}.`;
+      }
+
+      return `You’ve sent messages too quickly for now. You can chat again at ${formattedRetryAt}.`;
+    }
+
+    if (reason === "quota") {
+      if (tier === "anonymous") {
+        return "You’ve reached your chat limit for this period. Please try again later. Connect to the app to unlock higher chat limits.";
+      }
+
+      if (tier === "authenticated") {
+        return "You’ve reached your chat limit for this period. Please try again later. Purchase a membership to unlock higher chat limits.";
+      }
+
+      return "You’ve reached your chat limit for this period. Please try again later.";
+    }
+
+    return "You’ve sent messages too quickly for now. Please try again later.";
+  }
+
+  private getRequestErrorMessage(error: unknown) {
+    if (!(error instanceof ChatRequestError) || error.status !== 429) {
+      return error instanceof Error ? error.message : "Unable to send message.";
+    }
+
+    return this.getRateLimitMessage(
+      error.reason,
+      error.retryAfterSeconds,
+      error.tier,
+    );
+  }
+
+  private getMessageRequestError(error: unknown) {
+    if (!(error instanceof ChatRequestError)) {
+      return null;
+    }
+
+    return {
+      status: error.status,
+      reason: error.reason as "burst" | "quota" | undefined,
+      retryAfterSeconds: error.retryAfterSeconds,
+      tier: error.tier,
+    };
+  }
+
   async bootstrap({
     auth,
     route,
@@ -204,6 +337,9 @@ export class ChatController {
       state.activeConversationId ??
       createConversation(source, [CHAT_WELCOME_MESSAGE]).id;
     const operation = this.createOperationContext(state.auth);
+    const previousMessage = options.existingMessage
+      ? state.messages.find((message) => message.id === options.existingMessage?.id)
+      : null;
 
     useChatStore.setState({
       status: "sending",
@@ -212,6 +348,8 @@ export class ChatController {
       activeConversationId: conversationId,
       messages: messagesAfterUser,
     });
+
+    let replyReceived = false;
 
     try {
       await this.persistMessages(
@@ -274,6 +412,7 @@ export class ChatController {
           },
         },
       });
+      replyReceived = true;
 
       if (!this.isOperationCurrent(operation)) {
         return;
@@ -319,26 +458,56 @@ export class ChatController {
         return;
       }
 
+      const requestErrorMessage = this.getRequestErrorMessage(error);
+      const requestError = this.getMessageRequestError(error);
+      const preservedQuotaError =
+        previousMessage?.requestError?.status === 429 &&
+        previousMessage.requestError.reason === "quota" &&
+        requestError?.status === 429 &&
+        requestError.reason === "burst"
+          ? {
+              message: previousMessage.error ??
+                this.getRateLimitMessage(
+                  previousMessage.requestError.reason,
+                  previousMessage.requestError.retryAfterSeconds,
+                  previousMessage.requestError.tier,
+                ),
+              requestError: previousMessage.requestError,
+            }
+          : null;
+      const effectiveErrorMessage =
+        preservedQuotaError?.message ?? requestErrorMessage;
+      const effectiveRequestError =
+        preservedQuotaError?.requestError ?? requestError;
+
+      if (!replyReceived) {
+        await this.rollbackPersistedMessage(
+          conversationId,
+          userMessage.id,
+          options,
+          operation,
+        );
+
+        if (!this.isOperationCurrent(operation)) {
+          return;
+        }
+      }
+
       // Mark the orphaned user message as failed so it is excluded from
       // future history sent to the server, preventing cascading context
       // misalignment in subsequent AI requests.
       useChatStore.getState().updateMessage(userMessage.id, (msg) => ({
         ...msg,
         status: "error",
-        error: "Message failed to send.",
+        error: effectiveErrorMessage,
+        requestError: effectiveRequestError,
       }));
 
       log.error("Failed to send chat message", { error });
       useChatStore.setState({
         status: "error",
         error:
-          error instanceof ChatRequestError && error.status === 429
-            ? error.reason === "quota"
-              ? "Chat usage limit reached for now. Please try again later."
-              : "Chat is temporarily rate limited. Please wait and try again."
-            : error instanceof Error
-              ? error.message
-              : "Unable to send message.",
+          effectiveRequestError?.status === 429 ? null : effectiveErrorMessage,
       });
     } finally {
       await this.persistWidgetSession(options, operation);
@@ -358,23 +527,9 @@ export class ChatController {
       return;
     }
 
-    // Reset the message status so it appears normal in the UI
-    useChatStore.getState().updateMessage(messageId, (msg) => ({
-      ...msg,
-      status: "complete",
-      error: null,
-    }));
-
-    // Re-send using the existing sendMessage flow, specifying the 
-    // refreshed message to ensure it is correctly persisted (status: complete).
-    const refreshedMessage = getChatStoreState().messages.find(m => m.id === messageId);
-    if (!refreshedMessage) {
-      return;
-    }
-
     await this.sendMessage(
-      { text: refreshedMessage.content, attachments: refreshedMessage.attachments },
-      { ...options, existingMessage: refreshedMessage },
+      { text: failedMessage.content, attachments: failedMessage.attachments },
+      { ...options, existingMessage: failedMessage },
     );
   }
 

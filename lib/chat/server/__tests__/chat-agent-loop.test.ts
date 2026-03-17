@@ -45,6 +45,10 @@ describe("runChatAgentLoop", () => {
     jest.clearAllMocks();
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it("returns a direct final answer when no tool call is needed", async () => {
     chatCompletionMock.mockResolvedValue({
       success: true,
@@ -453,5 +457,36 @@ describe("runChatAgentLoop", () => {
 
     expect(result.stopReason).toBe("tool_execution_error");
     expect(result.content).toContain("wallet app's in-app browser");
+  });
+
+  it("aborts the loop when the overall timeout elapses", async () => {
+    jest.useFakeTimers();
+
+    chatCompletionMock.mockImplementation(
+      ({ signal }) =>
+        new Promise((resolve) => {
+          signal?.addEventListener(
+            "abort",
+            () => {
+              resolve({
+                success: false,
+                error: "Request was cancelled",
+                code: "AI_CANCELLED",
+              });
+            },
+            { once: true },
+          );
+        }) as any,
+    );
+
+    const pending = runChatAgentLoop({
+      messages: [{ role: "user", content: "hello" }],
+      routeProfile,
+      timeoutMs: 5,
+    });
+
+    jest.advanceTimersByTime(5);
+
+    await expect(pending).rejects.toThrow(/cancelled/i);
   });
 });

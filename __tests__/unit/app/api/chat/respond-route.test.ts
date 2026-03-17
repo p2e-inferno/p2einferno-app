@@ -78,6 +78,10 @@ jest.mock("@/lib/chat/server/respond-membership", () => ({
     hasActiveChatMembership(...args),
 }));
 
+jest.mock("@/lib/upstash/redis", () => ({
+  getUpstashRedis: () => null,
+}));
+
 jest.mock("@/lib/chat/server/respond-service", () => ({
   generateChatResponse: (...args: unknown[]) => generateChatResponse(...args),
   validateChatRespondBody: jest.requireActual(
@@ -232,8 +236,7 @@ describe("POST /api/chat/respond", () => {
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toEqual({
-      error:
-        "messages must be an array of up to 12 non-empty chat role/content pairs under 1500 characters each",
+      error: "messages must be an array of up to 12 chat history entries",
     });
     expect(generateChatResponse).not.toHaveBeenCalled();
   });

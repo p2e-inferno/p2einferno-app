@@ -19,6 +19,10 @@ export function ChatMessageBubble({
 }: ChatMessageBubbleProps) {
   const isUser = message.role === "user";
   const isFailed = isUser && message.status === "error";
+  const isRateLimitError =
+    isFailed &&
+    (message.error?.includes("reached your chat limit") ||
+      message.error?.includes("too quickly"));
 
   return (
     <motion.div
@@ -27,7 +31,7 @@ export function ChatMessageBubble({
       className={`flex w-full group ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
-        className={`flex max-w-[85%] flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}
+        className={`flex ${isRateLimitError ? "w-full" : "max-w-[85%]"} flex-col gap-1.5 ${isUser ? "items-end" : "items-start"}`}
       >
         <div
           className={`relative px-4 py-3 text-sm leading-relaxed shadow-sm transition-all ${
@@ -76,33 +80,37 @@ export function ChatMessageBubble({
           <motion.div
             initial={{ opacity: 0, y: -4 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-1.5 px-1"
+            className={`flex w-full flex-col ${isRateLimitError ? "items-start" : "items-end"} gap-2 px-1`}
           >
-            <span className="text-[10px] font-medium text-red-400/80">
-              Failed to send
+            <span
+              className={`w-full ${isRateLimitError ? "text-left" : "text-right"} text-xs leading-5 font-medium text-red-300/90`}
+            >
+              {message.error || "Failed to send"}
             </span>
-            {onRetry && (
-              <button
-                type="button"
-                onClick={onRetry}
-                className="flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-300 transition-all hover:bg-white/10 hover:text-white"
-                aria-label="Retry message"
-              >
-                <RefreshCw className="h-3 w-3" />
-                Retry
-              </button>
-            )}
-            {onDelete && (
-              <button
-                type="button"
-                onClick={onDelete}
-                className="flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-300 transition-all hover:bg-red-500/20 hover:text-red-300"
-                aria-label="Delete message"
-              >
-                <Trash2 className="h-3 w-3" />
-                Delete
-              </button>
-            )}
+            <div className="flex items-center gap-1.5">
+              {onRetry && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 transition-all hover:bg-white/10 hover:text-white"
+                  aria-label="Retry message"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Retry
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={onDelete}
+                  className="flex items-center gap-1 rounded-full bg-white/5 px-2.5 py-1 text-[10px] font-medium text-slate-300 transition-all hover:bg-red-500/20 hover:text-red-300"
+                  aria-label="Delete message"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </button>
+              )}
+            </div>
           </motion.div>
         )}
 

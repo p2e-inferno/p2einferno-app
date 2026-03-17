@@ -11,6 +11,7 @@ import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("chat:agent-loop");
 const MAX_ITERATIONS = 3;
+const DEFAULT_AGENT_LOOP_TIMEOUT_MS = 30_000;
 
 export interface RunChatAgentLoopParams {
   messages: AIConversationMessage[];
@@ -20,6 +21,8 @@ export interface RunChatAgentLoopParams {
   temperature?: number;
   maxTokens?: number;
   thinkingLevel?: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export interface ChatAgentLoopResult {
@@ -57,6 +60,23 @@ function parseToolPayload(content: string): {
   }
 }
 
+function getAgentLoopTimeoutMs(explicitTimeoutMs?: number) {
+  if (typeof explicitTimeoutMs === "number" && explicitTimeoutMs > 0) {
+    return explicitTimeoutMs;
+  }
+
+  const raw = process.env.CHAT_AGENT_LOOP_TIMEOUT_MS;
+  const parsed = typeof raw === "string" && raw.trim() ? Number(raw) : NaN;
+
+  return Number.isFinite(parsed) && parsed > 0
+    ? parsed
+    : DEFAULT_AGENT_LOOP_TIMEOUT_MS;
+}
+
+function createAbortError(message: string) {
+  return new DOMException(message, "AbortError");
+}
+
 export async function runChatAgentLoop(
   params: RunChatAgentLoopParams,
 ): Promise<ChatAgentLoopResult> {
@@ -65,97 +85,132 @@ export async function runChatAgentLoop(
   const accumulatedResults: ToolSearchResult[] = [];
   let usedToolCalls = false;
   let stopReason: ChatAgentLoopResult["stopReason"] = "final_answer";
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort();
+  }, getAgentLoopTimeoutMs(params.timeoutMs));
+  const externalSignal = params.signal;
+  const onExternalAbort = () => controller.abort();
 
-  for (let iteration = 0; iteration < MAX_ITERATIONS; iteration += 1) {
-    const completion = await chatCompletion({
-      model: params.model,
-      fallbacks: params.fallbacks,
-      temperature: params.temperature,
-      maxTokens: params.maxTokens,
-      thinkingLevel: params.thinkingLevel,
-      tools: [searchKnowledgeBaseToolDefinition],
-      toolChoice: "auto",
-      parallelToolCalls: false,
-      messages: conversation,
-    });
-
-    if (!completion.success) {
-      throw new Error(completion.error);
+  if (externalSignal) {
+    if (externalSignal.aborted) {
+      controller.abort();
+    } else {
+      externalSignal.addEventListener("abort", onExternalAbort, { once: true });
     }
+  }
 
-    if (
-      completion.finishReason !== "tool_calls" ||
-      !("toolCalls" in completion) ||
-      completion.toolCalls.length === 0
-    ) {
-      if (!("content" in completion)) {
-        throw new Error("AI returned an unexpected non-text response");
+  try {
+    for (let iteration = 0; iteration < MAX_ITERATIONS; iteration += 1) {
+      if (controller.signal.aborted) {
+        throw createAbortError("Chat agent loop was cancelled");
       }
-      return {
-        content: completion.content,
-        sources: mapToolResultSources(accumulatedResults),
-        usedToolCalls,
-        iterations: iteration + 1,
-        stopReason,
-      };
-    }
 
-    usedToolCalls = true;
-    if (!("assistantMessage" in completion) || !("toolCalls" in completion)) {
-      throw new Error("AI returned incomplete tool-call payload");
-    }
-    conversation.push(completion.assistantMessage);
-
-    let malformedArgumentsSeen = false;
-    for (const toolCall of completion.toolCalls) {
-      const executed = await executeChatTool({
-        toolName: toolCall.function.name,
-        rawArguments: toolCall.function.arguments,
-        routeProfile: params.routeProfile,
+      const completion = await chatCompletion({
+        model: params.model,
+        fallbacks: params.fallbacks,
+        temperature: params.temperature,
+        maxTokens: params.maxTokens,
+        thinkingLevel: params.thinkingLevel,
+        tools: [searchKnowledgeBaseToolDefinition],
+        toolChoice: "auto",
+        parallelToolCalls: false,
+        messages: conversation,
+        signal: controller.signal,
       });
 
-      if (executed.normalizedQuery) {
-        const dedupeKey = executed.normalizedQuery.toLowerCase();
-        if (seenQueries.has(dedupeKey)) {
-          log.debug("Suppressing duplicate tool query", {
-            query: executed.normalizedQuery,
-            profileId: params.routeProfile.id,
-            iteration: iteration + 1,
-          });
-          stopReason = "duplicate_query";
-          return {
-            content:
-              "I couldn't confirm anything new from the knowledge I searched. Share the exact page, status, or error you see and I'll narrow the next step.",
-            sources: mapToolResultSources(accumulatedResults),
-            usedToolCalls,
-            iterations: iteration + 1,
-            stopReason,
-          };
+      if (!completion.success) {
+        if (completion.code === "AI_CANCELLED") {
+          throw createAbortError("Chat agent loop was cancelled");
         }
-        seenQueries.add(dedupeKey);
+
+        throw new Error(completion.error);
       }
 
-      const parsedPayload = parseToolPayload(executed.content);
-      if (parsedPayload) {
-        accumulatedResults.push(...parsedPayload.results);
-        if (!parsedPayload.ok) {
-          if (parsedPayload.code === "malformed_arguments") {
-            malformedArgumentsSeen = true;
-          } else {
-            stopReason = "tool_execution_error";
+      if (
+        completion.finishReason !== "tool_calls" ||
+        !("toolCalls" in completion) ||
+        completion.toolCalls.length === 0
+      ) {
+        if (!("content" in completion)) {
+          throw new Error("AI returned an unexpected non-text response");
+        }
+
+        return {
+          content: completion.content,
+          sources: mapToolResultSources(accumulatedResults),
+          usedToolCalls,
+          iterations: iteration + 1,
+          stopReason,
+        };
+      }
+
+      usedToolCalls = true;
+      if (!("assistantMessage" in completion) || !("toolCalls" in completion)) {
+        throw new Error("AI returned incomplete tool-call payload");
+      }
+      conversation.push(completion.assistantMessage);
+
+      let malformedArgumentsSeen = false;
+      for (const toolCall of completion.toolCalls) {
+        if (controller.signal.aborted) {
+          throw createAbortError("Chat agent loop was cancelled");
+        }
+
+        const executed = await executeChatTool({
+          toolName: toolCall.function.name,
+          rawArguments: toolCall.function.arguments,
+          routeProfile: params.routeProfile,
+        });
+
+        if (executed.normalizedQuery) {
+          const dedupeKey = executed.normalizedQuery.toLowerCase();
+          if (seenQueries.has(dedupeKey)) {
+            log.debug("Suppressing duplicate tool query", {
+              query: executed.normalizedQuery,
+              profileId: params.routeProfile.id,
+              iteration: iteration + 1,
+            });
+            stopReason = "duplicate_query";
+            return {
+              content:
+                "I couldn't confirm anything new from the knowledge I searched. Share the exact page, status, or error you see and I'll narrow the next step.",
+              sources: mapToolResultSources(accumulatedResults),
+              usedToolCalls,
+              iterations: iteration + 1,
+              stopReason,
+            };
+          }
+          seenQueries.add(dedupeKey);
+        }
+
+        const parsedPayload = parseToolPayload(executed.content);
+        if (parsedPayload) {
+          accumulatedResults.push(...parsedPayload.results);
+          if (!parsedPayload.ok) {
+            if (parsedPayload.code === "malformed_arguments") {
+              malformedArgumentsSeen = true;
+            } else {
+              stopReason = "tool_execution_error";
+            }
           }
         }
+
+        conversation.push({
+          role: "tool",
+          tool_call_id: toolCall.id,
+          content: executed.content,
+        });
       }
 
-      conversation.push({
-        role: "tool",
-        tool_call_id: toolCall.id,
-        content: executed.content,
-      });
+      if (malformedArgumentsSeen) {
+        stopReason = "malformed_arguments";
+      }
     }
-
-    if (malformedArgumentsSeen) {
-      stopReason = "malformed_arguments";
+  } finally {
+    clearTimeout(timeoutId);
+    if (externalSignal) {
+      externalSignal.removeEventListener("abort", onExternalAbort);
     }
   }
 

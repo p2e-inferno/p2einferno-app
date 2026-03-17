@@ -146,7 +146,7 @@ function normalizeToolCalls(toolCalls: unknown): AIToolCall[] {
     return [
       {
         id: candidate.id,
-        type: candidate.type === "function" ? "function" : "function",
+        type: "function",
         function: {
           name: candidate.function.name,
           arguments: candidate.function.arguments,

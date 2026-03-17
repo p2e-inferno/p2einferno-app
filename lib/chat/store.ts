@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { CHAT_WELCOME_MESSAGE } from "@/lib/chat/constants";
+import { dedupeMessagesById } from "@/lib/chat/utils";
 import type {
   ChatAuthContext,
   ChatMessage,
@@ -77,7 +78,9 @@ export const useChatStore = create<ChatWidgetState & ChatStoreActions>(
     setRoute: (route) => set({ route }),
     setMessages: (messages) => set({ messages }),
     appendMessages: (messages) =>
-      set((state) => ({ messages: [...state.messages, ...messages] })),
+      set((state) => ({
+        messages: dedupeMessagesById([...state.messages, ...messages]),
+      })),
     updateMessage: (messageId, updater) =>
       set((state) => ({
         messages: state.messages.map((message) =>

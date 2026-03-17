@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type { NextRequest } from "next/server";
 import type { ChatRespondUsageTier } from "@/lib/chat/server/respond-types";
+import { getUpstashRedis } from "@/lib/upstash/redis";
 import { getLogger } from "@/lib/utils/logger";
 
 const ANON_SESSION_COOKIE = "chat-anon-session";
@@ -10,6 +11,8 @@ const log = getLogger("chat:respond-rate-limit");
 const ANON_FALLBACK_PROCESS_KEY = `anon-fallback:${process.pid}:${Date.now().toString(36)}`;
 const MAX_RATE_LIMIT_BUCKET_ENTRIES = 500;
 let hasWarnedDegradedAnonymousFallback = false;
+let hasWarnedRedisFallback = false;
+let hasLoggedRedisBackend = false;
 
 type Bucket = {
   count: number;
@@ -65,6 +68,56 @@ function trimBucketStore(store: Map<string, Bucket>, now = Date.now()) {
   }
 }
 
+function getRedisRetryAfterSeconds(ttlMs: number | null | undefined) {
+  if (typeof ttlMs !== "number" || ttlMs <= 0) {
+    return 1;
+  }
+
+  return Math.max(1, Math.ceil(ttlMs / 1000));
+}
+
+function getRateLimitKeyPrefix() {
+  const environment =
+    process.env.VERCEL_ENV ?? process.env.NODE_ENV ?? "development";
+  const parts = ["chat-rate-limit", environment];
+
+  if (environment !== "production" && process.env.VERCEL_URL) {
+    parts.push(process.env.VERCEL_URL);
+  }
+
+  return parts.join(":");
+}
+
+function buildRateLimitKey(key: string) {
+  return `${getRateLimitKeyPrefix()}:${key}`;
+}
+
+const HIT_BUCKET_LUA = `
+local key = KEYS[1]
+local limit = tonumber(ARGV[1])
+local window_ms = tonumber(ARGV[2])
+
+local current = redis.call("GET", key)
+if not current then
+  redis.call("SET", key, 1, "PX", window_ms)
+  return {1, 1, window_ms}
+end
+
+current = redis.call("INCR", key)
+local ttl = redis.call("PTTL", key)
+
+if ttl < 0 then
+  redis.call("PEXPIRE", key, window_ms)
+  ttl = window_ms
+end
+
+if current > limit then
+  return {0, current, ttl}
+end
+
+return {1, current, ttl}
+`;
+
 function getClientIp(req: NextRequest) {
   const forwardedFor = req.headers.get("x-forwarded-for");
   if (forwardedFor) {
@@ -102,7 +155,7 @@ function getEnvNumber(name: string, fallback: number) {
 }
 
 function getBurstWindowMs() {
-  return getEnvNumber("CHAT_RESPOND_BURST_WINDOW_MS", 60_000);
+  return getEnvNumber("CHAT_RESPOND_BURST_WINDOW_MS", 90_000);
 }
 
 function getQuotaWindowMs() {
@@ -131,7 +184,7 @@ function getQuotaLimit(tier: ChatRespondUsageTier) {
   }
 }
 
-function hitBucket(
+function hitBucketInMemory(
   store: Map<string, Bucket>,
   key: string,
   limit: number,
@@ -155,6 +208,61 @@ function hitBucket(
 
   bucket.count += 1;
   return { allowed: true, retryAfterSeconds: 0 };
+}
+
+async function hitBucket(
+  store: Map<string, Bucket>,
+  key: string,
+  limit: number,
+  windowMs: number,
+) {
+  const redis = getUpstashRedis();
+
+  if (!hasLoggedRedisBackend) {
+    hasLoggedRedisBackend = true;
+    log.info("Chat rate limiting backend resolved", {
+      backend: redis ? "upstash-redis" : "in-memory",
+    });
+  }
+
+  if (!redis) {
+    if (!hasWarnedRedisFallback) {
+      hasWarnedRedisFallback = true;
+      log.warn(
+        "Upstash Redis is not configured for chat rate limiting; falling back to in-memory buckets",
+      );
+    }
+
+    return hitBucketInMemory(store, key, limit, windowMs);
+  }
+
+  const redisKey = buildRateLimitKey(key);
+  let result: [number, number, number] | null = null;
+  try {
+    result = (await redis.eval(HIT_BUCKET_LUA, [redisKey], [
+      `${limit}`,
+      `${windowMs}`,
+    ])) as [number, number, number] | null;
+  } catch (error) {
+    log.error(
+      "Redis rate-limit eval failed; falling back to in-memory buckets",
+      {
+        key: redisKey,
+        error,
+      },
+    );
+    return hitBucketInMemory(store, key, limit, windowMs);
+  }
+
+  const [allowedFlag, _count, ttlMs] = Array.isArray(result)
+    ? result
+    : [0, 0, windowMs];
+
+  return {
+    allowed: allowedFlag === 1,
+    retryAfterSeconds:
+      allowedFlag === 1 ? 0 : getRedisRetryAfterSeconds(ttlMs),
+  };
 }
 
 function resolveAnonymousSessionId(req: NextRequest) {
@@ -184,6 +292,8 @@ export function clearChatRespondRateLimitState() {
   attachmentBurstBuckets.clear();
   attachmentQuotaBuckets.clear();
   hasWarnedDegradedAnonymousFallback = false;
+  hasWarnedRedisFallback = false;
+  hasLoggedRedisBackend = false;
 }
 
 export function getChatRespondRateLimitBucketSizes() {
@@ -234,20 +344,24 @@ export function resolveChatRespondUsageIdentity(
   };
 }
 
-export function enforceChatRespondBurstLimit({
+export async function enforceChatRespondBurstLimit({
   identity,
   hasMembership,
-}: BurstLimiterOptions): UsageLimitResult {
+}: BurstLimiterOptions): Promise<UsageLimitResult> {
   const tier = getTier(identity.privyUserId, hasMembership);
   const burstWindowMs = getBurstWindowMs();
   const { ip, identityKey } = identity;
 
   const burstKeys = identity.privyUserId
     ? [identityKey]
-    : ([identityKey, ip ? `anon-ip:${ip}` : null].filter(Boolean) as string[]);
+    : Array.from(
+        new Set(
+          [identityKey, ip ? `anon-ip:${ip}` : null].filter(Boolean) as string[],
+        ),
+      );
 
   for (const key of burstKeys) {
-    const burst = hitBucket(
+    const burst = await hitBucket(
       burstBuckets,
       `burst:${key}`,
       getBurstLimit(tier),
@@ -277,15 +391,15 @@ export function enforceChatRespondBurstLimit({
   };
 }
 
-export function enforceChatRespondQuotaLimit({
+export async function enforceChatRespondQuotaLimit({
   identity,
   hasMembership,
-}: QuotaLimiterOptions): UsageLimitResult {
+}: QuotaLimiterOptions): Promise<UsageLimitResult> {
   const tier = getTier(identity.privyUserId, hasMembership);
   const quotaWindowMs = getQuotaWindowMs();
   const { identityKey } = identity;
 
-  const quota = hitBucket(
+  const quota = await hitBucket(
     quotaBuckets,
     `quota:${identityKey}`,
     getQuotaLimit(tier),
@@ -337,20 +451,24 @@ function getAttachmentQuotaLimit(tier: ChatRespondUsageTier) {
   }
 }
 
-export function enforceChatAttachmentUploadBurstLimit({
+export async function enforceChatAttachmentUploadBurstLimit({
   identity,
   hasMembership,
-}: BurstLimiterOptions): UsageLimitResult {
+}: BurstLimiterOptions): Promise<UsageLimitResult> {
   const tier = getTier(identity.privyUserId, hasMembership);
   const burstWindowMs = getBurstWindowMs();
   const { ip, identityKey } = identity;
 
   const burstKeys = identity.privyUserId
     ? [identityKey]
-    : ([identityKey, ip ? `anon-ip:${ip}` : null].filter(Boolean) as string[]);
+    : Array.from(
+        new Set(
+          [identityKey, ip ? `anon-ip:${ip}` : null].filter(Boolean) as string[],
+        ),
+      );
 
   for (const key of burstKeys) {
-    const burst = hitBucket(
+    const burst = await hitBucket(
       attachmentBurstBuckets,
       `attachment-burst:${key}`,
       getAttachmentBurstLimit(tier),
@@ -380,12 +498,12 @@ export function enforceChatAttachmentUploadBurstLimit({
   };
 }
 
-export function enforceChatAttachmentUploadQuotaLimit({
+export async function enforceChatAttachmentUploadQuotaLimit({
   identity,
   hasMembership,
-}: QuotaLimiterOptions): UsageLimitResult {
+}: QuotaLimiterOptions): Promise<UsageLimitResult> {
   const tier = getTier(identity.privyUserId, hasMembership);
-  const quota = hitBucket(
+  const quota = await hitBucket(
     attachmentQuotaBuckets,
     `attachment-quota:${identity.identityKey}`,
     getAttachmentQuotaLimit(tier),

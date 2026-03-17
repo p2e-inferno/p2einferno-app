@@ -74,6 +74,14 @@
       "staleDays": 14
     },
     {
+      "sourcePath": "docs/playbooks/UNLOCK_PROTOCOL_IN_P2E_INFERNO_PLAYBOOK.md",
+      "sourceType": "playbook",
+      "title": "Unlock Protocol in P2E Inferno Playbook",
+      "audience": ["support", "sales", "ops"],
+      "domainTags": ["unlock-protocol", "membership", "access", "renewal", "wallet"],
+      "staleDays": 30
+    },
+    {
       "sourcePath": "docs/playbooks/REWARDS_RENEWAL_AND_PULLOUT_PLAYBOOK.md",
       "sourceType": "playbook",
       "title": "Rewards, Renewal, and Pullout Playbook",
