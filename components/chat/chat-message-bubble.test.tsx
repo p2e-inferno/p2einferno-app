@@ -1,6 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { ChatMessageBubble } from "@/components/chat/chat-message-bubble";
 
+jest.mock("@/components/common/RichText", () => ({
+  RichText: ({ content }: { content: string }) => <>{content}</>,
+}));
+
 describe("ChatMessageBubble", () => {
   it("renders normal assistant replies unchanged with the streaming-ready message model", () => {
     render(
@@ -51,5 +55,27 @@ describe("ChatMessageBubble", () => {
     );
 
     expect(screen.getByText("Failed partial reply")).toBeInTheDocument();
+  });
+
+  it("renders the specific send error for failed user messages", () => {
+    render(
+      <ChatMessageBubble
+        message={{
+          id: "user_error",
+          role: "user",
+          content: "hello",
+          ts: 1,
+          status: "error",
+          error:
+            "Chat is temporarily rate limited. Please wait 60 seconds and try again.",
+        }}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Chat is temporarily rate limited. Please wait 60 seconds and try again.",
+      ),
+    ).toBeInTheDocument();
   });
 });

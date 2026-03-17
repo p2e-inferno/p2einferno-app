@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const burst = enforceChatRespondBurstLimit({
+    const burst = await enforceChatRespondBurstLimit({
       identity: usageIdentity,
       hasMembership,
     });
@@ -113,6 +113,7 @@ export async function POST(req: NextRequest) {
         {
           error: burst.error ?? "Too many requests",
           reason: burst.reason ?? "burst",
+          tier: burst.tier,
         },
         {
           status: burst.status ?? 429,
@@ -124,7 +125,7 @@ export async function POST(req: NextRequest) {
       return applyAnonymousSessionCookie(response, burst.anonymousSessionId);
     }
 
-    const quota = enforceChatRespondQuotaLimit({
+    const quota = await enforceChatRespondQuotaLimit({
       identity: usageIdentity,
       hasMembership,
     });
@@ -141,6 +142,7 @@ export async function POST(req: NextRequest) {
         {
           error: quota.error ?? "Too many requests",
           reason: quota.reason ?? "quota",
+          tier: quota.tier,
         },
         {
           status: quota.status ?? 429,

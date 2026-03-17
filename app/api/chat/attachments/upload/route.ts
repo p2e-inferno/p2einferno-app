@@ -40,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     if (identity) {
-      const limit = enforceChatAttachmentUploadLimits(identity);
+      const limit = await enforceChatAttachmentUploadLimits(identity);
 
       if (!limit.allowed) {
         const response = NextResponse.json(
@@ -142,9 +142,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       : response;
   } catch (error) {
     log.error("blob upload handler failed", { error });
+    const message =
+      error instanceof Error &&
+      (error.message === "Missing chat attachment identity" ||
+        error.message === "Invalid chat attachment pathname")
+        ? error.message
+        : "Unable to process attachment upload";
+    const status =
+      error instanceof Error &&
+      (error.message === "Missing chat attachment identity" ||
+        error.message === "Invalid chat attachment pathname")
+        ? 400
+        : 500;
     return NextResponse.json(
-      { error: (error as Error).message },
-      { status: 400 },
+      { error: message },
+      { status },
     );
   }
 }

@@ -76,4 +76,51 @@ describe("BrowserChatRepository", () => {
       sessionStorage.getItem("chat-widget:authenticated-widget"),
     ).toBeNull();
   });
+
+  it("deduplicates appended messages by id", async () => {
+    const repository = new BrowserChatRepository({
+      authenticated: false,
+    });
+
+    await repository.createConversation({
+      id: "chat_anon",
+      source: "anonymous",
+      createdAt: 1,
+      updatedAt: 1,
+      messages: [
+        {
+          id: "m1",
+          role: "assistant",
+          content: "hello",
+          ts: 1,
+          status: "complete",
+          error: null,
+        },
+      ],
+    });
+
+    const conversation = await repository.appendMessages("chat_anon", [
+      {
+        id: "m1",
+        role: "assistant",
+        content: "hello",
+        ts: 1,
+        status: "complete",
+        error: null,
+      },
+      {
+        id: "m2",
+        role: "user",
+        content: "bootcamps",
+        ts: 2,
+        status: "complete",
+        error: null,
+      },
+    ]);
+
+    expect(conversation?.messages.map((message) => message.id)).toEqual([
+      "m1",
+      "m2",
+    ]);
+  });
 });

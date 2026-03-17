@@ -61,6 +61,15 @@ function makeDeferred<T>() {
 
 describe("chat controller authenticated persistence", () => {
   beforeEach(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-03-17T10:20:00.000Z"));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  beforeEach(() => {
     sessionStorage.clear();
     useChatStore.setState({
       isOpen: false,
@@ -848,9 +857,14 @@ describe("chat controller authenticated persistence", () => {
     expect(useChatStore.getState()).toEqual(
       expect.objectContaining({
         status: "error",
-        error: "Chat is temporarily rate limited. Please wait and try again.",
+        error: null,
       }),
     );
+    expect(
+      useChatStore
+        .getState()
+        .messages.find((message) => message.role === "user")?.error,
+    ).toBe("You’ve sent messages too quickly for now. Please try again later.");
   });
 
   it("surfaces quota exhaustion distinctly from burst rate limiting", async () => {
@@ -876,6 +890,8 @@ describe("chat controller authenticated persistence", () => {
           "Chat usage limit reached for this period.",
           429,
           "quota",
+          undefined,
+          "anonymous",
         );
       },
     });
@@ -897,8 +913,200 @@ describe("chat controller authenticated persistence", () => {
     expect(useChatStore.getState()).toEqual(
       expect.objectContaining({
         status: "error",
-        error: "Chat usage limit reached for now. Please try again later.",
+        error: null,
       }),
     );
+    expect(fallback.removeMessage).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(String),
+    );
+  });
+
+  it("includes retry-after seconds in quota limit messaging when available", async () => {
+    const fallback = createRepository("browser");
+    fallback.restoreActiveConversation.mockResolvedValue({
+      conversation: null,
+      widget: null,
+    });
+    fallback.createConversation.mockImplementation(
+      async (conversation) => conversation,
+    );
+    fallback.appendMessages.mockResolvedValue(null);
+    fallback.saveWidgetSession.mockResolvedValue(undefined);
+
+    getChatSessionPersistenceMock.mockReturnValue({
+      preferredRepository: fallback,
+      fallbackRepository: fallback,
+    });
+
+    const controller = new ChatController({
+      reply: async () => {
+        throw new ChatRequestError(
+          "Chat usage limit reached for this period.",
+          429,
+          "quota",
+          3600,
+          "authenticated",
+        );
+      },
+    });
+
+    useChatStore.setState({
+      auth: {
+        isReady: true,
+        isAuthenticated: false,
+        privyUserId: null,
+        walletAddress: null,
+      },
+      route: baseRoute,
+      hasHydrated: true,
+      lastHydratedUserId: null,
+    });
+
+    await controller.sendMessage("hello");
+
+    const expectedRetryAt = new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }).format(new Date("2026-03-17T11:20:00.000Z"));
+
+    expect(useChatStore.getState()).toEqual(
+      expect.objectContaining({
+        status: "error",
+        error: null,
+      }),
+    );
+    expect(
+      useChatStore
+        .getState()
+        .messages.find((message) => message.role === "user")?.error,
+    ).toBe(
+      `You’ve reached your chat limit for this period. You can chat again at ${expectedRetryAt}. Purchase a membership to unlock higher chat limits.`,
+    );
+  });
+
+  it("includes retry-after seconds in burst limit messaging when available", async () => {
+    const fallback = createRepository("browser");
+    fallback.restoreActiveConversation.mockResolvedValue({
+      conversation: null,
+      widget: null,
+    });
+    fallback.createConversation.mockImplementation(
+      async (conversation) => conversation,
+    );
+    fallback.appendMessages.mockResolvedValue(null);
+    fallback.saveWidgetSession.mockResolvedValue(undefined);
+
+    getChatSessionPersistenceMock.mockReturnValue({
+      preferredRepository: fallback,
+      fallbackRepository: fallback,
+    });
+
+    const controller = new ChatController({
+      reply: async () => {
+        throw new ChatRequestError("Too many chat requests", 429, "burst", 60);
+      },
+    });
+
+    useChatStore.setState({
+      auth: {
+        isReady: true,
+        isAuthenticated: false,
+        privyUserId: null,
+        walletAddress: null,
+      },
+      route: baseRoute,
+      hasHydrated: true,
+      lastHydratedUserId: null,
+    });
+
+    await controller.sendMessage("hello");
+
+    const expectedRetryAt = new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }).format(new Date("2026-03-17T10:21:00.000Z"));
+
+    expect(useChatStore.getState()).toEqual(
+      expect.objectContaining({
+        status: "error",
+        error: null,
+      }),
+    );
+    expect(
+      useChatStore
+        .getState()
+        .messages.find((message) => message.role === "user")?.error,
+    ).toBe(
+      `You’ve sent messages too quickly for now. You can chat again at ${expectedRetryAt}.`,
+    );
+  });
+
+  it("keeps a prior quota message dominant when retrying into burst protection", async () => {
+    const fallback = createRepository("browser");
+    fallback.restoreActiveConversation.mockResolvedValue({
+      conversation: null,
+      widget: null,
+    });
+    fallback.createConversation.mockImplementation(
+      async (conversation) => conversation,
+    );
+    fallback.appendMessages.mockResolvedValue(null);
+    fallback.saveWidgetSession.mockResolvedValue(undefined);
+
+    getChatSessionPersistenceMock.mockReturnValue({
+      preferredRepository: fallback,
+      fallbackRepository: fallback,
+    });
+
+    const controller = new ChatController({
+      reply: jest
+        .fn()
+        .mockRejectedValueOnce(
+          new ChatRequestError(
+            "Chat usage limit reached for this period.",
+            429,
+            "quota",
+            3600,
+            "anonymous",
+          ),
+        )
+        .mockRejectedValueOnce(
+          new ChatRequestError("Too many chat requests", 429, "burst", 60, "anonymous"),
+        ),
+    });
+
+    useChatStore.setState({
+      auth: {
+        isReady: true,
+        isAuthenticated: false,
+        privyUserId: null,
+        walletAddress: null,
+      },
+      route: baseRoute,
+      hasHydrated: true,
+      lastHydratedUserId: null,
+    });
+
+    await controller.sendMessage("hello");
+
+    const failedMessage = useChatStore
+      .getState()
+      .messages.find((message) => message.role === "user" && message.status === "error");
+
+    expect(failedMessage?.error).toContain("Connect to the app to unlock higher chat limits.");
+
+    await controller.retryMessage(failedMessage!.id);
+
+    const retriedMessage = useChatStore
+      .getState()
+      .messages.find((message) => message.id === failedMessage!.id);
+
+    expect(retriedMessage?.error).toContain(
+      "Connect to the app to unlock higher chat limits.",
+    );
+    expect(retriedMessage?.error).not.toContain("messages too quickly");
   });
 });

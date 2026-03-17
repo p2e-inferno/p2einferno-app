@@ -15,6 +15,7 @@ interface ChatPanelProps {
   open: boolean;
   draft: string;
   messages: ChatMessage[];
+  error: string | null;
   loading: boolean;
   showTypingIndicator: boolean;
   showSuggestedPrompts: boolean;
@@ -35,6 +36,7 @@ export function ChatPanel({
   open,
   draft,
   messages,
+  error,
   loading,
   showTypingIndicator,
   showSuggestedPrompts,
@@ -137,6 +139,12 @@ export function ChatPanel({
 
               {/* Suggestions & Input */}
               <div className="p-6 pt-2">
+                {error && (
+                  <div className="mb-3 rounded-2xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                    {error}
+                  </div>
+                )}
+
                 {showSuggestedPrompts && messages.length <= 1 && !loading && (
                   <div className="mb-4 flex flex-wrap gap-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <ChatSuggestedPrompts onPromptSelect={onSendMessage} />

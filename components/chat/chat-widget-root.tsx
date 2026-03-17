@@ -15,6 +15,7 @@ export function ChatWidgetRoot() {
     isPeekDismissed,
     draft,
     messages,
+    error,
     isBusy,
     route,
     showSuggestedPrompts,
@@ -43,6 +44,7 @@ export function ChatWidgetRoot() {
         open={isOpen}
         draft={draft}
         messages={messages}
+        error={error}
         loading={isBusy}
         showTypingIndicator={showTypingIndicator}
         showSuggestedPrompts={showSuggestedPrompts}

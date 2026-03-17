@@ -106,7 +106,7 @@ describe("POST /api/chat/attachments/upload", () => {
         privyUserId: null,
       },
     });
-    enforceChatAttachmentUploadLimitsMock.mockReturnValue({ allowed: true });
+    enforceChatAttachmentUploadLimitsMock.mockResolvedValue({ allowed: true });
     handleUploadMock.mockImplementation(
       async ({ onBeforeGenerateToken, onUploadCompleted }) => {
         const before = await onBeforeGenerateToken(
@@ -185,5 +185,40 @@ describe("POST /api/chat/attachments/upload", () => {
       "chat-attachments/example.png",
     );
     expect(applyChatAnonymousSessionCookieMock).toHaveBeenCalled();
+  });
+
+  it("returns 429 with retry metadata when attachment limits deny the request", async () => {
+    enforceChatAttachmentUploadLimitsMock.mockResolvedValue({
+      allowed: false,
+      status: 429,
+      error: "Too many attachment uploads. Please wait and try again.",
+      reason: "burst",
+      retryAfterSeconds: 55,
+    });
+
+    const res = await uploadRoute.POST(createRequest() as any);
+
+    expect(handleUploadMock).not.toHaveBeenCalled();
+    expect(res.status).toBe(429);
+    expect(res.headers.get("Retry-After")).toBe("55");
+    await expect(res.json()).resolves.toEqual({
+      error: "Too many attachment uploads. Please wait and try again.",
+      reason: "burst",
+    });
+  });
+
+  it("sanitizes unexpected infrastructure failures", async () => {
+    handleUploadMock.mockRejectedValue(
+      new Error(
+        "ERR WRONGTYPE Operation against a key holding the wrong kind of value",
+      ),
+    );
+
+    const res = await uploadRoute.POST(createRequest() as any);
+
+    expect(res.status).toBe(500);
+    await expect(res.json()).resolves.toEqual({
+      error: "Unable to process attachment upload",
+    });
   });
 });

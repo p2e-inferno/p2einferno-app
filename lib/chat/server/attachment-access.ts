@@ -112,10 +112,10 @@ export async function resolveChatAttachmentAccessIdentity(
   };
 }
 
-export function enforceChatAttachmentUploadLimits(
+export async function enforceChatAttachmentUploadLimits(
   identity: ChatAttachmentAccessIdentity,
 ) {
-  const burst = enforceChatAttachmentUploadBurstLimit({
+  const burst = await enforceChatAttachmentUploadBurstLimit({
     identity: identity.usageIdentity,
     hasMembership: identity.hasMembership,
   });

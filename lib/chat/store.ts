@@ -9,6 +9,17 @@ import type {
   RestoreConversationResult,
 } from "@/lib/chat/types";
 
+function dedupeMessagesById(messages: ChatMessage[]) {
+  const seen = new Set<string>();
+  return messages.filter((message) => {
+    if (seen.has(message.id)) {
+      return false;
+    }
+    seen.add(message.id);
+    return true;
+  });
+}
+
 const initialAuth: ChatAuthContext = {
   isReady: false,
   isAuthenticated: false,
@@ -77,7 +88,9 @@ export const useChatStore = create<ChatWidgetState & ChatStoreActions>(
     setRoute: (route) => set({ route }),
     setMessages: (messages) => set({ messages }),
     appendMessages: (messages) =>
-      set((state) => ({ messages: [...state.messages, ...messages] })),
+      set((state) => ({
+        messages: dedupeMessagesById([...state.messages, ...messages]),
+      })),
     updateMessage: (messageId, updater) =>
       set((state) => ({
         messages: state.messages.map((message) =>

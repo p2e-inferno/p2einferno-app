@@ -37,6 +37,17 @@ function getStorage() {
   return window.sessionStorage;
 }
 
+function dedupeMessagesById(messages: ChatMessage[]) {
+  const seen = new Set<string>();
+  return messages.filter((message) => {
+    if (seen.has(message.id)) {
+      return false;
+    }
+    seen.add(message.id);
+    return true;
+  });
+}
+
 export class BrowserChatRepository implements ChatRepository {
   readonly name = "browser";
 
@@ -124,7 +135,7 @@ export class BrowserChatRepository implements ChatRepository {
     const nextConversation: ChatConversation = {
       ...existing,
       id: conversationId || existing.id,
-      messages: [...existing.messages, ...messages],
+      messages: dedupeMessagesById([...existing.messages, ...messages]),
       updatedAt: Date.now(),
     };
 
