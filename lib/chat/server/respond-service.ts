@@ -463,8 +463,8 @@ function buildRouterInstruction(hasAttachments: boolean) {
     '- route: must be one of "chat_only", "grounded_kb", "clarify".',
     '- retrievalQuery: string.',
     '- rationale: string.',
-    'Use "chat_only" for greetings, thanks, acknowledgements, and lightweight conversational turns that do not need grounded operational facts.',
-    'Use "grounded_kb" for product, navigation, troubleshooting, quest, bootcamp, vendor, wallet, membership, or process questions that need factual grounding.',
+    'Use "chat_only" for greetings, thanks, and acknowledgements only (e.g. "hi", "thanks", "got it").',
+    'Use "grounded_kb" for any question containing what, where, which, who, how, why, or when — and for any product, navigation, troubleshooting, quest, bootcamp, vendor, wallet, membership, or process question. Never answer informational questions from memory.',
     'Use "clarify" only when the message is too ambiguous to answer safely or search well.',
     "If route is grounded_kb, provide a short retrievalQuery optimized for knowledge-base search.",
     "If route is not grounded_kb, retrievalQuery should be an empty string.",
@@ -519,20 +519,19 @@ function buildAgentInstruction(params: {
 
   return [
     "You are the P2E Inferno in-app assistant.",
+    `Current page: ${params.pathname}. You have no page-specific knowledge without searching the knowledge base.`,
     params.objective,
     "",
     "Help users move forward clearly and naturally. Lead with the most useful answer or next step. Be direct and conversational — not robotic or policy-heavy.",
     "Use conversation history and current route to stay in context. Treat short follow-ups as continuations unless the user clearly changes topic.",
     "",
     "Rules:",
-    "- Ground every question involving what, how, why, when, where, or who with data from the knowledge base using the search_knowledge_base tool before responding. Never answer these from memory.",
-    "- Always use the knowledge base for any product, feature, operational, or procedural question. Never guess.",
-    "- Only skip the knowledge base for pure greetings, thanks, and simple banter with no product question.",
+    "- Before answering any informational question, always search the knowledge base using the search_knowledge_base tool. Do not rely on prior conversation context or memory.",
+    "- Only skip the knowledge base for pure greetings and acknowledgments with no question (e.g. 'hi', 'thanks', 'got it', 'ok').",
     "- When the knowledge base result is weak or missing, say so clearly and give the safest next step. Never invent account state, balances, permissions, or outcomes.",
-    "For attachments, use what the user shared directly. Only suggest sending a screenshot or recording if it would materially improve accuracy on a UI-specific issue.",
+    "- If the user shared an image, view it. If the user shared a video, watch it. Then search the knowledge base for relevant context and data before responding.",
     "",
     `Style: ${params.responseStyle}`,
-    `Pathname: ${params.pathname}`,
     authContext,
   ].join("\n");
 }
@@ -546,7 +545,7 @@ function shouldPreferToolGrounding(params: {
   userText: string;
   attachments?: ChatAttachment[];
 }) {
-  if ((params.attachments?.length ?? 0) > 0 && params.userText.trim()) {
+  if ((params.attachments?.length ?? 0) > 0) {
     return true;
   }
 
@@ -831,9 +830,7 @@ export async function generateChatResponse(params: {
   const toolAgentEnabled = isToolAgentEnabled();
   const hasAttachments = Boolean(params.body.attachments?.length);
   const hasVideo = params.body.attachments?.some((a) => a.type === "video");
-  const multimodalModel = hasVideo
-    ? "google/gemini-3.1-flash-lite-preview"
-    : "google/gemini-2.0-flash-001";
+  const multimodalModel = "google/gemini-3.1-flash-lite-preview";
   const thinkingLevel = hasVideo ? "medium" : undefined;
   const historyMessages = await formatHistoryMessages(
     params.body.messages,
@@ -845,6 +842,8 @@ export async function generateChatResponse(params: {
     params.body.attachments,
     params.attachmentOwnerIdentityKey,
   );
+
+  let forcedGrounding = false;
 
   if (toolAgentEnabled) {
     const agentMessages: AIChatMessage[] = [
@@ -904,11 +903,12 @@ export async function generateChatResponse(params: {
         };
       }
 
-      log.warn("Tool-agent path produced no tool calls for a grounding-preferred request; falling back to legacy router path", {
+      log.warn("Tool-agent path produced no tool calls for a grounding-preferred request; falling back to legacy router path with forced grounding", {
         conversationId: params.body.conversationId,
         profile: profile.id,
         pathname: normalizedPathname,
       });
+      forcedGrounding = true;
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         throw error;
@@ -922,17 +922,19 @@ export async function generateChatResponse(params: {
     }
   }
 
-  const intentDecision = await routeChatIntent({
-    pathname: normalizedPathname,
-    isAuthenticated: params.isAuthenticated,
-    profile: legacyProfile,
-    userText,
-    attachments: params.body.attachments,
-    messages: params.body.messages,
-    historyMessages,
-    attachmentOwnerIdentityKey: params.attachmentOwnerIdentityKey,
-    signal: params.signal,
-  });
+  const intentDecision = forcedGrounding
+    ? { route: "grounded_kb" as ChatIntentRoute, retrievalQuery: userText }
+    : await routeChatIntent({
+      pathname: normalizedPathname,
+      isAuthenticated: params.isAuthenticated,
+      profile: legacyProfile,
+      userText,
+      attachments: params.body.attachments,
+      messages: params.body.messages,
+      historyMessages,
+      attachmentOwnerIdentityKey: params.attachmentOwnerIdentityKey,
+      signal: params.signal,
+    });
 
   log.debug("Resolved chat route profile and intent", {
     conversationId: params.body.conversationId,
