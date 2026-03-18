@@ -31,7 +31,7 @@ export function ChatWidgetRoot() {
   } = useChatWidget();
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 max-w-[calc(100vw-1.5rem)]">
+    <div className="fixed bottom-3 right-3 z-50 max-w-[calc(100vw-1.5rem)] sm:bottom-5 sm:right-5">
       <ChatTeaser
         open={isOpen}
         visible={isPeekVisible}
