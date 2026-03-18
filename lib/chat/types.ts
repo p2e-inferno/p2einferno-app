@@ -95,6 +95,7 @@ export interface ChatWidgetState extends ChatWidgetSession {
   messages: ChatMessage[];
   status: ChatRequestStatus;
   error: string | null;
+  rateLimitedUntil: number | null;
   auth: ChatAuthContext;
   route: ChatRouteContext | null;
   hasHydrated: boolean;

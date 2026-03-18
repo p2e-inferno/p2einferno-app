@@ -68,7 +68,7 @@ export function ChatPanel({
           animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
           exit={{ opacity: 0, scale: 0.95, y: 20, filter: "blur(10px)" }}
           transition={{ type: "spring", damping: 25, stiffness: 300 }}
-          className="absolute bottom-0 right-0 z-50 w-[400px] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-900/95 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
+          className="absolute bottom-[calc(100%+0.75rem)] right-0 z-50 w-[400px] max-w-[calc(100vw-2.5rem)] overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-900/95 shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-2xl"
         >
           <div className="flex min-h-0 flex-col">
             {/* Header */}

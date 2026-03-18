@@ -17,6 +17,7 @@ export function ChatWidgetRoot() {
     messages,
     error,
     isBusy,
+    rateLimitedUntil,
     route,
     showSuggestedPrompts,
     showTypingIndicator,
@@ -31,7 +32,7 @@ export function ChatWidgetRoot() {
   } = useChatWidget();
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 max-w-[calc(100vw-1.5rem)]">
+    <div className="fixed bottom-3 right-3 z-50 h-16 w-16 max-w-[calc(100vw-1.5rem)] sm:bottom-5 sm:right-5 sm:w-auto">
       <ChatTeaser
         open={isOpen}
         visible={isPeekVisible}
@@ -57,7 +58,12 @@ export function ChatWidgetRoot() {
         onDeleteMessage={deleteMessage}
       />
 
-      {!isOpen && <ChatLauncher onOpen={openWidget} />}
+      {!isOpen && (
+        <ChatLauncher
+          onOpen={openWidget}
+          rateLimitedUntil={rateLimitedUntil}
+        />
+      )}
     </div>
   );
 }

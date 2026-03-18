@@ -259,7 +259,7 @@ export function ChatComposer({
     editorProps: {
       attributes: {
         class:
-          "prose prose-invert max-w-none focus:outline-none min-h-[40px] max-h-[200px] overflow-y-auto px-1 py-2 text-sm text-white placeholder:text-slate-500 leading-relaxed transition-all",
+          "prose prose-invert max-w-none focus:outline-none min-h-[40px] max-h-[200px] touch-pan-y overflow-y-auto overscroll-contain px-1 py-2 text-sm text-white placeholder:text-slate-500 leading-relaxed transition-all",
         role: "textbox",
         "aria-label": "Chat message",
       },

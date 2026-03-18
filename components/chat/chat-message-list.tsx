@@ -41,7 +41,7 @@ export function ChatMessageList({
       aria-live="polite"
       aria-relevant="additions"
       aria-atomic="false"
-      className="scrollbar-hide flex h-full min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-4"
+      className="scrollbar-hide flex h-full min-h-0 flex-1 touch-pan-y flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-4"
     >
       {messages.map((message) => (
         <ChatMessageBubble

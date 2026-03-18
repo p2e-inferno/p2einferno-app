@@ -329,7 +329,7 @@ export const WalletDetailsModal: React.FC<WalletDetailsModalProps> = ({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4 sm:space-y-6 max-h-[72vh] md:max-h-[60vh] overflow-y-auto px-6 pb-6">
+        <div className="space-y-4 sm:space-y-6 max-h-[72vh] touch-pan-y overflow-y-auto overscroll-contain px-6 pb-6 md:max-h-[60vh]">
           {/* Network Info */}
           <div className="flex items-center justify-between text-sm">
             <span className="text-gray-400">Network:</span>

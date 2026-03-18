@@ -6,6 +6,8 @@ export const CHAT_STORAGE_KEYS = {
   authenticatedConversation: "chat-widget:authenticated-conversation",
   anonymousWidget: "chat-widget:anonymous-widget",
   authenticatedWidget: "chat-widget:authenticated-widget",
+  anonymousRateLimit: "chat-widget:anonymous-rate-limit",
+  authenticatedRateLimit: "chat-widget:authenticated-rate-limit",
 } as const;
 
 export const CHAT_TEASER_SHOW_DELAY_MS = 3000;
