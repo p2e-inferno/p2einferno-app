@@ -37,19 +37,20 @@ export function readChatRateLimitUntil(auth: ChatAuthContext) {
     return null;
   }
 
-  const raw = storage.getItem(getRateLimitKey(auth));
+  const key = getRateLimitKey(auth);
+  const raw = storage.getItem(key);
   if (!raw) {
     return null;
   }
 
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) && raw !== "Infinity") {
-    storage.removeItem(getRateLimitKey(auth));
+    storage.removeItem(key);
     return null;
   }
 
   if (parsed !== Infinity && parsed <= Date.now()) {
-    storage.removeItem(getRateLimitKey(auth));
+    storage.removeItem(key);
     return null;
   }
 
