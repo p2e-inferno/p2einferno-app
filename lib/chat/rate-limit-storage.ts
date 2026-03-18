@@ -1,5 +1,8 @@
 import { CHAT_STORAGE_KEYS } from "@/lib/chat/constants";
 import type { ChatAuthContext } from "@/lib/chat/types";
+import { getLogger } from "@/lib/utils/logger";
+
+const log = getLogger("chat:rate-limit-storage");
 
 function getStorage() {
   if (typeof window === "undefined") {
@@ -10,11 +13,22 @@ function getStorage() {
 }
 
 function getRateLimitKey(auth: ChatAuthContext) {
-  if (!auth.isAuthenticated) {
+  if (!auth.isAuthenticated || !auth.privyUserId) {
+    if (auth.isAuthenticated && !auth.privyUserId) {
+      log.warn(
+        "Authenticated chat rate limit storage missing privyUserId; falling back to anonymous key",
+        {
+          authenticatedKey: CHAT_STORAGE_KEYS.authenticatedRateLimit,
+          anonymousKey: CHAT_STORAGE_KEYS.anonymousRateLimit,
+          privyUserId: auth.privyUserId,
+        },
+      );
+    }
+
     return CHAT_STORAGE_KEYS.anonymousRateLimit;
   }
 
-  return `${CHAT_STORAGE_KEYS.authenticatedRateLimit}:${auth.privyUserId ?? "unknown"}`;
+  return `${CHAT_STORAGE_KEYS.authenticatedRateLimit}:${auth.privyUserId}`;
 }
 
 export function readChatRateLimitUntil(auth: ChatAuthContext) {
