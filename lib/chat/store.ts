@@ -26,6 +26,7 @@ const initialState: ChatWidgetState = {
   messages: [CHAT_WELCOME_MESSAGE],
   status: "idle",
   error: null,
+  rateLimitedUntil: null,
   auth: initialAuth,
   route: null,
   hasHydrated: false,
@@ -40,6 +41,7 @@ interface ChatStoreActions {
   setDraft: (draft: string) => void;
   setStatus: (status: ChatWidgetState["status"]) => void;
   setError: (error: string | null) => void;
+  setRateLimitedUntil: (rateLimitedUntil: number | null) => void;
   setAuth: (auth: ChatAuthContext) => void;
   setRoute: (route: ChatRouteContext) => void;
   setMessages: (messages: ChatMessage[]) => void;
@@ -74,6 +76,7 @@ export const useChatStore = create<ChatWidgetState & ChatStoreActions>(
     setDraft: (draft) => set({ draft }),
     setStatus: (status) => set({ status }),
     setError: (error) => set({ error }),
+    setRateLimitedUntil: (rateLimitedUntil) => set({ rateLimitedUntil }),
     setAuth: (auth) => set({ auth }),
     setRoute: (route) => set({ route }),
     setMessages: (messages) => set({ messages }),
@@ -125,6 +128,7 @@ export const useChatStore = create<ChatWidgetState & ChatStoreActions>(
           hasHydrated: true,
           lastHydratedUserId: userId,
           error: null,
+          rateLimitedUntil: didUserChange ? initialState.rateLimitedUntil : state.rateLimitedUntil,
         };
       }),
     resetConversation: () =>

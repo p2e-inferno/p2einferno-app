@@ -5,6 +5,10 @@ import { extractChatAttachmentBlobPath } from "@/lib/chat/attachment-serving";
 import { resolveChatReconciliationPlan } from "@/lib/chat/reconciliation";
 import { buildChatAssistantContext } from "@/lib/chat/route-behavior";
 import { ChatRequestError } from "@/lib/chat/repository/http";
+import {
+  readChatRateLimitUntil,
+  writeChatRateLimitUntil,
+} from "@/lib/chat/rate-limit-storage";
 import { getChatSessionPersistence } from "@/lib/chat/session";
 import { getChatStoreState, useChatStore } from "@/lib/chat/store";
 import type {
@@ -37,6 +41,14 @@ export class ChatController {
   private lastAuthKey = "anonymous";
 
   constructor(private readonly adapter: ChatAdapter = httpChatAdapter) {}
+
+  private setRateLimitUntil(
+    auth: ChatControllerBootstrapOptions["auth"],
+    rateLimitedUntil: number | null,
+  ) {
+    useChatStore.getState().setRateLimitedUntil(rateLimitedUntil);
+    writeChatRateLimitUntil(auth, rateLimitedUntil);
+  }
 
   private getAttachmentPathnames(messages: ChatMessage[]) {
     return Array.from(
@@ -308,6 +320,7 @@ export class ChatController {
     useChatStore.getState().applyRestore(resolved, auth.privyUserId);
     useChatStore.setState({
       status: "idle",
+      rateLimitedUntil: readChatRateLimitUntil(auth),
     });
   }
 
@@ -451,6 +464,7 @@ export class ChatController {
       }
 
       if (this.isOperationCurrent(operation)) {
+        this.setRateLimitUntil(state.auth, null);
         useChatStore.setState({ status: "idle" });
       }
     } catch (error) {
@@ -479,6 +493,13 @@ export class ChatController {
         preservedQuotaError?.message ?? requestErrorMessage;
       const effectiveRequestError =
         preservedQuotaError?.requestError ?? requestError;
+      const nextRateLimitedUntil =
+        effectiveRequestError?.status === 429
+          ? typeof effectiveRequestError.retryAfterSeconds === "number" &&
+            effectiveRequestError.retryAfterSeconds > 0
+            ? Date.now() + effectiveRequestError.retryAfterSeconds * 1000
+            : Number.POSITIVE_INFINITY
+          : null;
 
       if (!replyReceived) {
         await this.rollbackPersistedMessage(
@@ -504,6 +525,9 @@ export class ChatController {
       }));
 
       log.error("Failed to send chat message", { error });
+      if (effectiveRequestError?.status === 429) {
+        this.setRateLimitUntil(state.auth, nextRateLimitedUntil);
+      }
       useChatStore.setState({
         status: "error",
         error:

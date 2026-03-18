@@ -1,15 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Bot } from "lucide-react";
 
 interface ChatLauncherProps {
   onOpen: () => Promise<void>;
+  rateLimitedUntil: number | null;
 }
 
-export function ChatLauncher({ onOpen }: ChatLauncherProps) {
+export function ChatLauncher({
+  onOpen,
+  rateLimitedUntil,
+}: ChatLauncherProps) {
   const [isOpening, setIsOpening] = useState(false);
+  const [isRateLimited, setIsRateLimited] = useState(() =>
+    rateLimitedUntil === null ? false : rateLimitedUntil > Date.now(),
+  );
+
+  useEffect(() => {
+    if (rateLimitedUntil === null) {
+      setIsRateLimited(false);
+      return;
+    }
+
+    if (!Number.isFinite(rateLimitedUntil)) {
+      setIsRateLimited(true);
+      return;
+    }
+
+    const remainingMs = rateLimitedUntil - Date.now();
+    if (remainingMs <= 0) {
+      setIsRateLimited(false);
+      return;
+    }
+
+    setIsRateLimited(true);
+    const timer = window.setTimeout(() => {
+      setIsRateLimited(false);
+    }, remainingMs);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [rateLimitedUntil]);
 
   const handleOpen = async () => {
     if (isOpening) {
@@ -42,9 +76,19 @@ export function ChatLauncher({ onOpen }: ChatLauncherProps) {
         <Bot className="h-5 w-5 text-white transition-transform group-hover:scale-110 sm:h-7 sm:w-7" />
 
         {/* Notification Dot */}
-        <span className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-primary shadow-[0_0_10px_#ef4444] sm:right-4 sm:top-4 sm:h-2.5 sm:w-2.5">
-          <span className="absolute inset-0 animate-ping rounded-full bg-primary opacity-75" />
-        </span>
+        <span
+          className={`absolute right-2.5 top-2.5 h-2 w-2 rounded-full sm:right-4 sm:top-4 sm:h-2.5 sm:w-2.5 ${
+            isRateLimited
+              ? "bg-primary shadow-[0_0_10px_#ef4444]"
+              : "bg-emerald-400 shadow-[0_0_10px_rgba(74,222,128,0.9)]"
+          }`}
+        />
+        <span
+          aria-hidden="true"
+          className={`pointer-events-none absolute right-2.5 top-2.5 block h-2 w-2 rounded-full opacity-75 sm:right-4 sm:top-4 sm:h-2.5 sm:w-2.5 ${
+            isRateLimited ? "bg-primary animate-ping" : "bg-emerald-400 animate-ping"
+          }`}
+        />
       </div>
     </motion.button>
   );
