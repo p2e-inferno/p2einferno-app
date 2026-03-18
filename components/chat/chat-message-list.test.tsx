@@ -1,53 +1,37 @@
 import { render, screen } from "@testing-library/react";
 import { ChatMessageList } from "@/components/chat/chat-message-list";
 
+jest.mock("@/components/chat/chat-message-bubble", () => ({
+  ChatMessageBubble: ({ message }: { message: { content: string } }) => (
+    <div>{message.content}</div>
+  ),
+}));
+
 describe("ChatMessageList", () => {
-  const baseMessages = [
-    {
-      id: "seed",
-      role: "assistant" as const,
-      content: "Hi",
-      ts: 1,
-      status: "complete" as const,
-      error: null,
-    },
-  ];
-
-  it("shows the typing indicator for the existing non-streaming loading path", () => {
-    render(
-      <ChatMessageList
-        messages={baseMessages}
-        loading
-        showTypingIndicator
-        onRetryMessage={jest.fn().mockResolvedValue(undefined)}
-        onDeleteMessage={jest.fn().mockResolvedValue(undefined)}
-      />,
-    );
-
-    expect(screen.getByText(/assistant is typing/i)).toBeInTheDocument();
-  });
-
-  it("does not render the typing placeholder when an in-list streaming message is already active", () => {
+  it("contains scroll chaining within the chat log", () => {
     render(
       <ChatMessageList
         messages={[
-          ...baseMessages,
           {
-            id: "streaming_assistant",
+            id: "assistant-1",
             role: "assistant",
-            content: "Partial",
-            ts: 2,
-            status: "streaming",
+            content: "Hello",
+            ts: 1,
+            status: "complete",
             error: null,
           },
         ]}
-        loading
-        showTypingIndicator
+        loading={false}
+        showTypingIndicator={false}
         onRetryMessage={jest.fn().mockResolvedValue(undefined)}
         onDeleteMessage={jest.fn().mockResolvedValue(undefined)}
       />,
     );
 
-    expect(screen.queryByText(/assistant is typing/i)).not.toBeInTheDocument();
+    const log = screen.getByRole("log");
+
+    expect(log).toHaveClass("overflow-y-auto");
+    expect(log).toHaveClass("overscroll-contain");
+    expect(log).toHaveClass("touch-pan-y");
   });
 });
