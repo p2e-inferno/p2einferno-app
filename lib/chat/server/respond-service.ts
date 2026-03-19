@@ -723,8 +723,8 @@ async function rewriteGroundedRetrievalQuery(params: {
   log.debug("Rewrote forced-grounding retrieval query", {
     pathname: params.pathname,
     profile: params.profileId,
-    originalUserText: params.userText,
-    rewrittenQuery: rewritten,
+    originalUserTextPreview: params.userText.slice(0, 200),
+    rewrittenQueryPreview: rewritten.slice(0, 200),
     historyMessageCount: params.historyMessages.length,
   });
 
@@ -998,13 +998,19 @@ export async function generateChatResponse(params: {
   const intentDecision = forcedGrounding
     ? {
       route: "grounded_kb" as ChatIntentRoute,
-      retrievalQuery: await rewriteGroundedRetrievalQuery({
-        pathname: normalizedPathname,
-        profileId: profile.id,
-        userText,
-        historyMessages,
-        signal: params.signal,
-      }),
+      // Skip text rewrite for attachment requests — the rewrite model cannot
+      // see the attached media, so a sparse text query ("what is this?") would
+      // produce a useless retrieval query. Let buildAttachmentOnlyRetrievalQuery
+      // handle it via the retrievalQuery fallback chain below.
+      retrievalQuery: hasAttachments
+        ? undefined
+        : await rewriteGroundedRetrievalQuery({
+          pathname: normalizedPathname,
+          profileId: profile.id,
+          userText,
+          historyMessages,
+          signal: params.signal,
+        }),
     }
     : await routeChatIntent({
       pathname: normalizedPathname,

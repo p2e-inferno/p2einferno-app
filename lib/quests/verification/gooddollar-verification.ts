@@ -28,10 +28,10 @@ export class GoodDollarVerificationStrategy implements VerificationStrategy {
       const supabase = createAdminClient();
 
       const { data, error } = await supabase
-        .from("users")
+        .from("user_profiles")
         .select("is_face_verified, face_verification_expiry")
-        .eq("id", userId)
-        .single();
+        .eq("privy_user_id", userId)
+        .maybeSingle();
 
       if (error) {
         log.error("Failed to query user GoodDollar status", { userId, error: error.message });
