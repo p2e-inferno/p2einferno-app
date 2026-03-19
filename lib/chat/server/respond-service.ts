@@ -1000,7 +1000,7 @@ export async function generateChatResponse(params: {
       route: "grounded_kb" as ChatIntentRoute,
       retrievalQuery: await rewriteGroundedRetrievalQuery({
         pathname: normalizedPathname,
-        profileId: legacyProfile.id,
+        profileId: profile.id,
         userText,
         historyMessages,
         signal: params.signal,
@@ -1026,6 +1026,11 @@ export async function generateChatResponse(params: {
     domainTags: legacyProfile.domainTags,
     intentDecision,
   });
+
+  // When the tool-agent fell back to forced grounding, use the agent-resolved
+  // profile (which may differ from legacyProfile, e.g. home_onboarding vs
+  // home_sales) so the KB search uses the correct audience and limits.
+  const groundingProfile = forcedGrounding ? profile : legacyProfile;
 
   if (intentDecision.route === "chat_only") {
     const direct = await chatCompletion({
@@ -1153,13 +1158,13 @@ export async function generateChatResponse(params: {
     intentDecision.retrievalQuery ||
     userText ||
     buildAttachmentOnlyRetrievalQuery(
-      normalizedPathname, 
-      legacyProfile.domainTags, 
+      normalizedPathname,
+      groundingProfile.domainTags,
       hasVideo ? "video" : "image"
     );
   log.debug("Preparing grounded retrieval", {
     conversationId: params.body.conversationId,
-    profile: legacyProfile.id,
+    profile: groundingProfile.id,
     retrievalQuery,
     retrievalQueryLength: retrievalQuery.length,
   });
@@ -1172,15 +1177,15 @@ export async function generateChatResponse(params: {
   const results = await searchKnowledgeBase({
     queryText: retrievalQuery,
     queryEmbedding,
-    audience: legacyProfile.audience,
-    domainTags: legacyProfile.domainTags,
-    limit: legacyProfile.retrievalLimit,
-    freshnessDays: legacyProfile.freshnessDays,
+    audience: groundingProfile.audience,
+    domainTags: groundingProfile.domainTags,
+    limit: groundingProfile.retrievalLimit,
+    freshnessDays: groundingProfile.freshnessDays,
   });
 
   log.debug("Retrieved knowledge base results for chat", {
     conversationId: params.body.conversationId,
-    profile: legacyProfile.id,
+    profile: groundingProfile.id,
     retrievalQuery,
     resultCount: results.length,
     results: summarizeRetrievedChunks(results),
@@ -1190,13 +1195,13 @@ export async function generateChatResponse(params: {
     if (results.length === 0) {
       log.warn("Using zero-result retrieval fallback for chat response", {
         pathname: normalizedPathname,
-        profile: legacyProfile.id,
+        profile: groundingProfile.id,
         retrievalOutcome: "no_usable_results",
       });
     } else {
       log.warn("Using weak retrieval fallback for chat response", {
         pathname: normalizedPathname,
-        profile: legacyProfile.id,
+        profile: groundingProfile.id,
         topRank: results[0]?.rank ?? null,
         topSemanticRank: results[0]?.semantic_rank ?? null,
         conflicting: areResultsMeaningfullyConflicting(results),
@@ -1213,7 +1218,7 @@ export async function generateChatResponse(params: {
 
   log.debug("Selected prompt results for grounded answer", {
     conversationId: params.body.conversationId,
-    profile: legacyProfile.id,
+    profile: groundingProfile.id,
     promptResultCount: promptResults.length,
     promptResults: summarizeRetrievedChunks(promptResults),
   });
@@ -1223,16 +1228,16 @@ export async function generateChatResponse(params: {
     thinkingLevel,
     fallbacks: ["anthropic/claude-3-haiku"],
     temperature: 0.2,
-    maxTokens: legacyProfile.maxTokens ?? 450,
+    maxTokens: groundingProfile.maxTokens ?? 450,
       messages: [
       {
         role: "system",
         content: buildSystemInstruction({
           pathname: normalizedPathname,
           isAuthenticated: params.isAuthenticated,
-          objective: legacyProfile.assistantObjective,
-          responseStyle: legacyProfile.responseStyle,
-          weakRetrievalMode: legacyProfile.weakRetrievalMode,
+          objective: groundingProfile.assistantObjective,
+          responseStyle: groundingProfile.responseStyle,
+          weakRetrievalMode: groundingProfile.weakRetrievalMode,
         }),
       },
       ...historyMessages,
@@ -1261,7 +1266,7 @@ export async function generateChatResponse(params: {
       code: completion.code,
       error: completion.error,
       pathname: params.body.route.pathname,
-      profile: legacyProfile.id,
+      profile: groundingProfile.id,
     });
     throw new Error("Unable to generate a grounded response right now.");
   }
@@ -1272,7 +1277,7 @@ export async function generateChatResponse(params: {
 
   log.debug("Returning grounded chat response", {
     conversationId: params.body.conversationId,
-    profile: legacyProfile.id,
+    profile: groundingProfile.id,
     sourceCount: promptResults.length,
     responseLength: completionContent.length,
     responsePreview: completionContent.slice(0, 200),
@@ -1281,9 +1286,9 @@ export async function generateChatResponse(params: {
     message: createAssistantMessage(normalizeAppLinks(completionContent)),
     sources: mapSources(promptResults),
       retrievalMeta: {
-      profile: legacyProfile.id,
-      audience: legacyProfile.audience,
-      domainTags: legacyProfile.domainTags,
+      profile: groundingProfile.id,
+      audience: groundingProfile.audience,
+      domainTags: groundingProfile.domainTags,
       resultCount: results.length,
     },
   };
