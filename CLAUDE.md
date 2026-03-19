@@ -13,10 +13,16 @@ npm run test:coverage       # Jest + coverage (jsdom)
 npm run test:e2e            # Synpress/Playwright E2E tests
 
 # Database commands
-npm run db:migrate          # Apply Supabase migrations
+supabase migration up --local  # Apply pending migrations (NEVER use db reset unless explicitly asked)
 npm run db:types            # Generate TypeScript types from local schema
 npm run db:types:remote     # Generate types from remote schema
-npm run db:seed             # Reset DB with migrations + seed data
+npm run db:seed             # Reset DB with migrations + seed data (DESTRUCTIVE — explicit request only)
+
+# AI Knowledge Base commands
+npm run ai-kb:validate-coverage     # Validate every KB source has audience overlap with at least one active profile (no DB needed)
+npm run ai-kb:build                 # Full KB build
+npm run ai-kb:build:incremental     # Incremental KB build
+npm run ai-kb:verify                # Verify KB health (embeddings, staleness, canary queries)
 
 # E2E Testing (first-time setup)
 npx synpress ./tests/wallet-setup  # Build MetaMask wallet cache
@@ -57,7 +63,8 @@ npx synpress ./tests/wallet-setup  # Build MetaMask wallet cache
 - **Secrets**: DB password in `.env.local` (do not commit). Migrations live in `supabase/migrations/`.
 - **Common commands**:
   - `supabase start|stop` - Local Supabase instance
-  - `supabase db reset` - Reset local DB with migrations + seed data
+  - `supabase migration up --local` - Apply pending migrations (preferred; never destroys data)
+  - `supabase db reset` - Reset local DB — DESTRUCTIVE, only when explicitly requested
   - `supabase link --project-ref <ref>` - Link to remote project
   - `supabase db push` - Push migrations to remote
   - **Migration naming**: Follow pattern `###_description.sql` (e.g., `069_fix_sql_ambiguity.sql`)

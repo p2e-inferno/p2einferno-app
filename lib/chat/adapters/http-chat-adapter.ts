@@ -1,10 +1,25 @@
 import type { ChatAdapter } from "@/lib/chat/adapters/chat-adapter";
+import { CHAT_MAX_HISTORY_MESSAGES } from "@/lib/chat/constants";
 import { ensureJsonResponse } from "@/lib/chat/repository/http";
 import type { ChatRespondResponseBody } from "@/lib/chat/server/respond-types";
 import type { ChatAdapterRequest } from "@/lib/chat/types";
 
 export class HttpChatAdapter implements ChatAdapter {
   async reply(input: ChatAdapterRequest) {
+    const historyMessages = input.messages
+      .filter((message) => message.status !== "error")
+      // Drop ghost messages: image-only turns whose attachment data was lost
+      // when the conversation was restored from the server (attachments are not
+      // persisted to the DB). Sending these causes server validation failures
+      // because the message has neither content nor attachments.
+      .filter((message) => message.content.trim() || (message.attachments?.length ?? 0) > 0)
+      .slice(-CHAT_MAX_HISTORY_MESSAGES)
+      .map((message) => ({
+        role: message.role,
+        content: message.content,
+        attachments: message.attachments,
+      }));
+
     const response = await fetch("/api/chat/respond", {
       method: "POST",
       headers: this.getHeaders(input.accessToken),
@@ -13,18 +28,7 @@ export class HttpChatAdapter implements ChatAdapter {
         conversationId: input.conversationId,
         message: input.message.content,
         attachments: input.message.attachments,
-        messages: input.messages
-          .filter((message) => message.status !== "error")
-          // Drop ghost messages: image-only turns whose attachment data was lost
-          // when the conversation was restored from the server (attachments are not
-          // persisted to the DB). Sending these causes server validation failures
-          // because the message has neither content nor attachments.
-          .filter((message) => message.content.trim() || (message.attachments?.length ?? 0) > 0)
-          .map((message) => ({
-            role: message.role,
-            content: message.content,
-            attachments: message.attachments,
-          })),
+        messages: historyMessages,
         route: {
           pathname: input.route?.pathname ?? "/",
           routeKey: input.route?.routeKey ?? "home",

@@ -1,6 +1,6 @@
 # Unlock Protocol in P2E Inferno Playbook
 
-> Last Updated: March 17, 2026
+> Last Updated: March 18, 2026
 > Purpose: A practical guide to what Unlock Protocol is, the common use cases it supports, and how P2E Inferno uses it for memberships, access, and renewals.
 
 ## Who This Is For
@@ -31,6 +31,7 @@ Unlock is specifically designed for use cases like:
 - subscriptions
 - token-gated or NFT-gated access
 - event or community access
+- event ticketing and onchain RSVPs
 - certifications or credential-like experiences
 - recurring or renewable access models
 
@@ -46,6 +47,66 @@ It is built for cases where a project wants to manage things like:
 - whether access depends on the current wallet holding a valid key
 
 This makes it a strong fit for products that want onchain access control without building a custom membership system from scratch.
+
+## Unlock DAO and governance
+
+Unlock Protocol is not just a product maintained by one company. It also has a governance layer.
+
+At a practical level:
+
+- Unlock DAO is the community of governance token holders who govern the protocol
+- the current governance token is **UP**
+- UP is on **Base**
+- UP replaced the older **UDT** governance token model
+
+Governance happens in a few layers:
+
+- community discussion in public channels and forums
+- offchain signaling through Snapshot-style voting
+- onchain governance for executable protocol proposals
+
+In simple terms, that means protocol changes are not supposed to depend only on Unlock Labs deciding everything privately. The governance design is meant to let the DAO discuss, vote on, and execute protocol-level decisions.
+
+For support or AI explanations, the safest short version is:
+
+Unlock Protocol is governed by Unlock DAO, whose governance token is UP on Base. Community discussions can happen offchain, while executable protocol changes are handled through onchain governance.
+
+## Why this matters for P2E Inferno users
+
+Most P2E Inferno users do not need to understand DAO governance in detail to use the app.
+
+But it can still be useful to know that:
+
+- Unlock is a live protocol with a real governance system
+- memberships and access behavior come from a protocol with its own rules and upgrade path
+- protocol-level governance is separate from app-level support decisions inside P2E Inferno
+
+That helps explain why Unlock should be understood as infrastructure, not as a P2E Inferno-only feature.
+
+## Unlock as an event ticketing option
+
+Unlock is also widely used as an event ticketing and RSVP system.
+
+In practice, that means teams can use it to:
+
+- create an event page
+- issue onchain tickets or RSVP credentials
+- scan or verify attendance
+- gate access to online or in-person events
+- connect attendance with wallet-based identity and follow-on experiences
+
+This matters because Unlock is not only for subscriptions or memberships. It is also a practical option for communities, conferences, meetups, and branded activations that want ticketing and access to happen onchain.
+
+Unlock also has a current event product experience often described as **Events by Unlock Labs**, which focuses on fast event-page creation, ticketing, and attendance flows.
+
+Recent public examples in the Unlock ecosystem show this clearly. Unlock has been used for event flows and ticketing around conference and community experiences such as:
+
+- FarCon-related event ticketing
+- PizzaDAO and other community event activations
+- DappCon and other ecosystem events
+- educational, meetup, and creator-focused event experiences
+
+So when a user asks whether Unlock is only a membership tool, the answer is no. It is commonly used both for ongoing access and for event ticketing.
 
 ## Important Unlock Terms
 
@@ -83,6 +144,8 @@ The most important product-level uses are:
 - membership renewal behavior
 - membership-aware wallet and linked-wallet behavior
 - feature gating in areas where access depends on valid membership state
+
+P2E Inferno currently uses Unlock mainly for membership and access behavior, not as the main user-facing ticketing layer described in this playbook's broader Unlock examples.
 
 ## DG Nation membership
 
@@ -145,11 +208,15 @@ This is especially relevant in areas involving:
 
 When a user asks what Unlock Protocol is, the safest short explanation is:
 
-Unlock Protocol is the onchain membership system behind some access and renewal behavior in P2E Inferno. It uses membership NFTs called keys, issued by lock contracts, to track whether access is active, expired, or renewable.
+Unlock Protocol is the onchain membership system behind some access and renewal behavior in P2E Inferno. It uses membership NFTs called keys, issued by lock contracts, to track whether access is active, expired, or renewable. More broadly, Unlock is also used across web3 for memberships, subscriptions, and event ticketing.
 
 When a user asks how P2E Inferno uses it, the safest short explanation is:
 
 P2E Inferno uses Unlock to power membership-style access, especially DG Nation membership, renewal flows, and some wallet-sensitive access checks. In practice, that means the app may look at whether a valid membership key exists and which wallet actually holds it.
+
+When a user asks what Unlock DAO is, the safest short explanation is:
+
+Unlock DAO is the governance community behind Unlock Protocol. The current governance token is UP on Base, and the DAO participates in protocol decisions through discussion, voting, and onchain governance processes.
 
 ## Common User Questions
 
@@ -159,6 +226,28 @@ No.
 
 The wallet is how the user signs and holds assets.
 Unlock is the membership system whose lock contracts issue the membership key NFTs.
+
+## "Is Unlock Protocol just for memberships?"
+
+No.
+
+Memberships are one of its core uses, but Unlock is also used for subscriptions, token-gated access, and event ticketing.
+
+## "What is Unlock DAO?"
+
+Unlock DAO is the governance community for Unlock Protocol.
+
+The short version is:
+
+- UP token holders participate in governance
+- governance now centers on UP on Base
+- protocol decisions can be discussed offchain and executed onchain
+
+## "Does P2E Inferno use the DAO directly?"
+
+Not in the day-to-day sense most users mean.
+
+P2E Inferno uses Unlock as protocol infrastructure for membership and access behavior. That is different from a user participating in Unlock DAO governance directly.
 
 ## "If I own the NFT, why does access not work?"
 

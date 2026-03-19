@@ -20,9 +20,9 @@ export const searchKnowledgeBaseToolDefinition: AIToolDefinition = {
         limit: {
           type: "integer",
           minimum: 1,
-          maximum: 5,
+          maximum: 6,
           description:
-            "Optional number of results to retrieve. Keep it small. Defaults to 4.",
+            "Optional number of results to retrieve. Keep it small. Defaults to 5.",
         },
       },
       required: ["query"],

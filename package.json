@@ -32,6 +32,7 @@
     "ai-kb:build": "node scripts/ai-kb/build.js --mode full",
     "ai-kb:build:incremental": "node scripts/ai-kb/build.js --mode incremental",
     "ai-kb:verify": "node scripts/ai-kb/verify.js",
+    "ai-kb:validate-coverage": "node scripts/ai-kb/validate-kb-coverage.js",
     "test:ai-kb": "npx jest __tests__/scripts/ai-kb/ __tests__/lib/ai/knowledge/ __tests__/pages/api/ai/kb/ --no-coverage",
     "test:ai-kb:integration": "npx jest __tests__/integration/db/ai-kb- --no-coverage"
   },

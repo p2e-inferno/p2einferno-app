@@ -381,6 +381,266 @@ describe("generateChatResponse", () => {
     );
   });
 
+  it("forces grounded fallback for non-casual lobby questions when the tool-agent skips tool calls", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content: "I don't know the official link.",
+      sources: [],
+      usedToolCalls: false,
+      iterations: 1,
+      stopReason: "final_answer",
+    });
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-links",
+        document_id: "doc-links",
+        title: "Official Links and Socials Playbook",
+        chunk_text: "P2E Inferno X: https://x.com/p2einferno",
+        metadata: {
+          source_path: "docs/playbooks/OFFICIAL_LINKS_AND_SOCIALS_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.91,
+        keyword_rank: 0.78,
+        semantic_rank: 0.89,
+      },
+    ] as any);
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: "official P2E Inferno X account",
+        model: "rewrite-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content: "Yes. P2E Inferno is on X: https://x.com/p2einferno",
+        model: "test-model",
+      });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_lobby_social_fallback",
+        message: "is p2e inferno on x",
+        messages: [{ role: "user", content: "is p2e inferno on x" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalled();
+    expect(searchKnowledgeBaseMock).toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(response.message.content).toContain("https://x.com/p2einferno");
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "lobby_support",
+        resultCount: 1,
+      }),
+    );
+  });
+
+  it("forces grounded fallback for non-casual homepage questions when the tool-agent skips tool calls", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content: "I don't know the official link.",
+      sources: [],
+      usedToolCalls: false,
+      iterations: 1,
+      stopReason: "final_answer",
+    });
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-links-home",
+        document_id: "doc-links-home",
+        title: "Official Links and Socials Playbook",
+        chunk_text: "P2E Inferno Instagram: https://www.instagram.com/p2einferno",
+        metadata: {
+          source_path: "docs/playbooks/OFFICIAL_LINKS_AND_SOCIALS_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.9,
+        keyword_rank: 0.76,
+        semantic_rank: 0.88,
+      },
+    ] as any);
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: "official P2E Inferno Instagram account",
+        model: "rewrite-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "P2E Inferno is on Instagram: https://www.instagram.com/p2einferno",
+        model: "test-model",
+      });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_home_social_fallback",
+        message: "what about instagram?",
+        messages: [{ role: "user", content: "what about instagram?" }],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          behaviorKey: "general",
+          segment: null,
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalled();
+    expect(searchKnowledgeBaseMock).toHaveBeenCalled();
+    expect(chatCompletionMock).toHaveBeenCalledTimes(2);
+    expect(response.message.content).toContain(
+      "https://www.instagram.com/p2einferno",
+    );
+    expect(response.retrievalMeta).toEqual(
+      expect.objectContaining({
+        profile: "home_sales",
+        resultCount: 1,
+      }),
+    );
+  });
+
+  it("rewrites vague forced-grounding follow-ups into explicit KB queries", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content: "I don't know the official link.",
+      sources: [],
+      usedToolCalls: false,
+      iterations: 1,
+      stopReason: "final_answer",
+    });
+    searchKnowledgeBaseMock.mockResolvedValue([
+      {
+        chunk_id: "chunk-links-youtube",
+        document_id: "doc-links-youtube",
+        title: "Official Links and Socials Playbook",
+        chunk_text: "P2E Inferno YouTube: https://www.youtube.com/@P2EInferno",
+        metadata: {
+          source_path: "docs/playbooks/OFFICIAL_LINKS_AND_SOCIALS_PLAYBOOK.md",
+          source_type: "playbook",
+        },
+        rank: 0.92,
+        keyword_rank: 0.8,
+        semantic_rank: 0.9,
+      },
+    ] as any);
+    chatCompletionMock
+      .mockResolvedValueOnce({
+        success: true,
+        content: "official P2E Inferno YouTube channel",
+        model: "rewrite-model",
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        content:
+          "P2E Inferno is on YouTube: https://www.youtube.com/@P2EInferno",
+        model: "test-model",
+      });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_home_rewrite",
+        message: "how about youtube?",
+        messages: [
+          { role: "user", content: "what social media handles does p2e inferno have" },
+          { role: "assistant", content: "I don't have that list in my current knowledge base." },
+          { role: "user", content: "how about youtube?" },
+        ],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          behaviorKey: "general",
+          segment: null,
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(embedTextsMock).toHaveBeenCalledWith([
+      "official P2E Inferno YouTube channel",
+    ]);
+    expect(searchKnowledgeBaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryText: "official P2E Inferno YouTube channel",
+      }),
+    );
+    expect(response.message.content).toContain(
+      "https://www.youtube.com/@P2EInferno",
+    );
+  });
+
+  it("does not force grounded fallback for casual lobby turns when the tool-agent skips tool calls", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content: "Anytime. Let me know if anything else comes up.",
+      sources: [],
+      usedToolCalls: false,
+      iterations: 1,
+      stopReason: "final_answer",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_lobby_thanks",
+        message: "thanks",
+        messages: [{ role: "user", content: "thanks" }],
+        route: {
+          pathname: "/lobby",
+          routeKey: "lobby",
+          behaviorKey: "dashboard",
+          segment: "lobby",
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalled();
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(searchKnowledgeBaseMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain("Anytime");
+  });
+
+  it("does not force grounded fallback for casual homepage turns when the tool-agent skips tool calls", async () => {
+    process.env.CHAT_TOOL_AGENT_ENABLED = "true";
+    runChatAgentLoopMock.mockResolvedValue({
+      content: "Anytime. Let me know if anything else comes up.",
+      sources: [],
+      usedToolCalls: false,
+      iterations: 1,
+      stopReason: "final_answer",
+    });
+
+    const response = await generateChatResponse({
+      body: {
+        conversationId: "chat_agent_home_thanks",
+        message: "thanks",
+        messages: [{ role: "user", content: "thanks" }],
+        route: {
+          pathname: "/",
+          routeKey: "home",
+          behaviorKey: "general",
+          segment: null,
+        },
+      },
+      isAuthenticated: true,
+    });
+
+    expect(runChatAgentLoopMock).toHaveBeenCalled();
+    expect(chatCompletionMock).not.toHaveBeenCalled();
+    expect(searchKnowledgeBaseMock).not.toHaveBeenCalled();
+    expect(response.message.content).toContain("Anytime");
+  });
+
   it("preserves attachment-only requests through the agent path", async () => {
     process.env.CHAT_TOOL_AGENT_ENABLED = "true";
     runChatAgentLoopMock.mockResolvedValue({
