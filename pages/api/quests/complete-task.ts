@@ -25,6 +25,11 @@ import {
   substituteContextTokens,
   promptRequiresPrivyFetch,
 } from "@/lib/ai/verification/text";
+import {
+  asQuestTaskConfig,
+  getTaskConfigString,
+  getWalletMatchMode,
+} from "@/lib/quests/task-config";
 
 const log = getLogger("api:quests:complete-task");
 
@@ -49,6 +54,22 @@ function isExternalWalletLinkedAccount(
   return (
     account.type === "wallet" && isExternalWallet(account.walletClientType)
   );
+}
+
+function asObjectRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+}
+
+function getStringProperty(
+  value: Record<string, unknown> | null,
+  key: string,
+): string | undefined {
+  const field = value?.[key];
+  return typeof field === "string" ? field : undefined;
 }
 
 export default async function handler(
@@ -178,22 +199,24 @@ export default async function handler(
       log.error("Error fetching task:", taskError);
       return res.status(500).json({ error: "Failed to fetch task details" });
     }
+    if (!task) {
+      return res.status(404).json({ error: "Task not found" });
+    }
 
     // Build verification data (server-authored only)
     let verificationData: Record<string, unknown> | null = null;
-    const rawClientTxHash =
-      clientVerificationData && typeof clientVerificationData === "object"
-        ? (clientVerificationData as { transactionHash?: string })
-            .transactionHash
-        : undefined;
+    const clientVerificationRecord = asObjectRecord(clientVerificationData);
+    const taskConfig = asQuestTaskConfig(task.task_config);
+    const rawClientTxHash = getStringProperty(
+      clientVerificationRecord,
+      "transactionHash",
+    );
     const clientTxHash =
       typeof rawClientTxHash === "string" && rawClientTxHash.trim()
         ? normalizeTransactionHash(rawClientTxHash)
         : undefined;
 
-    const strategy = task?.task_type
-      ? getVerificationStrategy(task.task_type)
-      : undefined;
+    const strategy = getVerificationStrategy(task.task_type);
     const requiresBlockchainVerification = Boolean(
       task &&
       (task.verification_method === "blockchain" ||
@@ -208,12 +231,13 @@ export default async function handler(
     }
 
     // Basic input validation for proof submissions to prevent bypasses via crafted requests.
-    if (task?.task_type === "submit_proof") {
+    if (task.task_type === "submit_proof") {
       const proofUrlFromClient =
-        clientVerificationData &&
-        typeof clientVerificationData === "object" &&
-        typeof (clientVerificationData as any).inputData === "string"
-          ? String((clientVerificationData as any).inputData).trim()
+        typeof getStringProperty(clientVerificationRecord, "inputData") ===
+        "string"
+          ? String(
+              getStringProperty(clientVerificationRecord, "inputData"),
+            ).trim()
           : typeof inputData === "string"
             ? inputData.trim()
             : "";
@@ -340,18 +364,17 @@ export default async function handler(
 
     if (requiresAIVerification && strategy) {
       const proofUrl =
-        clientVerificationData &&
-        typeof clientVerificationData === "object" &&
-        typeof (clientVerificationData as any).inputData === "string"
-          ? String((clientVerificationData as any).inputData).trim()
+        typeof getStringProperty(clientVerificationRecord, "inputData") ===
+        "string"
+          ? String(
+              getStringProperty(clientVerificationRecord, "inputData"),
+            ).trim()
           : typeof inputData === "string"
             ? inputData.trim()
             : null;
 
       const aiInput = {
-        ...(typeof clientVerificationData === "object" && clientVerificationData
-          ? clientVerificationData
-          : {}),
+        ...(clientVerificationRecord || {}),
         ...(typeof inputData === "object" && inputData ? inputData : {}),
       } as Record<string, unknown>;
 
@@ -373,10 +396,7 @@ export default async function handler(
       if (result.success) {
         aiApproved = true;
         verificationData = {
-          ...(typeof clientVerificationData === "object" &&
-          clientVerificationData
-            ? clientVerificationData
-            : {}),
+          ...(clientVerificationRecord || {}),
           ...(proofUrl ? { proofUrl } : {}),
           ...(result.metadata || {}),
           verificationMethod: "ai",
@@ -388,10 +408,7 @@ export default async function handler(
         aiRetry = true;
         aiRetryFeedback = result.error || "Please resubmit your proof";
         verificationData = {
-          ...(typeof clientVerificationData === "object" &&
-          clientVerificationData
-            ? clientVerificationData
-            : {}),
+          ...(clientVerificationRecord || {}),
           ...(proofUrl ? { proofUrl } : {}),
           ...(result.metadata || {}),
           verificationMethod: "ai",
@@ -401,10 +418,7 @@ export default async function handler(
         aiDeferred = true;
         // AI ran but didn't approve — store metadata for admin context
         verificationData = {
-          ...(typeof clientVerificationData === "object" &&
-          clientVerificationData
-            ? clientVerificationData
-            : {}),
+          ...(clientVerificationRecord || {}),
           ...(proofUrl ? { proofUrl } : {}),
           ...(result.metadata || {}),
           verificationMethod: "ai",
@@ -422,13 +436,13 @@ export default async function handler(
     );
 
     if (requiresAITextVerification && strategy) {
-      const submittedText = typeof inputData === "string" ? inputData.trim() : "";
+      const submittedText =
+        typeof inputData === "string" ? inputData.trim() : "";
 
-      const rawPrompt =
-        task.task_config &&
-        typeof (task.task_config as any).ai_verification_prompt === "string"
-          ? String((task.task_config as any).ai_verification_prompt).trim()
-          : "";
+      const rawPrompt = getTaskConfigString(
+        taskConfig,
+        "ai_verification_prompt",
+      );
 
       // Build token map — {wallet} is always available without a Privy call
       const tokenMap: Record<string, string> = {
@@ -437,11 +451,7 @@ export default async function handler(
 
       // Conditionally fetch full Privy profile when social/account tokens are in the prompt
       if (rawPrompt && promptRequiresPrivyFetch(rawPrompt)) {
-        const walletMatchMode =
-          task.task_config &&
-          (task.task_config as any).wallet_match_mode === "any_linked"
-            ? "any_linked"
-            : "active_only";
+        const walletMatchMode = getWalletMatchMode(taskConfig);
 
         try {
           const privy = createPrivyClient();
@@ -460,23 +470,36 @@ export default async function handler(
 
           // Email
           const emailAccount = accounts.find((a) => a.type === "email");
-          tokenMap.email = (emailAccount as any)?.address || "[not linked]";
+          tokenMap.email =
+            getStringProperty(asObjectRecord(emailAccount), "address") ||
+            "[not linked]";
 
           // Twitter/X
-          const twitterAccount = accounts.find((a) => a.type === "twitter_oauth");
-          tokenMap.x_username = (twitterAccount as any)?.username || "[not linked]";
+          const twitterAccount = accounts.find(
+            (a) => a.type === "twitter_oauth",
+          );
+          tokenMap.x_username =
+            getStringProperty(asObjectRecord(twitterAccount), "username") ||
+            "[not linked]";
 
           // Discord
-          const discordAccount = accounts.find((a) => a.type === "discord_oauth");
-          tokenMap.discord_username = (discordAccount as any)?.username || "[not linked]";
+          const discordAccount = accounts.find(
+            (a) => a.type === "discord_oauth",
+          );
+          tokenMap.discord_username =
+            getStringProperty(asObjectRecord(discordAccount), "username") ||
+            "[not linked]";
 
           // GitHub
           const githubAccount = accounts.find((a) => a.type === "github_oauth");
-          tokenMap.github_username = (githubAccount as any)?.username || "[not linked]";
+          tokenMap.github_username =
+            getStringProperty(asObjectRecord(githubAccount), "username") ||
+            "[not linked]";
 
           // Farcaster
           const farcasterLinked = accounts.find(isFarcasterLinkedAccount);
-          tokenMap.farcaster_username = farcasterLinked?.username || "[not linked]";
+          tokenMap.farcaster_username =
+            farcasterLinked?.username || "[not linked]";
           tokenMap.farcaster_fid = farcasterLinked
             ? String(farcasterLinked.fid)
             : "[not linked]";
@@ -484,12 +507,16 @@ export default async function handler(
           // Telegram
           const telegramAccount = accounts.find((a) => a.type === "telegram");
           tokenMap.telegram_username =
-            (telegramAccount as any)?.username || "[not linked]";
+            getStringProperty(asObjectRecord(telegramAccount), "username") ||
+            "[not linked]";
         } catch (err: unknown) {
-          log.warn("Failed to fetch Privy profile for text token substitution", {
-            userId: effectiveUserId,
-            error: err instanceof Error ? err.message : String(err),
-          });
+          log.warn(
+            "Failed to fetch Privy profile for text token substitution",
+            {
+              userId: effectiveUserId,
+              error: err instanceof Error ? err.message : String(err),
+            },
+          );
           // Proceed with only {wallet} resolved; social tokens remain [not linked]
         }
       }
@@ -520,7 +547,10 @@ export default async function handler(
           ...(result.metadata || {}),
           verificationMethod: "ai",
         };
-      } else if (result.code === "AI_RETRY" || result.code === "AI_LOW_CONFIDENCE") {
+      } else if (
+        result.code === "AI_RETRY" ||
+        result.code === "AI_LOW_CONFIDENCE"
+      ) {
         aiRetry = true;
         aiRetryFeedback = result.error || "Please resubmit your answer";
         verificationData = {
@@ -549,11 +579,11 @@ export default async function handler(
         ? "retry"
         : aiDeferred
           ? "pending"
-          : task?.requires_admin_review
+          : task.requires_admin_review
             ? "pending"
             : "completed";
 
-    if (task?.task_type === "link_farcaster") {
+    if (task.task_type === "link_farcaster") {
       // Verify Farcaster linkage via Privy server SDK and use server-trusted data
       const privy = createPrivyClient();
       const profile: User = await privy.getUserById(effectiveUserId);
@@ -571,7 +601,7 @@ export default async function handler(
       };
     }
 
-    if (task?.task_type === "link_wallet") {
+    if (task.task_type === "link_wallet") {
       // Verify external wallet linkage via Privy server SDK and use server-trusted data
       const privy = createPrivyClient();
       const profile: User = await privy.getUserById(effectiveUserId);
@@ -590,7 +620,7 @@ export default async function handler(
       };
     }
 
-    if (task?.task_type === "link_telegram") {
+    if (task.task_type === "link_telegram") {
       // Verify Telegram notifications are enabled via user_profiles (not Privy)
       // Use maybeSingle() so "no profile" returns { data: null, error: null }
       // instead of a PGRST116 error — cleanly separates "not found" from DB errors.
@@ -734,8 +764,12 @@ export default async function handler(
       return res.status(500).json({ error: "Failed to complete task" });
     }
 
-    // Send admin notification if review required (only on NEW submissions, not updates)
-    if (initialStatus === "pending" && !existingCompletion) {
+    // Send notification on first pending submission and on transitions back to pending.
+    if (
+      initialStatus === "pending" &&
+      (!existingCompletion ||
+        existingCompletion.submission_status !== "pending")
+    ) {
       sendQuestReviewNotification(taskId, effectiveUserId, questId).catch(
         (err) =>
           log.error("Failed to send quest review email", {

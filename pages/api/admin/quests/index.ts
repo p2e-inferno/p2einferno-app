@@ -7,6 +7,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 import { sortQuestTasks } from "@/lib/quests/sort-tasks";
 import { resolveTaskVerificationMethod } from "@/lib/quests/taskVerificationMethod";
+import { normalizeQuestTaskConfig } from "@/lib/quests/task-config";
 
 const log = getLogger("api:admin:quests:index");
 
@@ -166,12 +167,17 @@ async function createQuest(
 
     // 2. If tasks are provided, insert them
     if (tasks && Array.isArray(tasks) && tasks.length > 0) {
-      const validation = await validateVendorTaskConfig(tasks);
+      const normalizedTasks = tasks.map((task: Partial<QuestTask>) => ({
+        ...task,
+        task_config: normalizeQuestTaskConfig(task.task_config) || {},
+      }));
+
+      const validation = await validateVendorTaskConfig(normalizedTasks);
       if (!validation.ok) {
         return res.status(400).json({ error: validation.error });
       }
 
-      const questTasks = tasks.map(
+      const questTasks = normalizedTasks.map(
         (task: Partial<QuestTask>, index: number) => ({
           quest_id: quest.id,
           title: task.title,
@@ -180,7 +186,7 @@ async function createQuest(
           verification_method: resolveTaskVerificationMethod(task),
           reward_amount: task.reward_amount || 0,
           order_index: task.order_index ?? index,
-          task_config: task.task_config || {},
+          task_config: normalizeQuestTaskConfig(task.task_config) || {},
           // Optional fields if provided
           input_required: task.input_required,
           input_label: task.input_label,

@@ -154,7 +154,7 @@ function isValidHistoryMessage(
         return result.isValid;
       }) &&
       getChatAttachmentPayloadSize(attachments as ChatAttachment[]) <=
-        CHAT_ATTACHMENT_LIMITS.maxTotalSize);
+      CHAT_ATTACHMENT_LIMITS.maxTotalSize);
   const text = typeof candidate.content === "string" ? candidate.content : "";
   const hasText = text.trim().length > 0;
   const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
@@ -255,11 +255,11 @@ async function formatHistoryMessages(
   const recent = withoutGhosts.slice(-HISTORY_WINDOW);
   const normalizedRecent =
     recent[recent.length - 1]?.role === "user" &&
-    recent[recent.length - 1]?.content.trim() === latestUserText.trim() &&
-    haveMatchingAttachments(
-      recent[recent.length - 1]?.attachments,
-      latestAttachments,
-    )
+      recent[recent.length - 1]?.content.trim() === latestUserText.trim() &&
+      haveMatchingAttachments(
+        recent[recent.length - 1]?.attachments,
+        latestAttachments,
+      )
       ? recent.slice(0, -1)
       : recent;
 
@@ -307,9 +307,9 @@ async function formatHistoryMessages(
     const resolvedAttachments =
       index === latestAttachmentBearingHistoryIndex
         ? await resolveChatAttachmentsForModel(
-            message.attachments,
-            attachmentOwnerIdentityKey,
-          )
+          message.attachments,
+          attachmentOwnerIdentityKey,
+        )
         : [];
 
     return {
@@ -560,7 +560,7 @@ function isLightweightChatTurn(userText: string) {
     return false;
   }
 
-  return /^(?:hi|hello|hey|yo|sup|thanks|thank you|thx|ok|okay|kk|got it|cool|nice|alright|all right|sure|no worries|sounds good)[!.?]*$/i.test(
+  return /^(?:hi|hello|hey|yo|sup|thanks|thank you|thx|ok|okay|kk|got it|cool|nice|alright|all right|sure|no worries|sounds good)[!.?]*$/.test(
     normalizedText,
   );
 }
@@ -574,12 +574,11 @@ function shouldPreferToolGrounding(params: {
     return true;
   }
 
-  const normalizedText = params.userText.trim().toLowerCase();
-  if (!normalizedText) {
+  if (!params.userText.trim()) {
     return false;
   }
 
-  if (isLightweightChatTurn(normalizedText)) {
+  if (isLightweightChatTurn(params.userText)) {
     return false;
   }
 
@@ -1235,7 +1234,7 @@ export async function generateChatResponse(params: {
     fallbacks: ["anthropic/claude-3-haiku"],
     temperature: 0.2,
     maxTokens: groundingProfile.maxTokens ?? 450,
-      messages: [
+    messages: [
       {
         role: "system",
         content: buildSystemInstruction({
@@ -1291,7 +1290,7 @@ export async function generateChatResponse(params: {
   return {
     message: createAssistantMessage(normalizeAppLinks(completionContent)),
     sources: mapSources(promptResults),
-      retrievalMeta: {
+    retrievalMeta: {
       profile: groundingProfile.id,
       audience: groundingProfile.audience,
       domainTags: groundingProfile.domainTags,

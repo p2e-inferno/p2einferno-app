@@ -13,34 +13,23 @@
 import type { TaskType } from "@/lib/supabase/types";
 import type {
   VerificationStrategy,
-  VerificationResult,
   VerificationOptions,
 } from "./types";
 import { getLogger } from "@/lib/utils/logger";
 import { verifyTextWithAI } from "@/lib/ai/verification/text";
-import { asRecord, hashUserId } from "./utils";
+import {
+  asRecord,
+  hashUserId,
+  mapAIDecisionToVerificationResult,
+  resolveAIConfidenceThreshold,
+  resolveAIModel,
+} from "./utils";
 
 const log = getLogger("quests:ai-text-verification");
 
 const DEFAULT_TEXT_MODEL = "google/gemini-2.0-flash-001";
 const DEFAULT_TEXT_FALLBACKS = ["openai/gpt-4o-mini"];
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
-
-function resolveConfidenceThreshold(
-  taskConfig: Record<string, unknown> | null,
-): number {
-  const raw = taskConfig?.ai_confidence_threshold;
-  const parsed =
-    typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
-  if (!Number.isFinite(parsed)) return DEFAULT_CONFIDENCE_THRESHOLD;
-  return Math.min(1, Math.max(0, parsed));
-}
-
-function resolveModel(taskConfig: Record<string, unknown> | null): string {
-  const raw = taskConfig?.ai_model;
-  if (typeof raw === "string" && raw.trim()) return raw.trim();
-  return DEFAULT_TEXT_MODEL;
-}
 
 export class AITextVerificationStrategy implements VerificationStrategy {
   async verify(
@@ -49,7 +38,7 @@ export class AITextVerificationStrategy implements VerificationStrategy {
     userId: string,
     _userAddress: string,
     options?: VerificationOptions,
-  ): Promise<VerificationResult> {
+  ) {
     const taskConfig = asRecord(options?.taskConfig);
 
     // The resolved prompt (with tokens already substituted) is passed in from
@@ -80,8 +69,11 @@ export class AITextVerificationStrategy implements VerificationStrategy {
       };
     }
 
-    const confidenceThreshold = resolveConfidenceThreshold(taskConfig);
-    const model = resolveModel(taskConfig);
+    const confidenceThreshold = resolveAIConfidenceThreshold(
+      taskConfig,
+      DEFAULT_CONFIDENCE_THRESHOLD,
+    );
+    const model = resolveAIModel(taskConfig, DEFAULT_TEXT_MODEL);
     const hashedUserId = hashUserId(userId);
 
     log.debug("Starting AI text verification", {
@@ -127,33 +119,11 @@ export class AITextVerificationStrategy implements VerificationStrategy {
       };
     }
 
-    const metadata = {
-      aiDecision: textResult.decision,
-      aiVerified: textResult.decision === "approve",
-      aiConfidence: textResult.confidence,
-      aiReason: textResult.reason,
-      aiModel: textResult.model,
-      verifiedAt: new Date().toISOString(),
-    };
-
-    if (textResult.decision === "approve") {
-      return { success: true, metadata };
-    }
-
-    if (textResult.decision === "retry") {
-      return {
-        success: false,
-        error: textResult.reason,
-        code: "AI_RETRY",
-        metadata,
-      };
-    }
-
-    return {
-      success: false,
-      error: textResult.reason,
-      code: "AI_DEFER",
-      metadata,
-    };
+    return mapAIDecisionToVerificationResult({
+      decision: textResult.decision,
+      confidence: textResult.confidence,
+      reason: textResult.reason,
+      model: textResult.model,
+    });
   }
 }

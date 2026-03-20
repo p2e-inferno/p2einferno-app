@@ -18,7 +18,12 @@ jest.mock("@/lib/ai", () => ({
   chatCompletion: jest.fn(),
 }));
 
-import { AIVerificationStrategy } from "../ai-vision-verification";
+import {
+  promptRequiresPrivyFetch,
+  substituteContextTokens,
+} from "@/lib/ai/verification/text";
+import { AITextVerificationStrategy } from "../ai-text-verification";
+import { AIVisionVerificationStrategy } from "../ai-vision-verification";
 import { chatCompletion } from "@/lib/ai";
 
 const MOCK_USER_ID = "user-123";
@@ -35,11 +40,11 @@ function makeOptions(overrides: any = {}) {
   };
 }
 
-describe("AIVerificationStrategy", () => {
-  let strategy: AIVerificationStrategy;
+describe("AIVisionVerificationStrategy", () => {
+  let strategy: AIVisionVerificationStrategy;
 
   beforeEach(() => {
-    strategy = new AIVerificationStrategy();
+    strategy = new AIVisionVerificationStrategy();
     (chatCompletion as jest.Mock).mockReset();
   });
 
@@ -254,5 +259,91 @@ describe("AIVerificationStrategy", () => {
 
     expect(result.success).toBe(false);
     expect(result.code).toBe("AI_SERVICE_ERROR");
+  });
+});
+
+describe("text verification token helpers", () => {
+  test("falls back known unresolved context tokens to [not linked]", () => {
+    const resolved = substituteContextTokens(
+      "Wallet {wallet} email {email} linked {linked_wallets}",
+      { wallet: "0xabc" },
+    );
+
+    expect(resolved).toBe(
+      "Wallet 0xabc email [not linked] linked [not linked]",
+    );
+  });
+
+  test("leaves unknown placeholders unchanged", () => {
+    const resolved = substituteContextTokens(
+      "Unknown {custom_token} known {email}",
+      {},
+    );
+
+    expect(resolved).toBe("Unknown {custom_token} known [not linked]");
+  });
+
+  test("detects when a prompt requires a Privy fetch", () => {
+    expect(promptRequiresPrivyFetch("Use {email} and {wallet}")).toBe(true);
+    expect(promptRequiresPrivyFetch("Only compare {wallet}")).toBe(false);
+  });
+});
+
+describe("AITextVerificationStrategy", () => {
+  let strategy: AITextVerificationStrategy;
+
+  beforeEach(() => {
+    strategy = new AITextVerificationStrategy();
+    (chatCompletion as jest.Mock).mockReset();
+  });
+
+  test("returns AI_TEXT_REQUIRED when input text is empty", async () => {
+    const result = await strategy.verify(
+      "submit_text",
+      {
+        inputData: "   ",
+        resolvedPrompt: "Proof must include wallet 0xabc and email [not linked]",
+      },
+      MOCK_USER_ID,
+      MOCK_USER_ADDRESS,
+      makeOptions(),
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.code).toBe("AI_TEXT_REQUIRED");
+  });
+
+  test("sends the resolved prompt with [not linked] fallback tokens to chatCompletion", async () => {
+    (chatCompletion as jest.Mock).mockResolvedValue({
+      success: true,
+      content: JSON.stringify({
+        decision: "approve",
+        confidence: 0.93,
+        reason: "Submitted text matches the requirement.",
+      }),
+      model: "google/gemini-2.0-flash-001",
+    });
+
+    const resolvedPrompt = substituteContextTokens(
+      "Proof must include {wallet} and {email}",
+      { wallet: "0xabc" },
+    );
+
+    const result = await strategy.verify(
+      "submit_text",
+      {
+        inputData: "Proof: 0xabc",
+        resolvedPrompt,
+      },
+      MOCK_USER_ID,
+      MOCK_USER_ADDRESS,
+      makeOptions(),
+    );
+
+    expect(result.success).toBe(true);
+    const call = (chatCompletion as jest.Mock).mock.calls[0]?.[0];
+    expect(call.messages[0].content).toContain(
+      "Proof must include 0xabc and [not linked]",
+    );
   });
 });

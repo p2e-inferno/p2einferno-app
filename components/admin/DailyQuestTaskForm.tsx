@@ -25,6 +25,8 @@ import {
 } from "lucide-react";
 import { useDGMarket } from "@/hooks/vendor/useDGMarket";
 import { getStageOptions } from "@/lib/blockchain/shared/vendor-constants";
+import { asQuestTaskConfig } from "@/lib/quests/task-config";
+import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
 import type { DailyQuestTask, TaskType } from "@/lib/supabase/types";
 
 type TaskWithTempId = Partial<DailyQuestTask> & { tempId?: string };
@@ -123,10 +125,7 @@ export function DailyQuestTaskForm(props: {
   const [vendorAmountDisplay, setVendorAmountDisplay] = useState("");
   const [uniAmountDisplay, setUniAmountDisplay] = useState("");
 
-  const cfg =
-    localTask.task_config && typeof localTask.task_config === "object"
-      ? (localTask.task_config as Record<string, any>)
-      : {};
+  const cfg = asQuestTaskConfig(localTask.task_config) || {};
 
   // Sync vendorAmountDisplay
   useEffect(() => {
@@ -189,11 +188,8 @@ export function DailyQuestTaskForm(props: {
   };
 
   const updateTaskConfig = (patch: Record<string, unknown>) => {
-    const current =
-      localTask.task_config && typeof localTask.task_config === "object"
-        ? (localTask.task_config as Record<string, unknown>)
-        : {};
-    handleChange("task_config" as any, { ...current, ...patch });
+    const current = asQuestTaskConfig(localTask.task_config) || {};
+    handleChange("task_config", { ...current, ...patch });
   };
 
   const handleTaskTypeChange = (taskType: TaskType) => {
@@ -428,7 +424,10 @@ export function DailyQuestTaskForm(props: {
                 { id: 42161, name: "Arbitrum One" },
                 { id: 42220, name: "Celo" },
               ].map((net) => {
-                const networks = (cfg.allowed_networks as any[]) || [];
+                const networks: DeployLockTaskConfig["allowed_networks"] =
+                  Array.isArray(cfg.allowed_networks)
+                    ? cfg.allowed_networks
+                    : [];
                 const netConfig = networks.find(
                   (n) => n.chain_id === net.id,
                 ) || {

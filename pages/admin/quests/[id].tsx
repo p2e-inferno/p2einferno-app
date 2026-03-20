@@ -29,6 +29,11 @@ import { useIsLockManager } from "@/hooks/unlock/useIsLockManager";
 import { useMaxNumberOfKeys } from "@/hooks/unlock/useMaxNumberOfKeys";
 import { useTransferFeeBasisPoints } from "@/hooks/unlock/useTransferFeeBasisPoints";
 import QuestSubmissionsTable from "@/components/admin/QuestSubmissionsTable";
+import {
+  asQuestTaskConfig,
+  getTaskConfigBoolean,
+  getTaskConfigNumber,
+} from "@/lib/quests/task-config";
 import { getLogger } from "@/lib/utils/logger";
 import type { Address } from "viem";
 import { NON_TRANSFERABLE_FEE_BPS } from "@/hooks/unlock/useSyncLockTransferabilityState";
@@ -817,12 +822,7 @@ export default function QuestDetailsPage() {
                 .sort((a, b) => a.order_index - b.order_index)
                 .map((task, index) =>
                   (() => {
-                    const taskConfig =
-                      task.task_config &&
-                      typeof task.task_config === "object" &&
-                      !Array.isArray(task.task_config)
-                        ? (task.task_config as Record<string, unknown>)
-                        : null;
+                    const taskConfig = asQuestTaskConfig(task.task_config);
                     const aiPrompt =
                       taskConfig &&
                       typeof taskConfig.ai_verification_prompt === "string"
@@ -832,20 +832,14 @@ export default function QuestDetailsPage() {
                       taskConfig && typeof taskConfig.ai_model === "string"
                         ? taskConfig.ai_model.trim()
                         : "";
-                    const aiThreshold = (() => {
-                      const raw =
-                        taskConfig &&
-                        (taskConfig as any).ai_confidence_threshold;
-                      const parsed =
-                        typeof raw === "number"
-                          ? raw
-                          : typeof raw === "string"
-                            ? Number(raw)
-                            : NaN;
-                      return Number.isFinite(parsed) ? parsed : 0.7;
-                    })();
-                    const aiPromptRequired = Boolean(
-                      taskConfig && (taskConfig as any).ai_prompt_required,
+                    const aiThreshold = getTaskConfigNumber(
+                      taskConfig,
+                      "ai_confidence_threshold",
+                      0.7,
+                    );
+                    const aiPromptRequired = getTaskConfigBoolean(
+                      taskConfig,
+                      "ai_prompt_required",
                     );
 
                     return (

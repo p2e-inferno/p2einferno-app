@@ -79,7 +79,7 @@ File: `lib/quests/verification/registry.ts`
 
 - Quest verification uses a strategy registry keyed by `TaskType`.
 - `submit_proof` is mapped to the AI vision strategy:
-  - `AIVerificationStrategy` in `lib/quests/verification/ai-vision-verification.ts`
+  - `AIVisionVerificationStrategy` in `lib/quests/verification/ai-vision-verification.ts`
 
 ### Admin configuration (per task)
 

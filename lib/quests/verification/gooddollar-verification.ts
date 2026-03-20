@@ -6,6 +6,11 @@ import type {
 import type { TaskType } from "@/lib/supabase/types";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import {
+  getIdentityExpiry,
+  calculateExpiryTimestamp,
+  isVerificationExpired,
+} from "@/lib/gooddollar/identity-sdk";
 
 const log = getLogger("quests:verification:gooddollar");
 
@@ -18,7 +23,7 @@ export class GoodDollarVerificationStrategy implements VerificationStrategy {
     _taskType: TaskType,
     _verificationData: Record<string, unknown>,
     userId: string,
-    _userAddress: string,
+    userAddress: string,
     options?: VerificationOptions,
   ): Promise<VerificationResult> {
     const taskConfig = options?.taskConfig as GoodDollarTaskConfig | undefined;
@@ -46,14 +51,42 @@ export class GoodDollarVerificationStrategy implements VerificationStrategy {
         };
       }
 
-      if (requireActive && data.face_verification_expiry) {
-        const expiry = new Date(data.face_verification_expiry);
-        if (expiry < new Date()) {
-          return {
-            success: false,
-            error: "GoodDollar verification has expired — please re-verify",
-            code: "VERIFICATION_EXPIRED",
-          };
+      if (requireActive) {
+        if (data.face_verification_expiry) {
+          // Fast path: DB has a stored expiry — use it directly
+          const expiry = new Date(data.face_verification_expiry);
+          if (expiry < new Date()) {
+            return {
+              success: false,
+              error: "GoodDollar verification has expired — please re-verify",
+              code: "VERIFICATION_EXPIRED",
+            };
+          }
+        } else {
+          // Fallback: no expiry in DB (legacy/admin-set record) — verify on-chain
+          log.info("No expiry in DB for verified user, falling back to on-chain check", { userId, userAddress });
+          try {
+            const expiryData = await getIdentityExpiry(userAddress as `0x${string}`);
+            const expiryMs = calculateExpiryTimestamp(expiryData.lastAuthenticated, expiryData.authPeriod);
+            if (isVerificationExpired(expiryMs)) {
+              return {
+                success: false,
+                error: "GoodDollar verification has expired — please re-verify",
+                code: "VERIFICATION_EXPIRED",
+              };
+            }
+          } catch (rpcError: unknown) {
+            log.warn("On-chain GoodDollar expiry check failed — cannot confirm verification status", {
+              userId,
+              userAddress,
+              error: rpcError instanceof Error ? rpcError.message : String(rpcError),
+            });
+            return {
+              success: false,
+              error: "Could not confirm GoodDollar verification status — please try again",
+              code: "GOODDOLLAR_RPC_ERROR",
+            };
+          }
         }
       }
 

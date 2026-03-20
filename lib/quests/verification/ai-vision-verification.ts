@@ -10,12 +10,17 @@
 import type { TaskType } from "@/lib/supabase/types";
 import type {
   VerificationStrategy,
-  VerificationResult,
   VerificationOptions,
 } from "./types";
 import { getLogger } from "@/lib/utils/logger";
 import { verifyScreenshotWithAI } from "@/lib/ai/verification/vision";
-import { asRecord, hashUserId } from "./utils";
+import {
+  asRecord,
+  hashUserId,
+  mapAIDecisionToVerificationResult,
+  resolveAIConfidenceThreshold,
+  resolveAIModel,
+} from "./utils";
 
 const log = getLogger("quests:ai-vision-verification");
 
@@ -48,32 +53,14 @@ function extractScreenshotUrl(
   return null;
 }
 
-function resolveConfidenceThreshold(
-  taskConfig: Record<string, unknown> | null,
-): number {
-  const raw = taskConfig?.ai_confidence_threshold;
-  const parsed =
-    typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
-  if (!Number.isFinite(parsed)) return DEFAULT_CONFIDENCE_THRESHOLD;
-  return Math.min(1, Math.max(0, parsed));
-}
-
-function resolveVisionModel(
-  taskConfig: Record<string, unknown> | null,
-): string {
-  const raw = taskConfig?.ai_model;
-  if (typeof raw === "string" && raw.trim()) return raw.trim();
-  return DEFAULT_VISION_MODEL;
-}
-
-export class AIVerificationStrategy implements VerificationStrategy {
+export class AIVisionVerificationStrategy implements VerificationStrategy {
   async verify(
     taskType: TaskType,
     verificationData: Record<string, unknown>,
     userId: string,
     _userAddress: string,
     options?: VerificationOptions,
-  ): Promise<VerificationResult> {
+  ) {
     const taskConfig = asRecord(options?.taskConfig);
 
     const rawPrompt = taskConfig?.ai_verification_prompt;
@@ -96,8 +83,11 @@ export class AIVerificationStrategy implements VerificationStrategy {
       };
     }
 
-    const confidenceThreshold = resolveConfidenceThreshold(taskConfig);
-    const model = resolveVisionModel(taskConfig);
+    const confidenceThreshold = resolveAIConfidenceThreshold(
+      taskConfig,
+      DEFAULT_CONFIDENCE_THRESHOLD,
+    );
+    const model = resolveAIModel(taskConfig, DEFAULT_VISION_MODEL);
 
     const hashedUserId = hashUserId(userId);
     log.debug("Starting AI vision verification", {
@@ -143,33 +133,11 @@ export class AIVerificationStrategy implements VerificationStrategy {
       };
     }
 
-    const metadata = {
-      aiDecision: visionResult.decision,
-      aiVerified: visionResult.decision === "approve",
-      aiConfidence: visionResult.confidence,
-      aiReason: visionResult.reason,
-      aiModel: visionResult.model,
-      verifiedAt: new Date().toISOString(),
-    };
-
-    if (visionResult.decision === "approve") {
-      return { success: true, metadata };
-    }
-
-    if (visionResult.decision === "retry") {
-      return {
-        success: false,
-        error: visionResult.reason,
-        code: "AI_RETRY",
-        metadata,
-      };
-    }
-
-    return {
-      success: false,
-      error: visionResult.reason,
-      code: "AI_DEFER",
-      metadata,
-    };
+    return mapAIDecisionToVerificationResult({
+      decision: visionResult.decision,
+      confidence: visionResult.confidence,
+      reason: visionResult.reason,
+      model: visionResult.model,
+    });
   }
 }

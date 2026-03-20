@@ -36,6 +36,13 @@ import {
 } from "lucide-react";
 import { useDGMarket } from "@/hooks/vendor/useDGMarket";
 import { getStageOptions } from "@/lib/blockchain/shared/vendor-constants";
+import {
+  asQuestTaskConfig,
+  getTaskConfigBoolean,
+  getTaskConfigNumber,
+  getWalletMatchMode,
+} from "@/lib/quests/task-config";
+import type { DeployLockTaskConfig } from "@/lib/quests/verification/deploy-lock-utils";
 import type {
   QuestTask,
   TaskType,
@@ -210,7 +217,7 @@ export default function QuestTaskForm({
   const [vendorAmountDisplay, setVendorAmountDisplay] = useState("");
   const [uniAmountDisplay, setUniAmountDisplay] = useState("");
 
-  const vendorConfig = (localTask.task_config as Record<string, unknown>) || {};
+  const vendorConfig = asQuestTaskConfig(localTask.task_config) || {};
 
   // Sync vendorAmountDisplay on mount and config changes
   useEffect(() => {
@@ -624,7 +631,10 @@ export default function QuestTaskForm({
                 { id: 42161, name: "Arbitrum One" },
                 { id: 42220, name: "Celo" },
               ].map((net) => {
-                const networks = (vendorConfig.allowed_networks as any[]) || [];
+                const networks: DeployLockTaskConfig["allowed_networks"] =
+                  Array.isArray(vendorConfig.allowed_networks)
+                    ? vendorConfig.allowed_networks
+                    : [];
                 const netConfig = networks.find(
                   (n) => n.chain_id === net.id,
                 ) || {
@@ -860,7 +870,10 @@ export default function QuestTaskForm({
               <div className="ml-4">
                 <Toggle
                   id={`ai-prompt-required-${index}`}
-                  checked={Boolean((vendorConfig as any).ai_prompt_required)}
+                  checked={getTaskConfigBoolean(
+                    vendorConfig,
+                    "ai_prompt_required",
+                  )}
                   onCheckedChange={(checked) =>
                     updateTaskConfig({ ai_prompt_required: checked })
                   }
@@ -877,19 +890,56 @@ export default function QuestTaskForm({
                 Available tokens — insert anywhere in your prompt:
               </p>
               <div className="grid grid-cols-1 gap-0.5 font-mono text-xs text-gray-400">
-                <span><span className="text-flame-yellow">{"{wallet}"}</span> — Active wallet address (verified)</span>
-                <span><span className="text-flame-yellow">{"{linked_wallets}"}</span> — All linked wallet addresses, comma-separated *</span>
-                <span><span className="text-flame-yellow">{"{email}"}</span> — Linked email address</span>
-                <span><span className="text-flame-yellow">{"{x_username}"}</span> — X / Twitter handle</span>
-                <span><span className="text-flame-yellow">{"{discord_username}"}</span> — Discord username</span>
-                <span><span className="text-flame-yellow">{"{github_username}"}</span> — GitHub username</span>
-                <span><span className="text-flame-yellow">{"{farcaster_username}"}</span> — Farcaster handle</span>
-                <span><span className="text-flame-yellow">{"{farcaster_fid}"}</span> — Farcaster numeric ID</span>
-                <span><span className="text-flame-yellow">{"{telegram_username}"}</span> — Telegram username</span>
+                <span>
+                  <span className="text-flame-yellow">{"{wallet}"}</span> —
+                  Active wallet address (verified)
+                </span>
+                <span>
+                  <span className="text-flame-yellow">
+                    {"{linked_wallets}"}
+                  </span>{" "}
+                  — All linked wallet addresses, comma-separated *
+                </span>
+                <span>
+                  <span className="text-flame-yellow">{"{email}"}</span> —
+                  Linked email address
+                </span>
+                <span>
+                  <span className="text-flame-yellow">{"{x_username}"}</span> —
+                  X / Twitter handle
+                </span>
+                <span>
+                  <span className="text-flame-yellow">
+                    {"{discord_username}"}
+                  </span>{" "}
+                  — Discord username
+                </span>
+                <span>
+                  <span className="text-flame-yellow">
+                    {"{github_username}"}
+                  </span>{" "}
+                  — GitHub username
+                </span>
+                <span>
+                  <span className="text-flame-yellow">
+                    {"{farcaster_username}"}
+                  </span>{" "}
+                  — Farcaster handle
+                </span>
+                <span>
+                  <span className="text-flame-yellow">{"{farcaster_fid}"}</span>{" "}
+                  — Farcaster numeric ID
+                </span>
+                <span>
+                  <span className="text-flame-yellow">
+                    {"{telegram_username}"}
+                  </span>{" "}
+                  — Telegram username
+                </span>
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                * Requires wallet matching set to "Any linked wallet" below.
-                Tokens for unlinked accounts resolve to [not linked].
+                * Requires wallet matching set to &quot;Any linked wallet&quot;
+                below. Tokens for unlinked accounts resolve to [not linked].
               </p>
             </div>
           )}
@@ -913,12 +963,12 @@ export default function QuestTaskForm({
               }
               placeholder={
                 localTask.task_type === "submit_text"
-                  ? 'Example: "The user\'s proof code must be DG-{wallet}. Approve if the submitted text matches exactly (case-insensitive hex). Retry with explanation if it doesn\'t match."'
+                  ? "Example: \"The user's proof code must be DG-{wallet}. Approve if the submitted text matches exactly (case-insensitive hex). Retry with explanation if it doesn't match.\""
                   : 'Example: "The screenshot must show the user has completed Lesson 3 and the completion badge is visible."'
               }
               className="bg-transparent border-gray-700 text-gray-100 placeholder:text-gray-400 focus:ring-flame-yellow focus:ring-offset-0"
             />
-            {Boolean((vendorConfig as any).ai_prompt_required) &&
+            {getTaskConfigBoolean(vendorConfig, "ai_prompt_required") &&
               !(
                 typeof vendorConfig.ai_verification_prompt === "string" &&
                 vendorConfig.ai_verification_prompt.trim()
@@ -943,9 +993,7 @@ export default function QuestTaskForm({
                     type="radio"
                     name={`wallet-match-mode-${index}`}
                     value="active_only"
-                    checked={
-                      (vendorConfig as any).wallet_match_mode !== "any_linked"
-                    }
+                    checked={getWalletMatchMode(vendorConfig) !== "any_linked"}
                     onChange={() =>
                       updateTaskConfig({ wallet_match_mode: "active_only" })
                     }
@@ -954,7 +1002,8 @@ export default function QuestTaskForm({
                   <span className="text-sm text-gray-300">
                     <span className="font-medium">Active wallet only</span>
                     <span className="block text-xs text-gray-400">
-                      {"{wallet}"} = the verified connected wallet. Use when ownership of the specific active session wallet matters.
+                      {"{wallet}"} = the verified connected wallet. Use when
+                      ownership of the specific active session wallet matters.
                     </span>
                   </span>
                 </label>
@@ -963,9 +1012,7 @@ export default function QuestTaskForm({
                     type="radio"
                     name={`wallet-match-mode-${index}`}
                     value="any_linked"
-                    checked={
-                      (vendorConfig as any).wallet_match_mode === "any_linked"
-                    }
+                    checked={getWalletMatchMode(vendorConfig) === "any_linked"}
                     onChange={() =>
                       updateTaskConfig({ wallet_match_mode: "any_linked" })
                     }
@@ -974,7 +1021,9 @@ export default function QuestTaskForm({
                   <span className="text-sm text-gray-300">
                     <span className="font-medium">Any linked wallet</span>
                     <span className="block text-xs text-gray-400">
-                      {"{linked_wallets}"} = all wallets the user has ever linked. Use when a user may submit an address from a wallet not active in their current session.
+                      {"{linked_wallets}"} = all wallets the user has ever
+                      linked. Use when a user may submit an address from a
+                      wallet not active in their current session.
                     </span>
                   </span>
                 </label>
@@ -1018,16 +1067,11 @@ export default function QuestTaskForm({
                 min={0}
                 max={1}
                 step={0.05}
-                value={(() => {
-                  const raw = (vendorConfig as any).ai_confidence_threshold;
-                  const parsed =
-                    typeof raw === "number"
-                      ? raw
-                      : typeof raw === "string"
-                        ? Number(raw)
-                        : NaN;
-                  return Number.isFinite(parsed) ? parsed : 0.7;
-                })()}
+                value={getTaskConfigNumber(
+                  vendorConfig,
+                  "ai_confidence_threshold",
+                  0.7,
+                )}
                 onChange={(e) => {
                   const next = Number(e.target.value);
                   const clamped = Number.isFinite(next)

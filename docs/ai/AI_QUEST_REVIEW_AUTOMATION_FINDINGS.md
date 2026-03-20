@@ -46,7 +46,7 @@ This means **the "Complete Your GoodDollar Verification" task can be verified by
 
 **File**: `lib/quests/verification/registry.ts`
 
-The verification registry now handles multiple deterministic strategies (vendor tasks, `deploy_lock`, `uniswap_swap`, `daily_checkin`) **and** includes an AI vision strategy for `submit_proof` tasks (`AIVerificationStrategy`).
+The verification registry now handles multiple deterministic strategies (vendor tasks, `deploy_lock`, `uniswap_swap`, `daily_checkin`) **and** includes an AI vision strategy for `submit_proof` tasks (`AIVisionVerificationStrategy`).
 
 There is still **no** strategy for raw native ETH transfers (the proposed `eth_transfer` task type) — however the underlying infrastructure (strategy pattern + `viem` public client) remains a good fit for implementing it.
 
@@ -504,7 +504,7 @@ The vision helper:
 
 **File**: `lib/quests/verification/ai-vision-verification.ts`
 
-`AIVerificationStrategy` implements `VerificationStrategy` and is registered for `submit_proof` in `lib/quests/verification/registry.ts`.
+`AIVisionVerificationStrategy` implements `VerificationStrategy` and is registered for `submit_proof` in `lib/quests/verification/registry.ts`.
 
 Inputs:
 - Extracts a screenshot URL from the submitted verification data (supports multiple common keys such as `inputData`, `url`, `fileUrl`, etc.).
@@ -555,7 +555,7 @@ AI vision verification does **not** introduce a new `TaskType`. It is implemente
 
 ### 7.2 Registry
 
-The registry maps task types to strategies, including `submit_proof → AIVerificationStrategy`.
+The registry maps task types to strategies, including `submit_proof → AIVisionVerificationStrategy`.
 
 ### 7.3 Decision Flow (Current)
 

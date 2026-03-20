@@ -59,10 +59,7 @@ export function ChatWidgetRoot() {
       />
 
       {!isOpen && (
-        <ChatLauncher
-          onOpen={openWidget}
-          rateLimitedUntil={rateLimitedUntil}
-        />
+        <ChatLauncher onOpen={openWidget} rateLimitedUntil={rateLimitedUntil} />
       )}
     </div>
   );

@@ -9,7 +9,7 @@ import type { TaskType } from "@/lib/supabase/types";
 import type { VerificationStrategy } from "./types";
 import { VendorVerificationStrategy } from "./vendor-verification";
 import { DeployLockVerificationStrategy } from "./deploy-lock-verification";
-import { AIVerificationStrategy } from "./ai-vision-verification";
+import { AIVisionVerificationStrategy } from "./ai-vision-verification";
 import { UniswapVerificationStrategy } from "./uniswap-verification";
 import { DailyCheckinVerificationStrategy } from "./daily-checkin-verification";
 import { GoodDollarVerificationStrategy } from "./gooddollar-verification";
@@ -29,7 +29,7 @@ const baseMainnetClient = createPublicClientForChain(base);
 // Singleton strategy instances
 const vendorStrategy = new VendorVerificationStrategy(publicClient);
 const deployLockStrategy = new DeployLockVerificationStrategy();
-const aiStrategy = new AIVerificationStrategy();
+const aiStrategy = new AIVisionVerificationStrategy();
 const uniswapStrategy = new UniswapVerificationStrategy(baseMainnetClient);
 const dailyCheckinStrategy = new DailyCheckinVerificationStrategy();
 const goodDollarStrategy = new GoodDollarVerificationStrategy();

@@ -48,6 +48,10 @@ import { TransactionStepperModal } from "@/components/admin/TransactionStepperMo
 import { useTransactionStepper } from "@/hooks/useTransactionStepper";
 import { buildQuestDeploymentFlow } from "@/lib/blockchain/deployment-flows";
 import type { DeploymentStep } from "@/lib/transaction-stepper/types";
+import {
+  asQuestTaskConfig,
+  getTaskConfigBoolean,
+} from "@/lib/quests/task-config";
 
 const log = getLogger("admin:QuestForm");
 
@@ -753,13 +757,11 @@ export default function QuestForm({
 
       // AI prompt enforcement for submit_proof tasks (admin-configured)
       if (task.task_type === "submit_proof") {
-        const taskConfig =
-          task.task_config &&
-          typeof task.task_config === "object" &&
-          !Array.isArray(task.task_config)
-            ? (task.task_config as Record<string, unknown>)
-            : null;
-        const promptRequired = Boolean((taskConfig as any)?.ai_prompt_required);
+        const taskConfig = asQuestTaskConfig(task.task_config);
+        const promptRequired = getTaskConfigBoolean(
+          taskConfig,
+          "ai_prompt_required",
+        );
         const prompt =
           taskConfig && typeof taskConfig.ai_verification_prompt === "string"
             ? taskConfig.ai_verification_prompt.trim()

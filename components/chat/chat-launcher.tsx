@@ -9,10 +9,7 @@ interface ChatLauncherProps {
   rateLimitedUntil: number | null;
 }
 
-export function ChatLauncher({
-  onOpen,
-  rateLimitedUntil,
-}: ChatLauncherProps) {
+export function ChatLauncher({ onOpen, rateLimitedUntil }: ChatLauncherProps) {
   const [isOpening, setIsOpening] = useState(false);
   const [isRateLimited, setIsRateLimited] = useState(() =>
     rateLimitedUntil === null ? false : rateLimitedUntil > Date.now(),
@@ -86,7 +83,9 @@ export function ChatLauncher({
         <span
           aria-hidden="true"
           className={`pointer-events-none absolute right-2.5 top-2.5 block h-2 w-2 rounded-full opacity-75 sm:right-4 sm:top-4 sm:h-2.5 sm:w-2.5 ${
-            isRateLimited ? "bg-primary animate-ping" : "bg-emerald-400 animate-ping"
+            isRateLimited
+              ? "bg-primary animate-ping"
+              : "bg-emerald-400 animate-ping"
           }`}
         />
       </div>

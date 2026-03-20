@@ -7,6 +7,7 @@ import { getLogger } from "@/lib/utils/logger";
 import { validateVendorTaskConfig } from "@/lib/quests/vendor-task-config";
 import { sortQuestTasks } from "@/lib/quests/sort-tasks";
 import { resolveTaskVerificationMethod } from "@/lib/quests/taskVerificationMethod";
+import { normalizeQuestTaskConfig } from "@/lib/quests/task-config";
 
 const log = getLogger("api:admin:quests:[id]");
 
@@ -239,7 +240,7 @@ async function updateQuest(
     if (tasks && Array.isArray(tasks)) {
       const normalizedTasks = tasks.map((task: Partial<QuestTask>) => ({
         ...task,
-        task_config: task.task_config || undefined,
+        task_config: normalizeQuestTaskConfig(task.task_config) || undefined,
         verification_method: resolveTaskVerificationMethod(task),
       }));
 
@@ -316,7 +317,7 @@ async function updateQuest(
               id: randomUUID(),
               quest_id: questId,
               ...taskData,
-              task_config: task.task_config || {},
+              task_config: normalizeQuestTaskConfig(task.task_config) || {},
               order_index: task.order_index ?? tasksToUpdate.length + index,
               created_at: now,
               updated_at: now,

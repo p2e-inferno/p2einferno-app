@@ -7,6 +7,17 @@ import {
 } from "./vision";
 
 const log = getLogger("ai:verification:text");
+const KNOWN_CONTEXT_TOKENS = new Set([
+  "wallet",
+  "linked_wallets",
+  "email",
+  "x_username",
+  "discord_username",
+  "github_username",
+  "farcaster_username",
+  "farcaster_fid",
+  "telegram_username",
+]);
 
 /**
  * Replaces {token} placeholders in a prompt template with resolved values.
@@ -17,7 +28,13 @@ export function substituteContextTokens(
   template: string,
   tokens: Record<string, string>,
 ): string {
-  return template.replace(/\{(\w+)\}/g, (match, key: string) => tokens[key] ?? match);
+  return template.replace(/\{(\w+)\}/g, (match, key: string) => {
+    const resolved = tokens[key];
+    if (typeof resolved === "string") {
+      return resolved;
+    }
+    return KNOWN_CONTEXT_TOKENS.has(key) ? "[not linked]" : match;
+  });
 }
 
 /**
