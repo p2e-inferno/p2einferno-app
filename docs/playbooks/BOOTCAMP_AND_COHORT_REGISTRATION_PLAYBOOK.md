@@ -14,6 +14,13 @@ This playbook helps support teams and AI-assisted support resolve bootcamp and c
 
 A user does not become enrolled just by landing on a cohort page or filling the form.
 
+Bootcamp cohort enrollment is a paid flow.
+
+In practice, that means a successful bootcamp registration normally includes both:
+
+- application creation
+- payment completion
+
 The actual path is:
 
 1. choose a cohort

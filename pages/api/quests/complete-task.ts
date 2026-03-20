@@ -291,6 +291,37 @@ export default async function handler(
       }
     }
 
+    // General automatic server-side verification (DB/service queries, no user input)
+    // Covers task types like gooddollar_verified, in_app_pullout, daily_checkin
+    // when verification_method is not "blockchain".
+    const requiresGeneralVerification = Boolean(
+      strategy &&
+      !requiresBlockchainVerification &&
+      task.task_type !== "submit_proof",
+    );
+
+    if (requiresGeneralVerification && strategy) {
+      const result = await strategy.verify(
+        task.task_type,
+        {},
+        effectiveUserId,
+        userWallet || "",
+        { taskConfig: task.task_config || null, taskId },
+      );
+
+      if (!result.success) {
+        return res.status(400).json({
+          error: result.error || "Verification failed",
+          code: result.code || "VERIFICATION_FAILED",
+        });
+      }
+
+      verificationData = {
+        ...(result.metadata || {}),
+        verificationMethod: "automatic",
+      };
+    }
+
     // AI verification for submit_proof tasks with AI config
     let aiApproved = false;
     let aiDeferred = false;

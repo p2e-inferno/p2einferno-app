@@ -170,6 +170,10 @@ They are best for users who want:
 - milestones and proof-of-work
 - a cohort-based experience
 
+Bootcamps are paid programs.
+
+A user usually applies to a cohort first, then continues through a payment flow before enrollment is completed.
+
 A bootcamp usually breaks learning into milestones and milestone tasks so users can move step by step instead of guessing what to do next.
 
 ## Quests
@@ -182,6 +186,10 @@ They are useful for:
 - challenge-based participation
 - moving from theory into execution
 - earning rewards tied to actual completion
+
+Quests are the free entry point for participation.
+
+They do not use the same cohort payment flow as bootcamps.
 
 Quests often complement bootcamps by turning learning into visible action.
 

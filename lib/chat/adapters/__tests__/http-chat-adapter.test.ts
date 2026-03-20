@@ -148,4 +148,70 @@ describe("HttpChatAdapter", () => {
       sources: [{ id: "doc-1", title: "Doc 1" }],
     });
   });
+
+  it("trims outbound history to the latest 12 valid messages", async () => {
+    const adapter = new HttpChatAdapter();
+
+    const messages = Array.from({ length: 15 }, (_, index) => ({
+      id: `m-${index}`,
+      role: index % 2 === 0 ? ("user" as const) : ("assistant" as const),
+      content: `message-${index}`,
+      ts: index,
+      status: "complete" as const,
+      error: null,
+    }));
+
+    await adapter.reply({
+      conversationId: "chat_trim",
+      message: messages[messages.length - 1]!,
+      messages,
+      auth: {
+        isReady: true,
+        isAuthenticated: true,
+        privyUserId: "did:1",
+        walletAddress: "0x123",
+      },
+      route: {
+        pathname: "/",
+        routeKey: "home",
+        pageLabel: "Home",
+        segment: null,
+        behavior: {
+          key: "general",
+          assistantLabel: "Guide",
+          systemHint: "help",
+        },
+      },
+      assistantContext: {
+        mode: "general",
+        starterPrompt: "hello",
+        systemHint: "help",
+      },
+      accessToken: "token-123",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/chat/respond",
+      expect.objectContaining({
+        body: JSON.stringify({
+          conversationId: "chat_trim",
+          message: "message-14",
+          attachments: undefined,
+          messages: Array.from({ length: 12 }, (_, index) => {
+            const messageIndex = index + 3;
+            return {
+              role: messageIndex % 2 === 0 ? "user" : "assistant",
+              content: `message-${messageIndex}`,
+            };
+          }),
+          route: {
+            pathname: "/",
+            routeKey: "home",
+            segment: null,
+            behaviorKey: "general",
+          },
+        }),
+      }),
+    );
+  });
 });

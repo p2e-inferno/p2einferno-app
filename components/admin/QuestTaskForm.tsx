@@ -31,6 +31,8 @@ import {
   ArrowUpCircle,
   MessageCircle,
   Repeat,
+  UserCheck,
+  ArrowDownToLine,
 } from "lucide-react";
 import { useDGMarket } from "@/hooks/vendor/useDGMarket";
 import { getStageOptions } from "@/lib/blockchain/shared/vendor-constants";
@@ -153,6 +155,19 @@ const taskTypeOptions: {
     label: "Uniswap Swap",
     icon: <Repeat className="w-4 h-4" />,
     description: "User must complete a Uniswap swap for a supported pair",
+  },
+  // Auto-verified types (no user input, no admin review)
+  {
+    value: "gooddollar_verified",
+    label: "GoodDollar Verified",
+    icon: <UserCheck className="w-4 h-4" />,
+    description: "Auto-verified from GoodDollar face verification status in DB",
+  },
+  {
+    value: "in_app_pullout",
+    label: "DG Pullout",
+    icon: <ArrowDownToLine className="w-4 h-4" />,
+    description: "Auto-verified from completed DG token withdrawal in DB",
   },
 ];
 

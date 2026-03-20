@@ -10,8 +10,8 @@ import { SEARCH_KNOWLEDGE_BASE_TOOL_NAME } from "@/lib/chat/server/tools/search-
 import { getLogger } from "@/lib/utils/logger";
 
 const log = getLogger("chat:tool-executor");
-const DEFAULT_LIMIT = 4;
-const MAX_LIMIT = 5;
+const DEFAULT_LIMIT = 5;
+const MAX_LIMIT = 6;
 const MAX_QUERY_LENGTH = 500;
 
 interface ExecuteChatToolParams {

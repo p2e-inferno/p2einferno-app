@@ -17,6 +17,8 @@ export const BOOTCAMPS_CONTENT = {
     title: "Why Bootcamps Exist",
     subtitle: "Web3 is confusing. Our bootcamps fix that.",
     problem: "Most people try to learn crypto through random YouTube videos and Twitter threads. Result: overwhelm, confusion, and quitting.",
+    pricingNote:
+      "Bootcamps are structured paid programs. Pricing is set at the cohort level, so the exact amount depends on the cohort you apply to and the payment currency.",
     solution: "Our bootcamps give you:",
     features: [
       "A clear path",
@@ -95,6 +97,11 @@ export const BOOTCAMPS_CONTENT = {
   ],
   faq: [
     {
+      question: "Are bootcamps free?",
+      answer:
+        "No. Bootcamp enrollment is paid. Pricing is cohort-specific, so the exact amount depends on the cohort and payment currency shown during application and payment.",
+    },
+    {
       question: "Do I need previous experience?",
       answer: "For the Beginner track, absolutely not. For Developer/Advanced tracks, some coding knowledge is recommended.",
     },
@@ -120,4 +127,3 @@ export const BOOTCAMPS_CONTENT = {
     buttonText: "Join the Bootcamp Waitlist",
   },
 };
-

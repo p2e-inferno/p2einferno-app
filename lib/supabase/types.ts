@@ -140,7 +140,9 @@ export type TaskType =
   | "vendor_level_up"
   | "deploy_lock"
   | "uniswap_swap"
-  | "daily_checkin";
+  | "daily_checkin"
+  | "gooddollar_verified"
+  | "in_app_pullout";
 
 export type InputValidationType =
   | "url"

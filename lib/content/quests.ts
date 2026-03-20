@@ -22,7 +22,8 @@ export const QUESTS_CONTENT = {
       "Real rewards",
       "Fun challenges",
     ],
-    description: "Quests give you a low-commitment entry point into the ecosystem. Learn at your own pace, one mission at a time.",
+    description:
+      "Quests give you a low-commitment, free entry point into the ecosystem. Learn at your own pace, one mission at a time.",
   },
   categories: [
     {
@@ -89,5 +90,11 @@ export const QUESTS_CONTENT = {
     primary: "Browse Quests",
     secondary: "Create an Account",
   },
+  faq: [
+    {
+      question: "Are quests free?",
+      answer:
+        "Yes. Quests are the free action-based entry point in P2E Inferno. You can start quests without paying bootcamp-style enrollment fees.",
+    },
+  ],
 };
-

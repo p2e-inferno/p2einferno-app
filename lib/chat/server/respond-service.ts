@@ -7,6 +7,7 @@ import {
   getChatAttachmentPayloadSize,
   validateChatAttachmentPayload,
 } from "@/lib/chat/attachment-validation";
+import { CHAT_MAX_HISTORY_MESSAGES } from "@/lib/chat/constants";
 import { CHAT_ATTACHMENT_LIMITS } from "@/lib/chat/constants";
 import { resolveChatAttachmentsForModel } from "@/lib/chat/server/attachment-content";
 import { runChatAgentLoop } from "@/lib/chat/server/chat-agent-loop";
@@ -39,7 +40,6 @@ const MAX_CONVERSATION_ID_LENGTH = 120;
 const MAX_MESSAGE_LENGTH = 2_000;
 const MAX_HISTORY_MESSAGE_LENGTH = 4_000;
 const MAX_HISTORY_TOTAL_CHARS = 12_000;
-const MAX_HISTORY_MESSAGES = 12;
 const HISTORY_WINDOW = 6;
 const ROUTER_MAX_TOKENS = 160;
 const ROUTER_RESPONSE_FORMAT = {
@@ -216,7 +216,7 @@ export function validateChatRespondBody(
     return "message or attachments are required";
   }
 
-  if (!Array.isArray(body.messages) || body.messages.length > MAX_HISTORY_MESSAGES) {
+  if (!Array.isArray(body.messages) || body.messages.length > CHAT_MAX_HISTORY_MESSAGES) {
     return "messages must be an array of up to 12 chat history entries";
   }
 
@@ -509,6 +509,20 @@ function buildClarifyInstruction(params: {
   ].join("\n");
 }
 
+function buildRetrievalRewriteInstruction(params: {
+  pathname: string;
+  profileId: string;
+}) {
+  return [
+    "You rewrite user questions into short, standalone search queries for the P2E Inferno internal knowledge base.",
+    "Use the recent conversation history to infer the active topic and entity.",
+    "Expand vague follow-ups into explicit search queries when the history makes the target clear.",
+    "Return only the rewritten query text with no explanation, quotes, or JSON.",
+    `Current pathname: ${params.pathname}`,
+    `Route profile: ${params.profileId}`,
+  ].join("\n");
+}
+
 function buildAgentInstruction(params: {
   pathname: string;
   isAuthenticated: boolean;
@@ -528,7 +542,7 @@ function buildAgentInstruction(params: {
     "Rules:",
     "- Before answering any informational question, always search the knowledge base using the search_knowledge_base tool. Do not rely on prior conversation context or memory.",
     "- Only skip the knowledge base for pure greetings and acknowledgments with no question (e.g. 'hi', 'thanks', 'got it', 'ok').",
-    "- When the knowledge base result is weak or missing, say so clearly and give the safest next step. Never invent account state, balances, permissions, or outcomes.",
+    "- When the knowledge base result is weak or missing, say so clearly. Never invent account state, balances, permissions, outcomes, URLs, external links, social media handles, or in-app navigation paths. If the question is about a specific link, account, or external resource and the retrieved knowledge does not confirm it, say you cannot confirm it rather than guessing.",
     "- If the user shared an image, view it. If the user shared a video, watch it. Then search the knowledge base for relevant context and data before responding.",
     "",
     `Style: ${params.responseStyle}`,
@@ -538,6 +552,17 @@ function buildAgentInstruction(params: {
 
 function isToolAgentEnabled() {
   return process.env.CHAT_TOOL_AGENT_ENABLED === "true";
+}
+
+function isLightweightChatTurn(userText: string) {
+  const normalizedText = userText.trim().toLowerCase();
+  if (!normalizedText) {
+    return false;
+  }
+
+  return /^(?:hi|hello|hey|yo|sup|thanks|thank you|thx|ok|okay|kk|got it|cool|nice|alright|all right|sure|no worries|sounds good)[!.?]*$/i.test(
+    normalizedText,
+  );
 }
 
 function shouldPreferToolGrounding(params: {
@@ -554,18 +579,11 @@ function shouldPreferToolGrounding(params: {
     return false;
   }
 
-  if (
-    normalizeChatRoutePathname(params.pathname) === "/" &&
-    /(?:what should i do first|what do i do here|where do i begin|how do i start|how do i begin|get started|just landed here|first step)/i.test(
-      normalizedText,
-    )
-  ) {
-    return true;
+  if (isLightweightChatTurn(normalizedText)) {
+    return false;
   }
 
-  return /(?:where do i|how do i|why can'?t i|can i|should i|next step|first step|get started|wallet|quest|bootcamp|vendor|membership|profile|eligib|connect)/i.test(
-    normalizedText,
-  );
+  return true;
 }
 
 function getTextResultContent(
@@ -656,6 +674,61 @@ function getRouterFailureFallback(params: {
     retrievalQuery: "",
     rationale: `Router failed; defaulted to direct chat for ${params.pathname}.`,
   };
+}
+
+async function rewriteGroundedRetrievalQuery(params: {
+  pathname: string;
+  profileId: string;
+  userText: string;
+  historyMessages: AIChatMessage[];
+  signal?: AbortSignal;
+}) {
+  const rewrite = await chatCompletion({
+    model: process.env.OPENROUTER_CHAT_ROUTER_MODEL,
+    fallbacks: ["google/gemini-2.0-flash-001", "anthropic/claude-3-haiku"],
+    temperature: 0,
+    messages: [
+      {
+        role: "system",
+        content: buildRetrievalRewriteInstruction({
+          pathname: params.pathname,
+          profileId: params.profileId,
+        }),
+      },
+      ...params.historyMessages,
+      {
+        role: "user",
+        content: params.userText,
+      },
+    ],
+    signal: params.signal,
+  });
+
+  if (!rewrite.success) {
+    if (rewrite.code === "AI_CANCELLED") {
+      throw new DOMException("Retrieval query rewrite was cancelled", "AbortError");
+    }
+
+    log.warn("Retrieval query rewrite failed; using raw user text", {
+      pathname: params.pathname,
+      profile: params.profileId,
+      code: rewrite.code,
+      error: rewrite.error,
+    });
+    return params.userText;
+  }
+
+  const rewritten = getTextResultContent(rewrite)?.trim() || params.userText;
+
+  log.debug("Rewrote forced-grounding retrieval query", {
+    pathname: params.pathname,
+    profile: params.profileId,
+    originalUserTextPreview: params.userText.slice(0, 200),
+    rewrittenQueryPreview: rewritten.slice(0, 200),
+    historyMessageCount: params.historyMessages.length,
+  });
+
+  return rewritten;
 }
 
 async function routeChatIntent(params: {
@@ -923,7 +996,22 @@ export async function generateChatResponse(params: {
   }
 
   const intentDecision = forcedGrounding
-    ? { route: "grounded_kb" as ChatIntentRoute, retrievalQuery: userText }
+    ? {
+      route: "grounded_kb" as ChatIntentRoute,
+      // Skip text rewrite for attachment requests — the rewrite model cannot
+      // see the attached media, so a sparse text query ("what is this?") would
+      // produce a useless retrieval query. Let buildAttachmentOnlyRetrievalQuery
+      // handle it via the retrievalQuery fallback chain below.
+      retrievalQuery: hasAttachments
+        ? undefined
+        : await rewriteGroundedRetrievalQuery({
+          pathname: normalizedPathname,
+          profileId: profile.id,
+          userText,
+          historyMessages,
+          signal: params.signal,
+        }),
+    }
     : await routeChatIntent({
       pathname: normalizedPathname,
       isAuthenticated: params.isAuthenticated,
@@ -944,6 +1032,11 @@ export async function generateChatResponse(params: {
     domainTags: legacyProfile.domainTags,
     intentDecision,
   });
+
+  // When the tool-agent fell back to forced grounding, use the agent-resolved
+  // profile (which may differ from legacyProfile, e.g. home_onboarding vs
+  // home_sales) so the KB search uses the correct audience and limits.
+  const groundingProfile = forcedGrounding ? profile : legacyProfile;
 
   if (intentDecision.route === "chat_only") {
     const direct = await chatCompletion({
@@ -1071,13 +1164,13 @@ export async function generateChatResponse(params: {
     intentDecision.retrievalQuery ||
     userText ||
     buildAttachmentOnlyRetrievalQuery(
-      normalizedPathname, 
-      legacyProfile.domainTags, 
+      normalizedPathname,
+      groundingProfile.domainTags,
       hasVideo ? "video" : "image"
     );
   log.debug("Preparing grounded retrieval", {
     conversationId: params.body.conversationId,
-    profile: legacyProfile.id,
+    profile: groundingProfile.id,
     retrievalQuery,
     retrievalQueryLength: retrievalQuery.length,
   });
@@ -1090,15 +1183,15 @@ export async function generateChatResponse(params: {
   const results = await searchKnowledgeBase({
     queryText: retrievalQuery,
     queryEmbedding,
-    audience: legacyProfile.audience,
-    domainTags: legacyProfile.domainTags,
-    limit: legacyProfile.retrievalLimit,
-    freshnessDays: legacyProfile.freshnessDays,
+    audience: groundingProfile.audience,
+    domainTags: groundingProfile.domainTags,
+    limit: groundingProfile.retrievalLimit,
+    freshnessDays: groundingProfile.freshnessDays,
   });
 
   log.debug("Retrieved knowledge base results for chat", {
     conversationId: params.body.conversationId,
-    profile: legacyProfile.id,
+    profile: groundingProfile.id,
     retrievalQuery,
     resultCount: results.length,
     results: summarizeRetrievedChunks(results),
@@ -1108,13 +1201,13 @@ export async function generateChatResponse(params: {
     if (results.length === 0) {
       log.warn("Using zero-result retrieval fallback for chat response", {
         pathname: normalizedPathname,
-        profile: legacyProfile.id,
+        profile: groundingProfile.id,
         retrievalOutcome: "no_usable_results",
       });
     } else {
       log.warn("Using weak retrieval fallback for chat response", {
         pathname: normalizedPathname,
-        profile: legacyProfile.id,
+        profile: groundingProfile.id,
         topRank: results[0]?.rank ?? null,
         topSemanticRank: results[0]?.semantic_rank ?? null,
         conflicting: areResultsMeaningfullyConflicting(results),
@@ -1131,7 +1224,7 @@ export async function generateChatResponse(params: {
 
   log.debug("Selected prompt results for grounded answer", {
     conversationId: params.body.conversationId,
-    profile: legacyProfile.id,
+    profile: groundingProfile.id,
     promptResultCount: promptResults.length,
     promptResults: summarizeRetrievedChunks(promptResults),
   });
@@ -1141,16 +1234,16 @@ export async function generateChatResponse(params: {
     thinkingLevel,
     fallbacks: ["anthropic/claude-3-haiku"],
     temperature: 0.2,
-    maxTokens: legacyProfile.maxTokens ?? 450,
+    maxTokens: groundingProfile.maxTokens ?? 450,
       messages: [
       {
         role: "system",
         content: buildSystemInstruction({
           pathname: normalizedPathname,
           isAuthenticated: params.isAuthenticated,
-          objective: legacyProfile.assistantObjective,
-          responseStyle: legacyProfile.responseStyle,
-          weakRetrievalMode: legacyProfile.weakRetrievalMode,
+          objective: groundingProfile.assistantObjective,
+          responseStyle: groundingProfile.responseStyle,
+          weakRetrievalMode: groundingProfile.weakRetrievalMode,
         }),
       },
       ...historyMessages,
@@ -1179,7 +1272,7 @@ export async function generateChatResponse(params: {
       code: completion.code,
       error: completion.error,
       pathname: params.body.route.pathname,
-      profile: legacyProfile.id,
+      profile: groundingProfile.id,
     });
     throw new Error("Unable to generate a grounded response right now.");
   }
@@ -1190,7 +1283,7 @@ export async function generateChatResponse(params: {
 
   log.debug("Returning grounded chat response", {
     conversationId: params.body.conversationId,
-    profile: legacyProfile.id,
+    profile: groundingProfile.id,
     sourceCount: promptResults.length,
     responseLength: completionContent.length,
     responsePreview: completionContent.slice(0, 200),
@@ -1199,9 +1292,9 @@ export async function generateChatResponse(params: {
     message: createAssistantMessage(normalizeAppLinks(completionContent)),
     sources: mapSources(promptResults),
       retrievalMeta: {
-      profile: legacyProfile.id,
-      audience: legacyProfile.audience,
-      domainTags: legacyProfile.domainTags,
+      profile: groundingProfile.id,
+      audience: groundingProfile.audience,
+      domainTags: groundingProfile.domainTags,
       resultCount: results.length,
     },
   };

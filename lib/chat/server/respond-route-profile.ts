@@ -66,7 +66,7 @@ const SERVER_CHAT_ROUTE_PROFILES: Record<
   },
   lobby_support: {
     id: "lobby_support",
-    audience: ["support"],
+    audience: ["support", "ops"],
     domainTags: [
       "onboarding",
       "lobby",
