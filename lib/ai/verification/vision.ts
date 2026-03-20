@@ -41,7 +41,7 @@ export function buildVisionDecisionSystemPrompt(
   ].join("\n");
 }
 
-function parseVisionDecisionResponse(content: string): {
+export function parseVisionDecisionResponse(content: string): {
   decision: VisionDecision;
   confidence: number;
   reason: string;

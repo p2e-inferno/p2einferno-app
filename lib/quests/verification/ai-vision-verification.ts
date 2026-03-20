@@ -15,26 +15,13 @@ import type {
 } from "./types";
 import { getLogger } from "@/lib/utils/logger";
 import { verifyScreenshotWithAI } from "@/lib/ai/verification/vision";
-import { createHash } from "crypto";
+import { asRecord, hashUserId } from "./utils";
 
 const log = getLogger("quests:ai-vision-verification");
 
 const DEFAULT_VISION_MODEL = "google/gemini-2.0-flash-001";
 const DEFAULT_VISION_FALLBACKS = ["openai/gpt-4o-mini"];
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.7;
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function hashUserId(userId: string): string {
-  try {
-    return createHash("sha256").update(userId).digest("hex").slice(0, 12);
-  } catch {
-    return "redacted";
-  }
-}
 
 function extractScreenshotUrl(
   verificationData: Record<string, unknown>,

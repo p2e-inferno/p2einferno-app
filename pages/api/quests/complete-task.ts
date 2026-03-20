@@ -21,6 +21,10 @@ import {
   isTxHashRequiredTaskType,
 } from "@/lib/quests/vendorTaskTypes";
 import { sendQuestReviewNotification } from "@/lib/email/admin-notifications";
+import {
+  substituteContextTokens,
+  promptRequiresPrivyFetch,
+} from "@/lib/ai/verification/text";
 
 const log = getLogger("api:quests:complete-task");
 
@@ -297,7 +301,8 @@ export default async function handler(
     const requiresGeneralVerification = Boolean(
       strategy &&
       !requiresBlockchainVerification &&
-      task.task_type !== "submit_proof",
+      task.task_type !== "submit_proof" &&
+      task.task_type !== "submit_text",
     );
 
     if (requiresGeneralVerification && strategy) {
@@ -401,6 +406,133 @@ export default async function handler(
             ? clientVerificationData
             : {}),
           ...(proofUrl ? { proofUrl } : {}),
+          ...(result.metadata || {}),
+          verificationMethod: "ai",
+          aiDeferred: true,
+        };
+      }
+      // If AI_NOT_CONFIGURED, verificationData stays null — normal manual flow
+    }
+
+    // AI verification for submit_text tasks with AI config
+    const requiresAITextVerification = Boolean(
+      strategy &&
+      !requiresBlockchainVerification &&
+      task.task_type === "submit_text",
+    );
+
+    if (requiresAITextVerification && strategy) {
+      const submittedText = typeof inputData === "string" ? inputData.trim() : "";
+
+      const rawPrompt =
+        task.task_config &&
+        typeof (task.task_config as any).ai_verification_prompt === "string"
+          ? String((task.task_config as any).ai_verification_prompt).trim()
+          : "";
+
+      // Build token map — {wallet} is always available without a Privy call
+      const tokenMap: Record<string, string> = {
+        wallet: userWallet || "[not linked]",
+      };
+
+      // Conditionally fetch full Privy profile when social/account tokens are in the prompt
+      if (rawPrompt && promptRequiresPrivyFetch(rawPrompt)) {
+        const walletMatchMode =
+          task.task_config &&
+          (task.task_config as any).wallet_match_mode === "any_linked"
+            ? "any_linked"
+            : "active_only";
+
+        try {
+          const privy = createPrivyClient();
+          const profile: User = await privy.getUserById(effectiveUserId);
+          const accounts = profile?.linkedAccounts ?? [];
+
+          // External wallets
+          const externalWallets = accounts
+            .filter(isExternalWalletLinkedAccount)
+            .map((a) => a.address)
+            .filter(Boolean);
+          tokenMap.linked_wallets =
+            walletMatchMode === "any_linked" && externalWallets.length > 0
+              ? externalWallets.join(", ")
+              : "[not linked]";
+
+          // Email
+          const emailAccount = accounts.find((a) => a.type === "email");
+          tokenMap.email = (emailAccount as any)?.address || "[not linked]";
+
+          // Twitter/X
+          const twitterAccount = accounts.find((a) => a.type === "twitter_oauth");
+          tokenMap.x_username = (twitterAccount as any)?.username || "[not linked]";
+
+          // Discord
+          const discordAccount = accounts.find((a) => a.type === "discord_oauth");
+          tokenMap.discord_username = (discordAccount as any)?.username || "[not linked]";
+
+          // GitHub
+          const githubAccount = accounts.find((a) => a.type === "github_oauth");
+          tokenMap.github_username = (githubAccount as any)?.username || "[not linked]";
+
+          // Farcaster
+          const farcasterLinked = accounts.find(isFarcasterLinkedAccount);
+          tokenMap.farcaster_username = farcasterLinked?.username || "[not linked]";
+          tokenMap.farcaster_fid = farcasterLinked
+            ? String(farcasterLinked.fid)
+            : "[not linked]";
+
+          // Telegram
+          const telegramAccount = accounts.find((a) => a.type === "telegram");
+          tokenMap.telegram_username =
+            (telegramAccount as any)?.username || "[not linked]";
+        } catch (err: unknown) {
+          log.warn("Failed to fetch Privy profile for text token substitution", {
+            userId: effectiveUserId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+          // Proceed with only {wallet} resolved; social tokens remain [not linked]
+        }
+      }
+
+      const resolvedPrompt = rawPrompt
+        ? substituteContextTokens(rawPrompt, tokenMap)
+        : "";
+
+      const result = await strategy.verify(
+        task.task_type,
+        { inputData: submittedText, resolvedPrompt },
+        effectiveUserId,
+        userWallet || "",
+        { taskConfig: task.task_config || null, taskId },
+      );
+
+      if (!result.success && result.code === "AI_TEXT_REQUIRED") {
+        return res.status(400).json({
+          error: result.error || "Text submission is required",
+          code: "AI_TEXT_REQUIRED",
+        });
+      }
+
+      if (result.success) {
+        aiApproved = true;
+        verificationData = {
+          submittedText,
+          ...(result.metadata || {}),
+          verificationMethod: "ai",
+        };
+      } else if (result.code === "AI_RETRY" || result.code === "AI_LOW_CONFIDENCE") {
+        aiRetry = true;
+        aiRetryFeedback = result.error || "Please resubmit your answer";
+        verificationData = {
+          submittedText,
+          ...(result.metadata || {}),
+          verificationMethod: "ai",
+          aiRetry: true,
+        };
+      } else if (result.code !== "AI_NOT_CONFIGURED") {
+        aiDeferred = true;
+        verificationData = {
+          submittedText,
           ...(result.metadata || {}),
           verificationMethod: "ai",
           aiDeferred: true,

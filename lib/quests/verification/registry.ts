@@ -14,6 +14,7 @@ import { UniswapVerificationStrategy } from "./uniswap-verification";
 import { DailyCheckinVerificationStrategy } from "./daily-checkin-verification";
 import { GoodDollarVerificationStrategy } from "./gooddollar-verification";
 import { InAppPulloutVerificationStrategy } from "./in-app-pullout-verification";
+import { AITextVerificationStrategy } from "./ai-text-verification";
 import { createViemPublicClient } from "@/lib/blockchain/providers/privy-viem";
 import { createPublicClientForChain } from "@/lib/blockchain/config/clients/public-client";
 import { base } from "viem/chains";
@@ -33,6 +34,7 @@ const uniswapStrategy = new UniswapVerificationStrategy(baseMainnetClient);
 const dailyCheckinStrategy = new DailyCheckinVerificationStrategy();
 const goodDollarStrategy = new GoodDollarVerificationStrategy();
 const inAppPulloutStrategy = new InAppPulloutVerificationStrategy();
+const aiTextStrategy = new AITextVerificationStrategy();
 
 // Map of task types to their verification strategies
 const strategies: Partial<Record<TaskType, VerificationStrategy>> = {
@@ -46,6 +48,7 @@ const strategies: Partial<Record<TaskType, VerificationStrategy>> = {
   daily_checkin: dailyCheckinStrategy,
   gooddollar_verified: goodDollarStrategy,
   in_app_pullout: inAppPulloutStrategy,
+  submit_text: aiTextStrategy,
 };
 
 /**

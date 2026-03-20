@@ -833,11 +833,14 @@ export default function QuestTaskForm({
         </div>
       )}
 
-      {localTask.task_type === "submit_proof" && (
+      {(localTask.task_type === "submit_proof" ||
+        localTask.task_type === "submit_text") && (
         <div className="border border-gray-700 rounded-lg p-4 space-y-3 bg-gray-800/50">
           <h4 className="font-semibold text-white flex items-center gap-2">
             <Sparkles className="w-4 h-4" />
-            AI Screenshot Verification
+            {localTask.task_type === "submit_text"
+              ? "AI Text Verification"
+              : "AI Screenshot Verification"}
           </h4>
 
           <div className="bg-gray-900/40 border border-gray-700 rounded-lg p-3">
@@ -867,6 +870,30 @@ export default function QuestTaskForm({
             </div>
           </div>
 
+          {/* Token reference — submit_text only */}
+          {localTask.task_type === "submit_text" && (
+            <div className="bg-gray-900/60 border border-gray-700 rounded-lg p-3 space-y-1">
+              <p className="text-xs font-semibold text-gray-300">
+                Available tokens — insert anywhere in your prompt:
+              </p>
+              <div className="grid grid-cols-1 gap-0.5 font-mono text-xs text-gray-400">
+                <span><span className="text-flame-yellow">{"{wallet}"}</span> — Active wallet address (verified)</span>
+                <span><span className="text-flame-yellow">{"{linked_wallets}"}</span> — All linked wallet addresses, comma-separated *</span>
+                <span><span className="text-flame-yellow">{"{email}"}</span> — Linked email address</span>
+                <span><span className="text-flame-yellow">{"{x_username}"}</span> — X / Twitter handle</span>
+                <span><span className="text-flame-yellow">{"{discord_username}"}</span> — Discord username</span>
+                <span><span className="text-flame-yellow">{"{github_username}"}</span> — GitHub username</span>
+                <span><span className="text-flame-yellow">{"{farcaster_username}"}</span> — Farcaster handle</span>
+                <span><span className="text-flame-yellow">{"{farcaster_fid}"}</span> — Farcaster numeric ID</span>
+                <span><span className="text-flame-yellow">{"{telegram_username}"}</span> — Telegram username</span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                * Requires wallet matching set to "Any linked wallet" below.
+                Tokens for unlinked accounts resolve to [not linked].
+              </p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label
               htmlFor={`ai-verification-prompt-${index}`}
@@ -884,7 +911,11 @@ export default function QuestTaskForm({
               onChange={(e) =>
                 updateTaskConfig({ ai_verification_prompt: e.target.value })
               }
-              placeholder='Example: "The screenshot must show the user has completed Lesson 3 and the completion badge is visible."'
+              placeholder={
+                localTask.task_type === "submit_text"
+                  ? 'Example: "The user\'s proof code must be DG-{wallet}. Approve if the submitted text matches exactly (case-insensitive hex). Retry with explanation if it doesn\'t match."'
+                  : 'Example: "The screenshot must show the user has completed Lesson 3 and the completion badge is visible."'
+              }
               className="bg-transparent border-gray-700 text-gray-100 placeholder:text-gray-400 focus:ring-flame-yellow focus:ring-offset-0"
             />
             {Boolean((vendorConfig as any).ai_prompt_required) &&
@@ -901,6 +932,55 @@ export default function QuestTaskForm({
               always go to admin review.
             </p>
           </div>
+
+          {/* Wallet match mode — submit_text only */}
+          {localTask.task_type === "submit_text" && (
+            <div className="space-y-2">
+              <Label className="text-white">Wallet Matching</Label>
+              <div className="flex flex-col gap-2">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name={`wallet-match-mode-${index}`}
+                    value="active_only"
+                    checked={
+                      (vendorConfig as any).wallet_match_mode !== "any_linked"
+                    }
+                    onChange={() =>
+                      updateTaskConfig({ wallet_match_mode: "active_only" })
+                    }
+                    className="mt-0.5 accent-yellow-400"
+                  />
+                  <span className="text-sm text-gray-300">
+                    <span className="font-medium">Active wallet only</span>
+                    <span className="block text-xs text-gray-400">
+                      {"{wallet}"} = the verified connected wallet. Use when ownership of the specific active session wallet matters.
+                    </span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name={`wallet-match-mode-${index}`}
+                    value="any_linked"
+                    checked={
+                      (vendorConfig as any).wallet_match_mode === "any_linked"
+                    }
+                    onChange={() =>
+                      updateTaskConfig({ wallet_match_mode: "any_linked" })
+                    }
+                    className="mt-0.5 accent-yellow-400"
+                  />
+                  <span className="text-sm text-gray-300">
+                    <span className="font-medium">Any linked wallet</span>
+                    <span className="block text-xs text-gray-400">
+                      {"{linked_wallets}"} = all wallets the user has ever linked. Use when a user may submit an address from a wallet not active in their current session.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
@@ -921,7 +1001,7 @@ export default function QuestTaskForm({
                 className="bg-transparent border-gray-700 text-gray-100"
               />
               <p className="text-xs text-gray-400">
-                Leave blank to use the default vision model.
+                Leave blank to use the default model.
               </p>
             </div>
 
