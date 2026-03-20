@@ -4,18 +4,36 @@ import type {
   VerificationOptions,
 } from "./types";
 import type { TaskType } from "@/lib/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/server";
 import { getLogger } from "@/lib/utils/logger";
+import { getUserWalletAddresses } from "@/lib/auth/privy";
 import {
   getIdentityExpiry,
   calculateExpiryTimestamp,
   isVerificationExpired,
 } from "@/lib/gooddollar/identity-sdk";
+import { resolveSafeGoodDollarWalletCandidates } from "@/lib/gooddollar/verification-ownership";
 
 const log = getLogger("quests:verification:gooddollar");
 
 interface GoodDollarTaskConfig {
   require_active?: boolean; // default true — checks expiry
+}
+
+async function resolveGoodDollarCandidateWallets(params: {
+  userId: string;
+  userAddress: string;
+  supabase: SupabaseClient;
+}) {
+  const linkedWallets = await getUserWalletAddresses(params.userId);
+
+  return resolveSafeGoodDollarWalletCandidates({
+    supabase: params.supabase,
+    privyUserId: params.userId,
+    linkedWallets,
+    preferredWallet: params.userAddress,
+  });
 }
 
 export class GoodDollarVerificationStrategy implements VerificationStrategy {
@@ -63,30 +81,80 @@ export class GoodDollarVerificationStrategy implements VerificationStrategy {
             };
           }
         } else {
-          // Fallback: no expiry in DB (legacy/admin-set record) — verify on-chain
-          log.info("No expiry in DB for verified user, falling back to on-chain check", { userId, userAddress });
-          try {
-            const expiryData = await getIdentityExpiry(userAddress as `0x${string}`);
-            const expiryMs = calculateExpiryTimestamp(expiryData.lastAuthenticated, expiryData.authPeriod);
-            if (isVerificationExpired(expiryMs)) {
-              return {
-                success: false,
-                error: "GoodDollar verification has expired — please re-verify",
-                code: "VERIFICATION_EXPIRED",
-              };
-            }
-          } catch (rpcError: unknown) {
-            log.warn("On-chain GoodDollar expiry check failed — cannot confirm verification status", {
+          // Legacy/admin-set rows may lack a stored expiry. Re-check on-chain
+          // across the user's safe linked wallets, constrained by the app-level
+          // ownership map so wallet rotation cannot be used to game verification.
+          const candidateWallets = await resolveGoodDollarCandidateWallets({
+            userId,
+            userAddress,
+            supabase,
+          });
+
+          log.info(
+            "No expiry in DB for verified user, falling back to linked-wallet on-chain check",
+            {
               userId,
               userAddress,
-              error: rpcError instanceof Error ? rpcError.message : String(rpcError),
-            });
+              candidateWalletCount: candidateWallets.length,
+            },
+          );
+
+          if (candidateWallets.length === 0) {
             return {
               success: false,
-              error: "Could not confirm GoodDollar verification status — please try again",
+              error: "Could not confirm GoodDollar verification status — no eligible linked wallet found",
               code: "GOODDOLLAR_RPC_ERROR",
             };
           }
+
+          let hadSuccessfulChainCheck = false;
+
+          for (const candidateWallet of candidateWallets) {
+            try {
+              const expiryData = await getIdentityExpiry(candidateWallet);
+              const expiryMs = calculateExpiryTimestamp(
+                expiryData.lastAuthenticated,
+                expiryData.authPeriod,
+              );
+              hadSuccessfulChainCheck = true;
+
+              if (!isVerificationExpired(expiryMs)) {
+                return {
+                  success: true,
+                  metadata: {
+                    face_verification_expiry: null,
+                    face_verification_wallet: candidateWallet,
+                  },
+                };
+              }
+            } catch (rpcError: unknown) {
+              log.warn(
+                "On-chain GoodDollar expiry check failed for linked wallet",
+                {
+                  userId,
+                  candidateWallet,
+                  error:
+                    rpcError instanceof Error
+                      ? rpcError.message
+                      : String(rpcError),
+                },
+              );
+            }
+          }
+
+          if (hadSuccessfulChainCheck) {
+            return {
+              success: false,
+              error: "GoodDollar verification has expired — please re-verify",
+              code: "VERIFICATION_EXPIRED",
+            };
+          }
+
+          return {
+            success: false,
+            error: "Could not confirm GoodDollar verification status — please try again",
+            code: "GOODDOLLAR_RPC_ERROR",
+          };
         }
       }
 

@@ -26,6 +26,90 @@ interface ClaimParams {
   source?: string;
 }
 
+interface ResolveCandidateParams {
+  supabase: SupabaseClient;
+  privyUserId: string;
+  linkedWallets: string[];
+  preferredWallet?: string | null;
+}
+
+interface VerifiedWalletMapRow {
+  wallet_address: string | null;
+  privy_user_id?: string | null;
+}
+
+export interface GoodDollarVerifiedWalletOwnershipState {
+  walletOwner: VerifiedWalletMapRow | null;
+  userWallet: VerifiedWalletMapRow | null;
+}
+
+function normalizeWalletAddress(value: string): `0x${string}` | null {
+  const trimmed = value.trim();
+  if (!/^0x[a-fA-F0-9]{40}$/.test(trimmed)) return null;
+  return trimmed.toLowerCase() as `0x${string}`;
+}
+
+function dedupeWallets(values: Array<string | null | undefined>): `0x${string}`[] {
+  const seen = new Set<string>();
+  const result: `0x${string}`[] = [];
+
+  for (const value of values) {
+    if (!value) continue;
+    const normalized = normalizeWalletAddress(value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+  }
+
+  return result;
+}
+
+export async function getGoodDollarVerifiedWalletOwnershipState(params: {
+  supabase: SupabaseClient;
+  walletAddress: `0x${string}`;
+  privyUserId: string;
+}): Promise<GoodDollarVerifiedWalletOwnershipState> {
+  const { supabase, walletAddress, privyUserId } = params;
+
+  const [
+    { data: walletOwner, error: ownerError },
+    { data: userWallet, error: userWalletError },
+  ] = await Promise.all([
+    supabase
+      .from("gooddollar_verified_wallet_map")
+      .select("wallet_address, privy_user_id")
+      .eq("wallet_address", walletAddress)
+      .maybeSingle(),
+    supabase
+      .from("gooddollar_verified_wallet_map")
+      .select("wallet_address, privy_user_id")
+      .eq("privy_user_id", privyUserId)
+      .maybeSingle(),
+  ]);
+
+  if (ownerError) {
+    log.error("Failed reading wallet ownership mapping", {
+      walletAddress,
+      privyUserId,
+      error: ownerError,
+    });
+    throw ownerError;
+  }
+  if (userWalletError) {
+    log.error("Failed reading user verification mapping", {
+      walletAddress,
+      privyUserId,
+      error: userWalletError,
+    });
+    throw userWalletError;
+  }
+
+  return {
+    walletOwner: walletOwner ?? null,
+    userWallet: userWallet ?? null,
+  };
+}
+
 /**
  * Claim wallet ownership for GoodDollar verification.
  *
@@ -41,21 +125,13 @@ export async function claimOrValidateVerifiedWalletOwnership({
   proofHash,
   source = "callback",
 }: ClaimParams): Promise<OwnershipResult> {
-  // Check wallet ownership first (fast path)
-  const { data: existingWalletOwner, error: ownerError } = await supabase
-    .from("gooddollar_verified_wallet_map")
-    .select("wallet_address, privy_user_id")
-    .eq("wallet_address", walletAddress)
-    .maybeSingle();
-
-  if (ownerError) {
-    log.error("Failed reading wallet ownership mapping", {
-      walletAddress,
-      privyUserId,
-      error: ownerError,
-    });
-    throw ownerError;
-  }
+  const ownership = await getGoodDollarVerifiedWalletOwnershipState({
+    supabase,
+    walletAddress,
+    privyUserId,
+  });
+  const existingWalletOwner = ownership.walletOwner;
+  const existingUserWallet = ownership.userWallet;
 
   if (
     existingWalletOwner &&
@@ -67,22 +143,6 @@ export async function claimOrValidateVerifiedWalletOwnership({
       code: GOODDOLLAR_OWNERSHIP_CONFLICT_CODE,
       message: `Wallet ${walletAddress} has already been used to verify another account in this app.`,
     };
-  }
-
-  // Ensure one verified wallet per app account
-  const { data: existingUserWallet, error: userWalletError } = await supabase
-    .from("gooddollar_verified_wallet_map")
-    .select("wallet_address, privy_user_id")
-    .eq("privy_user_id", privyUserId)
-    .maybeSingle();
-
-  if (userWalletError) {
-    log.error("Failed reading user verification mapping", {
-      walletAddress,
-      privyUserId,
-      error: userWalletError,
-    });
-    throw userWalletError;
   }
 
   if (
@@ -210,4 +270,72 @@ export async function claimOrValidateVerifiedWalletOwnership({
     error: insertError,
   });
   throw insertError;
+}
+
+/**
+ * Resolve the safe wallet candidates to use for GoodDollar verification checks.
+ *
+ * Rules:
+ * - Only linked wallets are eligible.
+ * - If the user already has a claimed verified wallet in-app, that wallet is authoritative.
+ * - Otherwise, exclude linked wallets that are already claimed by another app user.
+ */
+export async function resolveSafeGoodDollarWalletCandidates({
+  supabase,
+  privyUserId,
+  linkedWallets,
+  preferredWallet,
+}: ResolveCandidateParams): Promise<`0x${string}`[]> {
+  const normalizedLinkedWallets = dedupeWallets(linkedWallets);
+  const normalizedPreferredWallet = preferredWallet
+    ? normalizeWalletAddress(preferredWallet)
+    : null;
+  const orderedLinkedWallets = dedupeWallets([
+    normalizedLinkedWallets.includes(
+      normalizedPreferredWallet as `0x${string}`,
+    )
+      ? normalizedPreferredWallet
+      : null,
+    ...normalizedLinkedWallets,
+  ]);
+  if (orderedLinkedWallets.length === 0) return [];
+  const probeWallet = orderedLinkedWallets[0]!;
+
+  const ownership = await getGoodDollarVerifiedWalletOwnershipState({
+    supabase,
+    walletAddress: probeWallet,
+    privyUserId,
+  });
+  const mappedWallet = normalizeWalletAddress(
+    ownership.userWallet?.wallet_address ?? "",
+  );
+
+  if (mappedWallet) {
+    return orderedLinkedWallets.includes(mappedWallet) ? [mappedWallet] : [];
+  }
+
+  const { data: claimedWalletRows, error: claimedWalletsError } = await supabase
+    .from("gooddollar_verified_wallet_map")
+    .select("wallet_address")
+    .in("wallet_address", orderedLinkedWallets)
+    .neq("privy_user_id", privyUserId);
+
+  if (claimedWalletsError) {
+    log.error("Failed reading linked wallet ownership mappings", {
+      privyUserId,
+      linkedWallets: orderedLinkedWallets,
+      error: claimedWalletsError,
+    });
+    throw claimedWalletsError;
+  }
+
+  const conflictingWallets = new Set(
+    (claimedWalletRows || [])
+      .filter((row) => row?.wallet_address)
+      .map((row) => String(row.wallet_address).toLowerCase()),
+  );
+
+  return orderedLinkedWallets.filter(
+    (wallet) => !conflictingWallets.has(wallet.toLowerCase()),
+  );
 }

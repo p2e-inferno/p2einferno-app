@@ -582,3 +582,74 @@ describe("link_telegram", () => {
     expect(supabase._insertFn).not.toHaveBeenCalled();
   });
 });
+
+describe("submit_text", () => {
+  it("rejects empty text submissions even when input_required is false", async () => {
+    const supabase = makeSupabase({
+      task_type: "submit_text",
+      input_required: false,
+      requires_admin_review: false,
+      verification_method: "manual_review",
+      task_config: null,
+    });
+    mockCreateAdminClient.mockReturnValue(supabase as any);
+    mockGetStrategy.mockReturnValue({
+      verify: jest.fn().mockResolvedValue({
+        success: false,
+        code: "AI_NOT_CONFIGURED",
+        error: "AI verification not configured for this task",
+      }),
+    } as any);
+
+    const req = makeReq({
+      questId: "quest-1",
+      taskId: "task-1",
+      inputData: "   ",
+      verificationData: { inputData: "   " },
+    });
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(res._statusCode).toBe(400);
+    expect(res._body).toEqual(
+      expect.objectContaining({
+        code: "TEXT_REQUIRED",
+      }),
+    );
+    expect(supabase._insertFn).not.toHaveBeenCalled();
+  });
+});
+
+describe("verification failure status mapping", () => {
+  it("preserves internal verification failures as HTTP 500", async () => {
+    const supabase = makeSupabase({
+      task_type: "gooddollar_verified",
+      verification_method: "automatic",
+    });
+    mockCreateAdminClient.mockReturnValue(supabase as any);
+    mockGetStrategy.mockReturnValue({
+      verify: jest.fn().mockResolvedValue({
+        success: false,
+        code: "DB_ERROR",
+        error: "Failed to verify GoodDollar status",
+      }),
+    } as any);
+
+    const req = makeReq({
+      questId: "quest-1",
+      taskId: "task-1",
+    });
+    const res = makeRes();
+
+    await handler(req, res);
+
+    expect(res._statusCode).toBe(500);
+    expect(res._body).toEqual(
+      expect.objectContaining({
+        code: "DB_ERROR",
+      }),
+    );
+    expect(supabase._insertFn).not.toHaveBeenCalled();
+  });
+});

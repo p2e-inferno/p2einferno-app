@@ -22,7 +22,18 @@ export class InAppPulloutVerificationStrategy implements VerificationStrategy {
     options?: VerificationOptions,
   ): Promise<VerificationResult> {
     const taskConfig = options?.taskConfig as InAppPulloutTaskConfig | undefined;
-    const minAmountDg = taskConfig?.min_amount_dg;
+    let minAmountDg = taskConfig?.min_amount_dg;
+
+    // amount_dg is an integer column — coerce fractional thresholds to avoid
+    // silent rounding (e.g. 1.5 would effectively become >= 2 on integers).
+    if (minAmountDg !== undefined && !Number.isInteger(minAmountDg)) {
+      const ceiled = Math.ceil(minAmountDg);
+      log.warn("min_amount_dg is fractional; coercing to integer via Math.ceil", {
+        original: minAmountDg,
+        ceiled,
+      });
+      minAmountDg = ceiled;
+    }
 
     try {
       const supabase = createAdminClient();

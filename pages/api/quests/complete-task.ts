@@ -30,8 +30,13 @@ import {
   getTaskConfigString,
   getWalletMatchMode,
 } from "@/lib/quests/task-config";
+import { asRecord } from "@/lib/quests/verification/utils";
 
 const log = getLogger("api:quests:complete-task");
+
+/** Server-side length cap for text submissions sent to AI verification.
+ *  Consistent with MAX_MESSAGE_LENGTH in the chat system. */
+const MAX_SUBMISSION_LENGTH = 2_000;
 
 type FarcasterLinkedAccount = Extract<
   LinkedAccountWithMetadata,
@@ -56,20 +61,33 @@ function isExternalWalletLinkedAccount(
   );
 }
 
-function asObjectRecord(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return null;
-  }
-
-  return value as Record<string, unknown>;
-}
-
 function getStringProperty(
   value: Record<string, unknown> | null,
   key: string,
 ): string | undefined {
   const field = value?.[key];
   return typeof field === "string" ? field : undefined;
+}
+
+function verificationFailureStatus(code?: string): number {
+  const internalFailureCodes = new Set([
+    "AI_PARSE_ERROR",
+    "AI_REQUEST_FAILED",
+    "AI_SERVICE_ERROR",
+    "AI_UNEXPECTED_TOOL_CALL",
+    "CHECKIN_VERIFICATION_ERROR",
+    "DB_ERROR",
+    "GOODDOLLAR_RPC_ERROR",
+    "GOODDOLLAR_VERIFICATION_ERROR",
+    "INVALID_CONFIG",
+    "INVALID_TASK_CONFIG",
+    "PULLOUT_VERIFICATION_ERROR",
+    "TASK_CONFIG_MISSING",
+    "VENDOR_CONFIG_ERROR",
+    "VERIFICATION_ERROR",
+  ]);
+
+  return code && internalFailureCodes.has(code) ? 500 : 400;
 }
 
 export default async function handler(
@@ -134,12 +152,11 @@ export default async function handler(
       });
     } catch (walletErr: unknown) {
       const status = walletValidationErrorToHttpStatus(walletErr);
-      const safeStatus = status === 500 ? 400 : status;
       const message =
         walletErr instanceof Error
           ? walletErr.message
           : "Invalid X-Active-Wallet header";
-      return res.status(safeStatus).json({ error: message });
+      return res.status(status).json({ error: message });
     }
 
     // Check prerequisites before allowing task completion
@@ -205,8 +222,17 @@ export default async function handler(
 
     // Build verification data (server-authored only)
     let verificationData: Record<string, unknown> | null = null;
-    const clientVerificationRecord = asObjectRecord(clientVerificationData);
+    const clientVerificationRecord = asRecord(clientVerificationData);
     const taskConfig = asQuestTaskConfig(task.task_config);
+    const normalizedInputText =
+      typeof getStringProperty(clientVerificationRecord, "inputData") ===
+      "string"
+        ? String(
+            getStringProperty(clientVerificationRecord, "inputData"),
+          ).trim()
+        : typeof inputData === "string"
+          ? inputData.trim()
+          : "";
     const rawClientTxHash = getStringProperty(
       clientVerificationRecord,
       "transactionHash",
@@ -232,19 +258,25 @@ export default async function handler(
 
     // Basic input validation for proof submissions to prevent bypasses via crafted requests.
     if (task.task_type === "submit_proof") {
-      const proofUrlFromClient =
-        typeof getStringProperty(clientVerificationRecord, "inputData") ===
-        "string"
-          ? String(
-              getStringProperty(clientVerificationRecord, "inputData"),
-            ).trim()
-          : typeof inputData === "string"
-            ? inputData.trim()
-            : "";
-      if (!proofUrlFromClient) {
+      if (!normalizedInputText) {
         return res.status(400).json({
           error: "Screenshot proof URL is required",
           code: "PROOF_URL_REQUIRED",
+        });
+      }
+    }
+
+    if (task.task_type === "submit_text") {
+      if (!normalizedInputText) {
+        return res.status(400).json({
+          error: "Text submission is required",
+          code: "TEXT_REQUIRED",
+        });
+      }
+      if (normalizedInputText.length > MAX_SUBMISSION_LENGTH) {
+        return res.status(400).json({
+          error: `Text submission exceeds the maximum length of ${MAX_SUBMISSION_LENGTH} characters`,
+          code: "SUBMISSION_TOO_LONG",
         });
       }
     }
@@ -274,7 +306,7 @@ export default async function handler(
       );
 
       if (!result.success) {
-        return res.status(400).json({
+        return res.status(verificationFailureStatus(result.code)).json({
           error: result.error || "Verification failed",
           code: result.code || "VERIFICATION_FAILED",
         });
@@ -339,7 +371,7 @@ export default async function handler(
       );
 
       if (!result.success) {
-        return res.status(400).json({
+        return res.status(verificationFailureStatus(result.code)).json({
           error: result.error || "Verification failed",
           code: result.code || "VERIFICATION_FAILED",
         });
@@ -363,15 +395,7 @@ export default async function handler(
     );
 
     if (requiresAIVerification && strategy) {
-      const proofUrl =
-        typeof getStringProperty(clientVerificationRecord, "inputData") ===
-        "string"
-          ? String(
-              getStringProperty(clientVerificationRecord, "inputData"),
-            ).trim()
-          : typeof inputData === "string"
-            ? inputData.trim()
-            : null;
+      const proofUrl = normalizedInputText || null;
 
       const aiInput = {
         ...(clientVerificationRecord || {}),
@@ -402,8 +426,7 @@ export default async function handler(
           verificationMethod: "ai",
         };
       } else if (
-        result.code === "AI_RETRY" ||
-        result.code === "AI_LOW_CONFIDENCE"
+        result.code === "AI_RETRY"
       ) {
         aiRetry = true;
         aiRetryFeedback = result.error || "Please resubmit your proof";
@@ -436,8 +459,7 @@ export default async function handler(
     );
 
     if (requiresAITextVerification && strategy) {
-      const submittedText =
-        typeof inputData === "string" ? inputData.trim() : "";
+      const submittedText = normalizedInputText;
 
       const rawPrompt = getTaskConfigString(
         taskConfig,
@@ -471,7 +493,7 @@ export default async function handler(
           // Email
           const emailAccount = accounts.find((a) => a.type === "email");
           tokenMap.email =
-            getStringProperty(asObjectRecord(emailAccount), "address") ||
+            getStringProperty(asRecord(emailAccount), "address") ||
             "[not linked]";
 
           // Twitter/X
@@ -479,7 +501,7 @@ export default async function handler(
             (a) => a.type === "twitter_oauth",
           );
           tokenMap.x_username =
-            getStringProperty(asObjectRecord(twitterAccount), "username") ||
+            getStringProperty(asRecord(twitterAccount), "username") ||
             "[not linked]";
 
           // Discord
@@ -487,13 +509,13 @@ export default async function handler(
             (a) => a.type === "discord_oauth",
           );
           tokenMap.discord_username =
-            getStringProperty(asObjectRecord(discordAccount), "username") ||
+            getStringProperty(asRecord(discordAccount), "username") ||
             "[not linked]";
 
           // GitHub
           const githubAccount = accounts.find((a) => a.type === "github_oauth");
           tokenMap.github_username =
-            getStringProperty(asObjectRecord(githubAccount), "username") ||
+            getStringProperty(asRecord(githubAccount), "username") ||
             "[not linked]";
 
           // Farcaster
@@ -507,7 +529,7 @@ export default async function handler(
           // Telegram
           const telegramAccount = accounts.find((a) => a.type === "telegram");
           tokenMap.telegram_username =
-            getStringProperty(asObjectRecord(telegramAccount), "username") ||
+            getStringProperty(asRecord(telegramAccount), "username") ||
             "[not linked]";
         } catch (err: unknown) {
           log.warn(
@@ -548,8 +570,7 @@ export default async function handler(
           verificationMethod: "ai",
         };
       } else if (
-        result.code === "AI_RETRY" ||
-        result.code === "AI_LOW_CONFIDENCE"
+        result.code === "AI_RETRY"
       ) {
         aiRetry = true;
         aiRetryFeedback = result.error || "Please resubmit your answer";
